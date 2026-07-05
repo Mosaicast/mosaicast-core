@@ -1,0 +1,64 @@
+# Copy into the core repo root. Local v1 stack: app + Postgres.
+# Start:  cp .env.example .env  (fill in)  →  docker compose up --build
+# Redis + reverse proxy are prepared for v3 and commented out.
+# Backups: schedule a nightly pg_dump of the db (host cron or a sidecar), keep a copy off the VPS, and test a restore once.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mosaicast}
+      POSTGRES_USER: ${POSTGRES_USER:-mosaicast}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - mosaicast-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mosaicast} -d ${POSTGRES_DB:-mosaicast}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .                         # Dockerfile is created by the core agent (multi-stage: Gradle build + JRE)
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # core maps these to its properties in application.yml.
+      MOSAICAST_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-mosaicast}
+      MOSAICAST_DB_USER: ${POSTGRES_USER:-mosaicast}
+      MOSAICAST_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+      MOSAICAST_PLUGINS_DIR: /app/plugins
+      MOSAICAST_BASE_URL: ${MOSAICAST_BASE_URL:-http://localhost:8080}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      ADMIN_BOOTSTRAP_PROVIDER: ${ADMIN_BOOTSTRAP_PROVIDER:-discord}
+      ADMIN_BOOTSTRAP_EXTERNAL_ID: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:-}
+      MOSAICAST_ENCRYPTION_KEY: ${MOSAICAST_ENCRYPTION_KEY:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ./plugins:/app/plugins        # drop built plugins here (= MOSAICAST_PLUGINS_DIR in the container)
+    healthcheck:                      # Spring Actuator; make sure wget (or curl) exists in the runtime image
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+  # --- v3 (commented out, until load-balanced / Redis sessions are needed) ---
+  # redis:
+  #   image: redis:7-alpine
+  #   volumes: [ mosaicast-redis:/data ]
+  #   restart: unless-stopped
+  # proxy:
+  #   image: caddy:2-alpine
+  #   ports: [ "80:80", "443:443" ]
+  #   volumes: [ ./Caddyfile:/etc/caddy/Caddyfile, caddy-data:/data ]
+  #   depends_on: [ app ]
+
+volumes:
+  mosaicast-db:
+  # mosaicast-redis:
+  # caddy-data:
