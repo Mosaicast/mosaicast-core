@@ -4,53 +4,40 @@
 # Multi-stage image for the Mosaicast host: build the React/Vite shell, build the Spring Boot
 # backend (with the shell baked into its static resources), then ship a slim JRE runtime.
 #
-# SDK NOTE (pre-publish): the plugin SDK (@mosaicast/plugin-sdk, dev.mosaicast:plugin-api) is not on
-# a public registry yet. Until it is published, provide it to the build as BuildKit additional
-# contexts so nothing bakes a sibling-folder path into committed files:
+# SDK resolution: the frontend's @mosaicast/plugin-sdk comes from the public npm registry (no secret).
+# The backend's Java artifacts (dev.mosaicast:plugin-api / plugin-testkit) live in GitHub Packages,
+# which requires authentication even for reads — pass a token as a BuildKit secret:
 #
+#   GITHUB_ACTOR=<user> GITHUB_TOKEN=<PAT with read:packages> \
 #   docker buildx build \
-#     --build-context plugin_sdk_js=../mosaicast-plugin-sdk \
-#     --build-context plugin_sdk_m2=$HOME/.m2/repository \
+#     --secret id=github_actor,env=GITHUB_ACTOR \
+#     --secret id=github_token,env=GITHUB_TOKEN \
 #     -t mosaicast-core .
 #
-# Once the SDK is published, drop the --build-context flags: the frontend resolves it from npm and the
-# backend from Maven Central (the fallback paths below become no-ops).
-#
-# The two stages below are EMPTY by default (FROM scratch): with no --build-context, the COPY steps
-# inject nothing (no phantom image pull), and the build resolves the SDK from the registries. Passing
-# --build-context plugin_sdk_js=<dir> / plugin_sdk_m2=<dir> overrides the same-named stage with the
-# real SDK for a pre-publish build.
-FROM scratch AS plugin_sdk_js
-FROM scratch AS plugin_sdk_m2
+# (Publishing the Java artifacts to Maven Central later would remove the need for the backend secret.)
 
 # ---------- Stage 1: frontend (React/Vite → static bundle) ----------
 FROM node:24-alpine AS frontend
 WORKDIR /build/frontend
-# Pre-publish: the SDK repo root is injected here; post-publish this context is empty and ignored.
-COPY --from=plugin_sdk_js . /build/plugin-sdk
-COPY frontend/package.json ./
-# Install the local SDK (if injected) so the "@mosaicast/plugin-sdk": "0.1.0" spec resolves, then the
-# rest of the dependency tree. --no-save keeps package.json clean (the committed spec is unchanged).
-RUN if [ -f /build/plugin-sdk/package.json ]; then npm install --no-save /build/plugin-sdk; fi \
-    && npm install --no-audit --no-fund
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
 # ---------- Stage 2: backend (Spring Boot fat JAR) ----------
 FROM eclipse-temurin:21-jdk AS backend
 WORKDIR /build
-# Pre-publish: the developer's Maven Local (containing dev.mosaicast:plugin-api) is injected here so
-# Gradle's mavenLocal() resolves the SDK; post-publish this context is empty and Maven Central is used.
-COPY --from=plugin_sdk_m2 . /root/.m2/repository
 COPY gradlew ./
 COPY gradle ./gradle
 COPY settings.gradle.kts build.gradle.kts ./
-# Warm the dependency cache before copying sources (better layer caching).
-RUN ./gradlew --no-daemon dependencies >/dev/null 2>&1 || true
 COPY src ./src
 # The shell built in stage 1 becomes part of the backend's served static resources.
 COPY --from=frontend /build/src/main/resources/static ./src/main/resources/static
-RUN ./gradlew --no-daemon clean bootJar -x test
+# Gradle reads GITHUB_ACTOR/GITHUB_TOKEN to resolve the SDK from GitHub Packages (see header).
+RUN --mount=type=secret,id=github_actor --mount=type=secret,id=github_token \
+    GITHUB_ACTOR="$(cat /run/secrets/github_actor 2>/dev/null || true)" \
+    GITHUB_TOKEN="$(cat /run/secrets/github_token 2>/dev/null || true)" \
+    ./gradlew --no-daemon clean bootJar -x test
 
 # ---------- Stage 3: runtime (slim JRE) ----------
 FROM eclipse-temurin:21-jre AS runtime

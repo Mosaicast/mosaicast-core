@@ -7,20 +7,19 @@ Part of **[Mosaicast](https://github.com/mosaicast)** — an extensible website 
 ## What is this?
 See `docs/ARCHITECTURE.md` for the big picture and `docs/BRIEF.md` for this repo's scope.
 
-## Prerequisite: the plugin SDK (pre-publish)
+## Prerequisite: the plugin SDK
 
-Core builds against **`@mosaicast/plugin-sdk`** (TS) and **`dev.mosaicast:plugin-api`** (Java). The SDK
-lives in a sibling repo and is **not on a public registry yet**, so link it locally first (this is a
-temporary, uncommitted step — the committed dependency specs stay at the plain version `0.1.0`):
+Core builds against the published **`@mosaicast/plugin-sdk`** — the TypeScript package on **npm** (public)
+and the Java artifacts (`dev.mosaicast:plugin-api` / `plugin-testkit`) in **GitHub Packages**. Pin the
+version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.1.1`).
 
-```bash
-# In the SDK repo (../mosaicast-plugin-sdk):
-./gradlew publishToMavenLocal     # → dev.mosaicast:plugin-api / plugin-testkit in ~/.m2
-npm ci && npm run build && npm link   # global link of @mosaicast/plugin-sdk (target = SDK repo root)
-```
-
-Gradle resolves the SDK from `mavenLocal()`; the frontend resolves it via `npm link` (below). Once the
-SDK is published, these steps disappear and the versions resolve from Maven Central / npm directly.
+- **Frontend:** resolves from public npm — nothing extra, just `npm install`.
+- **Backend:** GitHub Packages requires authentication even for reads. Either
+  - set `gpr.user` / `gpr.key` in `~/.gradle/gradle.properties` (a PAT with `read:packages`), or export
+    `GITHUB_ACTOR` / `GITHUB_TOKEN`; **or**
+  - for offline/local work, publish the SDK to your Maven Local from the sibling repo
+    (`../mosaicast-plugin-sdk`): `./gradlew publishToMavenLocal` — Gradle checks `mavenLocal()` first, so
+    no token is needed.
 
 ## Build & test
 
@@ -28,8 +27,7 @@ SDK is published, these steps disappear and the versions resolve from Maven Cent
 ./gradlew build            # backend: compile + unit + Testcontainers integration tests (needs Docker)
 
 cd frontend
-npm install
-npm link @mosaicast/plugin-sdk   # link the SDK (see above); do this after install
+npm ci                     # installs @mosaicast/plugin-sdk from public npm
 npm test                   # Vitest component tests
 npm run build              # builds the shell into ../src/main/resources/static
 ```
@@ -56,8 +54,9 @@ that mints a session for any role **without Discord**. It exists **only** under 
 structurally absent in production — never enable it on a deployed instance. The real Discord OAuth flow
 needs real `DISCORD_CLIENT_ID`/`SECRET` and gets a one-time manual browser test at deployment.
 
-The **Dockerfile** is multi-stage (Vite build → Gradle `bootJar` → slim JRE, shell baked in). Pre-publish,
-`docker compose build` needs the SDK provided as BuildKit build contexts — see the header of `Dockerfile`.
+The **Dockerfile** is multi-stage (Vite build → Gradle `bootJar` → slim JRE, shell baked in). The frontend
+resolves the SDK from public npm; the backend needs a GitHub Packages token passed as a BuildKit secret —
+see the header of `Dockerfile` for the `docker buildx build --secret …` invocation.
 Plugins folder via `MOSAICAST_PLUGINS_DIR` (in the container `/app/plugins`, volume `./plugins`).
 Layout reference for the shell: `docs/reference/mosaicast-mockup.jsx` (NOT the real architecture).
 

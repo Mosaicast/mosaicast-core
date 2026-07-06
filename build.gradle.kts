@@ -17,9 +17,23 @@ java {
 }
 
 repositories {
-    // The plugin SDK (dev.mosaicast:plugin-api / plugin-testkit) is published to the
-    // developer's Maven Local until it is on a public registry — see README dev setup.
+    // Local convenience: a developer who ran the SDK's publishToMavenLocal resolves it here without a
+    // token (see README dev setup).
     mavenLocal()
+    // The plugin SDK's Java artifacts (dev.mosaicast:plugin-api / plugin-testkit) live in GitHub
+    // Packages, which requires authentication even for reads. Credentials come from the GITHUB_ACTOR /
+    // GITHUB_TOKEN environment (set automatically in GitHub Actions) or the gpr.user / gpr.key Gradle
+    // properties (~/.gradle/gradle.properties) for local builds.
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/Mosaicast/mosaicast-plugin-sdk")
+        credentials {
+            username = providers.gradleProperty("gpr.user")
+                .orElse(providers.environmentVariable("GITHUB_ACTOR")).orNull
+            password = providers.gradleProperty("gpr.key")
+                .orElse(providers.environmentVariable("GITHUB_TOKEN")).orNull
+        }
+    }
     mavenCentral()
 }
 

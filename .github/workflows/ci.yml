@@ -3,10 +3,9 @@
 #
 # Build + test on every PR and on pushes to the default branch (Definition of Done: green CI).
 #
-# The plugin SDK is a separate repo and is not published to a public registry yet, so this workflow
-# builds it first — publishing plugin-api/plugin-testkit to Maven Local and linking @mosaicast/plugin-sdk
-# for the shell — then builds and tests core against it. Once the SDK is on Maven Central + npm, the
-# "Build SDK" job can be dropped and the version specs resolve from the registries directly.
+# The plugin SDK is published: @mosaicast/plugin-sdk on npm (public) and the Java artifacts
+# (plugin-api / plugin-testkit) in GitHub Packages. The backend resolves the Java artifacts from
+# GitHub Packages using the workflow's GITHUB_TOKEN; the frontend resolves the npm package normally.
 
 name: CI
 
@@ -15,6 +14,10 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches: [main, master]
+
+permissions:
+  contents: read
+  packages: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -25,21 +28,8 @@ jobs:
     name: Build & test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout core
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: mosaicast-core
-
-      - name: Checkout plugin SDK
-        uses: actions/checkout@v4
-        with:
-          repository: Mosaicast/mosaicast-plugin-sdk
-          # The SDK repo is private, and the default GITHUB_TOKEN cannot read it cross-repo. Set an org
-          # PAT with read access to mosaicast-plugin-sdk as the CI_PAT secret; the fallback keeps the
-          # workflow valid meanwhile (it then fails at auth rather than at config). Once the SDK is
-          # published (Maven Central + npm) or made public, this whole job can be dropped.
-          token: ${{ secrets.CI_PAT || github.token }}
-          path: mosaicast-plugin-sdk
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -51,28 +41,21 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      # --- SDK: publish Java artifacts to Maven Local, build + link the TS package ---
-      - name: Build SDK (Java → Maven Local)
-        working-directory: mosaicast-plugin-sdk
-        run: ./gradlew --no-daemon publishToMavenLocal
-
-      - name: Build SDK (TS)
-        working-directory: mosaicast-plugin-sdk
-        run: |
-          npm ci
-          npm run build
-
-      # --- Core backend: unit + Testcontainers integration tests (Docker is available on the runner) ---
+      # Backend: unit + Testcontainers integration tests (Docker is available on the runner). Gradle
+      # resolves the plugin SDK's Java artifacts from GitHub Packages using GITHUB_TOKEN.
       - name: Build backend
-        working-directory: mosaicast-core
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew --no-daemon build
 
-      # --- Core frontend: install deps + the built SDK from its folder (keeps package.json's plain
-      #     "0.1.0" spec — no committed path), then test and build the shell bundle. ---
+      # Frontend: install from the public npm registry (SDK included), test, build the shell bundle.
       - name: Build frontend
-        working-directory: mosaicast-core/frontend
+        working-directory: frontend
         run: |
-          npm install --no-save --no-audit --no-fund ../../mosaicast-plugin-sdk
+          npm ci
           npm test
           npm run build
