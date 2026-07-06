@@ -33,8 +33,11 @@ jobs:
       - name: Checkout plugin SDK
         uses: actions/checkout@v4
         with:
-          repository: mosaicast/mosaicast-plugin-sdk
-          ref: main
+          repository: Mosaicast/mosaicast-plugin-sdk
+          # The SDK repo's default branch. Its private-ness means the default GITHUB_TOKEN cannot read
+          # it cross-repo — set an org PAT with read access as the CI_PAT secret. Once the SDK is
+          # published (Maven Central + npm) or made public, this whole job can be dropped.
+          token: ${{ secrets.CI_PAT }}
           path: mosaicast-plugin-sdk
 
       - name: Set up JDK 21
