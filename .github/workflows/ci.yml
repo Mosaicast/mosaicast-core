@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Build + test on every PR and on pushes to the default branch (Definition of Done: green CI).
+#
+# The plugin SDK is a separate repo and is not published to a public registry yet, so this workflow
+# builds it first — publishing plugin-api/plugin-testkit to Maven Local and linking @mosaicast/plugin-sdk
+# for the shell — then builds and tests core against it. Once the SDK is on Maven Central + npm, the
+# "Build SDK" job can be dropped and the version specs resolve from the registries directly.
+
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout core
+        uses: actions/checkout@v4
+        with:
+          path: mosaicast-core
+
+      - name: Checkout plugin SDK
+        uses: actions/checkout@v4
+        with:
+          repository: mosaicast/mosaicast-plugin-sdk
+          ref: main
+          path: mosaicast-plugin-sdk
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      # --- SDK: publish Java artifacts to Maven Local, build + link the TS package ---
+      - name: Build SDK (Java → Maven Local)
+        working-directory: mosaicast-plugin-sdk
+        run: ./gradlew --no-daemon publishToMavenLocal
+
+      - name: Build SDK (TS) and link
+        working-directory: mosaicast-plugin-sdk
+        run: |
+          npm ci
+          npm run build
+          npm link
+
+      # --- Core backend: unit + Testcontainers integration tests (Docker is available on the runner) ---
+      - name: Build backend
+        working-directory: mosaicast-core
+        run: ./gradlew --no-daemon build
+
+      # --- Core frontend: link the SDK, install, test, build the shell bundle ---
+      - name: Build frontend
+        working-directory: mosaicast-core/frontend
+        run: |
+          npm install --no-audit --no-fund
+          npm link @mosaicast/plugin-sdk
+          npm test
+          npm run build
