@@ -57,23 +57,22 @@ jobs:
         working-directory: mosaicast-plugin-sdk
         run: ./gradlew --no-daemon publishToMavenLocal
 
-      - name: Build SDK (TS) and link
+      - name: Build SDK (TS)
         working-directory: mosaicast-plugin-sdk
         run: |
           npm ci
           npm run build
-          npm link
 
       # --- Core backend: unit + Testcontainers integration tests (Docker is available on the runner) ---
       - name: Build backend
         working-directory: mosaicast-core
         run: ./gradlew --no-daemon build
 
-      # --- Core frontend: link the SDK, install, test, build the shell bundle ---
+      # --- Core frontend: install deps + the built SDK from its folder (keeps package.json's plain
+      #     "0.1.0" spec — no committed path), then test and build the shell bundle. ---
       - name: Build frontend
         working-directory: mosaicast-core/frontend
         run: |
-          npm install --no-audit --no-fund
-          npm link @mosaicast/plugin-sdk
+          npm install --no-save --no-audit --no-fund ../../mosaicast-plugin-sdk
           npm test
           npm run build
