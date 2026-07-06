@@ -14,14 +14,19 @@ rome = "2.1.0"
 pf4j = "3.13.0"
 shedlock = "5.16.0"
 jsoup = "1.18.3"
+commonsText = "1.13.0"
 
 [libraries]
 # --- Mosaicast plugin SDK (consumed from mavenLocal — see README dev setup) ---
 mosaicast-plugin-api = { module = "dev.mosaicast:plugin-api", version.ref = "mosaicastSdk" }
 mosaicast-plugin-testkit = { module = "dev.mosaicast:plugin-testkit", version.ref = "mosaicastSdk" }
 
-# --- Feed parsing ---
+# --- Feed parsing (rome-modules adds the iTunes namespace: season/episode/duration) ---
 rome = { module = "com.rometools:rome", version.ref = "rome" }
+rome-modules = { module = "com.rometools:rome-modules", version.ref = "rome" }
+
+# --- Fuzzy title matching for the reconciler's PLANNED binding (Jaro-Winkler) ---
+commons-text = { module = "org.apache.commons:commons-text", version.ref = "commonsText" }
 
 # --- Plugin loading (plugins stay Spring-free: plain PF4J extensions) ---
 pf4j = { module = "org.pf4j:pf4j", version.ref = "pf4j" }

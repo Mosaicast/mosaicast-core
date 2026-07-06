@@ -51,6 +51,8 @@ dependencies {
 
     // --- Feed pipeline, plugin loading, scheduler locks, sanitizing ---
     implementation(libs.rome)
+    implementation(libs.rome.modules)
+    implementation(libs.commons.text)
     implementation(libs.pf4j)
     implementation(libs.shedlock.spring)
     implementation(libs.shedlock.provider.jdbc.template)
