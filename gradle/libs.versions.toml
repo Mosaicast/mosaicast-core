@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Version catalog for mosaicast-core. Spring Boot's BOM governs the versions of
+# everything it manages; only libraries outside the BOM pin an explicit version here.
+
+[versions]
+springBoot = "3.4.1"
+springDependencyManagement = "1.1.7"
+# The plugin contract this host builds against. MUST match the built SDK
+# (dev.mosaicast:plugin-api / @mosaicast/plugin-sdk) and the manifest platformApi.
+mosaicastSdk = "0.1.0"
+rome = "2.1.0"
+pf4j = "3.13.0"
+shedlock = "5.16.0"
+jsoup = "1.18.3"
+
+[libraries]
+# --- Mosaicast plugin SDK (consumed from mavenLocal — see README dev setup) ---
+mosaicast-plugin-api = { module = "dev.mosaicast:plugin-api", version.ref = "mosaicastSdk" }
+mosaicast-plugin-testkit = { module = "dev.mosaicast:plugin-testkit", version.ref = "mosaicastSdk" }
+
+# --- Feed parsing ---
+rome = { module = "com.rometools:rome", version.ref = "rome" }
+
+# --- Plugin loading (plugins stay Spring-free: plain PF4J extensions) ---
+pf4j = { module = "org.pf4j:pf4j", version.ref = "pf4j" }
+
+# --- Scheduler locks (multi-instance-ready from day one) ---
+shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
+shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
+
+# --- HTML/SVG sanitizing (branding uploads, legal/wiki markdown) ---
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+
+[plugins]
+spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
+spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }
