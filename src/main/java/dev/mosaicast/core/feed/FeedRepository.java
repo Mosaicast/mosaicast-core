@@ -4,7 +4,6 @@
 package dev.mosaicast.core.feed;
 
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
@@ -13,7 +12,4 @@ public interface FeedRepository extends JpaRepository<Feed, UUID> {
 
     /** Enabled feeds the scheduler should poll. */
     List<Feed> findByEnabledTrue();
-
-    /** The single manual source that holds host-created planned episodes (§4.3), if it exists yet. */
-    Optional<Feed> findFirstByType(String type);
 }
