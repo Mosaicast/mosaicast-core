@@ -24,6 +24,9 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     /** Every ref of a feed, regardless of status — used to detect items that vanished (§5.2 case 3). */
     List<EpisodeRef> findByFeedId(UUID feedId);
 
+    /** Count of refs in a feed (for admin feed listings). */
+    long countByFeedId(UUID feedId);
+
     /** Distinct seasons present in a feed (a season is "all refs with season=N", §4.4). */
     @Query("""
             select distinct e.season from EpisodeRef e
