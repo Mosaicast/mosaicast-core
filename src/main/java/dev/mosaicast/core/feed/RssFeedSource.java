@@ -66,10 +66,10 @@ public class RssFeedSource implements FeedSource {
         if (status != 200) {
             throw new FetchException("Feed fetch failed with HTTP " + status + " for " + cfg.url());
         }
-        List<RawEpisode> episodes = parse(response.body(), cfg.url());
+        ParsedFeed parsed = parse(response.body(), cfg.url());
         String etag = response.headers().firstValue("ETag").orElse(null);
         String lastModified = response.headers().firstValue("Last-Modified").orElse(null);
-        return FetchResult.changed(episodes, etag, lastModified);
+        return FetchResult.changed(parsed.episodes(), etag, lastModified, parsed.feedTitle());
     }
 
     private HttpResponse<byte[]> get(SourceConfig cfg) throws FetchException {
@@ -94,15 +94,19 @@ public class RssFeedSource implements FeedSource {
         }
     }
 
-    /** Parses an RSS/Atom body into raw episodes. Package-visible so the reconciler tests can reuse it. */
-    List<RawEpisode> parse(byte[] body, String url) throws FetchException {
+    /** Parsed feed: the channel title plus its items. */
+    record ParsedFeed(String feedTitle, List<RawEpisode> episodes) {
+    }
+
+    /** Parses an RSS/Atom body into the channel title + raw episodes. Package-visible for tests. */
+    ParsedFeed parse(byte[] body, String url) throws FetchException {
         try (var in = new ByteArrayInputStream(body)) {
             SyndFeed feed = new SyndFeedInput().build(new XmlReader(in));
             List<RawEpisode> episodes = new ArrayList<>(feed.getEntries().size());
             for (SyndEntry entry : feed.getEntries()) {
                 episodes.add(toRawEpisode(entry));
             }
-            return episodes;
+            return new ParsedFeed(feed.getTitle(), episodes);
         } catch (Exception e) {
             throw new FetchException("Failed to parse feed body from " + url, e);
         }
