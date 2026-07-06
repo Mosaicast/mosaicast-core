@@ -34,10 +34,11 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Mosaicast/mosaicast-plugin-sdk
-          # The SDK repo's default branch. Its private-ness means the default GITHUB_TOKEN cannot read
-          # it cross-repo — set an org PAT with read access as the CI_PAT secret. Once the SDK is
+          # The SDK repo is private, and the default GITHUB_TOKEN cannot read it cross-repo. Set an org
+          # PAT with read access to mosaicast-plugin-sdk as the CI_PAT secret; the fallback keeps the
+          # workflow valid meanwhile (it then fails at auth rather than at config). Once the SDK is
           # published (Maven Central + npm) or made public, this whole job can be dropped.
-          token: ${{ secrets.CI_PAT }}
+          token: ${{ secrets.CI_PAT || github.token }}
           path: mosaicast-plugin-sdk
 
       - name: Set up JDK 21
