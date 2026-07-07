@@ -1,0 +1,53 @@
+# Production stack: PULLS the prebuilt image from GHCR instead of building it (no Gradle, no SDK
+# token needed at deploy time). The image is published by .github/workflows/release.yml on each release.
+#
+# Start:  cp .env.example .env  (fill in)  ->  MOSAICAST_VERSION=0.1.0 docker compose -f docker-compose.prod.yml up -d
+#         (omit MOSAICAST_VERSION to run :latest)
+# Backups: schedule a nightly pg_dump of the db, keep a copy off the VPS, and test a restore once.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mosaicast}
+      POSTGRES_USER: ${POSTGRES_USER:-mosaicast}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - mosaicast-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mosaicast} -d ${POSTGRES_DB:-mosaicast}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    image: ghcr.io/mosaicast/mosaicast-core:${MOSAICAST_VERSION:-latest}
+    pull_policy: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MOSAICAST_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-mosaicast}
+      MOSAICAST_DB_USER: ${POSTGRES_USER:-mosaicast}
+      MOSAICAST_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+      MOSAICAST_PLUGINS_DIR: /app/plugins
+      MOSAICAST_BASE_URL: ${MOSAICAST_BASE_URL:-http://localhost:8080}
+      DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
+      DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      ADMIN_BOOTSTRAP_PROVIDER: ${ADMIN_BOOTSTRAP_PROVIDER:-discord}
+      ADMIN_BOOTSTRAP_EXTERNAL_ID: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:-}
+      MOSAICAST_ENCRYPTION_KEY: ${MOSAICAST_ENCRYPTION_KEY:-}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ./plugins:/app/plugins
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    restart: unless-stopped
+
+volumes:
+  mosaicast-db:

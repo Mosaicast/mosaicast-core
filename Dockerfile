@@ -27,9 +27,11 @@ RUN npm run build
 # ---------- Stage 2: backend (Spring Boot fat JAR) ----------
 FROM eclipse-temurin:21-jdk AS backend
 WORKDIR /build
+# Release builds pass the version from the git tag; otherwise the gradle.properties value is used.
+ARG APP_VERSION=
 COPY gradlew ./
 COPY gradle ./gradle
-COPY settings.gradle.kts build.gradle.kts ./
+COPY settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY src ./src
 # The shell built in stage 1 becomes part of the backend's served static resources.
 COPY --from=frontend /build/src/main/resources/static ./src/main/resources/static
@@ -37,7 +39,7 @@ COPY --from=frontend /build/src/main/resources/static ./src/main/resources/stati
 RUN --mount=type=secret,id=github_actor --mount=type=secret,id=github_token \
     GITHUB_ACTOR="$(cat /run/secrets/github_actor 2>/dev/null || true)" \
     GITHUB_TOKEN="$(cat /run/secrets/github_token 2>/dev/null || true)" \
-    ./gradlew --no-daemon clean bootJar -x test
+    ./gradlew --no-daemon ${APP_VERSION:+-Pversion=$APP_VERSION} clean bootJar -x test
 
 # ---------- Stage 3: runtime (slim JRE) ----------
 FROM eclipse-temurin:21-jre AS runtime
