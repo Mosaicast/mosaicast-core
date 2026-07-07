@@ -5,6 +5,7 @@ package dev.mosaicast.core;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
 /**
  * Entry point of the Mosaicast host (backend + served React/Vite shell).
@@ -14,6 +15,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * per-feature packages under {@code dev.mosaicast.core}.
  */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class MosaicastApplication {
 
     public static void main(String[] args) {
