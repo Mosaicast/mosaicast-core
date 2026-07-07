@@ -60,6 +60,29 @@ see the header of `Dockerfile` for the `docker buildx build --secret …` invoca
 Plugins folder via `MOSAICAST_PLUGINS_DIR` (in the container `/app/plugins`, volume `./plugins`).
 Layout reference for the shell: `docs/reference/mosaicast-mockup.jsx` (NOT the real architecture).
 
+## Versioning & releases
+
+- **Single source of truth:** the core version lives in **`gradle.properties`** (`version=…`). It is
+  filtered into `build-metadata.properties` at build time, served at **`GET /api/meta`**, and shown in
+  the shell next to the plugin SDK version. Nothing else sets it.
+- **Scheme:** the minor version tracks the build milestone — **M1 = `0.1.x`, M2 = `0.2.x`**, … — and is
+  independent of the plugin-contract (SDK) version. See [`CHANGELOG.md`](CHANGELOG.md).
+- **Cutting a release:** bump `gradle.properties`, update `CHANGELOG.md`, then tag `vX.Y.Z` and publish a
+  GitHub Release. `.github/workflows/release.yml` builds the image and pushes it to
+  **`ghcr.io/mosaicast/mosaicast-core:X.Y.Z`** and `:latest` (the image's `/api/meta` version is stamped
+  from the tag).
+
+### Dev vs. production compose
+
+- **Dev** — `docker-compose.yml` **builds** the image locally (needs the GitHub Packages token, above):
+  ```bash
+  docker compose up --build
+  ```
+- **Production** — `docker-compose.prod.yml` **pulls** the released image from GHCR (no build, no token):
+  ```bash
+  MOSAICAST_VERSION=0.1.0 docker compose -f docker-compose.prod.yml up -d   # omit to run :latest
+  ```
+
 ## Project layout
 
 ```
