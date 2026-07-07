@@ -2,5 +2,6 @@
   "app.title": "Mosaicast",
   "app.tagline": "An extensible home for podcasts",
   "skeleton.booting": "The host shell is up. Feeds, player and plugins arrive in the next milestones.",
-  "skeleton.platformApi": "Plugin contract"
+  "skeleton.coreVersion": "Core",
+  "skeleton.platformApi": "Plugin SDK"
 }

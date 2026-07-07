@@ -8,7 +8,8 @@ plugins {
 }
 
 group = "dev.mosaicast"
-version = "0.1.0-SNAPSHOT"
+// version comes from gradle.properties (the single source of truth); a release build overrides it
+// from the tag with -Pversion=<tag>.
 
 java {
     toolchain {
@@ -90,6 +91,14 @@ dependencies {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
+}
+
+// Filter the build version into build-metadata.properties (only that file, so it never collides with
+// the ${...} placeholders in application.yml). Served at /api/meta and shown in the shell.
+tasks.processResources {
+    filesMatching("build-metadata.properties") {
+        expand("coreVersion" to project.version.toString())
+    }
 }
 
 tasks.withType<Test>().configureEach {

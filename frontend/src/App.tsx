@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import { PLATFORM_API_VERSION } from '@mosaicast/plugin-sdk';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -11,6 +12,25 @@ import { useTranslation } from 'react-i18next';
  */
 export default function App() {
   const { t, i18n } = useTranslation();
+  const [coreVersion, setCoreVersion] = useState<string | null>(null);
+
+  // The core version is served by the backend (single source: gradle.properties → /api/meta).
+  useEffect(() => {
+    let active = true;
+    fetch('/api/meta')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { version?: string } | null) => {
+        if (active && data?.version) {
+          setCoreVersion(data.version);
+        }
+      })
+      .catch(() => {
+        /* meta is non-critical; leave it unset */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const toggleLocale = () => {
     const next = i18n.language.startsWith('de') ? 'en' : 'de';
@@ -35,6 +55,8 @@ export default function App() {
         <h1>{t('app.tagline')}</h1>
         <p>{t('skeleton.booting')}</p>
         <p className="shell__muted">
+          {t('skeleton.coreVersion')}: <code>{coreVersion ?? '…'}</code>
+          {'  ·  '}
           {t('skeleton.platformApi')}: <code>{PLATFORM_API_VERSION}</code>
         </p>
       </section>
