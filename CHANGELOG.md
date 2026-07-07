@@ -12,6 +12,14 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **Auth & identity (M2, ARCHITECTURE §8):** social login (Discord) via Spring Security `oauth2Login`,
+  `User` + `LinkedIdentity` keyed on `(provider, external_id)`, account-merging rules (§8.3), server-side
+  sessions with CSRF, RBAC (ADMIN/PODCASTER/FAN), env-bootstrapped admin, `/api/me` + identity management
+  with last-identity lockout protection, podcaster-scoped personal access tokens, and a `dev`-profile-only
+  login bypass for local testing.
+
 ## [0.1.0] — 2026-07-07
 
 First milestone: the host boots, serves the shell, and ingests RSS feeds.
