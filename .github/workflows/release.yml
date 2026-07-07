@@ -1,29 +1,53 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 #
-# On a published GitHub Release, build the container image and push it to the GitHub Container
-# Registry (GHCR) as ghcr.io/mosaicast/mosaicast-core:<version> and :latest. Production deployments
-# pull that image (docker-compose.prod.yml) instead of building.
+# Publish the core container image when a GitHub Release is published (NOT on PR merge).
 #
-# Cut a release: tag the commit `vX.Y.Z` (matching gradle.properties) and publish a GitHub Release.
-
+# Flow: draft a Release with a tag like `v0.1.0`. This workflow verifies the tag matches the version
+# anchor (gradle.properties), then builds + pushes the image:
+#   - ghcr.io/mosaicast/mosaicast-core → GitHub Container Registry (tag + :latest)
+#
+# The version anchor is the source of truth; the tag must equal it. Bump it in gradle.properties.
 name: Release
 
 on:
   release:
     types: [published]
 
-permissions:
-  contents: read
-  packages: write
-
 jobs:
-  publish-image:
-    name: Build & push image
+  verify:
+    name: Verify tag == version anchor
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - name: Assert tag matches the core version
+        id: check
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          tag_v="${TAG#v}"   # strip an optional leading 'v'
+          gradle_v=$(grep -oP '^version\s*=\s*\K.+' gradle.properties | head -1)
+          echo "tag=$tag_v gradle=$gradle_v"
+          if [ "$gradle_v" != "$tag_v" ]; then
+            echo "::error::Release tag '$TAG' ($tag_v) does not match the version anchor '$gradle_v' in gradle.properties. Bump gradle.properties and re-tag."
+            exit 1
+          fi
+          echo "version=$tag_v" >> "$GITHUB_OUTPUT"
+          echo "Core version aligned at $tag_v ✅"
+
+  publish-image:
+    name: Build & push image to GHCR
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write   # required to push to the GitHub Container Registry
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
@@ -35,25 +59,23 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image metadata (tags from the release tag)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository }}
-          tags: |
-            type=semver,pattern={{version}}
-            type=raw,value=latest
+      - name: Resolve image name (lowercase)
+        id: img
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
         with:
           context: .
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          # Stamp the image's core version from the release tag (feeds /api/meta).
+          tags: |
+            ${{ steps.img.outputs.name }}:${{ needs.verify.outputs.version }}
+            ${{ steps.img.outputs.name }}:latest
+          # Stamp the image's core version from the verified tag (feeds /api/meta).
           build-args: |
-            APP_VERSION=${{ steps.meta.outputs.version }}
+            APP_VERSION=${{ needs.verify.outputs.version }}
           # The backend stage resolves the SDK's Java artifacts from GitHub Packages.
           secrets: |
             github_actor=${{ github.actor }}
