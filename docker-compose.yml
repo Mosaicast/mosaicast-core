@@ -19,7 +19,14 @@ services:
     restart: unless-stopped
 
   app:
-    build: .                         # Dockerfile is created by the core agent (multi-stage: Gradle build + JRE)
+    build:
+      context: .
+      # The backend image fetches the plugin SDK's Java artifacts from GitHub Packages (auth required
+      # even for public reads). These BuildKit secrets carry a token to the Gradle step only — they are
+      # never baked into the image. Set GITHUB_ACTOR / GITHUB_TOKEN (PAT with read:packages) in .env.
+      secrets:
+        - github_actor
+        - github_token
     depends_on:
       db:
         condition: service_healthy
@@ -62,3 +69,11 @@ volumes:
   mosaicast-db:
   # mosaicast-redis:
   # caddy-data:
+
+# Build-time secrets for resolving the plugin SDK from GitHub Packages (see the app.build.secrets note).
+# Sourced from the environment (compose loads .env), so nothing sensitive is committed.
+secrets:
+  github_actor:
+    environment: GITHUB_ACTOR
+  github_token:
+    environment: GITHUB_TOKEN

@@ -1,0 +1,88 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/*
+ * M0 baseline. The real semantic theme tokens come from the seed generator (OKLCH + WCAG clamp,
+ * ARCHITECTURE §12.3) in M5; these placeholder --mc-* values keep the shell readable meanwhile and
+ * establish the token names the shell and plugins both read.
+ */
+:root {
+  --mc-bg: #fdf6ee;
+  --mc-surface: #ffffff;
+  --mc-text: #1c1a17;
+  --mc-text-muted: #6b6459;
+  --mc-accent: #c8553d;
+  --mc-accent-contrast: #fff8f2;
+  --mc-border: #e7ddcf;
+}
+
+:root[data-theme='dark'] {
+  --mc-bg: #17140f;
+  --mc-surface: #221d16;
+  --mc-text: #f3ece0;
+  --mc-text-muted: #a89e8e;
+  --mc-accent: #e07a5f;
+  --mc-accent-contrast: #1c1712;
+  --mc-border: #342d23;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--mc-bg);
+  color: var(--mc-text);
+}
+
+.shell__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--mc-surface);
+  border-bottom: 1px solid var(--mc-border);
+}
+
+.shell__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  font-size: 1.15rem;
+  color: var(--mc-accent);
+}
+
+.shell__mark {
+  width: 1.6rem;
+  height: 1.6rem;
+  display: block;
+}
+
+.shell__lang {
+  border: 1px solid var(--mc-border);
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  border-radius: 6px;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+
+.shell__body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.shell__muted {
+  color: var(--mc-text-muted);
+}
+
+code {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+}

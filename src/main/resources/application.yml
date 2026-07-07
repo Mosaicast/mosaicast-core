@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Default (production) configuration. Values bind to the environment variables that
+# docker-compose.yml supplies; the localhost fallbacks are for running outside Docker.
+
+spring:
+  application:
+    name: mosaicast-core
+  datasource:
+    url: ${MOSAICAST_DB_URL:jdbc:postgresql://localhost:5432/mosaicast}
+    username: ${MOSAICAST_DB_USER:mosaicast}
+    password: ${MOSAICAST_DB_PASSWORD:mosaicast}
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema (ARCHITECTURE §2) — Hibernate never mutates it.
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+# Host-wide settings (bound in feature @ConfigurationProperties as they land).
+mosaicast:
+  base-url: ${MOSAICAST_BASE_URL:http://localhost:8080}
+  plugins-dir: ${MOSAICAST_PLUGINS_DIR:./plugins}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Mosaicast
+    description: Extensible website platform for podcasts
+
+server:
+  # Uploads are bounded (ARCHITECTURE §13); tightened per-endpoint later.
+  tomcat:
+    max-http-form-post-size: 20MB
+  error:
+    whitelabel:
+      enabled: false

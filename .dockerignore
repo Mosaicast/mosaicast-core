@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Keep host build artifacts out of the Docker build context. Critically, host node_modules holds a
+# dangling npm-link symlink to the sibling SDK that would break the in-container install.
+
+**/node_modules
+**/dist
+build/
+.gradle/
+out/
+bin/
+# Generated frontend bundle — rebuilt inside the image's frontend stage.
+src/main/resources/static/
+# VCS / local / env
+.git
+.gitignore
+*.log
+.env
+*.local
+.idea/
+.vscode/

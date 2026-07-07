@@ -8,6 +8,8 @@ bin/
 node_modules/
 dist/
 *.log
+# Generated frontend bundle (built into the backend's static resources by the frontend build)
+/src/main/resources/static/
 # Env / secrets
 .env
 *.local

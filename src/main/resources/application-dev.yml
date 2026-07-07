@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Local development profile. Activate with: --spring.profiles.active=dev
+#
+# WARNING: this profile enables the dev-login bypass (added in M2), which mints a session
+# for any role WITHOUT Discord. It exists ONLY under the `dev` profile and must never be
+# active in production. Do not add dev-login settings to .env.example or docker-compose.yml.
+
+spring:
+  jpa:
+    show-sql: false
+  flyway:
+    clean-disabled: false
+
+logging:
+  level:
+    dev.mosaicast: DEBUG
