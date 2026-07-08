@@ -3,16 +3,17 @@
 
 package dev.mosaicast.core.auth;
 
+import dev.mosaicast.core.web.ConflictException;
+import dev.mosaicast.core.web.ExplicitLinkRequiredException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
@@ -54,15 +55,29 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
         // authentication is still in the context during the callback.
         UUID currentUserId = CurrentUser.id(SecurityContextHolder.getContext().getAuthentication()).orElse(null);
 
-        User user = accounts.resolveLogin(claim, currentUserId);
+        User user = resolve(claim, currentUserId);
         return toPrincipal(user, attrs);
+    }
+
+    /**
+     * Applies the merging rules, translating the domain outcomes that should stop the login into
+     * {@link OAuth2AuthenticationException}s so {@code oauth2Login().failureUrl(...)} redirects cleanly
+     * (§8.3) instead of surfacing a 500.
+     */
+    private User resolve(IdentityClaim claim, UUID currentUserId) {
+        try {
+            return accounts.resolveLogin(claim, currentUserId);
+        } catch (ConflictException e) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("account_conflict"), e.getMessage(), e);
+        } catch (ExplicitLinkRequiredException e) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("link_required"), e.getMessage(), e);
+        }
     }
 
     private static OAuth2User toPrincipal(User user, Map<String, Object> discordAttrs) {
         Map<String, Object> attrs = new HashMap<>(discordAttrs);
         attrs.put(UID_ATTRIBUTE, user.getId().toString());
-        var authorities = Set.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
-        return new DefaultOAuth2User(authorities, attrs, UID_ATTRIBUTE);
+        return new DefaultOAuth2User(CurrentUser.authoritiesFor(user.getRole()), attrs, UID_ATTRIBUTE);
     }
 
     private static String displayName(Map<String, Object> attrs) {

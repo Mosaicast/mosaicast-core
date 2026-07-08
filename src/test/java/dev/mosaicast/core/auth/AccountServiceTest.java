@@ -4,12 +4,15 @@
 package dev.mosaicast.core.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import dev.mosaicast.core.web.ConflictException;
+import dev.mosaicast.core.web.ExplicitLinkRequiredException;
 import dev.mosaicast.plugin.api.Role;
 import java.util.List;
 import java.util.Optional;
@@ -23,8 +26,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 /**
  * Risk-point unit tests for the account-merging rules (ARCHITECTURE §8.3, §13.5). Covers all branches:
- * known identity, link-while-logged-in, verified-email auto-link, and the conservative fallbacks that
- * create a separate account rather than merge silently.
+ * known identity, cross-user link conflict, link-while-logged-in, the conservative verified-email variant
+ * (require explicit linking, never merge silently), email normalization, and bootstrap-admin promotion.
  */
 @ExtendWith(MockitoExtension.class)
 class AccountServiceTest {
@@ -82,18 +85,51 @@ class AccountServiceTest {
     }
 
     @Test
-    void case3_anonymousVerifiedEmailMatchesVerifiedIdentity_autoLinks() {
-        UUID targetUserId = UUID.randomUUID();
-        User target = User.create("Alex", null, Role.FAN);
+    void case1_linkingIdentityOwnedByAnotherUser_throwsConflict() {
+        UUID currentUserId = UUID.randomUUID();
+        UUID otherUserId = UUID.randomUUID();
+        LinkedIdentity othersIdentity = LinkedIdentity.link(otherUserId, "discord", "E1", "b@x.io", true);
+        when(identities.findByProviderAndExternalId("discord", "E1")).thenReturn(Optional.of(othersIdentity));
+
+        // A logged-in user must NOT be switched into the account that already owns this identity.
+        assertThatThrownBy(() -> service.resolveLogin(claim("discord", "E1", "x@x.io", true), currentUserId))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void case3_anonymousVerifiedEmailMatch_requiresExplicitLink_doesNotMerge() {
         when(identities.findByProviderAndExternalId("google", "G7")).thenReturn(Optional.empty());
         when(identities.findByEmailAndEmailVerifiedTrue("a@x.io"))
-                .thenReturn(List.of(LinkedIdentity.link(targetUserId, "discord", "E1", "a@x.io", true)));
-        when(users.findById(targetUserId)).thenReturn(Optional.of(target));
+                .thenReturn(List.of(LinkedIdentity.link(UUID.randomUUID(), "discord", "E1", "a@x.io", true)));
 
-        User result = service.resolveLogin(claim("google", "G7", "a@x.io", true), null);
+        // §8.3 conservative variant: do not merge silently, do not create a duplicate — require linking.
+        assertThatThrownBy(() -> service.resolveLogin(claim("google", "G7", "a@x.io", true), null))
+                .isInstanceOf(ExplicitLinkRequiredException.class);
+        verify(users, never()).save(any());
+    }
 
-        assertThat(result).isSameAs(target);
-        verify(users, never()).save(any()); // linked, not a new account
+    @Test
+    void email_isNormalized_beforeMatchingAndStoring() {
+        // Incoming mixed-case email matches a lowercase-stored verified identity → explicit link required,
+        // proving the lookup is done on the normalized (lowercased) email.
+        when(identities.findByProviderAndExternalId("discord", "E9")).thenReturn(Optional.empty());
+        when(identities.findByEmailAndEmailVerifiedTrue("alice@x.io"))
+                .thenReturn(List.of(LinkedIdentity.link(UUID.randomUUID(), "patreon", "P1", "alice@x.io", true)));
+
+        assertThatThrownBy(() -> service.resolveLogin(claim("discord", "E9", "Alice@X.IO", true), null))
+                .isInstanceOf(ExplicitLinkRequiredException.class);
+    }
+
+    @Test
+    void email_isStoredLowercased_onNewAccount() {
+        when(identities.findByProviderAndExternalId("discord", "E10")).thenReturn(Optional.empty());
+        when(identities.findByEmailAndEmailVerifiedTrue("bob@x.io")).thenReturn(List.of());
+
+        service.resolveLogin(claim("discord", "E10", "BOB@X.io", true), null);
+
+        ArgumentCaptor<LinkedIdentity> saved = ArgumentCaptor.forClass(LinkedIdentity.class);
+        verify(identities).save(saved.capture());
+        assertThat(saved.getValue().getEmail()).isEqualTo("bob@x.io");
     }
 
     @Test

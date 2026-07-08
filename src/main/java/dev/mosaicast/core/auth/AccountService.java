@@ -4,9 +4,11 @@
 package dev.mosaicast.core.auth;
 
 import dev.mosaicast.core.web.ConflictException;
+import dev.mosaicast.core.web.ExplicitLinkRequiredException;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.Role;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
@@ -18,15 +20,19 @@ import org.springframework.transaction.annotation.Transactional;
  * logged-in user; otherwise a separate account</strong> (the user can link explicitly in settings).
  *
  * <ol>
- *   <li>{@code (provider, external_id)} already exists → log that user in (refresh email/verified).</li>
+ *   <li>{@code (provider, external_id)} already exists → log that user in (refresh email/verified). If a
+ *       <em>different</em> user is logged in and tries to link it, that is a conflict (an identity belongs
+ *       to exactly one account), not a silent account switch.</li>
  *   <li>{@code (provider, external_id)} new and a user is logged in (linking from settings) → attach the
- *       identity to that user. Always safe.</li>
- *   <li>{@code (provider, external_id)} new and anonymous → link to an existing account only if the
- *       incoming email is verified AND another verified identity already has that email; otherwise create
- *       a new user. An unverified email never merges.</li>
+ *       identity to that user.</li>
+ *   <li>{@code (provider, external_id)} new and anonymous → if a verified email matches an existing verified
+ *       identity, do <strong>not</strong> merge silently — require explicit linking (the conservative §8.3
+ *       variant); otherwise create a new user. An unverified email never triggers this.</li>
  * </ol>
  *
- * <p>The configured bootstrap identity (§8.5) is granted {@code ADMIN} on login.
+ * <p>The stable key is {@code (provider, external_id)}, never the email (§8.2), so re-login survives an
+ * email change at the provider (case 1 short-circuits before any email logic). The configured bootstrap
+ * identity (§8.5) is granted {@code ADMIN} on login.
  */
 @Service
 public class AccountService {
@@ -58,10 +64,17 @@ public class AccountService {
 
     private User resolve(IdentityClaim claim, @Nullable UUID currentUserId) {
         // Case 1: known identity → log in, refreshing the captured email/verification.
+        String email = normalizeEmail(claim.email());
         var existing = identities.findByProviderAndExternalId(claim.provider(), claim.externalId());
         if (existing.isPresent()) {
             LinkedIdentity identity = existing.get();
-            identity.refresh(claim.email(), claim.emailVerified());
+            // An identity belongs to exactly one account. A logged-in user trying to link an identity
+            // owned by someone else must not be silently switched into that other account.
+            if (currentUserId != null && !identity.getUserId().equals(currentUserId)) {
+                throw new ConflictException(
+                        "This " + claim.provider() + " account is already linked to another user");
+            }
+            identity.refresh(email, claim.emailVerified());
             identities.save(identity);
             return users.findById(identity.getUserId())
                     .orElseThrow(() -> new IllegalStateException("Identity references a missing user"));
@@ -71,24 +84,21 @@ public class AccountService {
         if (currentUserId != null) {
             User current = users.findById(currentUserId)
                     .orElseThrow(() -> new IllegalStateException("Logged-in user no longer exists"));
-            attach(current.getId(), claim);
+            attach(current.getId(), claim, email);
             return current;
         }
 
         // Case 3: new identity, anonymous → auto-link only when both sides are verified.
-        if (claim.emailVerified() && claim.email() != null && !claim.email().isBlank()) {
-            List<LinkedIdentity> verifiedMatches = identities.findByEmailAndEmailVerifiedTrue(claim.email());
-            if (!verifiedMatches.isEmpty()) {
-                UUID targetUserId = verifiedMatches.get(0).getUserId();
-                attach(targetUserId, claim);
-                return users.findById(targetUserId)
-                        .orElseThrow(() -> new IllegalStateException("Matched user no longer exists"));
-            }
+        if (claim.emailVerified() && email != null
+                && !identities.findByEmailAndEmailVerifiedTrue(email).isEmpty()) {
+            throw new ExplicitLinkRequiredException(
+                    "An account with this email already exists. Log in with your existing method, then link "
+                            + claim.provider() + " in settings.");
         }
 
         // Otherwise: a brand-new account (default role FAN; the bootstrap identity is promoted below).
         User created = users.save(User.create(claim.displayName(), claim.avatarUrl(), Role.FAN));
-        attach(created.getId(), claim);
+        attach(created.getId(), claim, email);
         return created;
     }
 
@@ -119,9 +129,17 @@ public class AccountService {
         identities.delete(identity);
     }
 
-    private void attach(UUID userId, IdentityClaim claim) {
+    private void attach(UUID userId, IdentityClaim claim, String normalizedEmail) {
         identities.save(LinkedIdentity.link(
-                userId, claim.provider(), claim.externalId(), claim.email(), claim.emailVerified()));
+                userId, claim.provider(), claim.externalId(), normalizedEmail, claim.emailVerified()));
+    }
+
+    /** Normalizes an email for storage and matching (trim + lowercase); null/blank yields null. */
+    private static String normalizeEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+        return email.trim().toLowerCase(Locale.ROOT);
     }
 
     /** Grants ADMIN to the configured bootstrap identity on login (§8.5). */
