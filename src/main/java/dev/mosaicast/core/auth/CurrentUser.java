@@ -4,22 +4,39 @@
 package dev.mosaicast.core.auth;
 
 import dev.mosaicast.plugin.api.Role;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
- * Reads the current user's id and role from the {@link Authentication}, uniformly across the two ways a
- * session is established: Discord {@code oauth2Login} and the {@code dev}-profile login bypass. Both set
- * the principal name to the user's UUID and carry a single {@code ROLE_*} authority.
+ * Reads and builds the current user's {@link Authentication}, uniformly across the ways a session is
+ * established: Discord {@code oauth2Login}, the {@code dev}-profile login bypass, and personal-access-token
+ * bearer auth. All of them set the principal name to the user's UUID and carry a single {@code ROLE_*}
+ * authority — this class is the one place that shape is produced ({@link #authenticationFor}) and read
+ * ({@link #id}/{@link #role}), so the two never drift.
  */
 public final class CurrentUser {
 
     private static final String ROLE_PREFIX = "ROLE_";
 
     private CurrentUser() {
+    }
+
+    /** The single {@code ROLE_*} authority for a role. */
+    public static Collection<GrantedAuthority> authoritiesFor(Role role) {
+        return List.of(new SimpleGrantedAuthority(ROLE_PREFIX + role.name()));
+    }
+
+    /** A uniform authentication for a user: principal name = user id, one {@code ROLE_*} authority. */
+    public static Authentication authenticationFor(User user) {
+        return UsernamePasswordAuthenticationToken.authenticated(
+                user.getId().toString(), null, authoritiesFor(user.getRole()));
     }
 
     /** The authenticated user's id, or empty for an anonymous request. */
@@ -52,7 +69,8 @@ public final class CurrentUser {
         return Optional.empty();
     }
 
-    private static boolean isAuthenticated(Authentication authentication) {
+    /** True when the request carries a real (non-anonymous) authentication. */
+    public static boolean isAuthenticated(Authentication authentication) {
         return authentication != null
                 && authentication.isAuthenticated()
                 && !(authentication instanceof AnonymousAuthenticationToken);

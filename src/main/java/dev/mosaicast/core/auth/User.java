@@ -60,15 +60,6 @@ public class User {
         this.role = role;
     }
 
-    public void updateProfile(String displayName, String avatarUrl) {
-        if (displayName != null && !displayName.isBlank()) {
-            this.displayName = displayName;
-        }
-        if (avatarUrl != null) {
-            this.avatarUrl = avatarUrl;
-        }
-    }
-
     public UUID getId() {
         return id;
     }
