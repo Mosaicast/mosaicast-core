@@ -28,6 +28,10 @@ spring:
 mosaicast:
   base-url: ${MOSAICAST_BASE_URL:http://localhost:8080}
   plugins-dir: ${MOSAICAST_PLUGINS_DIR:./plugins}
+  auth:
+    # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
+    bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
+    bootstrap-external-id: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:}
 
 management:
   endpoints:

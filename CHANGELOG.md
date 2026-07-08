@@ -12,6 +12,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **Auth & identity (M2, ARCHITECTURE §8):** social login (Discord) via Spring Security `oauth2Login`,
+  `User` + `LinkedIdentity` keyed on `(provider, external_id)`, account-merging rules (§8.3), server-side
+  sessions with CSRF, RBAC (ADMIN/PODCASTER/FAN), env-bootstrapped admin, `/api/me` + identity management
+  with last-identity lockout protection, podcaster-scoped personal access tokens, and a `dev`-profile-only
+  login bypass for local testing.
+
+### Security
+
+- Auth hardening from code review: role changes and account deletion now take effect on the **next
+  request** (per-request user reload, no stale sessions); linking a provider already owned by another
+  account is rejected instead of switching accounts; the §8.3 verified-email case uses the **conservative
+  variant** (require explicit linking, never merge silently) with normalized email matching; the API is
+  **deny-by-default** (`/api/**` denies unless explicitly allowed); `/api/admin/**` beyond feeds is
+  ADMIN-only; the session cookie is `Secure` by default (off only in the `dev` profile); and personal
+  access tokens throttle their "last used" writes.
+
 ## [0.1.0] — 2026-07-07
 
 First milestone: the host boots, serves the shell, and ingests RSS feeds.

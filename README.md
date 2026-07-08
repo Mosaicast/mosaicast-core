@@ -89,7 +89,8 @@ Layout reference for the shell: `docs/reference/mosaicast-mockup.jsx` (NOT the r
 src/main/java/dev/mosaicast/core/
   episode/   EpisodeRef identity + display snapshot, read/search API (ARCHITECTURE §4, §6)
   feed/      FeedSource SPI, RssFeedSource, reconciler, ShedLock scheduler, admin API (§5)
-  config/    security headers, scheduling/ShedLock
+  auth/      User + LinkedIdentity, Discord oauth2Login, merging rules, /api/me, PATs (§8)
+  config/    security (oauth2/session/CSRF/RBAC), headers, scheduling/ShedLock
   web/       SPA serving, RFC 7807 handling, pagination envelope
 src/main/resources/
   db/migration/   Flyway migrations (schema is Flyway-only)
@@ -98,9 +99,17 @@ src/main/resources/
 frontend/    React/Vite host shell (built into resources/static)
 ```
 
-Key API (v1, RBAC added in M2): `POST /api/admin/feeds` (add + preview + refresh),
-`GET /api/feeds/{id}/episodes?season=` , `GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`,
-`GET /api/episodes/search?q=`. All lists paginate; errors are `application/problem+json`.
+Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
+`GET /api/feeds/{id}/episodes?season=`, `GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`,
+`GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
+`GET/POST/DELETE /api/me/tokens` (authenticated). All lists paginate; errors are
+`application/problem+json`.
+
+**Auth (§8):** Discord `oauth2Login` (active only when `DISCORD_CLIENT_ID`/`SECRET` are set), server-side
+cookie sessions (no JWT), CSRF via the `XSRF-TOKEN` cookie (SPA sends it back as `X-XSRF-TOKEN`), and
+RBAC (ADMIN/PODCASTER/FAN). Automation uses **personal access tokens** as `Authorization: Bearer …`. The
+bootstrap admin is set via `ADMIN_BOOTSTRAP_PROVIDER`/`ADMIN_BOOTSTRAP_EXTERNAL_ID`. Locally, the `dev`
+profile's `POST /api/auth/dev-login?role=…` mints a session for any role without Discord.
 
 ## Branding assets
 

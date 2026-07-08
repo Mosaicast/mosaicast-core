@@ -54,6 +54,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")
+    implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
@@ -96,6 +97,8 @@ tasks.withType<JavaCompile>().configureEach {
 // Filter the build version into build-metadata.properties (only that file, so it never collides with
 // the ${...} placeholders in application.yml). Served at /api/meta and shown in the shell.
 tasks.processResources {
+    // Track the version so a bump re-runs the filtering (expand inputs are not tracked automatically).
+    inputs.property("coreVersion", project.version.toString())
     filesMatching("build-metadata.properties") {
         expand("coreVersion" to project.version.toString())
     }

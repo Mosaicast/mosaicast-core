@@ -13,6 +13,11 @@ spring:
   flyway:
     clean-disabled: false
 
+mosaicast:
+  security:
+    # Local dev runs over plain http; don't mark the session cookie Secure (prod default is true).
+    secure-cookie: false
+
 logging:
   level:
     dev.mosaicast: DEBUG
