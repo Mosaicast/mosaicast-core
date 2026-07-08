@@ -23,6 +23,11 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      # Branding uploads are small; cap them (ARCHITECTURE §13 upload limits).
+      max-file-size: 2MB
+      max-request-size: 4MB
 
 # Host-wide settings (bound in feature @ConfigurationProperties as they land).
 mosaicast:

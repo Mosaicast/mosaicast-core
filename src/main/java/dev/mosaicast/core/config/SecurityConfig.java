@@ -59,6 +59,8 @@ public class SecurityConfig {
         "/", "/index.html", "/assets/**", "/brand/**", "/favicon.ico",
         "/actuator/health/**", "/actuator/info", "/api/meta",
         "/login/**", "/oauth2/**", "/api/auth/**",
+        // Branding + site payload + legal pages are public (needed at boot / in the footer, §12).
+        "/branding/**", "/api/site", "/api/legal/**",
     };
 
     private final DiscordOAuth2UserService discordUserService;
