@@ -97,6 +97,8 @@ tasks.withType<JavaCompile>().configureEach {
 // Filter the build version into build-metadata.properties (only that file, so it never collides with
 // the ${...} placeholders in application.yml). Served at /api/meta and shown in the shell.
 tasks.processResources {
+    // Track the version so a bump re-runs the filtering (expand inputs are not tracked automatically).
+    inputs.property("coreVersion", project.version.toString())
     filesMatching("build-metadata.properties") {
         expand("coreVersion" to project.version.toString())
     }
