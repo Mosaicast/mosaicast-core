@@ -5,13 +5,12 @@ package dev.mosaicast.core.auth.pat;
 
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.web.NotFoundException;
-import dev.mosaicast.plugin.api.Role;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -58,11 +57,12 @@ public class PatController {
         return tokens.list(currentUserId(authentication)).stream().map(TokenView::of).toList();
     }
 
+    /** Podcaster capability (§8.5) — enforced declaratively; the denial renders as problem+json 403. */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('PODCASTER','ADMIN')")
     public CreatedToken create(@RequestBody @jakarta.validation.Valid CreateToken request,
                                Authentication authentication) {
-        requirePodcaster(authentication);
         var issued = tokens.create(currentUserId(authentication), request.name());
         return new CreatedToken(
                 issued.token().getId(), issued.token().getName(), issued.token().getPrefix(),
@@ -73,13 +73,6 @@ public class PatController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revoke(@PathVariable UUID id, Authentication authentication) {
         tokens.revoke(currentUserId(authentication), id);
-    }
-
-    private static void requirePodcaster(Authentication authentication) {
-        Role role = CurrentUser.role(authentication).orElse(null);
-        if (role != Role.PODCASTER && role != Role.ADMIN) {
-            throw new AccessDeniedException("Personal access tokens are for podcasters and admins");
-        }
     }
 
     private static UUID currentUserId(Authentication authentication) {

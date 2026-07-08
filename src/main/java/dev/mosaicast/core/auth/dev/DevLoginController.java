@@ -4,6 +4,7 @@
 package dev.mosaicast.core.auth.dev;
 
 import dev.mosaicast.core.auth.AccountService;
+import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.auth.IdentityClaim;
 import dev.mosaicast.core.auth.MeView;
 import dev.mosaicast.core.auth.User;
@@ -12,13 +13,10 @@ import dev.mosaicast.plugin.api.Role;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.List;
-import java.util.Set;
 import org.springframework.context.annotation.Profile;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -40,11 +38,13 @@ public class DevLoginController {
 
     private final AccountService accounts;
     private final UserRepository users;
-    private final SecurityContextRepository contextRepository = new HttpSessionSecurityContextRepository();
+    private final SecurityContextRepository contextRepository;
 
-    public DevLoginController(AccountService accounts, UserRepository users) {
+    public DevLoginController(AccountService accounts, UserRepository users,
+                              SecurityContextRepository contextRepository) {
         this.accounts = accounts;
         this.users = users;
+        this.contextRepository = contextRepository;
     }
 
     /**
@@ -71,14 +71,12 @@ public class DevLoginController {
             users.save(user);
         }
 
-        establishSession(user, selected, request, response);
+        establishSession(user, request, response);
         return MeView.of(user);
     }
 
-    private void establishSession(User user, Role role, HttpServletRequest request, HttpServletResponse response) {
-        var authorities = Set.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
-        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                user.getId().toString(), null, authorities);
+    private void establishSession(User user, HttpServletRequest request, HttpServletResponse response) {
+        Authentication authentication = CurrentUser.authenticationFor(user);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);
         SecurityContextHolder.setContext(context);

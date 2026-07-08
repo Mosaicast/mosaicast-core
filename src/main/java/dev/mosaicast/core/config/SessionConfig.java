@@ -4,6 +4,7 @@
 package dev.mosaicast.core.config;
 
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.session.MapSessionRepository;
@@ -21,18 +22,27 @@ import org.springframework.session.web.http.DefaultCookieSerializer;
 @EnableSpringHttpSession
 public class SessionConfig {
 
+    /** The session cookie name — referenced here and by the logout handler in SecurityConfig. */
+    public static final String SESSION_COOKIE_NAME = "MOSAICAST_SESSION";
+
     @Bean
     MapSessionRepository sessionRepository() {
         return new MapSessionRepository(new ConcurrentHashMap<>());
     }
 
+    /**
+     * The session cookie. {@code Secure} defaults to {@code true} (safe for a TLS deployment and for
+     * {@code http://localhost}, which browsers treat as a secure context); the {@code dev} profile sets
+     * {@code mosaicast.security.secure-cookie=false} for plain-http local runs.
+     */
     @Bean
-    CookieSerializer cookieSerializer() {
+    CookieSerializer cookieSerializer(
+            @Value("${mosaicast.security.secure-cookie:true}") boolean secureCookie) {
         DefaultCookieSerializer serializer = new DefaultCookieSerializer();
-        serializer.setCookieName("MOSAICAST_SESSION");
+        serializer.setCookieName(SESSION_COOKIE_NAME);
         serializer.setUseHttpOnlyCookie(true);
         serializer.setSameSite("Lax");
-        serializer.setUseSecureCookie(false); // set true behind TLS in production
+        serializer.setUseSecureCookie(secureCookie);
         serializer.setCookiePath("/");
         return serializer;
     }

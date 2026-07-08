@@ -7,6 +7,8 @@ import dev.mosaicast.core.web.NotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
@@ -25,6 +27,9 @@ public class PersonalAccessTokenService {
     /** Token prefix so a leaked/committed token is greppable and identifiable as a Mosaicast token. */
     private static final String TOKEN_PREFIX = "mcp_";
     private static final int TOKEN_BYTES = 32;
+
+    /** Coarsen the "last used" write: skip it if it was updated within this window (avoids per-request writes). */
+    private static final Duration LAST_USED_THROTTLE = Duration.ofMinutes(5);
 
     private final PersonalAccessTokenRepository tokens;
     private final SecureRandom random = new SecureRandom();
@@ -72,8 +77,12 @@ public class PersonalAccessTokenService {
         }
         Optional<PersonalAccessToken> found = tokens.findByTokenHash(sha256(secret));
         found.ifPresent(token -> {
-            token.markUsed();
-            tokens.save(token);
+            // Only persist "last used" when it is stale, so hot automation paths don't write every request.
+            Instant last = token.getLastUsedAt();
+            if (last == null || last.isBefore(Instant.now().minus(LAST_USED_THROTTLE))) {
+                token.markUsed();
+                tokens.save(token);
+            }
         });
         return found;
     }

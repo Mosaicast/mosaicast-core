@@ -3,51 +3,47 @@
 
 package dev.mosaicast.core.auth.pat;
 
-import dev.mosaicast.core.auth.UserRepository;
+import dev.mosaicast.core.auth.CurrentUser;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
  * Authenticates automation requests carrying a personal access token as {@code Authorization: Bearer …}
- * (ARCHITECTURE §8.5). The request is authenticated as the token's owner with their role; nothing is
- * written to the session (stateless per request). A cookie session, if already present, wins — the bearer
- * path only runs when the request is otherwise anonymous.
+ * (ARCHITECTURE §8.5). It resolves the token to its owner's id and sets a bare principal; the downstream
+ * {@link dev.mosaicast.core.auth.AuthenticatedUserFilter} then loads the user and fills in the role (so the
+ * user is looked up once, and revocation is honored). Nothing is written to the session. A cookie session,
+ * if already present, wins — the bearer path only runs when the request is otherwise anonymous.
  */
 public class PatAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
 
     private final PersonalAccessTokenService tokens;
-    private final UserRepository users;
 
-    public PatAuthenticationFilter(PersonalAccessTokenService tokens, UserRepository users) {
+    public PatAuthenticationFilter(PersonalAccessTokenService tokens) {
         this.tokens = tokens;
-        this.users = users;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        if (!alreadyAuthenticated() && hasBearer(request)) {
+        if (!CurrentUser.isAuthenticated(SecurityContextHolder.getContext().getAuthentication())
+                && hasBearer(request)) {
             String secret = request.getHeader(HttpHeaders.AUTHORIZATION).substring(BEARER.length());
-            tokens.authenticate(secret).ifPresent(token -> users.findById(token.getUserId())
-                    .ifPresent(user -> {
-                        var authorities = Set.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
-                        var authentication = UsernamePasswordAuthenticationToken.authenticated(
-                                user.getId().toString(), null, authorities);
-                        SecurityContextHolder.getContext().setAuthentication(authentication);
-                    }));
+            tokens.authenticate(secret).ifPresent(token -> {
+                // Bare principal (id only, no authorities) — AuthenticatedUserFilter loads the user and role.
+                var authentication = UsernamePasswordAuthenticationToken.authenticated(
+                        token.getUserId().toString(), null, List.of());
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            });
         }
         chain.doFilter(request, response);
     }
@@ -56,11 +52,5 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
     public static boolean hasBearer(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         return header != null && header.startsWith(BEARER);
-    }
-
-    private static boolean alreadyAuthenticated() {
-        Authentication current = SecurityContextHolder.getContext().getAuthentication();
-        return current != null && current.isAuthenticated()
-                && !(current instanceof AnonymousAuthenticationToken);
     }
 }

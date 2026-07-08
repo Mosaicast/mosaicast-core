@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.config;
 
+import dev.mosaicast.core.auth.AuthenticatedUserFilter;
 import dev.mosaicast.core.auth.DiscordOAuth2UserService;
 import dev.mosaicast.core.auth.UserRepository;
 import dev.mosaicast.core.auth.pat.PatAuthenticationFilter;
@@ -11,13 +12,18 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -31,10 +37,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 /**
  * HTTP security for the host (ARCHITECTURE §8, §13): Discord {@code oauth2Login} (when configured),
  * server-side cookie sessions (no JWT), CSRF via the {@code XSRF-TOKEN} cookie for the SPA, RBAC, and the
- * baseline security headers. Anonymous read of the public API and the shell stays open; state-changing
- * and admin endpoints require the right role.
+ * baseline security headers. The API is deny-by-default — only explicitly public paths and the SPA shell
+ * are anonymous; everything else needs the right role.
  */
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private static final String CONTENT_SECURITY_POLICY =
@@ -57,12 +64,21 @@ public class SecurityConfig {
     private final DiscordOAuth2UserService discordUserService;
     private final PersonalAccessTokenService tokenService;
     private final UserRepository users;
+    private final Environment environment;
 
     public SecurityConfig(DiscordOAuth2UserService discordUserService,
-                          PersonalAccessTokenService tokenService, UserRepository users) {
+                          PersonalAccessTokenService tokenService, UserRepository users,
+                          Environment environment) {
         this.discordUserService = discordUserService;
         this.tokenService = tokenService;
         this.users = users;
+        this.environment = environment;
+    }
+
+    /** Shared with the dev-login controller so both persist the SecurityContext the same way. */
+    @Bean
+    SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
     }
 
     @Bean
@@ -70,30 +86,40 @@ public class SecurityConfig {
             HttpSecurity http, ObjectProvider<ClientRegistrationRepository> clientRegistrations)
             throws Exception {
 
+        boolean devProfile = environment.acceptsProfiles(Profiles.of("dev"));
+
         http
                 // SPA CSRF: token in a JS-readable XSRF-TOKEN cookie, echoed back as the X-XSRF-TOKEN
                 // header (Spring Security "Integrating with SPAs"). The CsrfCookieFilter forces the token
                 // to load per request so the cookie is always set.
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
-                        // Exempt the dev-login bypass (dev profile only; absent in prod) and bearer-token
-                        // automation (no cookies, so CSRF does not apply).
-                        .ignoringRequestMatchers("/api/auth/dev-login")
-                        .ignoringRequestMatchers(PatAuthenticationFilter::hasBearer))
+                .csrf(csrf -> {
+                    csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                            .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                            // Bearer-token automation carries no cookies, so CSRF does not apply.
+                            .ignoringRequestMatchers(PatAuthenticationFilter::hasBearer);
+                    // The dev-login bypass is exempt ONLY under the dev profile — where it exists.
+                    if (devProfile) {
+                        csrf.ignoringRequestMatchers("/api/auth/dev-login");
+                    }
+                })
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
-                // Authenticate personal-access-token bearer requests before authorization runs.
-                .addFilterBefore(new PatAuthenticationFilter(tokenService, users), AuthorizationFilter.class)
+                // Bearer auth (sets a bare principal), then the per-request user reload (fills the role and
+                // makes role changes / deletion take effect immediately), both before authorization.
+                .addFilterBefore(new PatAuthenticationFilter(tokenService), AuthorizationFilter.class)
+                .addFilterBefore(new AuthenticatedUserFilter(users), AuthorizationFilter.class)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // Public read API (ARCHITECTURE §10 — v1 everything PUBLIC).
                         .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**").permitAll()
-                        // Admin/podcaster management.
-                        .requestMatchers("/api/admin/**").hasAnyRole("ADMIN", "PODCASTER")
-                        // The current user's own account.
+                        // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()
-                        // Everything else (SPA routes, static) is served openly.
+                        // Feeds/planned episodes are a podcaster capability; other admin endpoints are ADMIN.
+                        .requestMatchers("/api/admin/feeds/**").hasAnyRole("ADMIN", "PODCASTER")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Deny any other API path by default (no accidental fail-open for new endpoints).
+                        .requestMatchers("/api/**").denyAll()
+                        // The SPA shell and static assets are served openly.
                         .anyRequest().permitAll())
                 // Unauthenticated API calls get 401 (not a redirect to a login page).
                 .exceptionHandling(e -> e.authenticationEntryPoint(
@@ -101,7 +127,7 @@ public class SecurityConfig {
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((req, res, authn) -> res.setStatus(HttpStatus.NO_CONTENT.value()))
-                        .deleteCookies("MOSAICAST_SESSION"))
+                        .deleteCookies(SessionConfig.SESSION_COOKIE_NAME))
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
                         .referrerPolicy(ref -> ref.policy(
