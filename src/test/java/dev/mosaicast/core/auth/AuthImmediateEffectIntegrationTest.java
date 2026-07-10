@@ -70,6 +70,16 @@ class AuthImmediateEffectIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void publicReadApiIsGetOnly() {
+        // The site payload is anonymously readable...
+        assertThat(rest.getForEntity("/api/site", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        // ...but an unsafe method is refused, never reaching a handler: CSRF guards it at the front, and the
+        // GET-only public matcher leaves it to /api/** deny-by-default behind that (defense in depth).
+        ResponseEntity<String> post = rest.postForEntity("/api/site", null, String.class);
+        assertThat(post.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
     /** Logs in via the dev bypass and returns the session cookie to reuse. */
     private String devLogin(String role) {
         ResponseEntity<String> response =
