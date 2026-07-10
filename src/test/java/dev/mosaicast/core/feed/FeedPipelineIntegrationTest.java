@@ -55,6 +55,9 @@ class FeedPipelineIntegrationTest {
     @Autowired
     private dev.mosaicast.core.episode.EpisodeDisplayRepository displayRepository;
 
+    @Autowired
+    private BindingSuggestionRepository suggestionRepository;
+
     private HttpServer server;
     private final AtomicReference<String> body = new AtomicReference<>();
     private final AtomicReference<String> etag = new AtomicReference<>("v1");
@@ -90,6 +93,7 @@ class FeedPipelineIntegrationTest {
     @BeforeEach
     void startServer() throws IOException {
         // The Postgres container is shared across tests; start each from a clean slate.
+        suggestionRepository.deleteAll();
         displayRepository.deleteAll();
         refRepository.deleteAll();
         feedRepository.deleteAll();
@@ -189,5 +193,49 @@ class FeedPipelineIntegrationTest {
         assertThat(onFeed).extracting(EpisodeSummary::title)
                 .contains("The big year-in-review")
                 .doesNotHaveDuplicates();
+    }
+
+    @Test
+    void fuzzySuggestion_isProposed_thenConfirmBindsThePlannedEpisode() {
+        // Start with only ep-12 present, then plan an episode whose season/episode WON'T match the item to
+        // come (so it can't auto-bind), but whose title is identical (so it fuzzy-matches, §5.3).
+        body.set(rss(item("ep-12", "Why pigeons secretly hate us", 2, 12)));
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        UUID plannedId = feedService.createPlannedEpisode(
+                feed.id(), 5, 1, "The great coffee controversy", "notes");
+
+        // A new item appears with a different season/episode → creates a PUBLISHED ref and proposes a fuzzy
+        // binding to the planned episode (never auto-applied).
+        body.set(rss(
+                item("ep-12", "Why pigeons secretly hate us", 2, 12),
+                item("ep-77", "The great coffee controversy", 2, 11)));
+        etag.set("v2");
+        PollOutcome outcome = feedService.refreshNow(feed.id());
+        assertThat(outcome.result().created()).isEqualTo(1);
+        assertThat(outcome.result().bound()).isEqualTo(0);
+
+        List<SuggestionView> proposed = feedService.listSuggestions(feed.id());
+        assertThat(proposed).hasSize(1);
+        SuggestionView suggestion = proposed.get(0);
+        assertThat(suggestion.plannedRefId()).isEqualTo(plannedId);
+        assertThat(suggestion.rawTitle()).isEqualTo("The great coffee controversy");
+        assertThat(suggestion.similarity()).isGreaterThanOrEqualTo(TitleSimilarity.DEFAULT_THRESHOLD);
+
+        // Before confirming, the auto-created ref and the planned ref coexist (two entries, same title).
+        assertThat(refRepository.countByFeedId(feed.id())).isEqualTo(3);
+
+        feedService.confirmSuggestion(suggestion.id());
+
+        // The planned episode is now PUBLISHED, carries the feed item's guid/snapshot, and the auto-created
+        // duplicate is gone — the feed item now resolves to the (formerly planned) ref.
+        assertThat(episodes.detail(plannedId).status()).isEqualTo(EpisodeStatus.PUBLISHED);
+        assertThat(episodes.detail(plannedId).title()).isEqualTo("The great coffee controversy");
+        assertThat(refRepository.findByFeedIdAndExternalGuid(feed.id(), "ep-77"))
+                .get().extracting(dev.mosaicast.core.episode.EpisodeRef::getId).isEqualTo(plannedId);
+        assertThat(refRepository.countByFeedId(feed.id())).isEqualTo(2);
+        assertThat(feedService.listSuggestions(feed.id())).isEmpty();
+
+        List<EpisodeSummary> onFeed = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
+        assertThat(onFeed).extracting(EpisodeSummary::title).doesNotHaveDuplicates();
     }
 }

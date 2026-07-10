@@ -15,6 +15,7 @@ pf4j = "3.13.0"
 shedlock = "5.16.0"
 jsoup = "1.18.3"
 commonsText = "1.13.0"
+commonmark = "0.24.0"
 
 [libraries]
 # --- Mosaicast plugin SDK (consumed from mavenLocal — see README dev setup) ---
@@ -37,6 +38,9 @@ shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-p
 
 # --- HTML/SVG sanitizing (branding uploads, legal/wiki markdown) ---
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+
+# --- Markdown rendering for the legal-pages mini-CMS (§12.6) ---
+commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }

@@ -5,6 +5,7 @@ package dev.mosaicast.core.config;
 
 import dev.mosaicast.core.auth.AuthenticatedUserFilter;
 import dev.mosaicast.core.auth.DiscordOAuth2UserService;
+import dev.mosaicast.core.auth.OAuthLoginFailureHandler;
 import dev.mosaicast.core.auth.UserRepository;
 import dev.mosaicast.core.auth.pat.PatAuthenticationFilter;
 import dev.mosaicast.core.auth.pat.PersonalAccessTokenService;
@@ -54,11 +55,27 @@ public class SecurityConfig {
                     + "base-uri 'self'; "
                     + "frame-ancestors 'none'";
 
-    /** Endpoints the SPA and anonymous visitors may reach without authentication. */
+    /**
+     * Endpoints the SPA and anonymous visitors may reach without authentication, on any method. The static
+     * shell / actuator / branding paths sit outside {@code /api/**} (so an errant non-GET just 405s at the
+     * handler), and the auth + OAuth flows legitimately POST — so these stay method-agnostic.
+     */
     private static final String[] PUBLIC_PATHS = {
         "/", "/index.html", "/assets/**", "/brand/**", "/favicon.ico",
-        "/actuator/health/**", "/actuator/info", "/api/meta",
+        "/actuator/health/**", "/actuator/info",
         "/login/**", "/oauth2/**", "/api/auth/**",
+        // Branding is public (needed at boot, §12); it lives outside /api so no denyAll fallthrough applies.
+        "/branding/**",
+    };
+
+    /**
+     * Public <em>read</em> API — anonymous but GET-only. These live under {@code /api/**}, so scoping them to
+     * GET means a POST/PUT/DELETE falls through to the {@code /api/**} deny-by-default rule (a 401/403) rather
+     * than reaching a handler that has no such mapping. The meta payload, the site payload (edited only via
+     * {@code /api/admin/site}), and the legal pages (managed via {@code /api/admin/legal}).
+     */
+    private static final String[] PUBLIC_GET_PATHS = {
+        "/api/meta", "/api/site", "/api/legal/**",
     };
 
     private final DiscordOAuth2UserService discordUserService;
@@ -110,7 +127,9 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
-                        // Public read API (ARCHITECTURE §10 — v1 everything PUBLIC).
+                        // Public read API (ARCHITECTURE §10 — v1 everything PUBLIC), GET-only so a non-GET
+                        // hits the /api/** deny-by-default below instead of a handler-level 405.
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**").permitAll()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()
@@ -138,7 +157,8 @@ public class SecurityConfig {
             http.oauth2Login(oauth -> oauth
                     .userInfoEndpoint(userInfo -> userInfo.userService(discordUserService))
                     .defaultSuccessUrl("/", true)
-                    .failureUrl("/?login_error"));
+                    // Preserve the failure reason (account_conflict / link_required) for the shell (§8.3).
+                    .failureHandler(new OAuthLoginFailureHandler()));
         }
 
         return http.build();

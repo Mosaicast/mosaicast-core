@@ -22,11 +22,14 @@ public class FeedPipeline {
     private final FeedSourceRegistry registry;
     private final Reconciler reconciler;
     private final FeedRepository feeds;
+    private final BindingSuggestionRepository suggestions;
 
-    public FeedPipeline(FeedSourceRegistry registry, Reconciler reconciler, FeedRepository feeds) {
+    public FeedPipeline(FeedSourceRegistry registry, Reconciler reconciler, FeedRepository feeds,
+                        BindingSuggestionRepository suggestions) {
         this.registry = registry;
         this.reconciler = reconciler;
         this.feeds = feeds;
+        this.suggestions = suggestions;
     }
 
     /**
@@ -37,29 +40,54 @@ public class FeedPipeline {
      */
     @Transactional
     public PollOutcome poll(Feed feed) {
-        Optional<FeedSource> source = registry.forType(feed.getType());
-        if (source.isEmpty() || feed.getUrl() == null) {
+        // Take a pessimistic lock on the feed row so a scheduler tick and a "refresh now" (or two clicks)
+        // can't reconcile the same feed at once and both insert the same GUID (§5.4).
+        Feed locked = feeds.lockById(feed.getId())
+                .orElseThrow(() -> new IllegalStateException("Feed no longer exists: " + feed.getId()));
+
+        Optional<FeedSource> source = registry.forType(locked.getType());
+        if (source.isEmpty() || locked.getUrl() == null) {
             return PollOutcome.skipped();
         }
 
-        SourceConfig cfg = new SourceConfig(feed.getUrl(), feed.getEtag(), feed.getLastModified());
+        SourceConfig cfg = new SourceConfig(locked.getUrl(), locked.getEtag(), locked.getLastModified());
         try {
             FetchResult result = source.get().fetch(cfg);
             if (result.unchanged()) {
-                feed.recordSuccess(feed.getEtag(), feed.getLastModified(), "NOT_MODIFIED");
-                feeds.save(feed);
+                locked.recordSuccess(locked.getEtag(), locked.getLastModified(), "NOT_MODIFIED");
+                feeds.save(locked);
                 return PollOutcome.notModified();
             }
-            ReconcileResult reconciled = reconciler.reconcile(feed.getId(), result.episodes());
-            feed.recordSuccess(result.etag(), result.lastModified(), "OK");
-            feeds.save(feed);
-            log.info("Reconciled feed {} ({}): {}", feed.getId(), feed.getTitle(), reconciled);
+            ReconcileResult reconciled = reconciler.reconcile(locked.getId(), result.episodes());
+            persistSuggestions(locked.getId(), reconciled.suggestions());
+            locked.recordSuccess(result.etag(), result.lastModified(), "OK");
+            feeds.save(locked);
+            log.info("Reconciled feed {} ({}): {}", locked.getId(), locked.getTitle(), reconciled);
             return PollOutcome.reconciled(reconciled);
         } catch (FetchException e) {
-            feed.recordFailure(e.getMessage());
-            feeds.save(feed);
-            log.warn("Feed poll failed for {} ({}): {}", feed.getId(), feed.getTitle(), e.getMessage());
+            // A fetch error (thrown before any reconcile write) backs off; the last good state stays visible.
+            locked.recordFailure(e.getMessage());
+            feeds.save(locked);
+            log.warn("Feed poll failed for {} ({}): {}", locked.getId(), locked.getTitle(), e.getMessage());
             return PollOutcome.failed(e.getMessage());
+        }
+        // Any other RuntimeException (a bug, or a DB error the pessimistic lock did not prevent) propagates;
+        // FeedScheduler.pollDueFeeds catches it per-feed so it cannot starve the rest of the tick.
+    }
+
+    /**
+     * Records the run's fuzzy-title binding proposals for the podcaster to confirm (§5.3) — never applied
+     * automatically. Deduped on {@code (feed, planned ref, feed item)} so a suggestion that persists across
+     * polls isn't inserted again (and doesn't violate {@code uq_binding_suggestion}).
+     */
+    private void persistSuggestions(java.util.UUID feedId, java.util.List<ReconcileResult.Suggestion> proposals) {
+        for (ReconcileResult.Suggestion proposal : proposals) {
+            boolean exists = suggestions
+                    .findByFeedIdAndPlannedRefIdAndRawGuid(feedId, proposal.plannedRefId(), proposal.rawGuid())
+                    .isPresent();
+            if (!exists) {
+                suggestions.save(new BindingSuggestion(feedId, proposal));
+            }
         }
     }
 }

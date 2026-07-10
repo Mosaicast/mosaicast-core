@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -75,5 +76,25 @@ public class FeedAdminController {
         UUID id = feeds.createPlannedEpisode(
                 feedId, request.season(), request.episodeNo(), request.title(), request.description());
         return ResponseEntity.created(URI.create("/api/episodes/" + id)).body(Map.of("id", id));
+    }
+
+    /** A feed's outstanding fuzzy PLANNED-binding suggestions to confirm or dismiss (§5.3). */
+    @GetMapping("/{feedId}/suggestions")
+    public List<SuggestionView> suggestions(@PathVariable UUID feedId) {
+        return feeds.listSuggestions(feedId);
+    }
+
+    /** Confirm a suggestion: bind the planned episode to the feed item (§5.3). */
+    @PostMapping("/suggestions/{id}/confirm")
+    public ResponseEntity<Void> confirmSuggestion(@PathVariable UUID id) {
+        feeds.confirmSuggestion(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Dismiss a suggestion without applying it (§5.3). */
+    @DeleteMapping("/suggestions/{id}")
+    public ResponseEntity<Void> dismissSuggestion(@PathVariable UUID id) {
+        feeds.dismissSuggestion(id);
+        return ResponseEntity.noContent().build();
     }
 }
