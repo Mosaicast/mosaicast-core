@@ -2,9 +2,9 @@
 /* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
 
 /*
- * M0 baseline. The real semantic theme tokens come from the seed generator (OKLCH + WCAG clamp,
- * ARCHITECTURE §12.3) in M5; these placeholder --mc-* values keep the shell readable meanwhile and
- * establish the token names the shell and plugins both read.
+ * Semantic theme tokens (ARCHITECTURE §12.3). The authoritative values come at runtime from the seed
+ * generator via SiteContext/applyTheme (and the no-flash script in index.html). These --mc-* defaults are
+ * the pre-paint / no-cache / API-down fallback and establish the token names the shell AND plugins read.
  */
 :root {
   --mc-bg: #fdf6ee;
@@ -14,6 +14,7 @@
   --mc-accent: #c8553d;
   --mc-accent-contrast: #fff8f2;
   --mc-border: #e7ddcf;
+  --mc-accent-2: #3d7d8c;
 }
 
 :root[data-theme='dark'] {
@@ -24,6 +25,7 @@
   --mc-accent: #e07a5f;
   --mc-accent-contrast: #1c1712;
   --mc-border: #342d23;
+  --mc-accent-2: #6bb0c0;
 }
 
 * {
@@ -37,47 +39,12 @@ body {
   color: var(--mc-text);
 }
 
-.shell__bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
-  background: var(--mc-surface);
-  border-bottom: 1px solid var(--mc-border);
-}
-
-.shell__brand {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-weight: 700;
-  font-size: 1.15rem;
+a {
   color: var(--mc-accent);
+  text-decoration: none;
 }
-
-.shell__mark {
-  width: 1.6rem;
-  height: 1.6rem;
-  display: block;
-}
-
-.shell__lang {
-  border: 1px solid var(--mc-border);
-  background: var(--mc-bg);
-  color: var(--mc-text);
-  border-radius: 6px;
-  padding: 0.35rem 0.7rem;
-  cursor: pointer;
-}
-
-.shell__body {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 3rem 1.5rem;
-}
-
-.shell__muted {
-  color: var(--mc-text-muted);
+a:hover {
+  text-decoration: underline;
 }
 
 code {
@@ -85,4 +52,146 @@ code {
   border: 1px solid var(--mc-border);
   border-radius: 4px;
   padding: 0.1rem 0.4rem;
+}
+
+/* ---- layout ---- */
+.mc-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.mc-main {
+  flex: 1;
+  width: 100%;
+}
+
+.mc-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2.5rem 1.5rem;
+}
+
+.mc-page__title {
+  margin: 0 0 1.25rem;
+  font-size: 1.6rem;
+}
+
+.mc-muted {
+  color: var(--mc-text-muted);
+}
+
+/* ---- top bar ---- */
+.mc-top {
+  background: var(--mc-surface);
+  border-bottom: 1px solid var(--mc-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mc-top__inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.mc-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--mc-text);
+}
+.mc-brand:hover {
+  text-decoration: none;
+}
+
+.mc-brand__logo {
+  width: 1.7rem;
+  height: 1.7rem;
+  display: block;
+  object-fit: contain;
+}
+
+.mc-nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.mc-top__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ---- buttons ---- */
+.mc-btn {
+  border-radius: 7px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-bg);
+  color: var(--mc-text);
+}
+.mc-btn:hover {
+  text-decoration: none;
+}
+.mc-btn--ghost {
+  background: transparent;
+}
+.mc-btn--accent {
+  background: var(--mc-accent);
+  color: var(--mc-accent-contrast);
+  border-color: var(--mc-accent);
+}
+
+/* ---- feed catalog (E4a) ---- */
+.mc-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mc-feed-list__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+}
+
+/* ---- footer ---- */
+.mc-foot {
+  border-top: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text-muted);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+
+/* ---- plugin slot regions (empty in E4; E5 mounts into data-slot) ---- */
+.mc-slot:empty {
+  display: none;
+}
+
+.mc-slot__error {
+  color: var(--mc-text-muted);
+  font-size: 0.85rem;
+  font-style: italic;
 }

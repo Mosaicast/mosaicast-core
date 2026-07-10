@@ -146,6 +146,19 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void catalog_listsFeeds_asSlimPublicView() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+
+        List<PublicFeedView> catalog = feedService.catalog();
+
+        assertThat(catalog).singleElement().satisfies(entry -> {
+            assertThat(entry.id()).isEqualTo(feed.id());
+            assertThat(entry.title()).isEqualTo("Test Cast");
+            assertThat(entry.episodeCount()).isEqualTo(2); // both items reconciled on add
+        });
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());

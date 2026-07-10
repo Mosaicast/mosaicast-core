@@ -49,6 +49,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # QEMU lets Buildx cross-build the arm64 image on the amd64 runner. The image is a pure-JVM Spring
+      # Boot jar on a multi-arch Temurin base, so arm64 runs unchanged — this just serves Raspberry Pi /
+      # Apple Silicon / AWS Graviton hosts. Note: the arm64 stages build under emulation and are slow, but
+      # releases are rare so it's acceptable. Future optimization: build the arch-independent jar once, then
+      # assemble the per-arch runtime image (only the JRE base differs) to avoid emulating the Gradle build.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -70,6 +78,7 @@ jobs:
         with:
           context: .
           push: true
+          platforms: linux/amd64,linux/arm64
           tags: |
             ${{ steps.img.outputs.name }}:${{ needs.verify.outputs.version }}
             ${{ steps.img.outputs.name }}:latest

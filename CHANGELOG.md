@@ -14,6 +14,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **React/Vite shell — foundation (E4a, M4 `0.4.x`, ARCHITECTURE §6, §12.3):** the walking-skeleton shell
+  becomes the real app foundation — semantic theme tokens applied at runtime from the site payload with a
+  **no-flash** pre-paint script (external, CSP-`self`-friendly), persistent **top-bar chrome** + footer,
+  client-side **routing** (react-router), and a typed **API client** (cookie session + CSRF). New public
+  **feed catalog** `GET /api/feeds` (slim `PublicFeedView` — no admin fields leak) drives the home index.
+  Plugin **slot regions** (`top`/`card`/`main`/`sidebar`/`player`) are established as empty,
+  error-boundaried mount points for E5. Feed/detail views + persistent player land in E4b.
+- **Multi-arch release image:** the release workflow now builds+pushes `linux/amd64` **and** `linux/arm64`
+  (QEMU + Buildx), so the host runs on Raspberry Pi / Apple Silicon / AWS Graviton.
+
 - **Storage, branding & theming (M3, ARCHITECTURE §11–§12):**
   - `BlobStore` interface + `PostgresBlobStore` (BYTEA) with server-side byte-range reads and namespace
     routing (audio moves to S3 later without touching callers).

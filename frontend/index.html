@@ -8,6 +8,10 @@
     <link rel="icon" type="image/svg+xml" href="/brand/mosaicast-mark.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mosaicast</title>
+    <!-- No theme flash (ARCHITECTURE §12.3): a same-origin blocking script that sets data-theme + the
+         accent tokens before first paint. External (not inline) so it satisfies the strict
+         `script-src 'self'` CSP. See public/theme-init.js. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

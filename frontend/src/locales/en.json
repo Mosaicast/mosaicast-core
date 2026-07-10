@@ -1,7 +1,20 @@
 {
   "app.title": "Mosaicast",
   "app.tagline": "An extensible home for podcasts",
-  "skeleton.booting": "The host shell is up. Feeds, player and plugins arrive in the next milestones.",
-  "skeleton.coreVersion": "Core",
-  "skeleton.platformApi": "Plugin SDK"
+  "nav.primary": "Primary",
+  "nav.home": "Home",
+  "nav.login": "Log in",
+  "nav.switchLanguage": "Switch language",
+  "footer.version": "Version",
+  "home.feeds": "Podcasts",
+  "home.empty": "No podcasts yet.",
+  "home.loadError": "Could not load the catalog.",
+  "home.episodeCount_one": "{{count}} episode",
+  "home.episodeCount_other": "{{count}} episodes",
+  "common.comingSoon": "This view arrives in the next milestone.",
+  "feed.title": "Podcast",
+  "episode.title": "Episode",
+  "account.title": "Account",
+  "notFound.title": "Not found",
+  "notFound.body": "That page does not exist."
 }
