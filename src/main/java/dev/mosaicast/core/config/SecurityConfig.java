@@ -5,6 +5,7 @@ package dev.mosaicast.core.config;
 
 import dev.mosaicast.core.auth.AuthenticatedUserFilter;
 import dev.mosaicast.core.auth.DiscordOAuth2UserService;
+import dev.mosaicast.core.auth.OAuthLoginFailureHandler;
 import dev.mosaicast.core.auth.UserRepository;
 import dev.mosaicast.core.auth.pat.PatAuthenticationFilter;
 import dev.mosaicast.core.auth.pat.PersonalAccessTokenService;
@@ -59,6 +60,8 @@ public class SecurityConfig {
         "/", "/index.html", "/assets/**", "/brand/**", "/favicon.ico",
         "/actuator/health/**", "/actuator/info", "/api/meta",
         "/login/**", "/oauth2/**", "/api/auth/**",
+        // Branding + site payload + legal pages are public (needed at boot / in the footer, §12).
+        "/branding/**", "/api/site", "/api/legal/**",
     };
 
     private final DiscordOAuth2UserService discordUserService;
@@ -138,7 +141,8 @@ public class SecurityConfig {
             http.oauth2Login(oauth -> oauth
                     .userInfoEndpoint(userInfo -> userInfo.userService(discordUserService))
                     .defaultSuccessUrl("/", true)
-                    .failureUrl("/?login_error"));
+                    // Preserve the failure reason (account_conflict / link_required) for the shell (§8.3).
+                    .failureHandler(new OAuthLoginFailureHandler()));
         }
 
         return http.build();

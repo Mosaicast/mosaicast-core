@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.shedlock.spring)
     implementation(libs.shedlock.provider.jdbc.template)
     implementation(libs.jsoup)
+    implementation(libs.commonmark)
 
     // --- Plugin contract (host implements these interfaces) ---
     implementation(libs.mosaicast.plugin.api)

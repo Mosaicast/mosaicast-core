@@ -6,6 +6,8 @@ package dev.mosaicast.core.feed;
 import java.time.Duration;
 import java.time.Instant;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +18,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class FeedScheduler {
+
+    private static final Logger log = LoggerFactory.getLogger(FeedScheduler.class);
 
     /** Cap the exponential backoff at 2^5 = 32× the configured interval. */
     private static final int MAX_BACKOFF_SHIFT = 5;
@@ -38,7 +42,12 @@ public class FeedScheduler {
         Instant now = Instant.now();
         for (Feed feed : feeds.findByEnabledTrue()) {
             if (isDue(feed, now)) {
-                pipeline.poll(feed);
+                try {
+                    pipeline.poll(feed);
+                } catch (RuntimeException e) {
+                    // One misbehaving feed must never starve the rest of the tick.
+                    log.error("Skipping feed {} ({}) this tick after an error", feed.getId(), feed.getTitle(), e);
+                }
             }
         }
     }

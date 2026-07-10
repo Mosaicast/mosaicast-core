@@ -6,6 +6,7 @@ package dev.mosaicast.core.episode;
 import dev.mosaicast.core.web.PagedResponse;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -33,7 +34,7 @@ public class EpisodeController {
             @PathVariable UUID feedId,
             @RequestParam(required = false) Integer season,
             @PageableDefault(size = 20) Pageable pageable) {
-        return PagedResponse.of(episodes.listByFeed(feedId, season, pageable), s -> s);
+        return PagedResponse.of(episodes.listByFeed(feedId, season, unsorted(pageable)), s -> s);
     }
 
     @GetMapping("/api/feeds/{feedId}/seasons")
@@ -51,6 +52,15 @@ public class EpisodeController {
     public PagedResponse<EpisodeSummary> search(
             @RequestParam String q,
             @PageableDefault(size = 20) Pageable pageable) {
-        return PagedResponse.of(episodes.search(q, pageable), s -> s);
+        return PagedResponse.of(episodes.search(q, unsorted(pageable)), s -> s);
+    }
+
+    /**
+     * Drops any client-supplied sort. These endpoints have a server-defined order (canonical episode order,
+     * or search relevance), and a client {@code ?sort=} would be spliced into the native/JPQL query and
+     * reference a non-existent column — a 500. Only page/size are honored.
+     */
+    private static Pageable unsorted(Pageable pageable) {
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }
 }
