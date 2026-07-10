@@ -6,7 +6,7 @@ package dev.mosaicast.core.branding;
 import dev.mosaicast.core.blob.BlobMetadata;
 import dev.mosaicast.core.blob.BlobRef;
 import dev.mosaicast.core.blob.BlobStore;
-import java.io.ByteArrayInputStream;
+import dev.mosaicast.core.web.NotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StreamUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -45,25 +46,41 @@ public class BrandingService {
         this.site = site;
     }
 
-    /** A branding asset resolved to bytes ready to serve, with an ETag. */
-    public record Servable(String mime, byte[] bytes, Instant updatedAt, String etag) {
+    /** An asset's content type + ETag, resolved without loading the bytes (so a 304 is cheap). */
+    public record Meta(String mime, String etag) {
     }
 
-    /** Resolves an asset to serve: the custom blob if set, otherwise the bundled default. */
-    public Servable resolve(BrandingAsset asset) {
+    /**
+     * Resolves an asset's content type + ETag from metadata only — no bytes. Lets the controller answer a
+     * conditional GET (304) without reading the blob (ARCHITECTURE §12.2).
+     */
+    public Meta stat(BrandingAsset asset) {
         UUID blobId = assetId(asset);
         if (blobId != null) {
-            BlobRef ref = new BlobRef(blobId, NAMESPACE);
-            Optional<BlobMetadata> meta = blobStore.stat(ref);
+            Optional<BlobMetadata> meta = blobStore.stat(new BlobRef(blobId, NAMESPACE));
             if (meta.isPresent()) {
-                byte[] bytes = readAll(blobStore.get(ref).stream());
                 Instant updated = meta.get().updatedAt();
-                return new Servable(meta.get().mime(), bytes, updated, etag(Long.toHexString(updated.toEpochMilli())));
+                return new Meta(meta.get().mime(), etag(Long.toHexString(updated.toEpochMilli())));
             }
         }
-        // Bundled default (trusted SVG shipped with the app).
-        byte[] bytes = readClasspath(asset.defaultResource());
-        return new Servable("image/svg+xml", bytes, Instant.EPOCH, etag("default-" + asset.key()));
+        return new Meta("image/svg+xml", etag("default-" + asset.key()));
+    }
+
+    /**
+     * Loads an asset's bytes: the custom blob if set, otherwise the bundled default. If the custom blob
+     * vanished since {@link #stat} (a concurrent clear), it falls back to the default rather than 404 —
+     * the serve endpoint must never fail.
+     */
+    public byte[] load(BrandingAsset asset) {
+        UUID blobId = assetId(asset);
+        if (blobId != null) {
+            try {
+                return readAll(blobStore.get(new BlobRef(blobId, NAMESPACE)).stream());
+            } catch (NotFoundException e) {
+                // Blob deleted between stat and load — serve the bundled default.
+            }
+        }
+        return readClasspath(asset.defaultResource());
     }
 
     /** Stores an uploaded asset (raster only) and points the site config at it. */
@@ -111,15 +128,15 @@ public class BrandingService {
 
     private static byte[] readAll(InputStream in) {
         try (in) {
-            return in.readAllBytes();
+            return StreamUtils.copyToByteArray(in);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read blob", e);
         }
     }
 
     private static byte[] readClasspath(String resource) {
-        try (InputStream in = new ClassPathResource(resource).getInputStream()) {
-            return in.readAllBytes();
+        try {
+            return new ClassPathResource(resource).getContentAsByteArray();
         } catch (IOException e) {
             throw new UncheckedIOException("Missing bundled branding default: " + resource, e);
         }

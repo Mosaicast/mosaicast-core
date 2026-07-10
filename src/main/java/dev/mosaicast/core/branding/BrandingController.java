@@ -6,16 +6,15 @@ package dev.mosaicast.core.branding;
 import dev.mosaicast.core.web.NotFoundException;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -33,20 +32,23 @@ public class BrandingController {
     }
 
     @GetMapping("/branding/{key}")
-    public ResponseEntity<byte[]> serve(
-            @PathVariable String key,
-            @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch) {
-        BrandingService.Servable asset = branding.resolve(assetOf(key));
-        if (asset.etag().equals(ifNoneMatch)) {
-            return ResponseEntity.status(HttpStatus.NOT_MODIFIED).eTag(asset.etag()).build();
+    public ResponseEntity<byte[]> serve(@PathVariable String key, WebRequest request) {
+        BrandingAsset asset = assetOf(key);
+        BrandingService.Meta meta = branding.stat(asset);
+        // checkNotModified handles the real If-None-Match grammar (weak W/"…", lists, *) and emits a 304
+        // without loading the bytes.
+        if (request.checkNotModified(meta.etag())) {
+            return null;
         }
         return ResponseEntity.ok()
-                .eTag(asset.etag())
-                .cacheControl(CacheControl.maxAge(java.time.Duration.ofMinutes(5)).cachePublic())
-                .contentType(MediaType.parseMediaType(asset.mime()))
+                .eTag(meta.etag())
+                // Revalidate every time so a branding change propagates immediately (a cheap 304 when
+                // unchanged); no stale window (ARCHITECTURE §12.2).
+                .cacheControl(CacheControl.noCache())
+                .contentType(MediaType.parseMediaType(meta.mime()))
                 // Raster/served-as-declared; nosniff (Spring Security default) blocks type confusion.
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .body(asset.bytes());
+                .body(branding.load(asset));
     }
 
     @PostMapping("/api/admin/branding/{key}")

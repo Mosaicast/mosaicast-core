@@ -39,6 +39,28 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   ADMIN-only; the session cookie is `Secure` by default (off only in the `dev` profile); and personal
   access tokens throttle their "last used" writes.
 
+### Fixed
+
+- Code-review pass over M0–M3 (availability, correctness & spec completeness):
+  - Public episode endpoints no longer 500 on a client `sort` parameter — the server owns the ordering
+    (FTS rank / canonical order), so the incoming sort is stripped.
+  - The feed scheduler survives a poisoned feed: any poll error backs the feed off (admin-visible) and the
+    tick continues to the next feed instead of aborting.
+  - Concurrent reconciliation of one feed (a scheduler tick racing "refresh now") is serialized with a
+    pessimistic row lock, so the two can no longer both insert the same GUID and 500.
+  - Episode list/search resolve their display snapshots in a single batch query instead of one-per-row (N+1).
+  - Branding serving uses `no-cache` (a change propagates immediately via a cheap 304), honours the real
+    `If-None-Match` grammar (`W/…`, lists, `*`) via Spring's `checkNotModified`, and no longer loads the
+    asset bytes before a 304 or 404s on the read-after-stat race (falls back to the bundled default).
+  - A failed social login now carries its reason to the shell (`/?login_error=account_conflict|link_required`)
+    instead of a bare flag.
+
+- **Fuzzy PLANNED-binding confirm flow (ARCHITECTURE §5.3):** reconciliation's fuzzy-title suggestions are
+  now persisted (`binding_suggestion`, Flyway V6) instead of only logged, and the podcaster can review them
+  (`GET /api/admin/feeds/{feedId}/suggestions`), confirm one (`POST …/suggestions/{id}/confirm` — binds the
+  planned episode to the feed item and removes the auto-created duplicate), or dismiss it
+  (`DELETE …/suggestions/{id}`). Still never auto-applied.
+
 ## [0.1.0] — 2026-07-07
 
 First milestone: the host boots, serves the shell, and ingests RSS feeds.
