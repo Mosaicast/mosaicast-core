@@ -159,6 +159,38 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void siteScopeList_returnsEpisodesAcrossFeeds() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+
+        var page = episodes.listSite(null, null, true, PageRequest.of(0, 20));
+        assertThat(page.getContent()).extracting(EpisodeSummary::title)
+                .containsExactlyInAnyOrder("Why pigeons secretly hate us", "The great coffee controversy");
+
+        // Narrowed to the one feed yields the same set (single-feed site == unified feed).
+        var scoped = episodes.listSite(feed.id(), null, true, PageRequest.of(0, 20));
+        assertThat(scoped.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void adjacent_walksTheFeedInCanonicalOrder() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        // Canonical order is season then episode number → ep-11 (S2E11) precedes ep-12 (S2E12).
+        var ordered = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
+        UUID e11 = ordered.stream().filter(e -> e.episodeNo() == 11).findFirst().orElseThrow().id();
+        UUID e12 = ordered.stream().filter(e -> e.episodeNo() == 12).findFirst().orElseThrow().id();
+
+        var fromE11 = episodes.adjacent(e11);
+        assertThat(fromE11.prev()).isNull();
+        assertThat(fromE11.next()).isNotNull();
+        assertThat(fromE11.next().id()).isEqualTo(e12);
+
+        var fromE12 = episodes.adjacent(e12);
+        assertThat(fromE12.prev()).isNotNull();
+        assertThat(fromE12.prev().id()).isEqualTo(e11);
+        assertThat(fromE12.next()).isNull();
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());

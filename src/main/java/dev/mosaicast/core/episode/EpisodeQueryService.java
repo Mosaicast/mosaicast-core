@@ -42,9 +42,61 @@ public class EpisodeQueryService {
         return page.map(ref -> EpisodeSummary.from(ref, resolveDisplay(ref, snapshots)));
     }
 
+    /**
+     * The unified site-scope episode feed (§6.1): visible episodes across all feeds (or one, when
+     * {@code feedId} is given), optionally season-filtered, newest- or oldest-first. This is the shell's
+     * landing feed — feed/season/order are filters, not separate pages. Batches the snapshot load and
+     * preserves the DB order (upcoming first, then by publish date).
+     */
+    public Page<EpisodeSummary> listSite(UUID feedId, Integer season, boolean newest, Pageable pageable) {
+        Page<UUID> ids = refs.findSiteVisibleIds(feedId, season, newest, pageable);
+        return new PageImpl<>(summariesInOrder(ids.getContent()), pageable, ids.getTotalElements());
+    }
+
     /** Distinct seasons present in a feed (§4.4). */
     public List<Integer> seasons(UUID feedId) {
         return refs.findSeasons(feedId);
+    }
+
+    /**
+     * The previous/next episode in a feed's canonical sequence (§6.2): season then episode number, so the
+     * detail page and the player's auto-advance move through the show in order. A missing/withdrawn id is a
+     * 404. The neighbours are found in the feed's ordered visible list (fine for feed sizes in v1).
+     */
+    public AdjacentEpisodes adjacent(UUID refId) {
+        EpisodeRef ref = refs.findById(refId)
+                .filter(r -> r.getStatus() != EpisodeStatus.WITHDRAWN)
+                .orElseThrow(() -> new NotFoundException("Episode not found: " + refId));
+        List<EpisodeRef> ordered = refs.findVisible(ref.getFeedId(), null, Pageable.unpaged()).getContent();
+        int index = -1;
+        for (int i = 0; i < ordered.size(); i++) {
+            if (ordered.get(i).getId().equals(refId)) {
+                index = i;
+                break;
+            }
+        }
+        EpisodeRef prev = index > 0 ? ordered.get(index - 1) : null;
+        EpisodeRef next = index >= 0 && index < ordered.size() - 1 ? ordered.get(index + 1) : null;
+        Map<UUID, DisplaySnapshot> snapshots =
+                snapshotsFor(java.util.stream.Stream.of(prev, next).filter(java.util.Objects::nonNull).toList());
+        return new AdjacentEpisodes(summaryOrNull(prev, snapshots), summaryOrNull(next, snapshots));
+    }
+
+    private EpisodeSummary summaryOrNull(EpisodeRef ref, Map<UUID, DisplaySnapshot> snapshots) {
+        return ref == null ? null : EpisodeSummary.from(ref, resolveDisplay(ref, snapshots));
+    }
+
+    /** Loads refs for a list of ids and maps them to summaries preserving the id order. */
+    private List<EpisodeSummary> summariesInOrder(List<UUID> ids) {
+        List<EpisodeRef> found = refs.findAllById(ids);
+        Map<UUID, EpisodeRef> byId = found.stream()
+                .collect(java.util.stream.Collectors.toMap(EpisodeRef::getId, Function.identity()));
+        Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
+        return ids.stream()
+                .map(byId::get)
+                .filter(java.util.Objects::nonNull)
+                .map(ref -> EpisodeSummary.from(ref, resolveDisplay(ref, snapshots)))
+                .toList();
     }
 
     /** Full detail for one episode, or a 404 for a missing/withdrawn ref (§6.6 — real 404s). */

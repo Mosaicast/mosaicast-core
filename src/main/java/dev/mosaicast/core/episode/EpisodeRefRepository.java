@@ -46,4 +46,39 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
             """)
     Page<EpisodeRef> findVisible(@Param("feedId") UUID feedId, @Param("season") Integer season, Pageable pageable);
+
+    /**
+     * The unified site-scope episode feed (§6.1): visible episodes across all feeds (or one, when
+     * {@code feedId} is given), optionally season-filtered, as a page of ref ids in display order. Upcoming
+     * (PLANNED) episodes surface first; the rest sort by the feed snapshot's {@code publishedAt}
+     * (newest/oldest per {@code newest}), cast to numeric so epoch-second strings order chronologically.
+     * A LEFT JOIN keeps PLANNED refs, which have no {@code episode_display} row. Returns ids (like search)
+     * so the service can batch-resolve snapshots and preserve order.
+     */
+    @Query(value = """
+            select er.id
+            from episode_ref er
+            left join episode_display ed on ed.episode_ref_id = er.id
+            where er.status <> 'WITHDRAWN'
+              and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
+              and (cast(:season as int) is null or er.season = :season)
+            order by
+              case when er.status = 'PLANNED' then 0 else 1 end,
+              case when :newest then (ed.snapshot->>'publishedAt')::numeric end desc nulls last,
+              case when not :newest then (ed.snapshot->>'publishedAt')::numeric end asc nulls last,
+              er.first_seen_at desc
+            """,
+            countQuery = """
+            select count(*)
+            from episode_ref er
+            where er.status <> 'WITHDRAWN'
+              and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
+              and (cast(:season as int) is null or er.season = :season)
+            """,
+            nativeQuery = true)
+    Page<UUID> findSiteVisibleIds(
+            @Param("feedId") UUID feedId,
+            @Param("season") Integer season,
+            @Param("newest") boolean newest,
+            Pageable pageable);
 }

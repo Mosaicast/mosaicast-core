@@ -5,31 +5,36 @@ import { Route, Routes } from 'react-router-dom';
 
 import { Footer } from './components/Footer';
 import { TopBar } from './components/TopBar';
+import { PlayerProvider } from './player/PlayerContext';
+import { EpisodePage } from './routes/EpisodePage';
+import { FeedPage } from './routes/FeedPage';
 import { Home } from './routes/Home';
 import { NotFound, Placeholder } from './routes/Placeholder';
 import { SiteProvider } from './theme/SiteContext';
 
 /**
- * The shell layout (ARCHITECTURE §6): persistent top-bar chrome, the routed main area, and the footer,
- * all under the {@link SiteProvider} that loads the site payload and applies the theme. E4a establishes
- * the chrome + routing + theme; the feed/detail views and persistent player fill the main area in E4b.
+ * The shell layout (ARCHITECTURE §6): persistent top-bar chrome, the routed main area, the footer, and the
+ * persistent player (mounted by {@link PlayerProvider}, survives route changes), all under the
+ * {@link SiteProvider} that applies the theme. Account + admin views arrive in E4c/E4d.
  */
 export default function App() {
   return (
     <SiteProvider>
-      <div className="mc-root">
-        <TopBar />
-        <main className="mc-main">
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/feeds/:feedId" element={<Placeholder titleKey="feed.title" />} />
-            <Route path="/episodes/:episodeId" element={<Placeholder titleKey="episode.title" />} />
-            <Route path="/account" element={<Placeholder titleKey="account.title" />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </main>
-        <Footer />
-      </div>
+      <PlayerProvider>
+        <div className="mc-root">
+          <TopBar />
+          <main className="mc-main">
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/feeds/:feedId" element={<FeedPage />} />
+              <Route path="/episodes/:episodeId" element={<EpisodePage />} />
+              <Route path="/account" element={<Placeholder titleKey="account.title" />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </main>
+          <Footer />
+        </div>
+      </PlayerProvider>
     </SiteProvider>
   );
 }

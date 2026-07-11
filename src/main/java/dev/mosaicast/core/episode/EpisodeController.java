@@ -42,9 +42,30 @@ public class EpisodeController {
         return episodes.seasons(feedId);
     }
 
+    /**
+     * The unified site-scope episode feed (§6.1) — the shell's landing feed. All feeds by default; the
+     * optional {@code feedId} and {@code season} narrow it and {@code order} ({@code newest}|{@code oldest})
+     * sorts it. Filter state lives in the URL.
+     */
+    @GetMapping("/api/episodes")
+    public PagedResponse<EpisodeSummary> list(
+            @RequestParam(required = false) UUID feedId,
+            @RequestParam(required = false) Integer season,
+            @RequestParam(defaultValue = "newest") String order,
+            @PageableDefault(size = 20) Pageable pageable) {
+        boolean newest = !"oldest".equalsIgnoreCase(order);
+        return PagedResponse.of(episodes.listSite(feedId, season, newest, unsorted(pageable)), s -> s);
+    }
+
     @GetMapping("/api/episodes/{id}")
     public EpisodeDetail detail(@PathVariable UUID id) {
         return episodes.detail(id);
+    }
+
+    /** Previous/next in the feed's canonical sequence (§6.2) — detail nav + player auto-advance. */
+    @GetMapping("/api/episodes/{id}/adjacent")
+    public AdjacentEpisodes adjacent(@PathVariable UUID id) {
+        return episodes.adjacent(id);
     }
 
     /** Full-text episode search over display snapshots (§E1), ranked and paginated. */

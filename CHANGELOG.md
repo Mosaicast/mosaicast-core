@@ -23,6 +23,15 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   error-boundaried mount points for E5. Feed/detail views + persistent player land in E4b.
 - **Multi-arch release image:** the release workflow now builds+pushes `linux/amd64` **and** `linux/arm64`
   (QEMU + Buildx), so the host runs on Raspberry Pi / Apple Silicon / AWS Graviton.
+- **React/Vite shell — unified feed, detail & player (E4b, `0.4.1`, §6):** the **unified episode feed** is
+  now the centerpiece — episodes across all feeds as wide cards with generative covers, and **feed / season
+  / ordering as filters** (state in the URL, §6.1); the feed catalog is a filter, not the landing list.
+  Per-feed pages (`/feeds/:id`) reuse the same view scoped to one feed. **Detail page** with hero, sanitized
+  show notes (DOMPurify), and fixed **previous/next** navigation (§6.2). A **persistent player** (survives
+  route changes) with play/seek/volume, the **Media Session API**, **auto-advance** to the next episode, and
+  listening-progress persistence to localStorage (server-side sync for logged-in users comes in E4c). New
+  public reads: `GET /api/episodes` (site-scope list, `feedId`/`season`/`order` filters) and
+  `GET /api/episodes/{id}/adjacent`.
 
 - **Storage, branding & theming (M3, ARCHITECTURE §11–§12):**
   - `BlobStore` interface + `PostgresBlobStore` (BYTEA) with server-side byte-range reads and namespace

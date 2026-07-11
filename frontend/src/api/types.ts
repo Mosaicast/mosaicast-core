@@ -68,10 +68,30 @@ export interface EpisodeSummary {
   hasAudio: boolean;
 }
 
-/** Full episode (`episode/EpisodeDetail.java`) for the detail page. */
-export interface EpisodeDetail extends EpisodeSummary {
+/**
+ * Full episode (`episode/EpisodeDetail.java`) for the detail page. Note: unlike {@link EpisodeSummary} the
+ * detail carries the real {@code audioUrl} and has **no** {@code hasAudio} flag — playability is
+ * `audioUrl != null`.
+ */
+export interface EpisodeDetail {
+  id: string;
+  feedId: string;
+  season: number | null;
+  episodeNo: number | null;
+  status: EpisodeStatus;
+  access: AccessType;
+  accessTierRef: string | null;
+  title: string;
   description: string | null;
+  publishedAt: string | null;
+  durationSeconds: number | null;
   audioUrl: string | null;
+}
+
+/** Previous/next in a feed's canonical sequence (`episode/AdjacentEpisodes.java`), for detail nav + player. */
+export interface AdjacentEpisodes {
+  prev: EpisodeSummary | null;
+  next: EpisodeSummary | null;
 }
 
 /** The current user (`auth/MeView.java`), `GET /api/me`. */
@@ -82,11 +102,11 @@ export interface MeView {
   role: Role;
 }
 
-/** A Spring Data page envelope (the shape returned by paginated endpoints). */
-export interface Page<T> {
-  content: T[];
+/** The pagination envelope (`web/PagedResponse.java`) returned by list endpoints. */
+export interface Paged<T> {
+  items: T[];
+  page: number;
+  size: number;
   totalElements: number;
   totalPages: number;
-  number: number;
-  size: number;
 }
