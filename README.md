@@ -26,7 +26,17 @@ themes from a single accent seed (OKLCH + WCAG clamp) — shown here in light an
   </picture>
 </p>
 
-<sub>Screenshots are captured from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
+The episode detail page — hero with play, sanitized show notes, and fixed previous/next navigation:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/detail-dark.png" />
+    <img alt="Mosaicast shell — episode detail" src="assets/screenshots/detail-light.png" width="720" />
+  </picture>
+</p>
+
+<sub>Screenshots use a fictional sample feed (`assets/sample/`), not any real podcast, and are captured
+from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 
 ## Prerequisite: the plugin SDK
 
