@@ -14,6 +14,41 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Shell v2 — rich cards, real covers, tabs & tags (E4b+, `0.4.2`, §6):** hands-on revision of the shell.
+  Feeds now surface **real cover art** (`itunes:image`, episode → feed fallback via the SDK's new
+  `DisplaySnapshot.artwork()`), **author** and **subtitle**; the feed is a **one-column, cover-left card**
+  (prominent cover, feed + author, title + subtitle, S·E · date · runtime, description excerpt). The home is
+  **per-feed tabs** (All + one per feed; a single-feed site shows no tabs and lives at the feed's own URL,
+  so bookmarks survive adding feeds). New **tag** filter (`itunes:keywords`/`<category>` → `episode_tag`,
+  Flyway V7) alongside season/order; `GET /api/tags` + a `tag` param on `GET /api/episodes`. The persistent
+  **player** now shows cover + feed + S·E and links to the episode. Requires SDK **0.2.0**
+  (`DisplaySnapshot` gains `imageUrl`/`feedImageUrl`/`author`/`subtitle`). Spec updated: ARCHITECTURE
+  §4.2/§6.1, BRIEF §E4. Host-defined **subfeeds** (saved filters) noted as a future milestone.
+  - Follow-up polish: the feed view is now **two-column** — a left **scope panel** (feed cover/title/author/
+    description + a `feed` plugin region on a feed tab; site logo/name + a `site` region on All) beside the
+    episode list, which **infinite-scrolls** (auto-load + Load-more fallback) instead of paginating. Feed
+    metadata (cover/description/author) is stored on the feed (Flyway V8) and served by `GET /api/feeds/{id}`.
+    Card play button reveals on hover (and is always shown on touch).
+
+- **React/Vite shell — foundation (E4a, M4 `0.4.x`, ARCHITECTURE §6, §12.3):** the walking-skeleton shell
+  becomes the real app foundation — semantic theme tokens applied at runtime from the site payload with a
+  **no-flash** pre-paint script (external, CSP-`self`-friendly), persistent **top-bar chrome** + footer,
+  client-side **routing** (react-router), and a typed **API client** (cookie session + CSRF). New public
+  **feed catalog** `GET /api/feeds` (slim `PublicFeedView` — no admin fields leak) drives the home index.
+  Plugin **slot regions** (`top`/`card`/`main`/`sidebar`/`player`) are established as empty,
+  error-boundaried mount points for E5. Feed/detail views + persistent player land in E4b.
+- **Multi-arch release image:** the release workflow now builds+pushes `linux/amd64` **and** `linux/arm64`
+  (QEMU + Buildx), so the host runs on Raspberry Pi / Apple Silicon / AWS Graviton.
+- **React/Vite shell — unified feed, detail & player (E4b, `0.4.1`, §6):** the **unified episode feed** is
+  now the centerpiece — episodes across all feeds as wide cards with generative covers, and **feed / season
+  / ordering as filters** (state in the URL, §6.1); the feed catalog is a filter, not the landing list.
+  Per-feed pages (`/feeds/:id`) reuse the same view scoped to one feed. **Detail page** with hero, sanitized
+  show notes (DOMPurify), and fixed **previous/next** navigation (§6.2). A **persistent player** (survives
+  route changes) with play/seek/volume, the **Media Session API**, **auto-advance** to the next episode, and
+  listening-progress persistence to localStorage (server-side sync for logged-in users comes in E4c). New
+  public reads: `GET /api/episodes` (site-scope list, `feedId`/`season`/`order` filters) and
+  `GET /api/episodes/{id}/adjacent`.
+
 - **Storage, branding & theming (M3, ARCHITECTURE §11–§12):**
   - `BlobStore` interface + `PostgresBlobStore` (BYTEA) with server-side byte-range reads and namespace
     routing (audio moves to S3 later without touching callers).

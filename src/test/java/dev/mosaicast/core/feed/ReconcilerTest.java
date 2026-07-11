@@ -13,6 +13,7 @@ import dev.mosaicast.core.episode.EpisodeDisplayRepository;
 import dev.mosaicast.core.episode.EpisodeRef;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
 import dev.mosaicast.core.episode.EpisodeStatus;
+import dev.mosaicast.core.episode.EpisodeTagRepository;
 import dev.mosaicast.plugin.api.Access;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Instant;
@@ -41,11 +42,14 @@ class ReconcilerTest {
     @Mock
     private EpisodeDisplayRepository displays;
 
+    @Mock
+    private EpisodeTagRepository tags;
+
     private Reconciler reconciler;
 
     @BeforeEach
     void setUp() {
-        reconciler = new Reconciler(refs, displays);
+        reconciler = new Reconciler(refs, displays, tags);
         lenient().when(refs.save(any(EpisodeRef.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(displays.save(any(EpisodeDisplay.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(displays.findById(any(UUID.class))).thenReturn(Optional.empty());
@@ -53,7 +57,8 @@ class ReconcilerTest {
 
     private static RawEpisode raw(String guid, String title, Integer season, Integer episode) {
         return new RawEpisode(guid, title, "desc", "https://audio/" + guid,
-                Instant.parse("2026-06-21T00:00:00Z"), season, episode, null, Access.PUBLIC);
+                Instant.parse("2026-06-21T00:00:00Z"), season, episode, null,
+                null, null, null, null, List.of(), Access.PUBLIC);
     }
 
     @Test
@@ -98,7 +103,7 @@ class ReconcilerTest {
     @Test
     void plannedBinding_exactSeasonEpisode_bindsPlannedToFeedItem() {
         EpisodeRef planned = EpisodeRef.planned(FEED, 2, 13,
-                new DisplaySnapshot("Year in review", "", null, null, null));
+                new DisplaySnapshot("Year in review", "", null, null, null, null, null, null, null));
         when(refs.findByFeedId(FEED)).thenReturn(List.of(planned));
 
         ReconcileResult result = reconciler.reconcile(FEED, List.of(raw("g-13", "Year in Review!", 2, 13)));
@@ -114,7 +119,7 @@ class ReconcilerTest {
     @Test
     void plannedBinding_noExactMatch_proposesFuzzySuggestionWithoutBinding() {
         EpisodeRef planned = EpisodeRef.planned(FEED, null, null,
-                new DisplaySnapshot("The great coffee controversy", "", null, null, null));
+                new DisplaySnapshot("The great coffee controversy", "", null, null, null, null, null, null, null));
         when(refs.findByFeedId(FEED)).thenReturn(List.of(planned));
 
         ReconcileResult result = reconciler.reconcile(FEED,

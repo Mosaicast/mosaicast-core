@@ -9,7 +9,7 @@ springBoot = "3.4.1"
 springDependencyManagement = "1.1.7"
 # The plugin contract this host builds against. MUST match the published SDK
 # (dev.mosaicast:plugin-api / @mosaicast/plugin-sdk) and the manifest platformApi.
-mosaicastSdk = "0.1.1"
+mosaicastSdk = "0.2.0"
 rome = "2.1.0"
 pf4j = "3.13.0"
 shedlock = "5.16.0"

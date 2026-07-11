@@ -60,6 +60,7 @@ public class FeedPipeline {
             }
             ReconcileResult reconciled = reconciler.reconcile(locked.getId(), result.episodes());
             persistSuggestions(locked.getId(), reconciled.suggestions());
+            locked.updateChannelMeta(result.feedImageUrl(), result.feedAuthor(), result.feedDescription());
             locked.recordSuccess(result.etag(), result.lastModified(), "OK");
             feeds.save(locked);
             log.info("Reconciled feed {} ({}): {}", locked.getId(), locked.getTitle(), reconciled);

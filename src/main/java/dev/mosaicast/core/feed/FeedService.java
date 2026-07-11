@@ -49,6 +49,27 @@ public class FeedService {
                 .toList();
     }
 
+    /**
+     * The public feed catalog (§6.1): every feed as a slim, anonymous-safe {@link PublicFeedView}, ordered
+     * by title. Unlike {@link #list()} this omits source URL / poll state so nothing admin-only leaks to
+     * unauthenticated callers.
+     */
+    @Transactional(readOnly = true)
+    public List<PublicFeedView> catalog() {
+        return feeds.findAll().stream()
+                .map(feed -> PublicFeedView.of(feed, refs.countByFeedId(feed.getId())))
+                .sorted(java.util.Comparator.comparing(
+                        PublicFeedView::title, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    /** Public detail of one feed for the shell's feed panel (§6.1) — cover, title, author, description. */
+    @Transactional(readOnly = true)
+    public FeedDetailView detail(UUID id) {
+        Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
+        return FeedDetailView.of(feed, refs.countByFeedId(id));
+    }
+
     @Transactional(readOnly = true)
     public FeedView get(UUID id) {
         Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
@@ -101,7 +122,7 @@ public class FeedService {
         Feed feed = feeds.findById(feedId)
                 .orElseThrow(() -> new NotFoundException("Feed not found: " + feedId));
         DisplaySnapshot provisional = new DisplaySnapshot(
-                title, description == null ? "" : description, null, null, null);
+                title, description == null ? "" : description, null, null, null, null, null, null, null);
         EpisodeRef planned = EpisodeRef.planned(feed.getId(), season, episodeNo, provisional);
         return refs.save(planned).getId();
     }

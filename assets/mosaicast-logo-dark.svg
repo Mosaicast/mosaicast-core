@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 372 100" width="372" height="100" role="img" aria-label="Mosaicast">
+  <!-- Dark-theme variant of the wordmark: the "Mosai" text is lightened so it stays readable on a dark
+       background (GitHub dark mode). The mosaic mark is unchanged (theme-safe). -->
+  <!-- ===== Mark: 2x2 Mosaik ===== -->
+  <rect x="4" y="4" width="43" height="43" rx="11" fill="#C8553D"/>
+  <g fill="#FDF6EE">
+    <rect x="14" y="20.5" width="3" height="10" rx="1.5"/>
+    <rect x="19" y="15.5" width="3" height="20" rx="1.5"/>
+    <rect x="24" y="18.5" width="3" height="14" rx="1.5"/>
+    <rect x="29" y="14.5" width="3" height="22" rx="1.5"/>
+    <rect x="34" y="19.5" width="3" height="12" rx="1.5"/>
+  </g>
+
+  <rect x="53" y="4" width="43" height="43" rx="11" fill="#E0913A"/>
+  <g fill="#FDF6EE">
+    <rect x="60" y="15" width="8" height="8" rx="2"/>
+    <rect x="71" y="17.25" width="17" height="3.5" rx="1.75"/>
+    <rect x="60" y="29" width="8" height="8" rx="2"/>
+    <rect x="71" y="31.25" width="17" height="3.5" rx="1.75"/>
+  </g>
+
+  <rect x="4" y="53" width="43" height="43" rx="11" fill="#2E6E6A"/>
+  <g stroke="#FDF6EE" stroke-width="2.2" stroke-linecap="round">
+    <line x1="25.5" y1="74.5" x2="25.5" y2="62"/>
+    <line x1="25.5" y1="74.5" x2="15" y2="84"/>
+    <line x1="25.5" y1="74.5" x2="36" y2="84"/>
+  </g>
+  <g fill="#FDF6EE">
+    <circle cx="25.5" cy="74.5" r="4.5"/>
+    <circle cx="25.5" cy="62" r="3"/>
+    <circle cx="15" cy="84" r="3"/>
+    <circle cx="36" cy="84" r="3"/>
+  </g>
+
+  <rect x="53" y="53" width="43" height="43" rx="11" fill="none"
+        stroke="#CBB9A6" stroke-width="2.5" stroke-dasharray="5 5"/>
+
+  <!-- ===== Wortmarke (dark variant) ===== -->
+  <text x="116" y="64" font-family="Inter, 'Helvetica Neue', Arial, sans-serif"
+        font-size="46" font-weight="700" letter-spacing="-1">
+    <tspan fill="#F3ECE0">Mosai</tspan><tspan fill="#E07A5F">cast</tspan>
+  </text>
+</svg>

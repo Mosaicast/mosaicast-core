@@ -146,6 +146,113 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void catalog_listsFeeds_asSlimPublicView() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+
+        List<PublicFeedView> catalog = feedService.catalog();
+
+        assertThat(catalog).singleElement().satisfies(entry -> {
+            assertThat(entry.id()).isEqualTo(feed.id());
+            assertThat(entry.title()).isEqualTo("Test Cast");
+            assertThat(entry.episodeCount()).isEqualTo(2); // both items reconciled on add
+        });
+    }
+
+    @Test
+    void richMetadata_coversAuthorSubtitleTags_parsedAndSurfaced() {
+        // A feed with a channel cover + author, one item with its own art/author/subtitle/keywords and one
+        // item with none (so it falls back to the feed cover).
+        String feedXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+                  <channel>
+                    <title>Rich Cast</title>
+                    <description>A rich demo feed.</description>
+                    <itunes:image href="https://img.example/feed.jpg"/>
+                    <itunes:author>Feed Author</itunes:author>
+                    <item>
+                      <title>Fancy One</title>
+                      <guid>rich-1</guid>
+                      <description>Notes</description>
+                      <enclosure url="https://audio/rich-1.mp3" type="audio/mpeg" length="1000"/>
+                      <itunes:season>1</itunes:season>
+                      <itunes:episode>1</itunes:episode>
+                      <itunes:image href="https://img.example/ep1.jpg"/>
+                      <itunes:author>Episode Author</itunes:author>
+                      <itunes:subtitle>A subtitle</itunes:subtitle>
+                      <itunes:keywords>alpha, beta, christmas</itunes:keywords>
+                    </item>
+                    <item>
+                      <title>Plain One</title>
+                      <guid>rich-2</guid>
+                      <description>Notes</description>
+                      <enclosure url="https://audio/rich-2.mp3" type="audio/mpeg" length="1000"/>
+                      <itunes:season>1</itunes:season>
+                      <itunes:episode>2</itunes:episode>
+                    </item>
+                  </channel>
+                </rss>
+                """;
+        body.set(feedXml);
+        FeedView feed = feedService.createRss(feedUrl, "Rich Cast");
+
+        var byTitle = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent().stream()
+                .collect(java.util.stream.Collectors.toMap(EpisodeSummary::title, s -> s));
+        // Item with its own metadata.
+        assertThat(byTitle.get("Fancy One").imageUrl()).isEqualTo("https://img.example/ep1.jpg");
+        assertThat(byTitle.get("Fancy One").author()).isEqualTo("Episode Author");
+        assertThat(byTitle.get("Fancy One").subtitle()).isEqualTo("A subtitle");
+        // Item with none → artwork falls back to the feed cover, author to the channel author (§4.2).
+        assertThat(byTitle.get("Plain One").imageUrl()).isEqualTo("https://img.example/feed.jpg");
+        assertThat(byTitle.get("Plain One").author()).isEqualTo("Feed Author");
+
+        // Feed-level channel metadata is stored and served for the feed panel (§6.1).
+        var detail = feedService.detail(feed.id());
+        assertThat(detail.imageUrl()).isEqualTo("https://img.example/feed.jpg");
+        assertThat(detail.author()).isEqualTo("Feed Author");
+        assertThat(detail.description()).isEqualTo("A rich demo feed.");
+        assertThat(detail.episodeCount()).isEqualTo(2);
+
+        // Tags parsed from itunes:keywords, exposed and filterable.
+        assertThat(episodes.tags(feed.id())).contains("alpha", "beta", "christmas");
+        var christmas = episodes.listSite(feed.id(), null, "christmas", true, PageRequest.of(0, 20));
+        assertThat(christmas.getContent()).singleElement()
+                .satisfies(e -> assertThat(e.title()).isEqualTo("Fancy One"));
+    }
+
+    @Test
+    void siteScopeList_returnsEpisodesAcrossFeeds() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+
+        var page = episodes.listSite(null, null, null, true, PageRequest.of(0, 20));
+        assertThat(page.getContent()).extracting(EpisodeSummary::title)
+                .containsExactlyInAnyOrder("Why pigeons secretly hate us", "The great coffee controversy");
+
+        // Narrowed to the one feed yields the same set (single-feed site == unified feed).
+        var scoped = episodes.listSite(feed.id(), null, null, true, PageRequest.of(0, 20));
+        assertThat(scoped.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void adjacent_walksTheFeedInCanonicalOrder() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        // Canonical order is season then episode number → ep-11 (S2E11) precedes ep-12 (S2E12).
+        var ordered = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
+        UUID e11 = ordered.stream().filter(e -> e.episodeNo() == 11).findFirst().orElseThrow().id();
+        UUID e12 = ordered.stream().filter(e -> e.episodeNo() == 12).findFirst().orElseThrow().id();
+
+        var fromE11 = episodes.adjacent(e11);
+        assertThat(fromE11.prev()).isNull();
+        assertThat(fromE11.next()).isNotNull();
+        assertThat(fromE11.next().id()).isEqualTo(e12);
+
+        var fromE12 = episodes.adjacent(e12);
+        assertThat(fromE12.prev()).isNotNull();
+        assertThat(fromE12.prev().id()).isEqualTo(e11);
+        assertThat(fromE12.next()).isNull();
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());

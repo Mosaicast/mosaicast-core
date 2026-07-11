@@ -41,6 +41,11 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
 - Keep **README.md** and **this CLAUDE.md** up to date (commands, structure, setup, conventions) — repo-local, your job.
 - **ARCHITECTURE.md and BRIEF.md are READ-ONLY specs** — don't change them unilaterally; flag deviations.
 - Keep CLAUDE.md slim (< ~200 lines); leave incidental learnings to Claude Code's auto memory.
+- **Screenshots:** after a change that alters the shell's look, refresh the README screenshots in
+  `assets/screenshots/` — **home + detail, each light and dark** (`home-{light,dark}.png`,
+  `detail-{light,dark}.png`, ~1280px). Use `dev/screenshots.sh up` (a fleeting Postgres on :5433 + the
+  fictional `assets/sample/sample-feed.xml` — never your real dev DB, never a real podcast), capture with
+  the browser tools, then `dev/screenshots.sh down`. Brand assets (logo light/dark) live in `assets/`.
 
 ## When unsure
 Ask, or note the assumption visibly, instead of silently diverging from ARCHITECTURE.md.
