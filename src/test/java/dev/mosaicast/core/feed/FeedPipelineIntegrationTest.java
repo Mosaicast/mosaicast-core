@@ -167,6 +167,7 @@ class FeedPipelineIntegrationTest {
                 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
                   <channel>
                     <title>Rich Cast</title>
+                    <description>A rich demo feed.</description>
                     <itunes:image href="https://img.example/feed.jpg"/>
                     <itunes:author>Feed Author</itunes:author>
                     <item>
@@ -204,6 +205,13 @@ class FeedPipelineIntegrationTest {
         // Item with none → artwork falls back to the feed cover, author to the channel author (§4.2).
         assertThat(byTitle.get("Plain One").imageUrl()).isEqualTo("https://img.example/feed.jpg");
         assertThat(byTitle.get("Plain One").author()).isEqualTo("Feed Author");
+
+        // Feed-level channel metadata is stored and served for the feed panel (§6.1).
+        var detail = feedService.detail(feed.id());
+        assertThat(detail.imageUrl()).isEqualTo("https://img.example/feed.jpg");
+        assertThat(detail.author()).isEqualTo("Feed Author");
+        assertThat(detail.description()).isEqualTo("A rich demo feed.");
+        assertThat(detail.episodeCount()).isEqualTo(2);
 
         // Tags parsed from itunes:keywords, exposed and filterable.
         assertThat(episodes.tags(feed.id())).contains("alpha", "beta", "christmas");

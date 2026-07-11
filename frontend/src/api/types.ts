@@ -53,6 +53,16 @@ export interface PublicFeed {
   episodeCount: number;
 }
 
+/** Public detail of one feed (`feed/FeedDetailView.java`), `GET /api/feeds/{id}` — for the feed panel. */
+export interface FeedDetail {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  author: string | null;
+  description: string | null;
+  episodeCount: number;
+}
+
 /** Compact episode (`episode/EpisodeSummary.java`) for cards / search results. */
 export interface EpisodeSummary {
   id: string;

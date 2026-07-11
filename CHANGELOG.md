@@ -24,6 +24,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   **player** now shows cover + feed + S·E and links to the episode. Requires SDK **0.2.0**
   (`DisplaySnapshot` gains `imageUrl`/`feedImageUrl`/`author`/`subtitle`). Spec updated: ARCHITECTURE
   §4.2/§6.1, BRIEF §E4. Host-defined **subfeeds** (saved filters) noted as a future milestone.
+  - Follow-up polish: the feed view is now **two-column** — a left **scope panel** (feed cover/title/author/
+    description + a `feed` plugin region on a feed tab; site logo/name + a `site` region on All) beside the
+    episode list, which **infinite-scrolls** (auto-load + Load-more fallback) instead of paginating. Feed
+    metadata (cover/description/author) is stored on the feed (Flyway V8) and served by `GET /api/feeds/{id}`.
+    Card play button reveals on hover (and is always shown on touch).
 
 - **React/Vite shell — foundation (E4a, M4 `0.4.x`, ARCHITECTURE §6, §12.3):** the walking-skeleton shell
   becomes the real app foundation — semantic theme tokens applied at runtime from the site payload with a

@@ -71,7 +71,8 @@ public class RssFeedSource implements FeedSource {
         ParsedFeed parsed = parse(response.body(), cfg.url());
         String etag = response.headers().firstValue("ETag").orElse(null);
         String lastModified = response.headers().firstValue("Last-Modified").orElse(null);
-        return FetchResult.changed(parsed.episodes(), etag, lastModified, parsed.feedTitle());
+        return FetchResult.changed(parsed.episodes(), etag, lastModified, parsed.feedTitle(),
+                parsed.feedImageUrl(), parsed.feedAuthor(), parsed.feedDescription());
     }
 
     private HttpResponse<byte[]> get(SourceConfig cfg) throws FetchException {
@@ -96,8 +97,10 @@ public class RssFeedSource implements FeedSource {
         }
     }
 
-    /** Parsed feed: the channel title plus its items. */
-    record ParsedFeed(String feedTitle, List<RawEpisode> episodes) {
+    /** Parsed feed: the channel metadata plus its items. */
+    record ParsedFeed(
+            String feedTitle, String feedImageUrl, String feedAuthor, String feedDescription,
+            List<RawEpisode> episodes) {
     }
 
     /** Parses an RSS/Atom body into the channel title + raw episodes. Package-visible for tests. */
@@ -112,11 +115,16 @@ public class RssFeedSource implements FeedSource {
                 feedImageUrl = channel.getImage() != null ? channel.getImage().toString() : null;
                 feedAuthor = blankToNull(channel.getAuthor());
             }
+            // Fall back to the standard RSS <image> when there's no itunes:image.
+            if (feedImageUrl == null && feed.getImage() != null) {
+                feedImageUrl = blankToNull(feed.getImage().getUrl());
+            }
+            String feedDescription = blankToNull(feed.getDescription());
             List<RawEpisode> episodes = new ArrayList<>(feed.getEntries().size());
             for (SyndEntry entry : feed.getEntries()) {
                 episodes.add(toRawEpisode(entry, feedImageUrl, feedAuthor));
             }
-            return new ParsedFeed(feed.getTitle(), episodes);
+            return new ParsedFeed(feed.getTitle(), feedImageUrl, feedAuthor, feedDescription, episodes);
         } catch (Exception e) {
             throw new FetchException("Failed to parse feed body from " + url, e);
         }

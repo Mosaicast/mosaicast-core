@@ -142,7 +142,7 @@ interface FeedAccess { List<String> episodesIn(Scope scope); DisplaySnapshot dis
 ```
 The host fills the frontend `ctx.episodes[]` from this. A plugin never figures out itself how a season is defined.
 
-**Filter state lives in the URL** (query params, e.g. `?season=2&tag=christmas`): filtered views are shareable/bookmarkable, the back button works, and the server can read the params when rendering share metadata (§6.4). Plugins still consume filters read-only via `ctx.filter`. Filter axes: **season** (§4.4), **tag** (feed-derived keywords/categories, `episode_tag`) and ordering; **feed** is selected by the shell's **per-feed tabs** (All + one per feed; a single-feed site shows no tabs and lives at that feed's own URL). Host-defined **subfeeds** (a saved tag/search/filter as a named view) are a planned extension.
+**Filter state lives in the URL** (query params, e.g. `?season=2&tag=christmas`): filtered views are shareable/bookmarkable, the back button works, and the server can read the params when rendering share metadata (§6.4). Plugins still consume filters read-only via `ctx.filter`. Filter axes: **season** (§4.4), **tag** (feed-derived keywords/categories, `episode_tag`) and ordering; **feed** is selected by the shell's **per-feed tabs** (All + one per feed; a single-feed site shows no tabs and lives at that feed's own URL). The feed view is **two-column**: a left **scope panel** (a **feed panel** — cover/title/author/description + the `feed` plugin region — on a feed tab, or a **site panel** — logo/name + the `site` region — on the All tab) beside the episode list (which infinite-scrolls). Host-defined **subfeeds** (a saved tag/search/filter as a named view) are a planned extension.
 
 ### 6.2 Sequential navigation (always shown)
 Previous/next episode are **core navigation, not related and not a plugin** — always shown (detail page + player). Order: by season + episode no., fallback pubDate. **The player auto-advances to the next episode when one ends** (same sequence logic). Must work with zero plugins.
@@ -205,7 +205,7 @@ A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web
 - **`config`**: declared fields are rendered by core as a **generic admin form** (respecting `editableBy`) — plugins never build their own config UI.
 
 ### 7.3 Slots & placements
-- Regions (`main`, `sidebar`, `admin`, `card`, …) are defined by the **host shell** per view. Plugins only target existing names; an unknown region → startup rejection.
+- Regions (`top`, `card`, `main`, `sidebar`, `player`, `feed`, `site`, `admin`, …) are defined by the **host shell** per view. Plugins only target existing names; an unknown region → startup rejection. The **`feed`** and **`site`** regions are the scope panels' plugin spaces (§6.1): `feed` on a feed tab, `site` on the All tab.
 - **Multiple plugins in one region → stacked** vertically, sorted by `order` (ties: plugin ID alphabetical). No "battle royale". Admin can steer `order` via config.
 - `card` placement (episode, compact): plugins show a one-liner on the feed card (stats summary, bingo badge), full rendering only in the detail page `main`. A plugin declares `card` or omits it.
 

@@ -10,7 +10,7 @@ import { Component, type ReactNode } from 'react';
  */
 
 interface SlotRegionProps {
-  name: 'top' | 'card' | 'main' | 'sidebar' | 'player';
+  name: 'top' | 'card' | 'main' | 'sidebar' | 'player' | 'feed' | 'site';
   children?: ReactNode;
 }
 

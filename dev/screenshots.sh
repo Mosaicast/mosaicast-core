@@ -9,7 +9,7 @@
 #   dev/screenshots.sh down   # tear it all down
 #
 # After `up`, capture with the browser tools (light + dark, ~1280px wide):
-#   - http://localhost:8080/                      -> home-light.png / home-dark.png
+#   - http://localhost:8081/                      -> home-light.png / home-dark.png
 #   - an episode from GET /api/episodes           -> detail-light.png / detail-dark.png
 # then `down`. The fleeting Postgres uses host port 5433 so it never touches a 5432 dev DB.
 
@@ -19,7 +19,8 @@ cd "$(dirname "$0")/.."
 PG_NAME="mosaicast-shots"
 PG_PORT=5433
 FEED_PORT=8099
-APP_URL="http://localhost:8080"
+APP_PORT=8081   # distinct from a dev :8080 so this never collides with a running app
+APP_URL="http://localhost:$APP_PORT"
 RUN_DIR="${TMPDIR:-/tmp}/mosaicast-shots"
 mkdir -p "$RUN_DIR"
 
@@ -38,7 +39,8 @@ up() {
   echo "▶ booting the app (dev profile) against the fleeting DB"
   MOSAICAST_DB_URL="jdbc:postgresql://localhost:$PG_PORT/mosaicast" \
   MOSAICAST_DB_USER=mosaicast MOSAICAST_DB_PASSWORD=mosaicast \
-    ./gradlew bootRun --args='--spring.profiles.active=dev' > "$RUN_DIR/app.log" 2>&1 &
+    ./gradlew bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT" \
+      > "$RUN_DIR/app.log" 2>&1 &
   echo $! > "$RUN_DIR/app.pid"
   echo "  waiting for health…"
   until curl -sf "$APP_URL/actuator/health" >/dev/null 2>&1; do sleep 2; done
