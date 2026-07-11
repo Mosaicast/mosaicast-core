@@ -119,6 +119,39 @@ export interface MeView {
   role: Role;
 }
 
+/** A linked-identity provider row (`auth/IdentityView.java`), `GET /api/me/identities`. */
+export interface Identity {
+  provider: string;
+  linked: boolean;
+  email: string | null;
+  since: string | null;
+}
+
+/** Personal access token metadata (`auth/pat/PatController.TokenView`), never the secret. */
+export interface Token {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** Create-token response (`CreatedToken`) — carries the plaintext `secret`, shown once. */
+export interface CreatedToken {
+  id: string;
+  name: string;
+  prefix: string;
+  secret: string;
+  createdAt: string;
+}
+
+/** Core build/meta payload (`web/MetaController`), `GET /api/meta`. */
+export interface Meta {
+  name: string;
+  version: string;
+  devLoginEnabled: boolean;
+}
+
 /** The pagination envelope (`web/PagedResponse.java`) returned by list endpoints. */
 export interface Paged<T> {
   items: T[];

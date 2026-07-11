@@ -13,6 +13,7 @@ import {
 
 import { api } from '../api/client';
 import type { EpisodeDetail, EpisodeSummary } from '../api/types';
+import { useUser } from '../auth/UserContext';
 import { PlayerBar } from './PlayerBar';
 
 /**
@@ -60,6 +61,12 @@ const progressKey = (id: string) => `mc.progress.${id}`;
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingSeekRef = useRef<number>(0);
+  // Whether the viewer is logged in — read via a ref so the audio-event handlers don't re-subscribe on
+  // login state changes, and the server progress write is throttled to avoid a PUT every second (§6.5).
+  const { user } = useUser();
+  const userRef = useRef(user);
+  userRef.current = user;
+  const lastServerWriteRef = useRef(0);
   const [current, setCurrent] = useState<PlayableEpisode | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -86,7 +93,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       if (current?.id !== episode.id) {
         audio.src = url;
-        pendingSeekRef.current = Number(localStorage.getItem(progressKey(episode.id)) ?? 0);
+        // Restore the resume position: server-side for a logged-in user (§6.5), else localStorage.
+        let saved = Number(localStorage.getItem(progressKey(episode.id)) ?? 0);
+        if (userRef.current) {
+          try {
+            const map = await api.get<Record<string, number>>(
+              `/api/me/progress?episodeIds=${episode.id}`,
+            );
+            if (map[episode.id] != null) {
+              saved = map[episode.id];
+            }
+          } catch {
+            /* fall back to the localStorage value */
+          }
+        }
+        pendingSeekRef.current = saved;
         setCurrent({ ...episode, audioUrl: url });
       }
       try {
@@ -165,14 +186,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
     const onTime = () => {
       setCurrentTime(audio.currentTime);
-      if (current) {
-        // Persist progress (throttle to whole seconds to avoid churn).
-        localStorage.setItem(progressKey(current.id), String(Math.floor(audio.currentTime)));
+      if (!current) {
+        return;
+      }
+      const seconds = Math.floor(audio.currentTime);
+      // localStorage every tick is cheap and covers anonymous + logout; server writes are throttled.
+      localStorage.setItem(progressKey(current.id), String(seconds));
+      const now = Date.now();
+      if (userRef.current && now - lastServerWriteRef.current > 10_000) {
+        lastServerWriteRef.current = now;
+        void api.put(`/api/me/progress/${current.id}`, { positionSeconds: seconds }).catch(() => {});
       }
     };
     const onEnded = () => {
       if (current) {
         localStorage.removeItem(progressKey(current.id));
+        if (userRef.current) {
+          void api.put(`/api/me/progress/${current.id}`, { positionSeconds: 0 }).catch(() => {});
+        }
       }
       void advance();
     };

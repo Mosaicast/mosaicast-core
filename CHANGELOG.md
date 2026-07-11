@@ -14,6 +14,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Account & auth UI (E4c, `0.4.3`, ARCHITECTURE §8):** log in from the shell (Discord `oauth2Login`, plus
+  a dev-login option under the `dev` profile), an account menu (avatar / name / role), and an **account page**
+  — linked identities (connect / unlink, with last-identity lockout) and personal access tokens (create shows
+  the secret once, revoke). Player **listening progress** now syncs server-side for logged-in users
+  (`GET`/`PUT /api/me/progress`, Flyway `listening_progress`); anonymous stays local. `GET /api/meta` reports
+  `devLoginEnabled`.
+
+## [0.4.2] — 2026-07-11
+
+### Added
+
 - **Shell v2 — rich cards, real covers, tabs & tags (E4b+, `0.4.2`, §6):** hands-on revision of the shell.
   Feeds now surface **real cover art** (`itunes:image`, episode → feed fallback via the SDK's new
   `DisplaySnapshot.artwork()`), **author** and **subtitle**; the feed is a **one-column, cover-left card**
@@ -120,5 +131,6 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
-[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
 [0.1.0]: https://github.com/Mosaicast/mosaicast-core/releases/tag/v0.1.0
