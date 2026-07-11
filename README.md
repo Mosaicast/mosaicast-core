@@ -1,4 +1,11 @@
-# mosaicast-core
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/mosaicast-logo-dark.svg" />
+    <img alt="Mosaicast" src="assets/mosaicast-logo.svg" width="360" />
+  </picture>
+</p>
+
+<h1 align="center">mosaicast-core</h1>
 
 > The host: Spring Boot backend + React/Vite shell. Loads plugins, unifies feeds, manages auth/branding/theming.
 
@@ -6,6 +13,20 @@ Part of **[Mosaicast](https://github.com/mosaicast)** — an extensible website 
 
 ## What is this?
 See `docs/ARCHITECTURE.md` for the big picture and `docs/BRIEF.md` for this repo's scope.
+
+## Screenshots
+
+The unified episode feed (episodes are the centerpiece; feed / season / ordering are filters). The shell
+themes from a single accent seed (OKLCH + WCAG clamp) — shown here in light and dark:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/home-dark.png" />
+    <img alt="Mosaicast shell — unified episode feed" src="assets/screenshots/home-light.png" width="720" />
+  </picture>
+</p>
+
+<sub>Screenshots are captured from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 
 ## Prerequisite: the plugin SDK
 
