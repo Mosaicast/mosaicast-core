@@ -79,7 +79,7 @@ EpisodeRef
 **Status lifecycle:** `PLANNED` → `PUBLISHED` → possibly `WITHDRAWN`.
 
 ### 4.2 Display snapshot (NOT authoritative, from the feed)
-Title, description, audio URL, pubDate **and runtime/duration** (`<itunes:duration>`/enclosure). **Overwritten** on every fetch from the raw feed, only read-through cached. So a description change in the RSS propagates automatically and never lives in the DB as truth.
+Title, description, audio URL, pubDate, runtime/duration (`<itunes:duration>`/enclosure), **episode artwork** (`itunes:image`) with the **feed/show cover** (channel `itunes:image`) as a fallback (`artwork()` = episode → feed), **author** (`itunes:author`, falling back to the channel author) and **subtitle** (`itunes:subtitle`). **Overwritten** on every fetch from the raw feed, only read-through cached. So a description change in the RSS propagates automatically and never lives in the DB as truth. (Episode **tags** — `itunes:keywords`/`<category>` — are feed-derived too but stored as a relation `episode_tag`, since they are a filter/scoping axis, §6.1.)
 Table: `episode_display(episode_ref_id, snapshot JSONB, fetched_at)`. Swappable for Redis later.
 
 > **Core display vs. plugin metrics:** Runtime/date in the main UI (feed cards, detail header, player) always come from the **feed snapshot**. Metrics provided by plugins (e.g. MAT runtime, speaking shares) are **non-authoritative, possibly absent** (not every episode has stats) and are shown **only inside that plugin's UI** — never in the core display.
@@ -142,7 +142,7 @@ interface FeedAccess { List<String> episodesIn(Scope scope); DisplaySnapshot dis
 ```
 The host fills the frontend `ctx.episodes[]` from this. A plugin never figures out itself how a season is defined.
 
-**Filter state lives in the URL** (query params, e.g. `?season=2`): filtered views are shareable/bookmarkable, the back button works, and the server can read the params when rendering share metadata (§6.4). Plugins still consume filters read-only via `ctx.filter`.
+**Filter state lives in the URL** (query params, e.g. `?season=2&tag=christmas`): filtered views are shareable/bookmarkable, the back button works, and the server can read the params when rendering share metadata (§6.4). Plugins still consume filters read-only via `ctx.filter`. Filter axes: **season** (§4.4), **tag** (feed-derived keywords/categories, `episode_tag`) and ordering; **feed** is selected by the shell's **per-feed tabs** (All + one per feed; a single-feed site shows no tabs and lives at that feed's own URL). Host-defined **subfeeds** (a saved tag/search/filter as a named view) are a planned extension.
 
 ### 6.2 Sequential navigation (always shown)
 Previous/next episode are **core navigation, not related and not a plugin** — always shown (detail page + player). Order: by season + episode no., fallback pubDate. **The player auto-advances to the next episode when one ends** (same sequence logic). Must work with zero plugins.

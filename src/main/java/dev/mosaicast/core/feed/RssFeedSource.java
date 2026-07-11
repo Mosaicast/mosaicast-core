@@ -4,6 +4,8 @@
 package dev.mosaicast.core.feed;
 
 import com.rometools.modules.itunes.EntryInformation;
+import com.rometools.modules.itunes.FeedInformation;
+import com.rometools.rome.feed.synd.SyndCategory;
 import com.rometools.rome.feed.synd.SyndEnclosure;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
@@ -102,9 +104,17 @@ public class RssFeedSource implements FeedSource {
     ParsedFeed parse(byte[] body, String url) throws FetchException {
         try (var in = new ByteArrayInputStream(body)) {
             SyndFeed feed = new SyndFeedInput().build(new XmlReader(in));
+            // Channel-level iTunes info: the show cover + author, stamped onto every item so a snapshot can
+            // fall back to the feed cover / feed author when the item declares none (§4.2, DisplaySnapshot).
+            String feedImageUrl = null;
+            String feedAuthor = null;
+            if (feed.getModule(FeedInformation.URI) instanceof FeedInformation channel) {
+                feedImageUrl = channel.getImage() != null ? channel.getImage().toString() : null;
+                feedAuthor = blankToNull(channel.getAuthor());
+            }
             List<RawEpisode> episodes = new ArrayList<>(feed.getEntries().size());
             for (SyndEntry entry : feed.getEntries()) {
-                episodes.add(toRawEpisode(entry));
+                episodes.add(toRawEpisode(entry, feedImageUrl, feedAuthor));
             }
             return new ParsedFeed(feed.getTitle(), episodes);
         } catch (Exception e) {
@@ -112,7 +122,7 @@ public class RssFeedSource implements FeedSource {
         }
     }
 
-    private static RawEpisode toRawEpisode(SyndEntry entry) {
+    private static RawEpisode toRawEpisode(SyndEntry entry, String feedImageUrl, String feedAuthor) {
         String guid = entry.getUri() != null ? entry.getUri() : entry.getLink();
         String title = entry.getTitle() != null ? entry.getTitle() : "";
         String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
@@ -124,16 +134,50 @@ public class RssFeedSource implements FeedSource {
         Integer season = null;
         Integer episodeNumber = null;
         Duration duration = null;
+        String imageUrl = null;
+        String author = null;
+        String subtitle = null;
+        List<String> tags = new ArrayList<>();
         if (entry.getModule(EntryInformation.URI) instanceof EntryInformation itunes) {
             season = itunes.getSeason();
             episodeNumber = itunes.getEpisode();
             if (itunes.getDuration() != null) {
                 duration = Duration.ofMillis(itunes.getDuration().getMilliseconds());
             }
+            imageUrl = itunes.getImage() != null ? itunes.getImage().toString() : null;
+            author = blankToNull(itunes.getAuthor());
+            subtitle = blankToNull(itunes.getSubtitle());
+            if (itunes.getKeywords() != null) {
+                for (String keyword : itunes.getKeywords()) {
+                    addTag(tags, keyword);
+                }
+            }
         }
+        // Plain RSS <category> elements also contribute tags.
+        for (SyndCategory category : entry.getCategories()) {
+            addTag(tags, category.getName());
+        }
+        // Episode author falls back to the channel author; artwork falls back to the feed cover (in the snapshot).
+        String resolvedAuthor = author != null ? author : feedAuthor;
         // v1 is RSS-only → everything is PUBLIC (ARCHITECTURE §10).
         return new RawEpisode(guid, title, description, audioUrl, publishedAt,
-                season, episodeNumber, duration, Access.PUBLIC);
+                season, episodeNumber, duration, imageUrl, feedImageUrl, resolvedAuthor, subtitle, tags,
+                Access.PUBLIC);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /** Adds a trimmed, non-blank, de-duplicated tag. */
+    private static void addTag(List<String> tags, String raw) {
+        if (raw == null) {
+            return;
+        }
+        String tag = raw.trim();
+        if (!tag.isEmpty() && !tags.contains(tag)) {
+            tags.add(tag);
+        }
     }
 
     private static String firstAudioEnclosure(SyndEntry entry) {

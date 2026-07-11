@@ -12,7 +12,7 @@ import {
 } from 'react';
 
 import { api } from '../api/client';
-import type { EpisodeDetail } from '../api/types';
+import type { EpisodeDetail, EpisodeSummary } from '../api/types';
 import { PlayerBar } from './PlayerBar';
 
 /**
@@ -27,6 +27,10 @@ export interface PlayableEpisode {
   id: string;
   title: string;
   audioUrl?: string | null;
+  imageUrl?: string | null;
+  feedTitle?: string | null;
+  season?: number | null;
+  episodeNo?: number | null;
 }
 
 interface PlayerContextValue {
@@ -83,7 +87,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (current?.id !== episode.id) {
         audio.src = url;
         pendingSeekRef.current = Number(localStorage.getItem(progressKey(episode.id)) ?? 0);
-        setCurrent({ id: episode.id, title: episode.title, audioUrl: url });
+        setCurrent({ ...episode, audioUrl: url });
       }
       try {
         await audio.play();
@@ -128,11 +132,16 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const adjacent = await api.get<{ next: { id: string; title: string } | null }>(
-        `/api/episodes/${current.id}/adjacent`,
-      );
-      if (adjacent.next) {
-        void play({ id: adjacent.next.id, title: adjacent.next.title });
+      const adjacent = await api.get<{ next: EpisodeSummary | null }>(`/api/episodes/${current.id}/adjacent`);
+      const next = adjacent.next;
+      if (next) {
+        void play({
+          id: next.id,
+          title: next.title,
+          imageUrl: next.imageUrl,
+          season: next.season,
+          episodeNo: next.episodeNo,
+        });
       }
     } catch {
       /* end of feed or offline — just stop */
@@ -187,7 +196,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (current) {
-      navigator.mediaSession.metadata = new MediaMetadata({ title: current.title });
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: current.title,
+        artwork: current.imageUrl ? [{ src: current.imageUrl }] : undefined,
+      });
       navigator.mediaSession.setActionHandler('play', () => toggle());
       navigator.mediaSession.setActionHandler('pause', () => toggle());
       navigator.mediaSession.setActionHandler('seekbackward', () => seek(currentTime - 15));

@@ -25,14 +25,18 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EpisodeQueryService {
 
-    private static final DisplaySnapshot EMPTY = new DisplaySnapshot("", "", null, null, null);
+    private static final DisplaySnapshot EMPTY =
+            new DisplaySnapshot("", "", null, null, null, null, null, null, null);
 
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
+    private final EpisodeTagRepository episodeTags;
 
-    public EpisodeQueryService(EpisodeRefRepository refs, EpisodeDisplayRepository displays) {
+    public EpisodeQueryService(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
+                               EpisodeTagRepository episodeTags) {
         this.refs = refs;
         this.displays = displays;
+        this.episodeTags = episodeTags;
     }
 
     /** Episodes visible in a feed, optionally filtered by season, in canonical order (paginated). */
@@ -48,14 +52,19 @@ public class EpisodeQueryService {
      * landing feed — feed/season/order are filters, not separate pages. Batches the snapshot load and
      * preserves the DB order (upcoming first, then by publish date).
      */
-    public Page<EpisodeSummary> listSite(UUID feedId, Integer season, boolean newest, Pageable pageable) {
-        Page<UUID> ids = refs.findSiteVisibleIds(feedId, season, newest, pageable);
+    public Page<EpisodeSummary> listSite(UUID feedId, Integer season, String tag, boolean newest, Pageable pageable) {
+        Page<UUID> ids = refs.findSiteVisibleIds(feedId, season, tag, newest, pageable);
         return new PageImpl<>(summariesInOrder(ids.getContent()), pageable, ids.getTotalElements());
     }
 
     /** Distinct seasons present in a feed (§4.4). */
     public List<Integer> seasons(UUID feedId) {
         return refs.findSeasons(feedId);
+    }
+
+    /** Distinct tags across visible episodes, optionally scoped to a feed (§6.1) — the tag filter options. */
+    public List<String> tags(UUID feedId) {
+        return episodeTags.distinctTags(feedId);
     }
 
     /**

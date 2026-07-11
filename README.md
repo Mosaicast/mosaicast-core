@@ -133,9 +133,10 @@ frontend/    React/Vite host shell (built into resources/static)
 Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/admin/feeds/{id}/suggestions` + `POST …/suggestions/{id}/confirm` + `DELETE …/suggestions/{id}`
 (review/confirm/dismiss fuzzy PLANNED bindings, §5.3, **PODCASTER/ADMIN**),
-`GET /api/feeds` (public catalog), `GET /api/episodes?feedId=&season=&order=` (unified site-scope feed),
-`GET /api/feeds/{id}/episodes?season=`, `GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`,
-`GET /api/episodes/{id}/adjacent`, `GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
+`GET /api/feeds` (public catalog), `GET /api/episodes?feedId=&season=&tag=&order=` (unified site-scope feed),
+`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{id}/episodes?season=`,
+`GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
+`GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens` (authenticated). All lists paginate; errors are
 `application/problem+json`.
 

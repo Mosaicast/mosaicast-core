@@ -207,21 +207,40 @@ code {
   color: var(--mc-text);
 }
 
-/* ---- episode cards ---- */
+/* ---- feed tabs ---- */
+.mc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-tab {
+  padding: 0.5rem 0.9rem;
+  color: var(--mc-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.mc-tab:hover {
+  text-decoration: none;
+  color: var(--mc-text);
+}
+.mc-tab--active {
+  color: var(--mc-accent);
+  border-bottom-color: var(--mc-accent);
+  font-weight: 600;
+}
+
+/* ---- episode cards (one-column, cover-left) ---- */
 .mc-card-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: 1rem;
-}
-@media (max-width: 720px) {
-  .mc-card-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 .mc-card {
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   padding: 1rem;
   background: var(--mc-surface);
   border: 1px solid var(--mc-border);
@@ -237,23 +256,29 @@ code {
 .mc-card__cover {
   position: relative;
   flex: 0 0 auto;
+  width: 132px;
+  height: 132px;
 }
 .mc-cover {
   display: block;
   border-radius: 10px;
   overflow: hidden;
 }
+.mc-cover--img {
+  object-fit: cover;
+}
 .mc-card__play,
 .mc-card__cover .mc-card__play {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 3rem;
+  height: 3rem;
   border-radius: 50%;
   border: none;
-  background: var(--mc-accent);
+  background: color-mix(in srgb, var(--mc-accent) 85%, transparent);
   color: var(--mc-accent-contrast);
+  font-size: 1.1rem;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s ease;
@@ -266,14 +291,31 @@ code {
 .mc-card__body {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.mc-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.82rem;
+}
+.mc-card__feed {
+  font-weight: 600;
+  color: var(--mc-accent-2);
 }
 .mc-card__title {
-  margin: 0 0 0.4rem;
-  font-size: 1.02rem;
-  line-height: 1.3;
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
 }
 .mc-card__title a {
   color: var(--mc-text);
+}
+.mc-card__subtitle {
+  margin: 0;
+  font-size: 0.92rem;
 }
 .mc-card__meta {
   display: flex;
@@ -281,6 +323,21 @@ code {
   gap: 0.75rem;
   font-size: 0.85rem;
   align-items: center;
+}
+.mc-card__excerpt {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--mc-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 620px) {
+  .mc-card {
+    flex-direction: column;
+  }
 }
 
 .mc-chip {
@@ -311,9 +368,17 @@ code {
   align-items: flex-start;
   margin-bottom: 2rem;
 }
+.mc-hero__author {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
 .mc-hero__title {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.35rem;
   font-size: 1.6rem;
+}
+.mc-hero__subtitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
 }
 .mc-hero__meta {
   display: flex;
@@ -361,7 +426,7 @@ code {
 
 /* ---- persistent player ---- */
 .mc-main {
-  padding-bottom: 96px; /* clearance for the fixed player bar */
+  padding-bottom: 108px; /* clearance for the fixed player bar */
 }
 .mc-player {
   position: fixed;
@@ -371,14 +436,36 @@ code {
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.6rem 1.25rem;
+  gap: 1.25rem;
+  min-height: 76px;
+  padding: 0.7rem 1.25rem;
   background: var(--mc-surface);
   border-top: 1px solid var(--mc-border);
 }
 .mc-player__now {
-  flex: 0 1 220px;
+  flex: 0 1 280px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.mc-player__cover {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  line-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mc-player__meta {
+  min-width: 0;
+}
+.mc-player__sub {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .mc-player__title {
   display: block;
@@ -386,6 +473,7 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  color: var(--mc-text);
 }
 .mc-player__transport {
   flex: 1;

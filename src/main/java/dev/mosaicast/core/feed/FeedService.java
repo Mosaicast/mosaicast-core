@@ -115,7 +115,7 @@ public class FeedService {
         Feed feed = feeds.findById(feedId)
                 .orElseThrow(() -> new NotFoundException("Feed not found: " + feedId));
         DisplaySnapshot provisional = new DisplaySnapshot(
-                title, description == null ? "" : description, null, null, null);
+                title, description == null ? "" : description, null, null, null, null, null, null, null);
         EpisodeRef planned = EpisodeRef.planned(feed.getId(), season, episodeNo, provisional);
         return refs.save(planned).getId();
     }

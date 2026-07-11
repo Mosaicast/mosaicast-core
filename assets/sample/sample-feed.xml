@@ -2,7 +2,8 @@
 <!--
   A fictional demo podcast feed for Mosaicast — used for local testing and README screenshots.
   Not a real show; any resemblance to an actual podcast is coincidental. Audio enclosures point at
-  example.com (no real media), which is fine for UI screenshots.
+  example.com (no real media); cover art uses picsum.photos (stable per seed) so the shell shows real
+  covers. Some items omit itunes:image to exercise the feed-cover fallback.
 -->
 <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
   <channel>
@@ -10,10 +11,12 @@
     <description>A demo podcast feed for Mosaicast — screenshots and local testing.</description>
     <language>en</language>
     <itunes:author>The Mosaicast Authors</itunes:author>
+    <itunes:image href="https://picsum.photos/seed/samplecast/600/600"/>
 
     <item>
       <title>The Lighthouse Keeper's Last Broadcast</title>
       <guid isPermaLink="false">sample-0106</guid>
+      <itunes:subtitle>Forty years of weather logs, and one entry that shouldn't exist.</itunes:subtitle>
       <description><![CDATA[
         <p>On the final night before the light goes automated, the keeper reads out forty years of
         weather logs — and one entry that was never supposed to be recorded.</p>
@@ -22,65 +25,82 @@
       ]]></description>
       <pubDate>Sun, 05 Jul 2026 06:00:00 GMT</pubDate>
       <enclosure url="https://example.com/audio/sample-0106.mp3" type="audio/mpeg" length="48200000"/>
+      <itunes:image href="https://picsum.photos/seed/sample-0106/600/600"/>
       <itunes:season>1</itunes:season>
       <itunes:episode>6</itunes:episode>
       <itunes:duration>0:52:14</itunes:duration>
+      <itunes:keywords>mystery, history, maritime</itunes:keywords>
     </item>
 
     <item>
       <title>Coffee, Comets, and Other Disasters</title>
       <guid isPermaLink="false">sample-0105</guid>
+      <itunes:subtitle>Near-misses, both cosmic and caffeinated.</itunes:subtitle>
       <description><![CDATA[<p>A history of near-misses: the espresso machine that predicted an earthquake,
         and the comet everyone forgot to name.</p>]]></description>
       <pubDate>Sun, 28 Jun 2026 06:00:00 GMT</pubDate>
       <enclosure url="https://example.com/audio/sample-0105.mp3" type="audio/mpeg" length="41000000"/>
+      <itunes:image href="https://picsum.photos/seed/sample-0105/600/600"/>
       <itunes:season>1</itunes:season>
       <itunes:episode>5</itunes:episode>
       <itunes:duration>1:04:58</itunes:duration>
+      <itunes:keywords>science, history</itunes:keywords>
     </item>
 
     <item>
       <title>A Brief History of Getting Lost</title>
       <guid isPermaLink="false">sample-0104</guid>
+      <itunes:subtitle>Maps, mazes, and "you are here".</itunes:subtitle>
       <description><![CDATA[<p>Maps, mazes, and the surprisingly recent invention of "you are here".</p>]]></description>
       <pubDate>Sun, 21 Jun 2026 06:00:00 GMT</pubDate>
       <enclosure url="https://example.com/audio/sample-0104.mp3" type="audio/mpeg" length="39500000"/>
+      <itunes:image href="https://picsum.photos/seed/sample-0104/600/600"/>
       <itunes:season>1</itunes:season>
       <itunes:episode>4</itunes:episode>
       <itunes:duration>0:48:30</itunes:duration>
+      <itunes:keywords>history</itunes:keywords>
     </item>
 
     <item>
       <title>The Museum That Only Opens at Night</title>
       <guid isPermaLink="false">sample-0103</guid>
+      <itunes:subtitle>Behind a velvet rope nobody may photograph.</itunes:subtitle>
       <description><![CDATA[<p>Behind the velvet rope of a collection nobody is allowed to photograph.</p>]]></description>
       <pubDate>Sun, 14 Jun 2026 06:00:00 GMT</pubDate>
       <enclosure url="https://example.com/audio/sample-0103.mp3" type="audio/mpeg" length="45300000"/>
+      <!-- No item image: falls back to the feed cover. -->
       <itunes:season>1</itunes:season>
       <itunes:episode>3</itunes:episode>
       <itunes:duration>0:58:02</itunes:duration>
+      <itunes:keywords>mystery, art</itunes:keywords>
     </item>
 
     <item>
       <title>Letters from the Bottom of the Sea</title>
       <guid isPermaLink="false">sample-0102</guid>
+      <itunes:subtitle>The slowest conversations ever held.</itunes:subtitle>
       <description><![CDATA[<p>Deep-sea cables, message bottles, and the slowest conversations ever held.</p>]]></description>
       <pubDate>Sun, 07 Jun 2026 06:00:00 GMT</pubDate>
       <enclosure url="https://example.com/audio/sample-0102.mp3" type="audio/mpeg" length="37800000"/>
+      <itunes:image href="https://picsum.photos/seed/sample-0102/600/600"/>
       <itunes:season>1</itunes:season>
       <itunes:episode>2</itunes:episode>
       <itunes:duration>0:44:11</itunes:duration>
+      <itunes:keywords>science, maritime</itunes:keywords>
     </item>
 
     <item>
       <title>Pilot: How We Got Here</title>
       <guid isPermaLink="false">sample-0101</guid>
+      <itunes:subtitle>Introductions and a promise we will break.</itunes:subtitle>
       <description><![CDATA[<p>The first one. Introductions, a mission statement, and a promise we will almost certainly break.</p>]]></description>
       <pubDate>Sun, 31 May 2026 06:00:00 GMT</pubDate>
       <enclosure url="https://example.com/audio/sample-0101.mp3" type="audio/mpeg" length="30100000"/>
+      <itunes:image href="https://picsum.photos/seed/sample-0101/600/600"/>
       <itunes:season>1</itunes:season>
       <itunes:episode>1</itunes:episode>
       <itunes:duration>0:35:40</itunes:duration>
+      <itunes:keywords>history</itunes:keywords>
     </item>
   </channel>
 </rss>

@@ -21,9 +21,16 @@ public record EpisodeSummary(
         AccessType access,
         String accessTierRef,
         String title,
+        String subtitle,
+        String author,
+        String imageUrl,
+        String excerpt,
         Instant publishedAt,
         Long durationSeconds,
         boolean hasAudio) {
+
+    /** Max characters of the description surfaced as a card excerpt (the shell clamps visually too). */
+    private static final int EXCERPT_LIMIT = 300;
 
     /** Builds a summary from a ref and its resolved display snapshot. */
     public static EpisodeSummary from(EpisodeRef ref, DisplaySnapshot snapshot) {
@@ -36,8 +43,24 @@ public record EpisodeSummary(
                 ref.getAccessType(),
                 ref.getAccessTierRef(),
                 snapshot.title(),
+                snapshot.subtitle(),
+                snapshot.author(),
+                snapshot.artwork(), // episode image, falling back to the feed cover (§4.2)
+                excerpt(snapshot.description()),
                 snapshot.publishedAt(),
                 snapshot.duration() == null ? null : snapshot.duration().toSeconds(),
                 snapshot.audioUrl() != null);
+    }
+
+    /** A short plain-text lead-in for the card: HTML stripped, whitespace collapsed, length-capped. */
+    private static String excerpt(String description) {
+        if (description == null || description.isBlank()) {
+            return null;
+        }
+        String text = description.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+        if (text.isEmpty()) {
+            return null;
+        }
+        return text.length() <= EXCERPT_LIMIT ? text : text.substring(0, EXCERPT_LIMIT).trim() + "…";
     }
 }

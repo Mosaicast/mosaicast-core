@@ -3,6 +3,7 @@
 
 import { Route, Routes } from 'react-router-dom';
 
+import { FeedsProvider } from './components/FeedsContext';
 import { Footer } from './components/Footer';
 import { TopBar } from './components/TopBar';
 import { PlayerProvider } from './player/PlayerContext';
@@ -20,21 +21,23 @@ import { SiteProvider } from './theme/SiteContext';
 export default function App() {
   return (
     <SiteProvider>
-      <PlayerProvider>
-        <div className="mc-root">
-          <TopBar />
-          <main className="mc-main">
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/feeds/:feedId" element={<FeedPage />} />
-              <Route path="/episodes/:episodeId" element={<EpisodePage />} />
-              <Route path="/account" element={<Placeholder titleKey="account.title" />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-          <Footer />
-        </div>
-      </PlayerProvider>
+      <FeedsProvider>
+        <PlayerProvider>
+          <div className="mc-root">
+            <TopBar />
+            <main className="mc-main">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/feeds/:feedId" element={<FeedPage />} />
+                <Route path="/episodes/:episodeId" element={<EpisodePage />} />
+                <Route path="/account" element={<Placeholder titleKey="account.title" />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
+        </PlayerProvider>
+      </FeedsProvider>
     </SiteProvider>
   );
 }

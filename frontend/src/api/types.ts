@@ -63,6 +63,10 @@ export interface EpisodeSummary {
   access: AccessType;
   accessTierRef: string | null;
   title: string;
+  subtitle: string | null;
+  author: string | null;
+  imageUrl: string | null; // resolved episode-or-feed cover (artwork); null → generative fallback
+  excerpt: string | null; // short plain-text description lead-in for the card
   publishedAt: string | null;
   durationSeconds: number | null;
   hasAudio: boolean;
@@ -82,6 +86,9 @@ export interface EpisodeDetail {
   access: AccessType;
   accessTierRef: string | null;
   title: string;
+  subtitle: string | null;
+  author: string | null;
+  imageUrl: string | null;
   description: string | null;
   publishedAt: string | null;
   durationSeconds: number | null;

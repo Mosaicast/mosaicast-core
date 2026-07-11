@@ -35,7 +35,7 @@ The **host**: Spring Boot backend (REST) + React/Vite shell. Loads plugins at st
 
 ### E4 – React/Vite shell (ARCHITECTURE §6, §12.3; `docs/reference/mosaicast-mockup.jsx` as a LAYOUT reference)
 - Top-bar chrome (nav collapses on mobile), **persistent global player** across routes, **Media Session API**, **auto-advance to the next episode**.
-- Feed view: wide cards (2 columns on desktop), host **filter bar** (season dropdown, sorting), `card` slots, lock/upcoming stubs.
+- Feed view: **one-column, cover-left rich cards** (prominent cover, feed title + author, title + subtitle, season/episode · date · runtime, description excerpt), **per-feed tabs** (All + one per feed; single feed → no tabs, feed's own URL), host **filter bar** (season, **tag**, sorting), `card` slots, lock/upcoming stubs.
 - Detail page: two columns (`main`/`sidebar` regions), hero with play, **fixed previous/next navigation** (separate from related).
 - Semantic **theme tokens**, light/dark, `data-theme`, **no-flash inline script**, accent **seed generator** (OKLCH + WCAG clamp), live preview, logo light/dark preview.
 - **i18n** (ARCHITECTURE §12.7): i18next with `locales/en.json` (source) + `locales/de.json`; locale resolution = explicit choice (works anonymously, persisted) → browser → site default; visible **language switcher** without login; dates via `Intl`. Feed content stays in its original language.

@@ -6,45 +6,38 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
 import { api } from '../api/client';
-import type { EpisodeSummary, Paged, PublicFeed } from '../api/types';
+import type { EpisodeSummary, Paged } from '../api/types';
 import { EpisodeCard } from './EpisodeCard';
+import { FeedTabs } from './FeedTabs';
+import { useFeeds } from './FeedsContext';
 import { FilterBar, type FilterValues } from './FilterBar';
 
 /**
- * The unified episode feed (§6.1) — the shell's centerpiece. Lists episodes across all feeds (or one, when
- * {@code fixedFeedId} scopes it to the `/feeds/:id` page), with feed/season/order as filters whose state
- * lives in the URL (shareable, back-button-friendly). Feeds-as-filter, episodes-as-content.
+ * The unified episode feed (§6.1) — the shell's centerpiece. Episodes are the content; the **feed** is a
+ * scope chosen by the tabs (All, or `/feeds/:id` → {@code fixedFeedId}), and **season / tag / order** are
+ * filters whose state lives in the URL. On the All view each card shows its feed's title; on a single feed
+ * that's redundant and omitted.
  */
 const PAGE_SIZE = 20;
 
 export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
   const { t } = useTranslation();
+  const { titleOf } = useFeeds();
   const [params, setParams] = useSearchParams();
 
-  const showFeedFilter = !fixedFeedId;
-  const feedId = fixedFeedId ?? params.get('feedId') ?? '';
+  const feedId = fixedFeedId ?? '';
   const season = params.get('season') ?? '';
+  const tag = params.get('tag') ?? '';
   const order: FilterValues['order'] = params.get('order') === 'oldest' ? 'oldest' : 'newest';
   const page = Math.max(0, Number(params.get('page') ?? 0));
-  const values: FilterValues = useMemo(() => ({ feedId, season, order }), [feedId, season, order]);
+  const values: FilterValues = useMemo(() => ({ season, tag, order }), [season, tag, order]);
 
-  const [feeds, setFeeds] = useState<PublicFeed[]>([]);
   const [seasons, setSeasons] = useState<number[]>([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [data, setData] = useState<Paged<EpisodeSummary> | null>(null);
   const [failed, setFailed] = useState(false);
 
-  // Feed dropdown options (only when not already scoped to a feed).
-  useEffect(() => {
-    if (!showFeedFilter) {
-      return;
-    }
-    api
-      .get<PublicFeed[]>('/api/feeds')
-      .then(setFeeds)
-      .catch(() => setFeeds([]));
-  }, [showFeedFilter]);
-
-  // Season options depend on the selected feed (a season is defined within a feed, §4.4).
+  // Season options (defined within a feed, §4.4) — only when scoped to one.
   useEffect(() => {
     if (!feedId) {
       setSeasons([]);
@@ -56,7 +49,16 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
       .catch(() => setSeasons([]));
   }, [feedId]);
 
-  // The episodes themselves.
+  // Tag options for the current scope (all feeds, or the active one).
+  useEffect(() => {
+    const q = feedId ? `?feedId=${feedId}` : '';
+    api
+      .get<string[]>(`/api/tags${q}`)
+      .then(setTags)
+      .catch(() => setTags([]));
+  }, [feedId]);
+
+  // The episodes.
   useEffect(() => {
     const query = new URLSearchParams({ order, page: String(page), size: String(PAGE_SIZE) });
     if (feedId) {
@@ -65,27 +67,25 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     if (season) {
       query.set('season', season);
     }
+    if (tag) {
+      query.set('tag', tag);
+    }
     setFailed(false);
     api
       .get<Paged<EpisodeSummary>>(`/api/episodes?${query.toString()}`)
       .then(setData)
       .catch(() => setFailed(true));
-  }, [feedId, season, order, page]);
+  }, [feedId, season, tag, order, page]);
 
   const updateFilters = (patch: Partial<FilterValues>) => {
     const next = new URLSearchParams(params);
-    // A filter change resets pagination.
-    next.delete('page');
+    next.delete('page'); // a filter change resets pagination
     for (const [key, value] of Object.entries(patch)) {
       if (value) {
         next.set(key, value);
       } else {
         next.delete(key);
       }
-    }
-    // On the feed-scoped page, feedId is fixed by the route — never write it to the query.
-    if (fixedFeedId) {
-      next.delete('feedId');
     }
     setParams(next);
   };
@@ -98,13 +98,8 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
 
   return (
     <div>
-      <FilterBar
-        values={values}
-        feeds={feeds}
-        seasons={seasons}
-        showFeedFilter={showFeedFilter}
-        onChange={updateFilters}
-      />
+      <FeedTabs />
+      <FilterBar values={values} seasons={seasons} tags={tags} onChange={updateFilters} />
 
       {failed && <p className="mc-muted">{t('feed.loadError')}</p>}
       {data && data.items.length === 0 && <p className="mc-muted">{t('feed.empty')}</p>}
@@ -112,7 +107,11 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
       {data && data.items.length > 0 && (
         <div className="mc-card-grid">
           {data.items.map((episode) => (
-            <EpisodeCard key={episode.id} episode={episode} />
+            <EpisodeCard
+              key={episode.id}
+              episode={episode}
+              feedTitle={fixedFeedId ? undefined : titleOf(episode.feedId)}
+            />
           ))}
         </div>
       )}
