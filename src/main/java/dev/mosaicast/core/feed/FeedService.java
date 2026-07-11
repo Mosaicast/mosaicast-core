@@ -63,6 +63,13 @@ public class FeedService {
                 .toList();
     }
 
+    /** Public detail of one feed for the shell's feed panel (§6.1) — cover, title, author, description. */
+    @Transactional(readOnly = true)
+    public FeedDetailView detail(UUID id) {
+        Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
+        return FeedDetailView.of(feed, refs.countByFeedId(id));
+    }
+
     @Transactional(readOnly = true)
     public FeedView get(UUID id) {
         Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
@@ -115,7 +122,7 @@ public class FeedService {
         Feed feed = feeds.findById(feedId)
                 .orElseThrow(() -> new NotFoundException("Feed not found: " + feedId));
         DisplaySnapshot provisional = new DisplaySnapshot(
-                title, description == null ? "" : description, null, null, null);
+                title, description == null ? "" : description, null, null, null, null, null, null, null);
         EpisodeRef planned = EpisodeRef.planned(feed.getId(), season, episodeNo, provisional);
         return refs.save(planned).getId();
     }

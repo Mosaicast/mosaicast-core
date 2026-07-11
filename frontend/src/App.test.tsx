@@ -32,8 +32,8 @@ describe('App shell (E4a)', () => {
     );
     // Brand falls back to the app title when the site payload is unavailable.
     expect(screen.getByRole('link', { name: /Mosaicast/i })).toBeInTheDocument();
-    // Home route rendered its heading (the unified episode feed).
-    expect(await screen.findByRole('heading', { name: 'Episodes' })).toBeInTheDocument();
+    // Home route rendered the site panel heading (site name falls back to the app title when offline).
+    expect(await screen.findByRole('heading', { name: 'Mosaicast' })).toBeInTheDocument();
   });
 
   it('shows a 404 landmark for an unknown route', () => {

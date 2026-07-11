@@ -14,6 +14,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Shell v2 — rich cards, real covers, tabs & tags (E4b+, `0.4.2`, §6):** hands-on revision of the shell.
+  Feeds now surface **real cover art** (`itunes:image`, episode → feed fallback via the SDK's new
+  `DisplaySnapshot.artwork()`), **author** and **subtitle**; the feed is a **one-column, cover-left card**
+  (prominent cover, feed + author, title + subtitle, S·E · date · runtime, description excerpt). The home is
+  **per-feed tabs** (All + one per feed; a single-feed site shows no tabs and lives at the feed's own URL,
+  so bookmarks survive adding feeds). New **tag** filter (`itunes:keywords`/`<category>` → `episode_tag`,
+  Flyway V7) alongside season/order; `GET /api/tags` + a `tag` param on `GET /api/episodes`. The persistent
+  **player** now shows cover + feed + S·E and links to the episode. Requires SDK **0.2.0**
+  (`DisplaySnapshot` gains `imageUrl`/`feedImageUrl`/`author`/`subtitle`). Spec updated: ARCHITECTURE
+  §4.2/§6.1, BRIEF §E4. Host-defined **subfeeds** (saved filters) noted as a future milestone.
+  - Follow-up polish: the feed view is now **two-column** — a left **scope panel** (feed cover/title/author/
+    description + a `feed` plugin region on a feed tab; site logo/name + a `site` region on All) beside the
+    episode list, which **infinite-scrolls** (auto-load + Load-more fallback) instead of paginating. Feed
+    metadata (cover/description/author) is stored on the feed (Flyway V8) and served by `GET /api/feeds/{id}`.
+    Card play button reveals on hover (and is always shown on touch).
+
 - **React/Vite shell — foundation (E4a, M4 `0.4.x`, ARCHITECTURE §6, §12.3):** the walking-skeleton shell
   becomes the real app foundation — semantic theme tokens applied at runtime from the site payload with a
   **no-flash** pre-paint script (external, CSP-`self`-friendly), persistent **top-bar chrome** + footer,

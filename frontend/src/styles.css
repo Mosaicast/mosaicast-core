@@ -207,21 +207,109 @@ code {
   color: var(--mc-text);
 }
 
-/* ---- episode cards ---- */
-.mc-card-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+/* ---- feed tabs ---- */
+.mc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--mc-border);
 }
-@media (max-width: 720px) {
-  .mc-card-grid {
+.mc-tab {
+  padding: 0.5rem 0.9rem;
+  color: var(--mc-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.mc-tab:hover {
+  text-decoration: none;
+  color: var(--mc-text);
+}
+.mc-tab--active {
+  color: var(--mc-accent);
+  border-bottom-color: var(--mc-accent);
+  font-weight: 600;
+}
+
+/* ---- two-column feed layout: scope panel | list ---- */
+.mc-feedlayout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+.mc-feedmain {
+  min-width: 0;
+}
+@media (max-width: 860px) {
+  .mc-feedlayout {
     grid-template-columns: 1fr;
   }
 }
 
+.mc-scope-panel {
+  position: sticky;
+  top: 5rem; /* clear the sticky top bar */
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+@media (max-width: 860px) {
+  .mc-scope-panel {
+    position: static;
+  }
+}
+.mc-scope-panel .mc-cover,
+.mc-scope-panel__logo {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 12px;
+}
+.mc-scope-panel__title {
+  margin: 0.4rem 0 0;
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+.mc-scope-panel__author,
+.mc-scope-panel__count {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.mc-scope-panel__desc {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.mc-scope-panel__desc :is(p, ul, ol) {
+  margin: 0 0 0.6rem;
+}
+
+/* ---- infinite scroll ---- */
+.mc-feed-sentinel {
+  height: 1px;
+}
+.mc-feed-loading {
+  text-align: center;
+  padding: 1rem 0;
+}
+.mc-feed-more {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 1rem;
+}
+
+/* ---- episode cards (one-column, cover-left) ---- */
+.mc-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
 .mc-card {
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   padding: 1rem;
   background: var(--mc-surface);
   border: 1px solid var(--mc-border);
@@ -237,43 +325,73 @@ code {
 .mc-card__cover {
   position: relative;
   flex: 0 0 auto;
+  width: 132px;
+  height: 132px;
 }
 .mc-cover {
   display: block;
   border-radius: 10px;
   overflow: hidden;
 }
+.mc-cover--img {
+  object-fit: cover;
+}
 .mc-card__play,
 .mc-card__cover .mc-card__play {
   position: absolute;
   inset: 0;
   margin: auto;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 3rem;
+  height: 3rem;
   border-radius: 50%;
   border: none;
-  background: var(--mc-accent);
+  background: color-mix(in srgb, var(--mc-accent) 85%, transparent);
   color: var(--mc-accent-contrast);
+  font-size: 1.1rem;
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-.mc-card__cover:hover .mc-card__play,
-.mc-card__play:focus-visible {
+/* Reveal on hovering anywhere on the card (bigger, more discoverable target) or keyboard focus. */
+.mc-card:hover .mc-card__play,
+.mc-card:focus-within .mc-card__play {
   opacity: 1;
+}
+/* Touch / no-hover inputs never hover — keep the play affordance visible there. */
+@media (hover: none) {
+  .mc-card__play {
+    opacity: 1;
+  }
 }
 
 .mc-card__body {
   min-width: 0;
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.mc-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.82rem;
+}
+.mc-card__feed {
+  font-weight: 600;
+  color: var(--mc-accent-2);
 }
 .mc-card__title {
-  margin: 0 0 0.4rem;
-  font-size: 1.02rem;
-  line-height: 1.3;
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
 }
 .mc-card__title a {
   color: var(--mc-text);
+}
+.mc-card__subtitle {
+  margin: 0;
+  font-size: 0.92rem;
 }
 .mc-card__meta {
   display: flex;
@@ -281,6 +399,21 @@ code {
   gap: 0.75rem;
   font-size: 0.85rem;
   align-items: center;
+}
+.mc-card__excerpt {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--mc-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 620px) {
+  .mc-card {
+    flex-direction: column;
+  }
 }
 
 .mc-chip {
@@ -311,9 +444,17 @@ code {
   align-items: flex-start;
   margin-bottom: 2rem;
 }
+.mc-hero__author {
+  margin: 0 0 0.25rem;
+  font-size: 0.9rem;
+}
 .mc-hero__title {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.35rem;
   font-size: 1.6rem;
+}
+.mc-hero__subtitle {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
 }
 .mc-hero__meta {
   display: flex;
@@ -324,11 +465,16 @@ code {
 
 .mc-detail {
   display: grid;
-  grid-template-columns: 2fr 1fr;
+  /* Single centered column until the sidebar actually has content — an empty sidebar column would skew the
+     main content left (off-centre). When a sidebar plugin mounts (E5), :has() restores the two-column split. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.5rem;
 }
+.mc-detail:has(.mc-detail__side .mc-slot:not(:empty)) {
+  grid-template-columns: minmax(0, 2fr) 1fr;
+}
 @media (max-width: 820px) {
-  .mc-detail {
+  .mc-detail:has(.mc-detail__side .mc-slot:not(:empty)) {
     grid-template-columns: 1fr;
   }
 }
@@ -361,7 +507,7 @@ code {
 
 /* ---- persistent player ---- */
 .mc-main {
-  padding-bottom: 96px; /* clearance for the fixed player bar */
+  padding-bottom: 108px; /* clearance for the fixed player bar */
 }
 .mc-player {
   position: fixed;
@@ -371,14 +517,36 @@ code {
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 1rem;
-  padding: 0.6rem 1.25rem;
+  gap: 1.25rem;
+  min-height: 76px;
+  padding: 0.7rem 1.25rem;
   background: var(--mc-surface);
   border-top: 1px solid var(--mc-border);
 }
 .mc-player__now {
-  flex: 0 1 220px;
+  flex: 0 1 280px;
   min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.mc-player__cover {
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  line-height: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mc-player__meta {
+  min-width: 0;
+}
+.mc-player__sub {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  overflow: hidden;
+  white-space: nowrap;
 }
 .mc-player__title {
   display: block;
@@ -386,6 +554,7 @@ code {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+  color: var(--mc-text);
 }
 .mc-player__transport {
   flex: 1;

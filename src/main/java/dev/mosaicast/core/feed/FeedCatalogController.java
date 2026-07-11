@@ -4,7 +4,9 @@
 package dev.mosaicast.core.feed;
 
 import java.util.List;
+import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -25,5 +27,11 @@ public class FeedCatalogController {
     @GetMapping("/api/feeds")
     public List<PublicFeedView> catalog() {
         return feeds.catalog();
+    }
+
+    /** Public detail of one feed (cover, title, author, description, count) for the feed panel (§6.1). */
+    @GetMapping("/api/feeds/{id}")
+    public FeedDetailView detail(@PathVariable UUID id) {
+        return feeds.detail(id);
     }
 }

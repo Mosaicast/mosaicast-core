@@ -130,7 +130,7 @@ public class SecurityConfig {
                         // Public read API (ARCHITECTURE §10 — v1 everything PUBLIC), GET-only so a non-GET
                         // hits the /api/** deny-by-default below instead of a handler-level 405.
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**", "/api/tags").permitAll()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()
                         // Feeds/planned episodes are a podcaster capability; other admin endpoints are ADMIN.

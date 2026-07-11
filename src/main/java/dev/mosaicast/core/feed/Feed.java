@@ -69,6 +69,16 @@ public class Feed {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    // Channel-level presentation, refreshed from the feed on each changed poll (§6.1 feed panel).
+    @Column(name = "image_url")
+    private String imageUrl;
+
+    @Column
+    private String author;
+
+    @Column(columnDefinition = "text")
+    private String description;
+
     protected Feed() {
         // for JPA
     }
@@ -108,6 +118,31 @@ public class Feed {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public String getAuthor() {
+        return author;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    /** Refreshes the channel-level presentation from a poll (§6.1); each is left unchanged when absent. */
+    public void updateChannelMeta(String imageUrl, String author, String description) {
+        if (imageUrl != null) {
+            this.imageUrl = imageUrl;
+        }
+        if (author != null) {
+            this.author = author;
+        }
+        if (description != null) {
+            this.description = description;
+        }
     }
 
     public Duration getPollInterval() {

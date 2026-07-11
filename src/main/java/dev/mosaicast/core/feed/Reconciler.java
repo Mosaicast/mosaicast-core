@@ -38,10 +38,13 @@ public class Reconciler {
 
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
+    private final dev.mosaicast.core.episode.EpisodeTagRepository tags;
 
-    public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays) {
+    public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
+                      dev.mosaicast.core.episode.EpisodeTagRepository tags) {
         this.refs = refs;
         this.displays = displays;
+        this.tags = tags;
     }
 
     @Transactional
@@ -145,10 +148,11 @@ public class Reconciler {
         }
     }
 
-    /** Writes the feed's presentation snapshot for a ref, overwriting any existing one (§4.2). */
+    /** Writes the feed's presentation snapshot and tags for a ref, overwriting any existing ones (§4.2). */
     private void upsertDisplay(UUID refId, RawEpisode raw) {
         DisplaySnapshot snapshot = new DisplaySnapshot(
-                raw.title(), raw.description(), raw.audioUrl(), raw.publishedAt(), raw.declaredDuration());
+                raw.title(), raw.description(), raw.audioUrl(), raw.publishedAt(), raw.declaredDuration(),
+                raw.imageUrl(), raw.feedImageUrl(), raw.author(), raw.subtitle());
         EpisodeDisplay display = displays.findById(refId)
                 .map(existing -> {
                     existing.overwrite(snapshot);
@@ -156,5 +160,14 @@ public class Reconciler {
                 })
                 .orElseGet(() -> new EpisodeDisplay(refId, snapshot));
         displays.save(display);
+        upsertTags(refId, raw.tags());
+    }
+
+    /** Replaces an episode's tags with the current feed set (overwrite semantics, §6.1). */
+    private void upsertTags(UUID refId, List<String> tagValues) {
+        tags.deleteByEpisodeRefId(refId);
+        for (String tag : tagValues) {
+            tags.save(new dev.mosaicast.core.episode.EpisodeTag(refId, tag));
+        }
     }
 }

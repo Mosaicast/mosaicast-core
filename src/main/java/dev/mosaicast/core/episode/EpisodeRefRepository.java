@@ -62,6 +62,8 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             where er.status <> 'WITHDRAWN'
               and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
               and (cast(:season as int) is null or er.season = :season)
+              and (cast(:tag as text) is null
+                   or exists (select 1 from episode_tag et where et.episode_ref_id = er.id and et.tag = :tag))
             order by
               case when er.status = 'PLANNED' then 0 else 1 end,
               case when :newest then (ed.snapshot->>'publishedAt')::numeric end desc nulls last,
@@ -74,11 +76,14 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             where er.status <> 'WITHDRAWN'
               and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
               and (cast(:season as int) is null or er.season = :season)
+              and (cast(:tag as text) is null
+                   or exists (select 1 from episode_tag et where et.episode_ref_id = er.id and et.tag = :tag))
             """,
             nativeQuery = true)
     Page<UUID> findSiteVisibleIds(
             @Param("feedId") UUID feedId,
             @Param("season") Integer season,
+            @Param("tag") String tag,
             @Param("newest") boolean newest,
             Pageable pageable);
 }

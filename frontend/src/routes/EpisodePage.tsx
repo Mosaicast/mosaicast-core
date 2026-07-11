@@ -8,7 +8,8 @@ import { Link, useParams } from 'react-router-dom';
 
 import { api, ApiError } from '../api/client';
 import type { AdjacentEpisodes, EpisodeDetail } from '../api/types';
-import { MosaicCover } from '../components/MosaicCover';
+import { Cover } from '../components/Cover';
+import { useFeeds } from '../components/FeedsContext';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePlayer } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
@@ -23,6 +24,7 @@ export function EpisodePage() {
   const { episodeId = '' } = useParams();
   const { t, i18n } = useTranslation();
   const { play } = usePlayer();
+  const { titleOf } = useFeeds();
 
   const [episode, setEpisode] = useState<EpisodeDetail | null>(null);
   const [adjacent, setAdjacent] = useState<AdjacentEpisodes | null>(null);
@@ -68,9 +70,11 @@ export function EpisodePage() {
   return (
     <section className="mc-page">
       <div className="mc-hero">
-        <MosaicCover id={episode.id} size={140} />
+        <Cover id={episode.id} imageUrl={episode.imageUrl} size={140} />
         <div className="mc-hero__body">
+          {episode.author && <p className="mc-hero__author mc-muted">{t('card.by', { author: episode.author })}</p>}
           <h1 className="mc-hero__title">{episode.title}</h1>
+          {episode.subtitle && <p className="mc-hero__subtitle mc-muted">{episode.subtitle}</p>}
           <div className="mc-hero__meta mc-muted">
             {seasonEp && <span>{seasonEp}</span>}
             {upcoming ? (
@@ -86,7 +90,17 @@ export function EpisodePage() {
             <button
               type="button"
               className="mc-btn mc-btn--accent"
-              onClick={() => play({ id: episode.id, title: episode.title, audioUrl: episode.audioUrl })}
+              onClick={() =>
+                play({
+                  id: episode.id,
+                  title: episode.title,
+                  audioUrl: episode.audioUrl,
+                  imageUrl: episode.imageUrl,
+                  feedTitle: titleOf(episode.feedId),
+                  season: episode.season,
+                  episodeNo: episode.episodeNo,
+                })
+              }
             >
               ▶ {t('player.play')}
             </button>

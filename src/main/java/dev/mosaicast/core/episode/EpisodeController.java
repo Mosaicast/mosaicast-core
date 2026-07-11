@@ -51,10 +51,17 @@ public class EpisodeController {
     public PagedResponse<EpisodeSummary> list(
             @RequestParam(required = false) UUID feedId,
             @RequestParam(required = false) Integer season,
+            @RequestParam(required = false) String tag,
             @RequestParam(defaultValue = "newest") String order,
             @PageableDefault(size = 20) Pageable pageable) {
         boolean newest = !"oldest".equalsIgnoreCase(order);
-        return PagedResponse.of(episodes.listSite(feedId, season, newest, unsorted(pageable)), s -> s);
+        return PagedResponse.of(episodes.listSite(feedId, season, tag, newest, unsorted(pageable)), s -> s);
+    }
+
+    /** Distinct tags (optionally scoped to a feed) — the shell's tag-filter options (§6.1). */
+    @GetMapping("/api/tags")
+    public List<String> tags(@RequestParam(required = false) UUID feedId) {
+        return episodes.tags(feedId);
     }
 
     @GetMapping("/api/episodes/{id}")
