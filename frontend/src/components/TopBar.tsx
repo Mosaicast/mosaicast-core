@@ -9,6 +9,7 @@ import { api } from '../api/client';
 import type { Meta, Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { useSite } from '../theme/SiteContext';
+import { Dropdown } from './Dropdown';
 import { SlotRegion } from './SlotRegion';
 
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
@@ -75,45 +76,44 @@ export function TopBar() {
           </button>
 
           {user ? (
-            <details className="mc-menu">
-              <summary className="mc-btn mc-btn--ghost mc-menu__summary">
-                {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
-                <span>{user.displayName}</span>
-              </summary>
-              <div className="mc-menu__panel" role="menu">
-                <span className="mc-menu__role mc-muted">{t(`role.${user.role}`)}</span>
-                <Link role="menuitem" to="/account">
-                  {t('account.title')}
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--ghost"
+              trigger={
+                <>
+                  {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
+                  <span>{user.displayName}</span>
+                </>
+              }
+            >
+              <span className="mc-menu__role mc-muted">{t(`role.${user.role}`)}</span>
+              <Link role="menuitem" to="/account">
+                {t('account.title')}
+              </Link>
+              {isStaff && (
+                <Link role="menuitem" to="/admin">
+                  {t('nav.admin')}
                 </Link>
-                {isStaff && (
-                  <Link role="menuitem" to="/admin">
-                    {t('nav.admin')}
-                  </Link>
-                )}
-                <button type="button" role="menuitem" onClick={doLogout}>
-                  {t('nav.logout')}
-                </button>
-              </div>
-            </details>
+              )}
+              <button type="button" role="menuitem" onClick={doLogout}>
+                {t('nav.logout')}
+              </button>
+            </Dropdown>
           ) : (
-            <details className="mc-menu">
-              <summary className="mc-btn mc-btn--accent mc-menu__summary">{t('nav.login')}</summary>
-              <div className="mc-menu__panel" role="menu">
-                <button type="button" role="menuitem" onClick={discordLogin}>
-                  {t('login.discord')}
-                </button>
-                {devLogin && (
-                  <>
-                    <span className="mc-menu__role mc-muted">{t('login.dev')}</span>
-                    {DEV_ROLES.map((role) => (
-                      <button key={role} type="button" role="menuitem" onClick={() => doDevLogin(role)}>
-                        {t(`role.${role}`)}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-            </details>
+            <Dropdown triggerClassName="mc-btn mc-btn--accent" trigger={t('nav.login')}>
+              <button type="button" role="menuitem" onClick={discordLogin}>
+                {t('login.discord')}
+              </button>
+              {devLogin && (
+                <>
+                  <span className="mc-menu__role mc-muted">{t('login.dev')}</span>
+                  {DEV_ROLES.map((role) => (
+                    <button key={role} type="button" role="menuitem" onClick={() => doDevLogin(role)}>
+                      {t(`role.${role}`)}
+                    </button>
+                  ))}
+                </>
+              )}
+            </Dropdown>
           )}
         </div>
       </div>
