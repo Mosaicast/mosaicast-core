@@ -3,8 +3,11 @@
 
 package dev.mosaicast.core.legal;
 
+import dev.mosaicast.core.legal.LegalViews.AdminPage;
+import dev.mosaicast.core.legal.LegalViews.AdminTranslation;
 import dev.mosaicast.core.legal.LegalViews.FooterEntry;
 import dev.mosaicast.core.legal.LegalViews.RenderedPage;
+import java.util.Comparator;
 import dev.mosaicast.core.web.ConflictException;
 import dev.mosaicast.core.web.NotFoundException;
 import java.util.ArrayList;
@@ -33,6 +36,21 @@ public class LegalService {
         this.pages = pages;
         this.translations = translations;
         this.markdown = markdown;
+    }
+
+    // ---- admin read ----
+
+    /** Every page with all its locales' raw title + markdown, for the admin editor (§12.6). */
+    @Transactional(readOnly = true)
+    public List<AdminPage> adminList() {
+        return pages.findAllByOrderBySortOrderAscSlugAsc().stream()
+                .map(page -> new AdminPage(
+                        page.getSlug(), page.getRoleMarker(), page.getSortOrder(),
+                        translations.findByPageId(page.getId()).stream()
+                                .sorted(Comparator.comparing(LegalPageTranslation::getLocale))
+                                .map(tr -> new AdminTranslation(tr.getLocale(), tr.getTitle(), tr.getMarkdown()))
+                                .toList()))
+                .toList();
     }
 
     // ---- public read ----

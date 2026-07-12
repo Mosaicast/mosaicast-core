@@ -57,6 +57,10 @@ info:
     description: Extensible website platform for podcasts
 
 server:
+  # Honor X-Forwarded-* from a fronting TLS proxy so the app builds correct absolute URLs — notably the
+  # OAuth2 redirect URI ({baseUrl}/login/oauth2/code/discord). Without this, behind a proxy the app derives
+  # http://<internal-host> and Discord rejects the redirect. Safe when not proxied (no such headers arrive).
+  forward-headers-strategy: framework
   # Uploads are bounded (ARCHITECTURE §13); tightened per-endpoint later.
   tomcat:
     max-http-form-post-size: 20MB

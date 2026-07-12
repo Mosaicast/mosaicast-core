@@ -152,6 +152,52 @@ export interface Meta {
   devLoginEnabled: boolean;
 }
 
+/** Admin-facing feed (`feed/FeedView.java`), `GET /api/admin/feeds` — includes poll state. */
+export interface AdminFeed {
+  id: string;
+  type: string;
+  url: string;
+  title: string;
+  enabled: boolean;
+  pollIntervalSeconds: number;
+  lastFetchedAt: string | null;
+  lastFetchStatus: string | null;
+  lastError: string | null;
+  consecutiveFailures: number;
+  episodeCount: number;
+}
+
+/** Add-feed preview (`feed/FeedPreview`), `POST /api/admin/feeds/preview`. */
+export interface FeedPreview {
+  title: string;
+  episodeCount: number;
+  sample: string[];
+}
+
+/** A fuzzy PLANNED-binding suggestion (`feed/SuggestionView`), `GET /api/admin/feeds/{id}/suggestions`. */
+export interface Suggestion {
+  id: string;
+  plannedRefId: string;
+  plannedTitle: string;
+  rawTitle: string;
+  similarity: number;
+}
+
+/** One locale's raw body in the legal admin editor (`legal/LegalViews.AdminTranslation`). */
+export interface LegalTranslation {
+  locale: string;
+  title: string;
+  markdown: string;
+}
+
+/** A legal page in the admin editor (`legal/LegalViews.AdminPage`), `GET /api/admin/legal`. */
+export interface LegalAdminPage {
+  slug: string;
+  roleMarker: string | null;
+  sortOrder: number;
+  translations: LegalTranslation[];
+}
+
 /** The pagination envelope (`web/PagedResponse.java`) returned by list endpoints. */
 export interface Paged<T> {
   items: T[];

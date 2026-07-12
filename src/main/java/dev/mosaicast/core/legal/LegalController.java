@@ -56,6 +56,12 @@ public class LegalController {
 
     // ---- admin ----
 
+    /** Every page with all locales' raw title + markdown, for the admin editor (§12.6). */
+    @GetMapping("/api/admin/legal")
+    public java.util.List<LegalViews.AdminPage> adminList() {
+        return legal.adminList();
+    }
+
     @PostMapping("/api/admin/legal")
     @ResponseStatus(HttpStatus.CREATED)
     public void create(@Valid @RequestBody PageRequest request) {

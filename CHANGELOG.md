@@ -14,6 +14,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Admin UI (E4d, `0.4.4`, ARCHITECTURE §8.5/§12):** a role-gated admin area (`/admin`) over the existing
+  M3 backends — **Site & branding** (name, theme mode, accent seed with live preview, logo/favicon/dark-logo
+  upload + clear; ADMIN), **Legal pages** mini-CMS (create/edit/delete pages + per-locale markdown; ADMIN),
+  and **Feeds** (list with poll state, enable/disable, refresh, add-with-preview, and confirm/dismiss of the
+  fuzzy PLANNED-binding suggestions; PODCASTER+). New admin read `GET /api/admin/legal` (pages + raw
+  translations for the editor).
 - **Account & auth UI (E4c, `0.4.3`, ARCHITECTURE §8):** log in from the shell (Discord `oauth2Login`, plus
   a dev-login option under the `dev` profile), an account menu (avatar / name / role), and an **account page**
   — linked identities (connect / unlink, with last-identity lockout) and personal access tokens (create shows
