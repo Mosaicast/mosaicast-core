@@ -12,6 +12,7 @@ const site: SiteView = {
   name: 'My Cast',
   modePolicy: 'dark',
   accentSeed: '#2e7d6b',
+  defaultLocale: 'de',
   theme: {
     accentSeed: '#2e7d6b',
     light: {} as never,
@@ -26,9 +27,11 @@ vi.mock('../../theme/SiteContext', () => ({
 }));
 
 describe('AdminSite', () => {
-  it('prefills the mode and accent seed from the saved site config', () => {
+  it('prefills mode, accent seed and default language from the saved site config', () => {
     render(<AdminSite />);
-    expect((screen.getByRole('combobox') as HTMLSelectElement).value).toBe('dark');
+    const selects = screen.getAllByRole('combobox') as HTMLSelectElement[];
+    expect(selects.some((s) => s.value === 'dark')).toBe(true); // theme mode
+    expect(selects.some((s) => s.value === 'de')).toBe(true); // default language
     expect(screen.getByText('#2e7d6b')).toBeInTheDocument();
     expect((screen.getByDisplayValue('My Cast') as HTMLInputElement).value).toBe('My Cast');
   });

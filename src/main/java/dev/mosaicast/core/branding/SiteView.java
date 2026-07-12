@@ -8,13 +8,15 @@ package dev.mosaicast.core.branding;
  * its generated light/dark tokens, and the branding asset URLs. The shell applies the tokens before first
  * paint (no-flash) and points its logo/favicon at these URLs.
  *
- * @param name       the site name
- * @param modePolicy {@code light} / {@code dark} / {@code system}
- * @param accentSeed the accent {@code #rrggbb}
- * @param theme      generated light + dark token sets
- * @param branding   asset URLs
+ * @param name          the site name
+ * @param modePolicy    {@code light} / {@code dark} / {@code system}
+ * @param accentSeed    the accent {@code #rrggbb}
+ * @param defaultLocale the site default language (UI + legal fallback, §12.7)
+ * @param theme         generated light + dark token sets
+ * @param branding      asset URLs
  */
-public record SiteView(String name, String modePolicy, String accentSeed, GeneratedTheme theme, Branding branding) {
+public record SiteView(String name, String modePolicy, String accentSeed, String defaultLocale,
+                       GeneratedTheme theme, Branding branding) {
 
     /** Branding asset URLs. Logo/favicon always resolve (they fall back to bundled defaults); dark logo is optional. */
     public record Branding(String logo, String favicon, String darkLogo) {
@@ -26,6 +28,7 @@ public record SiteView(String name, String modePolicy, String accentSeed, Genera
                 config.getSiteName(),
                 config.getModePolicy().name().toLowerCase(),
                 config.getAccentSeed(),
+                config.getDefaultLocale(),
                 theme,
                 new Branding("/branding/logo", "/branding/favicon", darkLogo));
     }

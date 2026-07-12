@@ -25,4 +25,25 @@ void i18n.use(initReactI18next).init({
   interpolation: { escapeValue: false },
 });
 
+/** Native display names for locales we might ship; unknown codes fall back to the uppercased code. */
+const LOCALE_NAMES: Record<string, string> = {
+  en: 'English',
+  de: 'Deutsch',
+  es: 'Español',
+  fr: 'Français',
+  it: 'Italiano',
+  nl: 'Nederlands',
+  pt: 'Português',
+};
+
+/** The locales actually registered in i18n — the single source of truth for language menus and legal tabs. */
+export function availableLocales(): string[] {
+  return Object.keys(i18n.options.resources ?? {});
+}
+
+/** A human, native-language label for a locale code. */
+export function localeName(code: string): string {
+  return LOCALE_NAMES[code] ?? code.toUpperCase();
+}
+
 export default i18n;

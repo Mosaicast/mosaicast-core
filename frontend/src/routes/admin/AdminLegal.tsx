@@ -6,18 +6,23 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
 import type { LegalAdminPage } from '../../api/types';
+import { availableLocales, localeName } from '../../i18n';
 
-const LOCALES = ['en', 'de'];
 const ROLE_MARKERS = ['', 'privacy', 'imprint', 'terms'];
 
-/** Editor for one legal page: role marker + sort order, and a title/markdown body per locale (§12.6). */
+/**
+ * Editor for one legal page: role marker + sort order, and a **tabbed** title/markdown body per available UI
+ * language (§12.6). Tabs come from the registered i18n locales, so a new language needs no change here.
+ */
 function PageEditor({ page, onChanged }: { page: LegalAdminPage; onChanged: () => void }) {
   const { t } = useTranslation();
+  const locales = availableLocales();
   const [roleMarker, setRoleMarker] = useState(page.roleMarker ?? '');
   const [sortOrder, setSortOrder] = useState(page.sortOrder);
+  const [activeLocale, setActiveLocale] = useState(locales[0] ?? 'en');
   const [bodies, setBodies] = useState<Record<string, { title: string; markdown: string }>>(() => {
     const map: Record<string, { title: string; markdown: string }> = {};
-    for (const locale of LOCALES) {
+    for (const locale of locales) {
       const tr = page.translations.find((x) => x.locale === locale);
       map[locale] = { title: tr?.title ?? '', markdown: tr?.markdown ?? '' };
     }
@@ -37,10 +42,12 @@ function PageEditor({ page, onChanged }: { page: LegalAdminPage; onChanged: () =
     onChanged();
   };
 
+  const body = bodies[activeLocale] ?? { title: '', markdown: '' };
+  const hasTranslation = (locale: string) => page.translations.some((x) => x.locale === locale);
+
   return (
     <div className="mc-legalpage">
       <div className="mc-legalpage__head">
-        <strong>{page.slug}</strong>
         <label className="mc-field mc-field--inline">
           <span>{t('admin.legal.role')}</span>
           <select value={roleMarker} onChange={(e) => setRoleMarker(e.target.value)}>
@@ -68,39 +75,51 @@ function PageEditor({ page, onChanged }: { page: LegalAdminPage; onChanged: () =
         </button>
       </div>
 
-      {LOCALES.map((locale) => (
-        <div key={locale} className="mc-legaltr">
-          <div className="mc-legaltr__head">
-            <span className="mc-legaltr__locale">{locale.toUpperCase()}</span>
-            <input
-              className="mc-input"
-              type="text"
-              placeholder={t('admin.legal.pageTitle')}
-              value={bodies[locale].title}
-              onChange={(e) => setBodies({ ...bodies, [locale]: { ...bodies[locale], title: e.target.value } })}
-            />
-            <button type="button" className="mc-btn" onClick={() => saveTranslation(locale)}>
-              {t('common.save')}
-            </button>
-          </div>
-          <textarea
-            className="mc-textarea"
-            rows={5}
-            placeholder="# Markdown…"
-            value={bodies[locale].markdown}
-            onChange={(e) => setBodies({ ...bodies, [locale]: { ...bodies[locale], markdown: e.target.value } })}
-          />
-        </div>
-      ))}
+      <div className="mc-tabs mc-tabs--sub" role="tablist">
+        {locales.map((locale) => (
+          <button
+            key={locale}
+            type="button"
+            role="tab"
+            aria-selected={locale === activeLocale}
+            className={`mc-tab${locale === activeLocale ? ' mc-tab--active' : ''}`}
+            onClick={() => setActiveLocale(locale)}
+          >
+            {localeName(locale)}
+            {!hasTranslation(locale) && <span className="mc-tab__empty"> ·</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="mc-legaltr">
+        <input
+          className="mc-input"
+          type="text"
+          placeholder={t('admin.legal.pageTitle')}
+          value={body.title}
+          onChange={(e) => setBodies({ ...bodies, [activeLocale]: { ...body, title: e.target.value } })}
+        />
+        <textarea
+          className="mc-textarea"
+          rows={10}
+          placeholder="# Markdown…"
+          value={body.markdown}
+          onChange={(e) => setBodies({ ...bodies, [activeLocale]: { ...body, markdown: e.target.value } })}
+        />
+        <button type="button" className="mc-btn mc-btn--accent" onClick={() => saveTranslation(activeLocale)}>
+          {t('admin.legal.saveLang', { lang: localeName(activeLocale) })}
+        </button>
+      </div>
     </div>
   );
 }
 
-/** Legal-pages mini-CMS admin (ARCHITECTURE §12.6, ADMIN only): list, create, edit and delete pages. */
+/** Legal-pages mini-CMS admin (ARCHITECTURE §12.6, ADMIN only): a page list; each opens a tabbed editor. */
 export function AdminLegal() {
   const { t } = useTranslation();
   const [pages, setPages] = useState<LegalAdminPage[]>([]);
   const [newSlug, setNewSlug] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
 
   const load = () => api.get<LegalAdminPage[]>('/api/admin/legal').then(setPages).catch(() => {});
   useEffect(() => {
@@ -129,9 +148,36 @@ export function AdminLegal() {
         </button>
       </div>
 
-      {pages.map((page) => (
-        <PageEditor key={page.slug} page={page} onChanged={load} />
-      ))}
+      <ul className="mc-list">
+        {pages.map((page) => (
+          <li key={page.slug} className="mc-legalrow">
+            <div className="mc-legalrow__head">
+              <div>
+                <strong>{page.slug}</strong>
+                <span className="mc-muted mc-legalrow__meta">
+                  {page.roleMarker ?? t('admin.legal.roleNone')} · #{page.sortOrder} ·{' '}
+                  {page.translations.map((x) => x.locale.toUpperCase()).join(', ') || t('admin.legal.noLangs')}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="mc-btn"
+                onClick={() => setEditing(editing === page.slug ? null : page.slug)}
+              >
+                {editing === page.slug ? t('common.close') : t('common.edit')}
+              </button>
+            </div>
+            {editing === page.slug && (
+              <PageEditor
+                page={page}
+                onChanged={() => {
+                  void load();
+                }}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

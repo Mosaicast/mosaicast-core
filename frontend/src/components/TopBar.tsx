@@ -9,6 +9,7 @@ import { api } from '../api/client';
 import type { Meta, Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { useLegalEntries } from '../hooks/useLegalEntries';
+import { availableLocales, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
 import { Dropdown } from './Dropdown';
 import { SlotRegion } from './SlotRegion';
@@ -41,10 +42,11 @@ export function TopBar() {
   const name = site?.name ?? t('app.title');
   const isStaff = user?.role === 'admin' || user?.role === 'podcaster';
 
-  const toggleLocale = () => {
-    const next = i18n.language.startsWith('de') ? 'en' : 'de';
-    void i18n.changeLanguage(next);
-    localStorage.setItem('mc.locale', next);
+  const locales = availableLocales();
+  const currentLocale = i18n.language.slice(0, 2);
+  const changeLocale = (code: string) => {
+    void i18n.changeLanguage(code);
+    localStorage.setItem('mc.locale', code);
   };
 
   const discordLogin = () => {
@@ -73,12 +75,32 @@ export function TopBar() {
 
         <div className="mc-top__actions">
           <SlotRegion name="top" />
-          <button type="button" className="mc-btn mc-btn--ghost" onClick={toggleLocale} aria-label={t('nav.switchLanguage')}>
-            {i18n.language.startsWith('de') ? 'EN' : 'DE'}
-          </button>
+          {locales.length > 1 && (
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--ghost"
+              ariaLabel={t('nav.switchLanguage')}
+              trigger={<span className="mc-menu__label">{localeName(currentLocale)}</span>}
+            >
+              {locales.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="menuitem"
+                  aria-current={code === currentLocale}
+                  onClick={() => changeLocale(code)}
+                >
+                  {localeName(code)}
+                </button>
+              ))}
+            </Dropdown>
+          )}
 
           {legal.length > 0 && (
-            <Dropdown triggerClassName="mc-btn mc-btn--ghost" ariaLabel={t('nav.info')} trigger={<span aria-hidden="true">ⓘ</span>}>
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--ghost"
+              ariaLabel={t('nav.info')}
+              trigger={<span className="mc-menu__icon" aria-hidden="true">ⓘ</span>}
+            >
               {legal.map((entry) => (
                 <Link key={entry.slug} role="menuitem" to={`/legal/${entry.slug}`}>
                   {entry.title}
@@ -91,10 +113,10 @@ export function TopBar() {
             <Dropdown
               triggerClassName="mc-btn mc-btn--ghost"
               trigger={
-                <>
+                <span className="mc-menu__label">
                   {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
-                  <span>{user.displayName}</span>
-                </>
+                  {user.displayName}
+                </span>
               }
             >
               <span className="mc-menu__role mc-muted">{t(`role.${user.role}`)}</span>
@@ -111,7 +133,10 @@ export function TopBar() {
               </button>
             </Dropdown>
           ) : (
-            <Dropdown triggerClassName="mc-btn mc-btn--accent" trigger={t('nav.login')}>
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--accent"
+              trigger={<span className="mc-menu__label">{t('nav.login')}</span>}
+            >
               <button type="button" role="menuitem" onClick={discordLogin}>
                 {t('login.discord')}
               </button>

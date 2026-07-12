@@ -46,6 +46,13 @@ public class SiteConfig {
     @Column(name = "mode_policy", nullable = false)
     private ModePolicy modePolicy = ModePolicy.SYSTEM;
 
+    /**
+     * The site default language (ARCHITECTURE §12.7): the fallback for legal pages with no translation in the
+     * requested locale, and the initial UI language when a visitor's browser language isn't one we ship.
+     */
+    @Column(name = "default_locale", nullable = false)
+    private String defaultLocale = "en";
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
@@ -69,6 +76,11 @@ public class SiteConfig {
 
     public void setModePolicy(ModePolicy modePolicy) {
         this.modePolicy = modePolicy;
+        touch();
+    }
+
+    public void setDefaultLocale(String defaultLocale) {
+        this.defaultLocale = defaultLocale;
         touch();
     }
 
@@ -109,6 +121,10 @@ public class SiteConfig {
 
     public ModePolicy getModePolicy() {
         return modePolicy;
+    }
+
+    public String getDefaultLocale() {
+        return defaultLocale;
     }
 
     public Instant getUpdatedAt() {

@@ -711,9 +711,26 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  min-height: 2.15rem;
+  line-height: 1;
 }
 .mc-menu__summary::-webkit-details-marker {
   display: none;
+}
+.mc-menu__icon {
+  display: inline-flex;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.mc-menu__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.mc-menu__label::after {
+  content: '▾';
+  font-size: 0.65em;
+  opacity: 0.7;
 }
 .mc-menu__panel {
   position: absolute;
@@ -727,8 +744,23 @@ code {
   background: var(--mc-surface);
   border: 1px solid var(--mc-border);
   border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
   z-index: 30;
+  animation: mc-menu-in 0.12s ease;
+}
+@keyframes mc-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mc-menu__panel [aria-current='true'] {
+  color: var(--mc-accent);
+  font-weight: 600;
 }
 .mc-menu__panel a,
 .mc-menu__panel button {
@@ -1066,4 +1098,73 @@ code {
 .mc-legaltr__locale {
   font-weight: 600;
   min-width: 2rem;
+}
+
+/* ---- M4.2: accent color picker ---- */
+.mc-colorpick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.mc-colorpick__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.mc-colorpick__input::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.mc-colorpick__input::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+.mc-colorpick__input::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+/* ---- M4.2: footer credit ---- */
+.mc-foot__version a {
+  color: var(--mc-text-muted);
+}
+.mc-foot__version a:hover {
+  color: var(--mc-text);
+  text-decoration: none;
+}
+
+/* ---- M4.2: legal admin — page rows + language tabs ---- */
+.mc-legalrow {
+  display: block;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+  background: var(--mc-surface);
+}
+.mc-legalrow__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.mc-legalrow__meta {
+  margin-left: 0.6rem;
+  font-size: 0.8rem;
+}
+.mc-tabs--sub {
+  margin-top: 1rem;
+}
+.mc-tab__empty {
+  opacity: 0.5;
+}
+.mc-legalpage .mc-legaltr {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
 }

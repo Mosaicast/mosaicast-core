@@ -14,6 +14,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **i18n scaling, legal editor & shell polish (M4.2, `0.4.6`):**
+  - **Site default language** on `SiteConfig` (Flyway `V11`, ARCHITECTURE §12.7), set in Site & branding:
+    it is the **legal-page fallback** (replacing the hardcoded `en`) and the **initial UI language** when a
+    visitor's browser language isn't one we ship (an explicit stored choice still wins).
+  - **Dynamic language menu:** the top-bar EN⇄DE toggle becomes a dropdown built from the *registered* i18n
+    locales, and the legal editor's per-language tabs come from the same set — adding a language is just a new
+    `locales/*.json` + one registration line; nothing else changes.
+  - **Legal editor redesign:** a collapsed page list with **Edit**, opening a **tabbed** title/markdown editor
+    (one tab per UI language) instead of stacking every locale — scales past two languages.
+  - **Polish:** dropdown triggers restyled (consistent height, ▾ caret, subtle open animation), the ⓘ button
+    no longer taller than its neighbours, the accent picker is a styled swatch, and the footer credits
+    **"Powered by Mosaicast <ver>"** linking to the GitHub repo.
+
 - **Admin round-2 (M4.1, `0.4.5`):** operator-facing follow-ups to the E4 admin surface.
   - **Legal pages now appear** (§12.5/§12.6): the authored privacy/imprint/terms pages — reachable via the
     API but rendered nowhere — now show as **footer links** and in an always-visible **top-bar info menu**
