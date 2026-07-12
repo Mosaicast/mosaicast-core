@@ -27,6 +27,7 @@ public interface EpisodeTagRepository extends JpaRepository<EpisodeTag, EpisodeT
             from episode_tag t
             join episode_ref er on er.id = t.episode_ref_id
             where er.status <> 'WITHDRAWN'
+              and er.feed_id in (select f.id from feed f where f.enabled = true)
               and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
             order by t.tag
             """,

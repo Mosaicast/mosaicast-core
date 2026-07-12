@@ -4,9 +4,11 @@
 package dev.mosaicast.core.feed;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
 import dev.mosaicast.core.episode.EpisodeQueryService;
+import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeSummary;
 import java.io.IOException;
@@ -368,5 +370,32 @@ class FeedPipelineIntegrationTest {
 
         List<EpisodeSummary> onFeed = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
         assertThat(onFeed).extracting(EpisodeSummary::title).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void disablingAFeedHidesItAndItsEpisodesFromPublicReads() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        UUID id = feed.id();
+
+        // Enabled: present in the catalog (tabs) and the unified feed; detail resolves.
+        assertThat(feedService.catalog()).extracting(PublicFeedView::id).contains(id);
+        assertThat(episodes.listSite(null, null, null, true, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(2);
+        UUID episodeId = episodes.listByFeed(id, null, PageRequest.of(0, 20)).getContent().get(0).id();
+
+        feedService.setEnabled(id, false);
+
+        // Disabled: gone from the catalog, the unified feed, the per-feed list, seasons and search; and its
+        // detail 404s — "disabled" hides the feed from the public site, not just polling.
+        assertThat(feedService.catalog()).extracting(PublicFeedView::id).doesNotContain(id);
+        assertThat(episodes.listSite(null, null, null, true, PageRequest.of(0, 20)).getTotalElements()).isZero();
+        assertThat(episodes.listByFeed(id, null, PageRequest.of(0, 20)).getContent()).isEmpty();
+        assertThat(episodes.seasons(id)).isEmpty();
+        assertThat(episodes.search("pigeons", PageRequest.of(0, 20)).getContent()).isEmpty();
+        assertThatThrownBy(() -> feedService.detail(id)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> episodes.detail(episodeId)).isInstanceOf(NotFoundException.class);
+
+        // Re-enabling restores everything — nothing was deleted.
+        feedService.setEnabled(id, true);
+        assertThat(episodes.listSite(null, null, null, true, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(2);
     }
 }
