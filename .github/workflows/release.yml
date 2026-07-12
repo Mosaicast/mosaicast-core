@@ -21,7 +21,7 @@ jobs:
     outputs:
       version: ${{ steps.check.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Assert tag matches the core version
         id: check
@@ -47,7 +47,7 @@ jobs:
       contents: read
       packages: write   # required to push to the GitHub Container Registry
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # QEMU lets Buildx cross-build the arm64 image on the amd64 runner. The image is a pure-JVM Spring
       # Boot jar on a multi-arch Temurin base, so arm64 runs unchanged — this just serves Raspberry Pi /
