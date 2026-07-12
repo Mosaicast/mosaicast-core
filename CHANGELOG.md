@@ -12,6 +12,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **Disabling a feed now hides it from the public site**, not just from polling (ARCHITECTURE §5.4/§6.1). A
+  disabled feed and its episodes are excluded from the feed tabs (`GET /api/feeds`), the unified episode feed,
+  per-feed listings, seasons/tags, and search, and its feed/episode detail pages 404. Nothing is deleted —
+  re-enabling restores everything.
+
 ### Added
 
 - **Admin UI (E4d, `0.4.4`, ARCHITECTURE §8.5/§12):** a role-gated admin area (`/admin`) over the existing
