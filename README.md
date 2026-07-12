@@ -166,6 +166,18 @@ RBAC (ADMIN/PODCASTER/FAN). Automation uses **personal access tokens** as `Autho
 bootstrap admin is set via `ADMIN_BOOTSTRAP_PROVIDER`/`ADMIN_BOOTSTRAP_EXTERNAL_ID`. Locally, the `dev`
 profile's `POST /api/auth/dev-login?role=…` mints a session for any role without Discord.
 
+**Social login needs a secure context.** The session cookie is `Secure` by default, so the OAuth round-trip
+only works over **HTTPS** or **`http://localhost`** (browsers special-case localhost). Over plain http on a
+LAN IP / hostname (e.g. `http://192.168.x.x:8080`) the browser silently drops the cookie and login fails
+with `authorization_request_not_found` — the shell shows a generic "Login failed." Options:
+
+- **Production:** put a TLS-terminating reverse proxy in front (your choice — none is baked into compose)
+  and set `MOSAICAST_BASE_URL=https://yourdomain`. The app honors `X-Forwarded-Proto`/`Host`
+  (`server.forward-headers-strategy: framework`), so the Discord redirect URI resolves to `https://…`.
+- **Plain-http local run:** set `MOSAICAST_SECURITY_SECURE_COOKIE=false` (see `.env.example`). Never do this
+  on a real deployment. Also register the matching redirect URI (`<MOSAICAST_BASE_URL>/login/oauth2/code/discord`)
+  in the Discord portal.
+
 ## Branding assets
 
 The Mosaicast logo and mark ship as the **default branding**, used until an admin uploads custom
