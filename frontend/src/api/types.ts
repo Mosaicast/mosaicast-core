@@ -119,6 +119,85 @@ export interface MeView {
   role: Role;
 }
 
+/** A linked-identity provider row (`auth/IdentityView.java`), `GET /api/me/identities`. */
+export interface Identity {
+  provider: string;
+  linked: boolean;
+  email: string | null;
+  since: string | null;
+}
+
+/** Personal access token metadata (`auth/pat/PatController.TokenView`), never the secret. */
+export interface Token {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+/** Create-token response (`CreatedToken`) — carries the plaintext `secret`, shown once. */
+export interface CreatedToken {
+  id: string;
+  name: string;
+  prefix: string;
+  secret: string;
+  createdAt: string;
+}
+
+/** Core build/meta payload (`web/MetaController`), `GET /api/meta`. */
+export interface Meta {
+  name: string;
+  version: string;
+  devLoginEnabled: boolean;
+}
+
+/** Admin-facing feed (`feed/FeedView.java`), `GET /api/admin/feeds` — includes poll state. */
+export interface AdminFeed {
+  id: string;
+  type: string;
+  url: string;
+  title: string;
+  enabled: boolean;
+  pollIntervalSeconds: number;
+  lastFetchedAt: string | null;
+  lastFetchStatus: string | null;
+  lastError: string | null;
+  consecutiveFailures: number;
+  episodeCount: number;
+}
+
+/** Add-feed preview (`feed/FeedPreview`), `POST /api/admin/feeds/preview`. */
+export interface FeedPreview {
+  title: string;
+  episodeCount: number;
+  sample: string[];
+}
+
+/** A fuzzy PLANNED-binding suggestion (`feed/SuggestionView`), `GET /api/admin/feeds/{id}/suggestions`. */
+export interface Suggestion {
+  id: string;
+  plannedRefId: string;
+  plannedTitle: string;
+  rawTitle: string;
+  similarity: number;
+}
+
+/** One locale's raw body in the legal admin editor (`legal/LegalViews.AdminTranslation`). */
+export interface LegalTranslation {
+  locale: string;
+  title: string;
+  markdown: string;
+}
+
+/** A legal page in the admin editor (`legal/LegalViews.AdminPage`), `GET /api/admin/legal`. */
+export interface LegalAdminPage {
+  slug: string;
+  roleMarker: string | null;
+  sortOrder: number;
+  translations: LegalTranslation[];
+}
+
 /** The pagination envelope (`web/PagedResponse.java`) returned by list endpoints. */
 export interface Paged<T> {
   items: T[];

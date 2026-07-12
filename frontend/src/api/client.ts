@@ -59,10 +59,25 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(response.status, detail ?? response.statusText, detail);
   }
 
+  // Tolerate empty bodies (204, or a 201/200 with no content) — only parse JSON when there is a body.
   if (response.status === 204) {
     return undefined as T;
   }
-  return (await response.json()) as T;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** Multipart upload (e.g. branding assets) — lets the browser set the multipart boundary; CSRF header added. */
+async function upload(path: string, formData: FormData): Promise<void> {
+  const headers: Record<string, string> = {};
+  const token = readCookie('XSRF-TOKEN');
+  if (token) {
+    headers['X-XSRF-TOKEN'] = token;
+  }
+  const response = await fetch(path, { method: 'POST', headers, credentials: 'include', body: formData });
+  if (!response.ok) {
+    throw new ApiError(response.status, response.statusText);
+  }
 }
 
 export const api = {
@@ -70,4 +85,5 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   del: <T>(path: string) => request<T>('DELETE', path),
+  upload,
 };

@@ -35,6 +35,25 @@ The episode detail page — hero with play, sanitized show notes, and fixed prev
   </picture>
 </p>
 
+The account page — linked identities and personal access tokens:
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/account-dark.png" />
+    <img alt="Mosaicast shell — account" src="assets/screenshots/account-light.png" width="720" />
+  </picture>
+</p>
+
+The admin area — site name, theme mode, accent seed with live preview, and branding upload (Legal pages and
+Feeds live behind the same role-gated nav):
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/admin-dark.png" />
+    <img alt="Mosaicast shell — admin site & branding" src="assets/screenshots/admin-light.png" width="720" />
+  </picture>
+</p>
+
 <sub>Screenshots use a fictional sample feed (`assets/sample/`), not any real podcast, and are captured
 from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 
@@ -138,7 +157,7 @@ Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{id}/episodes?season=`,
 `GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
 `GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
-`GET/POST/DELETE /api/me/tokens` (authenticated). All lists paginate; errors are
+`GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.
 
 **Auth (§8):** Discord `oauth2Login` (active only when `DISCORD_CLIENT_ID`/`SECRET` are set), server-side

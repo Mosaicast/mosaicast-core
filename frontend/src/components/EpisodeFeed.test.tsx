@@ -11,7 +11,8 @@ import { EpisodeFeed } from './EpisodeFeed';
 
 /** Routes a fetch by URL to canned JSON, so the feed can render without a backend. */
 function mockApi(url: string) {
-  const json = (data: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
+  const json = (data: unknown) =>
+    Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(data)) });
   if (url.startsWith('/api/feeds/') && url.endsWith('/seasons')) {
     return json([1, 2]);
   }

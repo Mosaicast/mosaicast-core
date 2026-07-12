@@ -58,6 +58,12 @@ class FeedPipelineIntegrationTest {
     @Autowired
     private BindingSuggestionRepository suggestionRepository;
 
+    @Autowired
+    private dev.mosaicast.core.progress.ListeningProgressRepository progressRepository;
+
+    @Autowired
+    private dev.mosaicast.core.auth.AccountService accounts;
+
     private HttpServer server;
     private final AtomicReference<String> body = new AtomicReference<>();
     private final AtomicReference<String> etag = new AtomicReference<>("v1");
@@ -218,6 +224,24 @@ class FeedPipelineIntegrationTest {
         var christmas = episodes.listSite(feed.id(), null, "christmas", true, PageRequest.of(0, 20));
         assertThat(christmas.getContent()).singleElement()
                 .satisfies(e -> assertThat(e.title()).isEqualTo("Fancy One"));
+    }
+
+    @Test
+    void listeningProgress_isStoredPerUser() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        UUID episodeId = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent().get(0).id();
+        var user = accounts.resolveLogin(
+                new dev.mosaicast.core.auth.IdentityClaim("dev", "progress-tester", null, false, "Tester", null),
+                null);
+
+        progressRepository.save(new dev.mosaicast.core.progress.ListeningProgress(user.getId(), episodeId, 42));
+
+        assertThat(progressRepository.findByIdUserIdAndIdEpisodeRefIdIn(user.getId(), List.of(episodeId)))
+                .singleElement()
+                .satisfies(p -> assertThat(p.getPositionSeconds()).isEqualTo(42));
+        // Another user sees nothing (per-user isolation).
+        assertThat(progressRepository.findByIdUserIdAndIdEpisodeRefIdIn(UUID.randomUUID(), List.of(episodeId)))
+                .isEmpty();
     }
 
     @Test

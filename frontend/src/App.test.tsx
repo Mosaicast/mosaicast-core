@@ -45,3 +45,40 @@ describe('App shell (E4a)', () => {
     expect(screen.getByRole('heading', { name: 'Not found' })).toBeInTheDocument();
   });
 });
+
+describe('App shell — logged in (E4c)', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        const ok = (data: unknown) =>
+          Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(data)) });
+        if (url.startsWith('/api/me')) {
+          return ok({ id: 'u1', displayName: 'Ada Admin', avatarUrl: null, role: 'admin' });
+        }
+        if (url.startsWith('/api/meta')) {
+          return ok({ name: 'Mosaicast', version: 'test', devLoginEnabled: false });
+        }
+        if (url.startsWith('/api/site')) {
+          return Promise.reject(new Error('no site'));
+        }
+        if (url.startsWith('/api/episodes')) {
+          return ok({ items: [], page: 0, size: 20, totalElements: 0, totalPages: 0 });
+        }
+        return ok([]); // /api/feeds, /api/tags
+      }),
+    );
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('shows the account menu (name + Admin) instead of Log in', async () => {
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <App />
+      </MemoryRouter>,
+    );
+    // Logged in → the account menu shows the user's name, and the "Log in" affordance is gone.
+    expect(await screen.findByText('Ada Admin')).toBeInTheDocument();
+    expect(screen.queryByText('Log in')).not.toBeInTheDocument();
+  });
+});

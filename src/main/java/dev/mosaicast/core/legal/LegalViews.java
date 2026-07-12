@@ -29,4 +29,15 @@ public final class LegalViews {
      */
     public record RenderedPage(String slug, String title, String role, String html) {
     }
+
+    /**
+     * A page as the admin editor sees it (ARCHITECTURE §12.6): its metadata plus every locale's raw title
+     * and markdown (not rendered), so the editor can list and edit all translations.
+     */
+    public record AdminPage(String slug, String roleMarker, int sortOrder, java.util.List<AdminTranslation> translations) {
+    }
+
+    /** One locale's raw body for the admin editor. */
+    public record AdminTranslation(String locale, String title, String markdown) {
+    }
 }
