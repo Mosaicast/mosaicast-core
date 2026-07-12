@@ -44,6 +44,16 @@ The account page — linked identities and personal access tokens:
   </picture>
 </p>
 
+The admin area — site name, theme mode, accent seed with live preview, and branding upload (Legal pages and
+Feeds live behind the same role-gated nav):
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/admin-dark.png" />
+    <img alt="Mosaicast shell — admin site & branding" src="assets/screenshots/admin-light.png" width="720" />
+  </picture>
+</p>
+
 <sub>Screenshots use a fictional sample feed (`assets/sample/`), not any real podcast, and are captured
 from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 

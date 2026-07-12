@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { RequireRole } from './auth/RequireRole';
 import { UserProvider } from './auth/UserContext';
@@ -11,10 +11,14 @@ import { LoginErrorBanner } from './components/LoginErrorBanner';
 import { TopBar } from './components/TopBar';
 import { PlayerProvider } from './player/PlayerContext';
 import { AccountPage } from './routes/AccountPage';
+import { AdminFeeds } from './routes/admin/AdminFeeds';
+import { AdminLayout } from './routes/admin/AdminLayout';
+import { AdminLegal } from './routes/admin/AdminLegal';
+import { AdminSite } from './routes/admin/AdminSite';
 import { EpisodePage } from './routes/EpisodePage';
 import { FeedPage } from './routes/FeedPage';
 import { Home } from './routes/Home';
-import { NotFound, Placeholder } from './routes/Placeholder';
+import { NotFound } from './routes/Placeholder';
 import { SiteProvider } from './theme/SiteContext';
 
 /**
@@ -44,13 +48,32 @@ export default function App() {
                     }
                   />
                   <Route
-                    path="/admin/*"
+                    path="/admin"
                     element={
                       <RequireRole roles={['admin', 'podcaster']}>
-                        <Placeholder titleKey="nav.admin" />
+                        <AdminLayout />
                       </RequireRole>
                     }
-                  />
+                  >
+                    <Route index element={<Navigate to="feeds" replace />} />
+                    <Route
+                      path="site"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminSite />
+                        </RequireRole>
+                      }
+                    />
+                    <Route
+                      path="legal"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminLegal />
+                        </RequireRole>
+                      }
+                    />
+                    <Route path="feeds" element={<AdminFeeds />} />
+                  </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>

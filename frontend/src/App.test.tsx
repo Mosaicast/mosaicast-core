@@ -52,7 +52,7 @@ describe('App shell — logged in (E4c)', () => {
       'fetch',
       vi.fn((url: string) => {
         const ok = (data: unknown) =>
-          Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(data) });
+          Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(data)) });
         if (url.startsWith('/api/me')) {
           return ok({ id: 'u1', displayName: 'Ada Admin', avatarUrl: null, role: 'admin' });
         }
