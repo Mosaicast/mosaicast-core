@@ -14,6 +14,29 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Admin round-2 (M4.1, `0.4.5`):** operator-facing follow-ups to the E4 admin surface.
+  - **Legal pages now appear** (§12.5/§12.6): the authored privacy/imprint/terms pages — reachable via the
+    API but rendered nowhere — now show as **footer links** and in an always-visible **top-bar info menu**
+    (reachable from every page without scrolling), with a public `/legal/:slug` route rendering the
+    server-sanitized HTML. The persistent player no longer overlaps the footer. Flyway `V10` seeds factual,
+    template-marked **privacy + imprint** pages (EN/DE) that document the only client storage the core sets
+    (session + CSRF cookies; a few functional `localStorage` keys). All strictly necessary/functional, so the
+    core stays **banner-free** (ePrivacy Art. 5(3) / DE § 25 TDDDG); transparency is provided via the notice.
+  - **User management** (§8.5): `GET /api/admin/users` + `PUT /api/admin/users/{id}/role` and an
+    `/admin/users` page (ADMIN). Admins can grant up to ADMIN; the server rejects changing your own role and
+    demoting the last admin. Role changes take effect on the user's next request.
+  - **Per-feed poll interval** (§5.4): `POST /api/admin/feeds/{id}/poll-interval` (clamped 5 min – 7 days)
+    with a preset selector in the feeds admin — the interval was stored but not editable.
+  - **UX fixes:** dropdown menus (account/login/info) close on outside-click, Escape, item select and route
+    change (were native `<details>`); the Site & branding form now prefills the **saved** theme mode + accent
+    seed (it read the site config before it loaded and never refreshed after save).
+
+### Roadmap
+
+- **Consent service (§12.5):** the full category-based cookie consent (necessary / functional / analytics /
+  plugin-declared, `ctx.consent`, click-to-load placeholders, generated notice) is **plugin-driven** and
+  lands with **E5 (plugins)** — no banner is needed until a plugin sets non-essential cookies.
+
 - **Admin UI (E4d, `0.4.4`, ARCHITECTURE §8.5/§12):** a role-gated admin area (`/admin`) over the existing
   M3 backends — **Site & branding** (name, theme mode, accent seed with live preview, logo/favicon/dark-logo
   upload + clear; ADMIN), **Legal pages** mini-CMS (create/edit/delete pages + per-locale markdown; ADMIN),
