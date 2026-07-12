@@ -7,9 +7,16 @@ import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../../api/client';
 import type { AdminFeed, FeedPreview, Suggestion } from '../../api/types';
 
+/** Poll-interval presets (seconds): 15 min / 30 min / 1 h / 6 h / 24 h. */
+const INTERVAL_PRESETS = [900, 1800, 3600, 21600, 86400];
+
+function intervalLabel(seconds: number): string {
+  return seconds % 3600 === 0 ? `${seconds / 3600} h` : `${Math.round(seconds / 60)} min`;
+}
+
 /**
- * Feed management (ARCHITECTURE §5, PODCASTER+): list feeds with poll state, enable/disable, refresh, add a
- * feed (preview → create), and review the fuzzy PLANNED-binding suggestions (confirm / dismiss, M3 §5.3).
+ * Feed management (ARCHITECTURE §5, PODCASTER+): list feeds with poll state, enable/disable, refresh, set the
+ * poll interval, add a feed (preview → create), and review the fuzzy PLANNED-binding suggestions (M3 §5.3).
  */
 export function AdminFeeds() {
   const { t } = useTranslation();
@@ -50,6 +57,10 @@ export function AdminFeeds() {
   };
   const refresh = async (feed: AdminFeed) => {
     await api.post(`/api/admin/feeds/${feed.id}/refresh`);
+    await load();
+  };
+  const setInterval = async (feed: AdminFeed, seconds: number) => {
+    await api.post(`/api/admin/feeds/${feed.id}/poll-interval?seconds=${seconds}`);
     await load();
   };
   const showSuggestions = async (feedId: string) => {
@@ -120,6 +131,22 @@ export function AdminFeeds() {
                 <label className="mc-toggle">
                   <input type="checkbox" checked={feed.enabled} onChange={() => toggle(feed)} />
                   {t('admin.feeds.enabled')}
+                </label>
+                <label className="mc-feedrow__interval">
+                  <span className="mc-muted">{t('admin.feeds.interval')}</span>
+                  <select
+                    value={feed.pollIntervalSeconds}
+                    onChange={(e) => setInterval(feed, Number(e.target.value))}
+                  >
+                    {(INTERVAL_PRESETS.includes(feed.pollIntervalSeconds)
+                      ? INTERVAL_PRESETS
+                      : [feed.pollIntervalSeconds, ...INTERVAL_PRESETS]
+                    ).map((s) => (
+                      <option key={s} value={s}>
+                        {intervalLabel(s)}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <button type="button" className="mc-btn" onClick={() => refresh(feed)}>
                   {t('admin.feeds.refresh')}

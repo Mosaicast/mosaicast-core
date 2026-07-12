@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.legal;
 
+import dev.mosaicast.core.branding.SiteConfigService;
 import dev.mosaicast.core.legal.LegalViews.AdminPage;
 import dev.mosaicast.core.legal.LegalViews.AdminTranslation;
 import dev.mosaicast.core.legal.LegalViews.FooterEntry;
@@ -24,18 +25,30 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class LegalService {
 
-    /** English is the source/default locale (§12.7). */
+    /** The ultimate fallback locale when the site default is unset/unavailable (§12.7). */
     public static final String DEFAULT_LOCALE = "en";
 
     private final LegalPageRepository pages;
     private final LegalPageTranslationRepository translations;
     private final MarkdownRenderer markdown;
+    private final SiteConfigService siteConfig;
 
     public LegalService(LegalPageRepository pages, LegalPageTranslationRepository translations,
-                        MarkdownRenderer markdown) {
+                        MarkdownRenderer markdown, SiteConfigService siteConfig) {
         this.pages = pages;
         this.translations = translations;
         this.markdown = markdown;
+        this.siteConfig = siteConfig;
+    }
+
+    /** The configured site default language, falling back to {@link #DEFAULT_LOCALE} if unavailable. */
+    private String fallbackLocale() {
+        try {
+            String locale = siteConfig.get().getDefaultLocale();
+            return locale == null || locale.isBlank() ? DEFAULT_LOCALE : locale;
+        } catch (RuntimeException e) {
+            return DEFAULT_LOCALE;
+        }
     }
 
     // ---- admin read ----
@@ -81,7 +94,8 @@ public class LegalService {
         if (exact.isPresent()) {
             return exact;
         }
-        return translations.findByPageIdAndLocale(page.getId(), DEFAULT_LOCALE);
+        // Fall back to the configured site default language (§12.7).
+        return translations.findByPageIdAndLocale(page.getId(), fallbackLocale());
     }
 
     // ---- admin CRUD ----

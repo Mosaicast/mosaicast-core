@@ -8,7 +8,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Meta, Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
+import { useLegalEntries } from '../hooks/useLegalEntries';
+import { availableLocales, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
+import { Dropdown } from './Dropdown';
 import { SlotRegion } from './SlotRegion';
 
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
@@ -23,6 +26,7 @@ export function TopBar() {
   const { t, i18n } = useTranslation();
   const { site, mode } = useSite();
   const { user, refresh, logout } = useUser();
+  const legal = useLegalEntries();
   const navigate = useNavigate();
   const [devLogin, setDevLogin] = useState(false);
 
@@ -38,10 +42,11 @@ export function TopBar() {
   const name = site?.name ?? t('app.title');
   const isStaff = user?.role === 'admin' || user?.role === 'podcaster';
 
-  const toggleLocale = () => {
-    const next = i18n.language.startsWith('de') ? 'en' : 'de';
-    void i18n.changeLanguage(next);
-    localStorage.setItem('mc.locale', next);
+  const locales = availableLocales();
+  const currentLocale = i18n.language.slice(0, 2);
+  const changeLocale = (code: string) => {
+    void i18n.changeLanguage(code);
+    localStorage.setItem('mc.locale', code);
   };
 
   const discordLogin = () => {
@@ -70,50 +75,82 @@ export function TopBar() {
 
         <div className="mc-top__actions">
           <SlotRegion name="top" />
-          <button type="button" className="mc-btn mc-btn--ghost" onClick={toggleLocale} aria-label={t('nav.switchLanguage')}>
-            {i18n.language.startsWith('de') ? 'EN' : 'DE'}
-          </button>
+          {locales.length > 1 && (
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--ghost"
+              ariaLabel={t('nav.switchLanguage')}
+              trigger={<span className="mc-menu__label">{localeName(currentLocale)}</span>}
+            >
+              {locales.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="menuitem"
+                  aria-current={code === currentLocale}
+                  onClick={() => changeLocale(code)}
+                >
+                  {localeName(code)}
+                </button>
+              ))}
+            </Dropdown>
+          )}
+
+          {legal.length > 0 && (
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--ghost"
+              ariaLabel={t('nav.info')}
+              trigger={<span className="mc-menu__icon" aria-hidden="true">ⓘ</span>}
+            >
+              {legal.map((entry) => (
+                <Link key={entry.slug} role="menuitem" to={`/legal/${entry.slug}`}>
+                  {entry.title}
+                </Link>
+              ))}
+            </Dropdown>
+          )}
 
           {user ? (
-            <details className="mc-menu">
-              <summary className="mc-btn mc-btn--ghost mc-menu__summary">
-                {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
-                <span>{user.displayName}</span>
-              </summary>
-              <div className="mc-menu__panel" role="menu">
-                <span className="mc-menu__role mc-muted">{t(`role.${user.role}`)}</span>
-                <Link role="menuitem" to="/account">
-                  {t('account.title')}
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--ghost"
+              trigger={
+                <span className="mc-menu__label">
+                  {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
+                  {user.displayName}
+                </span>
+              }
+            >
+              <span className="mc-menu__role mc-muted">{t(`role.${user.role}`)}</span>
+              <Link role="menuitem" to="/account">
+                {t('account.title')}
+              </Link>
+              {isStaff && (
+                <Link role="menuitem" to="/admin">
+                  {t('nav.admin')}
                 </Link>
-                {isStaff && (
-                  <Link role="menuitem" to="/admin">
-                    {t('nav.admin')}
-                  </Link>
-                )}
-                <button type="button" role="menuitem" onClick={doLogout}>
-                  {t('nav.logout')}
-                </button>
-              </div>
-            </details>
+              )}
+              <button type="button" role="menuitem" onClick={doLogout}>
+                {t('nav.logout')}
+              </button>
+            </Dropdown>
           ) : (
-            <details className="mc-menu">
-              <summary className="mc-btn mc-btn--accent mc-menu__summary">{t('nav.login')}</summary>
-              <div className="mc-menu__panel" role="menu">
-                <button type="button" role="menuitem" onClick={discordLogin}>
-                  {t('login.discord')}
-                </button>
-                {devLogin && (
-                  <>
-                    <span className="mc-menu__role mc-muted">{t('login.dev')}</span>
-                    {DEV_ROLES.map((role) => (
-                      <button key={role} type="button" role="menuitem" onClick={() => doDevLogin(role)}>
-                        {t(`role.${role}`)}
-                      </button>
-                    ))}
-                  </>
-                )}
-              </div>
-            </details>
+            <Dropdown
+              triggerClassName="mc-btn mc-btn--accent"
+              trigger={<span className="mc-menu__label">{t('nav.login')}</span>}
+            >
+              <button type="button" role="menuitem" onClick={discordLogin}>
+                {t('login.discord')}
+              </button>
+              {devLogin && (
+                <>
+                  <span className="mc-menu__role mc-muted">{t('login.dev')}</span>
+                  {DEV_ROLES.map((role) => (
+                    <button key={role} type="button" role="menuitem" onClick={() => doDevLogin(role)}>
+                      {t(`role.${role}`)}
+                    </button>
+                  ))}
+                </>
+              )}
+            </Dropdown>
           )}
         </div>
       </div>

@@ -42,6 +42,7 @@ export interface SiteView {
   name: string;
   modePolicy: ModePolicy;
   accentSeed: string;
+  defaultLocale: string;
   theme: GeneratedTheme;
   branding: Branding;
 }
@@ -181,6 +182,37 @@ export interface Suggestion {
   plannedTitle: string;
   rawTitle: string;
   similarity: number;
+}
+
+/** A provider linked to a user, in the admin user list (`auth/UserAdminController.IdentityRef`). */
+export interface IdentityRef {
+  provider: string;
+  email: string | null;
+}
+
+/** A user in the admin list (`auth/UserAdminController.UserAdminView`), `GET /api/admin/users`. */
+export interface UserAdminView {
+  id: string;
+  displayName: string;
+  avatarUrl: string | null;
+  role: Role;
+  createdAt: string;
+  identities: IdentityRef[];
+}
+
+/** A legal footer link (`legal/LegalViews.FooterEntry`), `GET /api/legal`. */
+export interface FooterEntry {
+  slug: string;
+  title: string;
+  role: string | null; // privacy | imprint | terms | null
+}
+
+/** A rendered legal page (`legal/LegalViews.RenderedPage`), `GET /api/legal/{slug}` — `html` is sanitized. */
+export interface RenderedPage {
+  slug: string;
+  title: string;
+  role: string | null;
+  html: string;
 }
 
 /** One locale's raw body in the legal admin editor (`legal/LegalViews.AdminTranslation`). */

@@ -11,6 +11,7 @@ import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.web.ConflictException;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
@@ -112,6 +113,24 @@ public class FeedService {
     public FeedView setEnabled(UUID id, boolean enabled) {
         Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
         feed.setEnabled(enabled);
+        feeds.save(feed);
+        return FeedView.of(feed, refs.countByFeedId(feed.getId()));
+    }
+
+    /** The lowest / highest poll interval an operator may set (§5.4) — polite to feed hosts, still useful. */
+    static final Duration MIN_POLL_INTERVAL = Duration.ofMinutes(5);
+    static final Duration MAX_POLL_INTERVAL = Duration.ofDays(7);
+
+    /**
+     * Sets a feed's poll interval (ARCHITECTURE §5.4 — "configurable per feed"), clamped to a polite
+     * range so a feed host can't be hammered. Conditional GET already makes an unchanged poll a cheap 304
+     * and the scheduler's backoff still applies on top.
+     */
+    @Transactional
+    public FeedView setPollInterval(UUID id, long seconds) {
+        Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
+        long clamped = Math.max(MIN_POLL_INTERVAL.toSeconds(), Math.min(MAX_POLL_INTERVAL.toSeconds(), seconds));
+        feed.setPollInterval(Duration.ofSeconds(clamped));
         feeds.save(feed);
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
     }

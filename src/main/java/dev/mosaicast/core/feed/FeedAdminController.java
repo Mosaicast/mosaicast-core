@@ -69,6 +69,12 @@ public class FeedAdminController {
         return feeds.setEnabled(id, value);
     }
 
+    /** Set a feed's poll interval in seconds (§5.4, "configurable per feed"); the service clamps the range. */
+    @PostMapping("/{id}/poll-interval")
+    public FeedView setPollInterval(@PathVariable UUID id, @RequestParam long seconds) {
+        return feeds.setPollInterval(id, seconds);
+    }
+
     /** Create a planned episode on a target feed (§4.3). */
     @PostMapping("/{feedId}/planned-episodes")
     public ResponseEntity<Map<String, UUID>> createPlanned(

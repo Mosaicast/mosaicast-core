@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
 import type { ModePolicy, SiteView } from '../../api/types';
-import { applyTheme, resolveMode } from '../../theme/applyTheme';
+import { availableLocales, localeName } from '../../i18n';
 import { useSite } from '../../theme/SiteContext';
 
 const BRANDING_KEYS = ['logo', 'favicon', 'dark-logo'] as const;
@@ -17,18 +17,31 @@ const BRANDING_KEYS = ['logo', 'favicon', 'dark-logo'] as const;
  */
 export function AdminSite() {
   const { t } = useTranslation();
-  const { site } = useSite();
+  const { site, refresh } = useSite();
 
   const [siteName, setSiteName] = useState(site?.name ?? '');
   const [modePolicy, setModePolicy] = useState<ModePolicy>(site?.modePolicy ?? 'system');
   const [accentSeed, setAccentSeed] = useState(site?.accentSeed ?? '#c8553d');
+  const [defaultLocale, setDefaultLocale] = useState(site?.defaultLocale ?? 'en');
   const [saved, setSaved] = useState(false);
   const [bust, setBust] = useState(0);
 
+  // Prefill from the loaded site config (the context is null on the first render, so `useState`'s initial
+  // values above miss the real values — sync them here once `site` arrives).
+  useEffect(() => {
+    if (site) {
+      setSiteName(site.name);
+      setModePolicy(site.modePolicy);
+      setAccentSeed(site.accentSeed);
+      setDefaultLocale(site.defaultLocale);
+    }
+  }, [site]);
+
   const save = async () => {
     setSaved(false);
-    const updated = await api.put<SiteView>('/api/admin/site', { siteName, accentSeed, modePolicy });
-    applyTheme(updated.theme, resolveMode(updated.modePolicy)); // live preview of the generated theme
+    await api.put<SiteView>('/api/admin/site', { siteName, accentSeed, modePolicy, defaultLocale });
+    // Refresh the shared site payload so the whole shell (and this form) reflects the saved theme live.
+    await refresh();
     setSaved(true);
   };
 
@@ -62,9 +75,27 @@ export function AdminSite() {
       </label>
 
       <label className="mc-field">
+        <span>{t('admin.site.defaultLang')}</span>
+        <select value={defaultLocale} onChange={(e) => setDefaultLocale(e.target.value)}>
+          {availableLocales().map((code) => (
+            <option key={code} value={code}>
+              {localeName(code)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="mc-field">
         <span>{t('admin.site.accent')}</span>
-        <input type="color" value={accentSeed} onChange={(e) => setAccentSeed(e.target.value)} />
-        <code>{accentSeed}</code>
+        <span className="mc-colorpick">
+          <input
+            className="mc-colorpick__input"
+            type="color"
+            value={accentSeed}
+            onChange={(e) => setAccentSeed(e.target.value)}
+          />
+          <code>{accentSeed}</code>
+        </span>
       </label>
 
       <div className="mc-form__actions">
