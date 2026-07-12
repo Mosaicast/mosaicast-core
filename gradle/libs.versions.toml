@@ -14,7 +14,7 @@ rome = "2.1.0"
 pf4j = "3.13.0"
 shedlock = "7.7.0"
 jsoup = "1.22.2"
-commonsText = "1.13.0"
+commonsText = "1.15.0"
 commonmark = "0.29.0"
 
 [libraries]
