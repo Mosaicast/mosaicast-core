@@ -34,6 +34,9 @@ services:
       MOSAICAST_BASE_URL: ${MOSAICAST_BASE_URL:-http://localhost:8080}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
+      # Secure session cookie (default true; keep true behind TLS). Social login needs a secure context —
+      # over plain http on a non-localhost host the browser drops the cookie and login fails. See .env.example.
+      MOSAICAST_SECURITY_SECURE_COOKIE: ${MOSAICAST_SECURITY_SECURE_COOKIE:-true}
       ADMIN_BOOTSTRAP_PROVIDER: ${ADMIN_BOOTSTRAP_PROVIDER:-discord}
       ADMIN_BOOTSTRAP_EXTERNAL_ID: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:-}
       MOSAICAST_ENCRYPTION_KEY: ${MOSAICAST_ENCRYPTION_KEY:-}
