@@ -57,7 +57,9 @@ public class FeedService {
      */
     @Transactional(readOnly = true)
     public List<PublicFeedView> catalog() {
-        return feeds.findAll().stream()
+        // Disabled feeds are hidden from the public site (tabs/browse) — enabled gates public visibility, not
+        // just polling. Their episodes are likewise excluded from the public episode reads.
+        return feeds.findByEnabledTrue().stream()
                 .map(feed -> PublicFeedView.of(feed, refs.countByFeedId(feed.getId())))
                 .sorted(java.util.Comparator.comparing(
                         PublicFeedView::title, String.CASE_INSENSITIVE_ORDER))
@@ -67,7 +69,9 @@ public class FeedService {
     /** Public detail of one feed for the shell's feed panel (§6.1) — cover, title, author, description. */
     @Transactional(readOnly = true)
     public FeedDetailView detail(UUID id) {
-        Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
+        Feed feed = feeds.findById(id)
+                .filter(Feed::isEnabled)
+                .orElseThrow(() -> new NotFoundException("Feed not found: " + id));
         return FeedDetailView.of(feed, refs.countByFeedId(id));
     }
 

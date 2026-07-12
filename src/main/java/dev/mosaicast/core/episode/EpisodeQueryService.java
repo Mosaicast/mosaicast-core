@@ -73,8 +73,7 @@ public class EpisodeQueryService {
      * 404. The neighbours are found in the feed's ordered visible list (fine for feed sizes in v1).
      */
     public AdjacentEpisodes adjacent(UUID refId) {
-        EpisodeRef ref = refs.findById(refId)
-                .filter(r -> r.getStatus() != EpisodeStatus.WITHDRAWN)
+        EpisodeRef ref = refs.findVisibleById(refId)
                 .orElseThrow(() -> new NotFoundException("Episode not found: " + refId));
         List<EpisodeRef> ordered = refs.findVisible(ref.getFeedId(), null, Pageable.unpaged()).getContent();
         int index = -1;
@@ -110,8 +109,7 @@ public class EpisodeQueryService {
 
     /** Full detail for one episode, or a 404 for a missing/withdrawn ref (§6.6 — real 404s). */
     public EpisodeDetail detail(UUID refId) {
-        EpisodeRef ref = refs.findById(refId)
-                .filter(r -> r.getStatus() != EpisodeStatus.WITHDRAWN)
+        EpisodeRef ref = refs.findVisibleById(refId)
                 .orElseThrow(() -> new NotFoundException("Episode not found: " + refId));
         return EpisodeDetail.from(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))));
     }
