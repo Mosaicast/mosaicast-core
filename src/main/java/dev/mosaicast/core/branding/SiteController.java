@@ -23,8 +23,8 @@ public class SiteController {
         this.site = site;
     }
 
-    /** Admin edit of name / accent / mode. Any omitted field is left unchanged. */
-    public record UpdateSite(String siteName, String accentSeed, String modePolicy) {
+    /** Admin edit of name / accent / mode / default language. Any omitted field is left unchanged. */
+    public record UpdateSite(String siteName, String accentSeed, String modePolicy, String defaultLocale) {
     }
 
     @GetMapping("/api/site")
@@ -35,7 +35,7 @@ public class SiteController {
     @PutMapping("/api/admin/site")
     public SiteView update(@RequestBody UpdateSite request) {
         ModePolicy mode = parseMode(request.modePolicy());
-        site.update(request.siteName(), request.accentSeed(), mode);
+        site.update(request.siteName(), request.accentSeed(), mode, request.defaultLocale());
         return SiteView.of(site.get(), site.theme());
     }
 

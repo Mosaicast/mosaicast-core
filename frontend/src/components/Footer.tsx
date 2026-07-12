@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { api } from '../api/client';
+import { MOSAICAST_REPO_URL } from '../api/constants';
 import { useLegalEntries } from '../hooks/useLegalEntries';
 import { useSite } from '../theme/SiteContext';
 
@@ -51,7 +52,9 @@ export function Footer() {
       )}
       {version && (
         <span className="mc-foot__version">
-          {t('footer.version')} <code>{version}</code>
+          <a href={MOSAICAST_REPO_URL} target="_blank" rel="noreferrer noopener">
+            {t('footer.poweredBy')} <code>{version}</code>
+          </a>
         </span>
       )}
     </footer>

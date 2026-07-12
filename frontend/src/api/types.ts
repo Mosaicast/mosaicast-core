@@ -42,6 +42,7 @@ export interface SiteView {
   name: string;
   modePolicy: ModePolicy;
   accentSeed: string;
+  defaultLocale: string;
   theme: GeneratedTheme;
   branding: Branding;
 }

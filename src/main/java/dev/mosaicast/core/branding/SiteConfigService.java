@@ -40,7 +40,7 @@ public class SiteConfigService {
 
     /** Updates admin-editable settings; any {@code null} field is left unchanged. Validates the accent. */
     @Transactional
-    public SiteConfig update(String siteName, String accentSeed, ModePolicy modePolicy) {
+    public SiteConfig update(String siteName, String accentSeed, ModePolicy modePolicy, String defaultLocale) {
         SiteConfig config = get();
         if (siteName != null && !siteName.isBlank()) {
             config.setSiteName(siteName.trim());
@@ -53,6 +53,9 @@ public class SiteConfigService {
         }
         if (modePolicy != null) {
             config.setModePolicy(modePolicy);
+        }
+        if (defaultLocale != null && !defaultLocale.isBlank()) {
+            config.setDefaultLocale(defaultLocale.trim().toLowerCase());
         }
         return configs.save(config);
     }
