@@ -15,9 +15,11 @@ import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLegal } from './routes/admin/AdminLegal';
 import { AdminSite } from './routes/admin/AdminSite';
+import { AdminUsers } from './routes/admin/AdminUsers';
 import { EpisodePage } from './routes/EpisodePage';
 import { FeedPage } from './routes/FeedPage';
 import { Home } from './routes/Home';
+import { LegalPage } from './routes/LegalPage';
 import { NotFound } from './routes/Placeholder';
 import { SiteProvider } from './theme/SiteContext';
 
@@ -39,6 +41,7 @@ export default function App() {
                   <Route path="/" element={<Home />} />
                   <Route path="/feeds/:feedId" element={<FeedPage />} />
                   <Route path="/episodes/:episodeId" element={<EpisodePage />} />
+                  <Route path="/legal/:slug" element={<LegalPage />} />
                   <Route
                     path="/account"
                     element={
@@ -69,6 +72,14 @@ export default function App() {
                       element={
                         <RequireRole roles={['admin']}>
                           <AdminLegal />
+                        </RequireRole>
+                      }
+                    />
+                    <Route
+                      path="users"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminUsers />
                         </RequireRole>
                       }
                     />

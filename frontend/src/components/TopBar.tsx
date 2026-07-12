@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import type { Meta, Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
+import { useLegalEntries } from '../hooks/useLegalEntries';
 import { useSite } from '../theme/SiteContext';
 import { Dropdown } from './Dropdown';
 import { SlotRegion } from './SlotRegion';
@@ -24,6 +25,7 @@ export function TopBar() {
   const { t, i18n } = useTranslation();
   const { site, mode } = useSite();
   const { user, refresh, logout } = useUser();
+  const legal = useLegalEntries();
   const navigate = useNavigate();
   const [devLogin, setDevLogin] = useState(false);
 
@@ -74,6 +76,16 @@ export function TopBar() {
           <button type="button" className="mc-btn mc-btn--ghost" onClick={toggleLocale} aria-label={t('nav.switchLanguage')}>
             {i18n.language.startsWith('de') ? 'EN' : 'DE'}
           </button>
+
+          {legal.length > 0 && (
+            <Dropdown triggerClassName="mc-btn mc-btn--ghost" ariaLabel={t('nav.info')} trigger={<span aria-hidden="true">ⓘ</span>}>
+              {legal.map((entry) => (
+                <Link key={entry.slug} role="menuitem" to={`/legal/${entry.slug}`}>
+                  {entry.title}
+                </Link>
+              ))}
+            </Dropdown>
+          )}
 
           {user ? (
             <Dropdown

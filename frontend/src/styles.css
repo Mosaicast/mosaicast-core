@@ -179,10 +179,89 @@ code {
   color: var(--mc-text-muted);
   padding: 1.25rem 1.5rem;
   display: flex;
-  gap: 1rem;
+  gap: 1rem 1.5rem;
+  align-items: center;
   justify-content: center;
   flex-wrap: wrap;
   font-size: 0.9rem;
+}
+.mc-foot__legal {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+/* Admin user list */
+.mc-userlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.mc-userlist__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+  background: var(--mc-surface);
+}
+.mc-userlist__who {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.mc-userlist__name {
+  display: block;
+  font-weight: 600;
+}
+.mc-userlist__meta {
+  font-size: 0.8rem;
+}
+.mc-userlist__role {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mc-feedrow__interval {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.mc-foot__legal a {
+  color: var(--mc-text-muted);
+  text-decoration: none;
+}
+.mc-foot__legal a:hover {
+  color: var(--mc-text);
+  text-decoration: underline;
+}
+/* Legal page body — readable prose from the sanitized markdown. */
+.mc-legal__body {
+  max-width: 70ch;
+  line-height: 1.65;
+}
+.mc-legal__body h2 {
+  margin: 1.5rem 0 0.5rem;
+}
+.mc-legal__body p,
+.mc-legal__body ul,
+.mc-legal__body table {
+  margin: 0.5rem 0;
+}
+.mc-legal__body table {
+  border-collapse: collapse;
+}
+.mc-legal__body th,
+.mc-legal__body td {
+  border: 1px solid var(--mc-border);
+  padding: 0.35rem 0.6rem;
+  text-align: left;
 }
 
 /* ---- filter bar ---- */
@@ -506,8 +585,10 @@ code {
 }
 
 /* ---- persistent player ---- */
-.mc-main {
-  padding-bottom: 108px; /* clearance for the fixed player bar */
+.mc-root {
+  /* Clearance for the fixed player bar — on the root (not .mc-main) so the footer, a sibling after main,
+     also clears the player instead of being covered by it. */
+  padding-bottom: 108px;
 }
 .mc-player {
   position: fixed;

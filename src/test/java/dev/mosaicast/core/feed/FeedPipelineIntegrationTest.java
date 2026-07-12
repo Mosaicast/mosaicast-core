@@ -13,6 +13,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -368,5 +369,18 @@ class FeedPipelineIntegrationTest {
 
         List<EpisodeSummary> onFeed = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
         assertThat(onFeed).extracting(EpisodeSummary::title).doesNotHaveDuplicates();
+    }
+
+    @Test
+    void pollIntervalIsClampedToTheAllowedRange() {
+        UUID id = feedRepository.save(Feed.rss("http://example.invalid/feed.xml", "Clamp Cast")).getId();
+
+        // Below the floor → clamped up to 5 minutes; above the ceiling → clamped down to 7 days.
+        assertThat(feedService.setPollInterval(id, 1).pollIntervalSeconds())
+                .isEqualTo(Duration.ofMinutes(5).toSeconds());
+        assertThat(feedService.setPollInterval(id, Duration.ofDays(30).toSeconds()).pollIntervalSeconds())
+                .isEqualTo(Duration.ofDays(7).toSeconds());
+        // A value in range is kept as-is.
+        assertThat(feedService.setPollInterval(id, 3600).pollIntervalSeconds()).isEqualTo(3600);
     }
 }

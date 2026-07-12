@@ -32,6 +32,11 @@ export function AdminLayout() {
               {t('admin.nav.legal')}
             </NavLink>
           )}
+          {isAdmin && (
+            <NavLink to="/admin/users" className={tab}>
+              {t('admin.nav.users')}
+            </NavLink>
+          )}
           <NavLink to="/admin/feeds" className={tab}>
             {t('admin.nav.feeds')}
           </NavLink>
