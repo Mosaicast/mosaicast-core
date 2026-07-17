@@ -12,6 +12,15 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Changed
+
+- **Consume plugin SDK `0.3.0`** (`0.4.7`): bumped `dev.mosaicast:plugin-api` / `plugin-testkit` and
+  `@mosaicast/plugin-sdk` from `0.2.0` to `0.3.0` (the SDK's symmetric doc-store cut — `DocStore.delete`,
+  keyed `query`, `DocStore.KEY_PATTERN`, `Scope.SITE_ID`/`Scope.site()`). The advertised `platformApi`
+  version (footer "Powered by Mosaicast", `/api/meta`, player) therefore moves 0.2.0 → 0.3.0. No core
+  behaviour change: core does not yet implement the plugin doc-store contracts, so the SDK's breaking
+  backend changes have no effect here — M5 implements them.
+
 ### Fixed
 
 - **Disabling a feed now hides it from the public site**, not just from polling (ARCHITECTURE §5.4/§6.1). A
