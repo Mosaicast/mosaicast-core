@@ -58,6 +58,20 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     Page<EpisodeRef> findVisible(@Param("feedId") UUID feedId, @Param("season") Integer season, Pageable pageable);
 
     /**
+     * Visible episode ids of a feed, optionally filtered by season, in the same canonical order as
+     * {@link #findVisible} (§6.2). An id projection for {@code FeedAccess.episodesIn} — avoids hydrating
+     * full entities when only ids are needed.
+     */
+    @Query("""
+            select e.id from EpisodeRef e
+            where e.feedId = :feedId and e.status <> 'WITHDRAWN'
+              and (:season is null or e.season = :season)
+              and e.feedId in (select f.id from Feed f where f.enabled = true)
+            order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
+            """)
+    List<UUID> findVisibleIds(@Param("feedId") UUID feedId, @Param("season") Integer season);
+
+    /**
      * The unified site-scope episode feed (§6.1): visible episodes across all feeds (or one, when
      * {@code feedId} is given), optionally season-filtered, as a page of ref ids in display order. Upcoming
      * (PLANNED) episodes surface first; the rest sort by the feed snapshot's {@code publishedAt}

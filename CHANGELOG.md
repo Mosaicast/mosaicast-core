@@ -12,6 +12,26 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **Plugin system — backend loading (M5 E5a, `0.5.0`, ARCHITECTURE §7):** the host now loads PF4J plugins from
+  `MOSAICAST_PLUGINS_DIR` at startup and gives each a `PluginContext`.
+  - **Loading & failure isolation (§7.1/§7.8):** each plugin is a folder (`plugin.json` + backend JAR +
+    `assets/`); a `MosaicastPluginManager` reads the manifest and loads the JAR. A bad manifest, an
+    incompatible `platformApi` (must match host `0.3.x`), a declared relational `schema` (deferred, §7.6), or a
+    thrown exception disables only that plugin — recorded as **rejected with a reason** — while the host keeps
+    booting. No plugin can crash the host.
+  - **`PluginContext` (§7.4):** a hard-scoped generic **doc store** over a new `plugin_data` JSONB table
+    (Flyway `V12`), `PluginConfig` from the manifest, host-resolved `FeedAccess.episodesIn/display` (reusing the
+    enabled-feed visibility filter), and ShedLock-wrapped `onSchedule`. `schema()` is `null` in v1.
+  - **Generic HTTP surface (§7.6):** `GET/PUT/DELETE /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}` and a
+    paginated list, mirroring the doc store one-to-one (there are no plugin-authored routes); reads gated by the
+    plugin's `visibleTo` floor, writes by the mapped role. Plus public `GET /api/plugins/manifest` (for the shell
+    to mount, E5b), `GET /api/admin/plugins` (load state, ADMIN), and `/plugins/{id}/assets/**` bundle serving
+    with ETags.
+  - **Not yet:** frontend mounting of plugin Web Components, config admin form and activation UI (E5b);
+    SEO/deep-links (E5c); consent (E5d); relational schema provider (E5e).
+
 ### Changed
 
 - **Consume plugin SDK `0.3.0`** (`0.4.7`): bumped `dev.mosaicast:plugin-api` / `plugin-testkit` and
