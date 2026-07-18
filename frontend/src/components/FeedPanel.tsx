@@ -44,7 +44,8 @@ export function FeedPanel({ feedId }: { feedId: string }) {
         <div className="mc-scope-panel__desc mc-muted" dangerouslySetInnerHTML={{ __html: description }} />
       )}
       {/* Feed-scoped plugins (E5) mount here. */}
-      <SlotRegion name="feed" />
+      <SlotRegion name="feed" scope={{ type: 'feed', id: feedId }} />
+      <SlotRegion name="sidebar" scope={{ type: 'feed', id: feedId }} />
     </aside>
   );
 }

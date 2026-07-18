@@ -25,8 +25,9 @@ export function SitePanel() {
     <aside className="mc-scope-panel">
       <img className="mc-scope-panel__logo" src={logo} alt="" aria-hidden="true" />
       <h1 className="mc-scope-panel__title">{name}</h1>
-      {/* Site-scoped plugins (E5) mount here. */}
+      {/* Site-scoped plugins (E5) mount here — both the dedicated `site` region and a site-scoped sidebar. */}
       <SlotRegion name="site" />
+      <SlotRegion name="sidebar" />
     </aside>
   );
 }

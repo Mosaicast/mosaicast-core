@@ -100,6 +100,15 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void scopeEpisodesResolvePublicly() {
+        // The shell reads this to fill ctx.episodes; site scope resolves to a (possibly empty) JSON array.
+        ResponseEntity<String> response =
+                rest.getForEntity("/api/plugins/scope-episodes?type=site&id=main", String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).startsWith("[");
+    }
+
+    @Test
     void unknownPluginIs404() {
         ResponseEntity<String> response =
                 rest.getForEntity("/api/plugins/nope/data/site/main/x", String.class);

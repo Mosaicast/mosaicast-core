@@ -1,16 +1,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { Component, type ReactNode } from 'react';
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
+
+import type { Scope } from '@mosaicast/plugin-sdk';
+
+import { api } from '../api/client';
+import { useUser } from '../auth/UserContext';
+import { PluginMount } from '../plugins/PluginMount';
+import { usePluginRegistry } from '../plugins/PluginRegistry';
+import { selectMounts } from '../plugins/slots';
 
 /**
- * A plugin slot region (ARCHITECTURE §7.3/§7.8). Renders a `data-slot` container that E5 will mount plugin
- * Web Components into; in E4 the body is empty (the zero-plugin site works). Every mount is wrapped in an
- * error boundary so a throwing plugin blanks only its own tile — never the page (§7.8).
+ * A plugin slot region (ARCHITECTURE §7.3/§7.8). Renders a `data-slot` container and mounts every plugin
+ * whose manifest declares a slot at this `placement` for the current `scope` level, gated by `visibleTo` and
+ * stacked by `order` (ties broken by plugin id). Each mount is wrapped in an error boundary so a throwing
+ * plugin blanks only its own tile — never the page (§7.8). Any host `children` render first.
  */
+
+const SITE_SCOPE: Scope = { type: 'site', id: 'main' };
 
 interface SlotRegionProps {
   name: 'top' | 'card' | 'main' | 'sidebar' | 'player' | 'feed' | 'site';
+  /** The scope this region is rendered in; defaults to the site scope. */
+  scope?: Scope;
   children?: ReactNode;
 }
 
@@ -34,10 +47,43 @@ class SlotErrorBoundary extends Component<{ children: ReactNode }, BoundaryState
   }
 }
 
-export function SlotRegion({ name, children }: SlotRegionProps) {
+export function SlotRegion({ name, scope = SITE_SCOPE, children }: SlotRegionProps) {
+  const { plugins } = usePluginRegistry();
+  const { user } = useUser();
+  const role = user?.role;
+
+  // Which plugin elements belong in this (placement, scope), visible to this user, in stack order.
+  const mounts = useMemo(() => selectMounts(plugins, name, scope.type, role), [plugins, name, scope.type, role]);
+
+  // Host-resolved episode ids for the scope (ctx.episodes), fetched only when something mounts here.
+  const [episodes, setEpisodes] = useState<string[]>([]);
+  const hasMounts = mounts.length > 0;
+  useEffect(() => {
+    if (!hasMounts) {
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<string[]>(`/api/plugins/scope-episodes?type=${scope.type}&id=${encodeURIComponent(scope.id)}`)
+      .then((ids) => {
+        if (!cancelled) {
+          setEpisodes(ids);
+        }
+      })
+      .catch(() => setEpisodes([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [hasMounts, scope.type, scope.id]);
+
   return (
     <div className="mc-slot" data-slot={name}>
       <SlotErrorBoundary>{children ?? null}</SlotErrorBoundary>
+      {mounts.map((mount) => (
+        <SlotErrorBoundary key={mount.key}>
+          <PluginMount pluginId={mount.pluginId} tag={mount.element} scope={scope} episodes={episodes} />
+        </SlotErrorBoundary>
+      ))}
     </div>
   );
 }

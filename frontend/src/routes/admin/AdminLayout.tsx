@@ -40,6 +40,11 @@ export function AdminLayout() {
           <NavLink to="/admin/feeds" className={tab}>
             {t('admin.nav.feeds')}
           </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin/plugins" className={tab}>
+              {t('admin.nav.plugins')}
+            </NavLink>
+          )}
         </nav>
         <div className="mc-admin__main">
           <Outlet />

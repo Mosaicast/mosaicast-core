@@ -14,6 +14,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Plugin system — frontend mounting (M5 E5b, `0.5.1`, ARCHITECTURE §7.3/§7.5):** the shell now renders
+  plugins.
+  - **Mounting:** on load the shell fetches `GET /api/plugins/manifest`, injects each plugin's frontend bundle
+    once (`/plugins/{id}/assets/{entry}`), and mounts its Web Components into the slot regions — matched by
+    `placement` + scope level, gated by `visibleTo`, stacked by `order` — each in the existing error boundary
+    so a throwing plugin blanks only its own tile.
+  - **Context (`ctx`):** the host sets the SDK `PluginContext` on each element — resolved `scope`, host-filtered
+    `episodes` (new public `GET /api/plugins/scope-episodes`), `user`, a namespaced `api` client over the
+    doc-store surface, `locale` and `theme` tokens; `consent`/`filter`/`player`/`route`/`progress` are wired
+    where cheap and stubbed where their mechanism lands later (E5c/E5d). Reassigning `ctx` re-renders.
+  - **Admin surface:** an **Admin → Plugins** page lists every discovered plugin with its load state and shows
+    a warning for any rejected plugin with its reason (`GET /api/admin/plugins`, §7.8).
+  - **Not yet:** the generated config form and activation toggle (need config persistence); deep-links/SEO
+    (E5c); consent (E5d).
+
 - **Plugin system — backend loading (M5 E5a, `0.5.0`, ARCHITECTURE §7):** the host now loads PF4J plugins from
   `MOSAICAST_PLUGINS_DIR` at startup and gives each a `PluginContext`.
   - **Loading & failure isolation (§7.1/§7.8):** each plugin is a folder (`plugin.json` + backend JAR +

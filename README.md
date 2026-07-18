@@ -133,7 +133,7 @@ Layout reference for the shell: `docs/reference/mosaicast-mockup.jsx` (NOT the r
   MOSAICAST_VERSION=0.1.0 docker compose -f docker-compose.prod.yml up -d   # omit to run :latest
   ```
 
-## Plugins (E5a — backend)
+## Plugins (E5)
 
 The host loads plugins from **`MOSAICAST_PLUGINS_DIR`** (default `./plugins`) once at startup — no hot reload.
 Each plugin is one folder holding a `plugin.json` manifest, a backend JAR (a PF4J extension of
@@ -169,8 +169,11 @@ plugin's write floor (its least-privileged non-anonymous slot). Data is hard-sco
 never see another's. To try a plugin: build it and drop its `dist/` into `MOSAICAST_PLUGINS_DIR/<id>/`, then
 restart the host (the `mosaicast-plugin-sample` repo's `./build.sh` + `./install.sh` do this).
 
-Frontend mounting of the plugin Web Components into the shell, the generated config form, and the admin
-activation/warning UI arrive in **E5b**.
+**Frontend (E5b):** the shell fetches the manifest, injects each plugin's bundle once, and mounts its Web
+Components into the slot regions — matched by `placement` + scope, gated by `visibleTo`, stacked by `order`,
+each in an error boundary. The host sets the SDK `PluginContext` on the element (scope, host-resolved
+`episodes`, `user`, a namespaced `api` client, `locale`, `theme`). **Admin → Plugins** shows every discovered
+plugin's load state and flags rejected ones. The generated config form and an activation toggle come next.
 
 ## Project layout
 

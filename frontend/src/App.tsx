@@ -10,10 +10,12 @@ import { Footer } from './components/Footer';
 import { LoginErrorBanner } from './components/LoginErrorBanner';
 import { TopBar } from './components/TopBar';
 import { PlayerProvider } from './player/PlayerContext';
+import { PluginRegistryProvider } from './plugins/PluginRegistry';
 import { AccountPage } from './routes/AccountPage';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLegal } from './routes/admin/AdminLegal';
+import { AdminPlugins } from './routes/admin/AdminPlugins';
 import { AdminSite } from './routes/admin/AdminSite';
 import { AdminUsers } from './routes/admin/AdminUsers';
 import { EpisodePage } from './routes/EpisodePage';
@@ -33,6 +35,7 @@ export default function App() {
       <UserProvider>
         <FeedsProvider>
           <PlayerProvider>
+            <PluginRegistryProvider>
             <div className="mc-root">
               <TopBar />
               <main className="mc-main">
@@ -84,12 +87,21 @@ export default function App() {
                       }
                     />
                     <Route path="feeds" element={<AdminFeeds />} />
+                    <Route
+                      path="plugins"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminPlugins />
+                        </RequireRole>
+                      }
+                    />
                   </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
               <Footer />
             </div>
+            </PluginRegistryProvider>
           </PlayerProvider>
         </FeedsProvider>
       </UserProvider>
