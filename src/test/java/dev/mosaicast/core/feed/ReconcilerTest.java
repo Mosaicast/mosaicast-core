@@ -65,7 +65,7 @@ class ReconcilerTest {
     void case1_newGuid_createsPublishedRefAndSnapshot() {
         when(refs.findByFeedId(FEED)).thenReturn(List.of());
 
-        ReconcileResult result = reconciler.reconcile(FEED, List.of(raw("g1", "Pigeons", 2, 12)));
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(raw("g1", "Pigeons", 2, 12)));
 
         assertThat(result.created()).isEqualTo(1);
         assertThat(result.updated()).isZero();
@@ -75,10 +75,10 @@ class ReconcilerTest {
 
     @Test
     void case2_knownGuid_refreshesWithoutCreating() {
-        EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11);
+        EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11, "test-s02e11");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(known));
 
-        ReconcileResult result = reconciler.reconcile(FEED, List.of(raw("g1", "Pigeons v2", 2, 12)));
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(raw("g1", "Pigeons v2", 2, 12)));
 
         assertThat(result.updated()).isEqualTo(1);
         assertThat(result.created()).isZero();
@@ -89,11 +89,11 @@ class ReconcilerTest {
 
     @Test
     void case3_missingGuid_withdrawsNeverDeletes() {
-        EpisodeRef gone = EpisodeRef.published(FEED, "g-old", 1, 3);
+        EpisodeRef gone = EpisodeRef.published(FEED, "g-old", 1, 3, "test-s01e03");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(gone));
 
         // Feed no longer lists g-old (a different item is present).
-        ReconcileResult result = reconciler.reconcile(FEED, List.of(raw("g-new", "New", 1, 4)));
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(raw("g-new", "New", 1, 4)));
 
         assertThat(result.withdrawn()).isEqualTo(1);
         assertThat(result.created()).isEqualTo(1);
@@ -103,10 +103,10 @@ class ReconcilerTest {
     @Test
     void plannedBinding_exactSeasonEpisode_bindsPlannedToFeedItem() {
         EpisodeRef planned = EpisodeRef.planned(FEED, 2, 13,
-                new DisplaySnapshot("Year in review", "", null, null, null, null, null, null, null));
+                new DisplaySnapshot("Year in review", "", null, null, null, null, null, null, null), "test-s02e13");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(planned));
 
-        ReconcileResult result = reconciler.reconcile(FEED, List.of(raw("g-13", "Year in Review!", 2, 13)));
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(raw("g-13", "Year in Review!", 2, 13)));
 
         assertThat(result.bound()).isEqualTo(1);
         assertThat(result.created()).isZero();
@@ -119,10 +119,11 @@ class ReconcilerTest {
     @Test
     void plannedBinding_noExactMatch_proposesFuzzySuggestionWithoutBinding() {
         EpisodeRef planned = EpisodeRef.planned(FEED, null, null,
-                new DisplaySnapshot("The great coffee controversy", "", null, null, null, null, null, null, null));
+                new DisplaySnapshot("The great coffee controversy", "", null, null, null, null, null, null, null),
+                "test-coffee");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(planned));
 
-        ReconcileResult result = reconciler.reconcile(FEED,
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed",
                 List.of(raw("g-x", "The Great Coffee Controversy (Part 1)", null, null)));
 
         // Created a fresh ref (no auto-merge) and left the planned ref PLANNED, with a suggestion.

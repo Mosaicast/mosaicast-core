@@ -24,8 +24,9 @@ describe('canSeeSlot', () => {
 describe('buildCtx', () => {
   const base: CtxInputs = {
     pluginId: 'sample',
-    scope: { type: 'episode', id: 'ep-1' },
-    episodes: ['ep-1', 'ep-2'],
+    scope: { type: 'episode', id: 'the-cast-s01e01' },
+    episodes: ['the-cast-s01e01', 'the-cast-s01e02'],
+    episodeLabels: { 'the-cast-s01e01': 'S01E01 · One' },
     user: null,
     theme: undefined,
     locale: 'de',
@@ -35,8 +36,9 @@ describe('buildCtx', () => {
 
   it('exposes scope, episodes, locale and an api client', () => {
     const ctx = buildCtx(base);
-    expect(ctx.scope).toEqual({ type: 'episode', id: 'ep-1' });
-    expect(ctx.episodes).toEqual(['ep-1', 'ep-2']);
+    expect(ctx.scope).toEqual({ type: 'episode', id: 'the-cast-s01e01' });
+    expect(ctx.episodes).toEqual(['the-cast-s01e01', 'the-cast-s01e02']);
+    expect(ctx.episodeLabels['the-cast-s01e01']).toBe('S01E01 · One');
     expect(ctx.locale.current()).toBe('de');
     expect(typeof ctx.api.get).toBe('function');
     expect(typeof ctx.api.put).toBe('function');

@@ -64,15 +64,16 @@ public class EpisodeController {
         return episodes.tags(feedId);
     }
 
-    @GetMapping("/api/episodes/{id}")
-    public EpisodeDetail detail(@PathVariable UUID id) {
-        return episodes.detail(id);
+    /** One episode's detail by its public slug (§6.2). The literal {@code /search} mapping wins over this pattern. */
+    @GetMapping("/api/episodes/{slug}")
+    public EpisodeDetail detail(@PathVariable String slug) {
+        return episodes.detailBySlug(slug);
     }
 
     /** Previous/next in the feed's canonical sequence (§6.2) — detail nav + player auto-advance. */
-    @GetMapping("/api/episodes/{id}/adjacent")
-    public AdjacentEpisodes adjacent(@PathVariable UUID id) {
-        return episodes.adjacent(id);
+    @GetMapping("/api/episodes/{slug}/adjacent")
+    public AdjacentEpisodes adjacent(@PathVariable String slug) {
+        return episodes.adjacentBySlug(slug);
     }
 
     /** Full-text episode search over display snapshots (§E1), ranked and paginated. */

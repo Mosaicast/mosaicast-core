@@ -55,8 +55,10 @@ export function SlotRegion({ name, scope = SITE_SCOPE, children }: SlotRegionPro
   // Which plugin elements belong in this (placement, scope), visible to this user, in stack order.
   const mounts = useMemo(() => selectMounts(plugins, name, scope.type, role), [plugins, name, scope.type, role]);
 
-  // Host-resolved episode ids for the scope (ctx.episodes), fetched only when something mounts here.
+  // Host-resolved episodes for the scope: slugs (ctx.episodes) + slug→label (ctx.episodeLabels). Fetched
+  // only when something mounts here.
   const [episodes, setEpisodes] = useState<string[]>([]);
+  const [episodeLabels, setEpisodeLabels] = useState<Record<string, string>>({});
   const hasMounts = mounts.length > 0;
   useEffect(() => {
     if (!hasMounts) {
@@ -64,13 +66,19 @@ export function SlotRegion({ name, scope = SITE_SCOPE, children }: SlotRegionPro
     }
     let cancelled = false;
     api
-      .get<string[]>(`/api/plugins/scope-episodes?type=${scope.type}&id=${encodeURIComponent(scope.id)}`)
-      .then((ids) => {
+      .get<{ id: string; label: string }[]>(
+        `/api/plugins/scope-episodes?type=${scope.type}&id=${encodeURIComponent(scope.id)}`,
+      )
+      .then((options) => {
         if (!cancelled) {
-          setEpisodes(ids);
+          setEpisodes(options.map((o) => o.id));
+          setEpisodeLabels(Object.fromEntries(options.map((o) => [o.id, o.label])));
         }
       })
-      .catch(() => setEpisodes([]));
+      .catch(() => {
+        setEpisodes([]);
+        setEpisodeLabels({});
+      });
     return () => {
       cancelled = true;
     };
@@ -81,7 +89,13 @@ export function SlotRegion({ name, scope = SITE_SCOPE, children }: SlotRegionPro
       <SlotErrorBoundary>{children ?? null}</SlotErrorBoundary>
       {mounts.map((mount) => (
         <SlotErrorBoundary key={mount.key}>
-          <PluginMount pluginId={mount.pluginId} tag={mount.element} scope={scope} episodes={episodes} />
+          <PluginMount
+            pluginId={mount.pluginId}
+            tag={mount.element}
+            scope={scope}
+            episodes={episodes}
+            episodeLabels={episodeLabels}
+          />
         </SlotErrorBoundary>
       ))}
     </div>

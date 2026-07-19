@@ -66,7 +66,8 @@ export interface FeedDetail {
 
 /** Compact episode (`episode/EpisodeSummary.java`) for cards / search results. */
 export interface EpisodeSummary {
-  id: string;
+  id: string; // internal UUID (progress, media identity)
+  slug: string; // public identifier (URLs, episode API, plugin scope)
   feedId: string;
   season: number | null;
   episodeNo: number | null;
@@ -89,7 +90,8 @@ export interface EpisodeSummary {
  * `audioUrl != null`.
  */
 export interface EpisodeDetail {
-  id: string;
+  id: string; // internal UUID (progress, media identity)
+  slug: string; // public identifier (URLs, episode API, plugin scope)
   feedId: string;
   season: number | null;
   episodeNo: number | null;

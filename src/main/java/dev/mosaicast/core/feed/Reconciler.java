@@ -7,6 +7,7 @@ import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
 import dev.mosaicast.core.episode.EpisodeRef;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
+import dev.mosaicast.core.episode.EpisodeSlug;
 import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.ArrayList;
@@ -48,7 +49,7 @@ public class Reconciler {
     }
 
     @Transactional
-    public ReconcileResult reconcile(UUID feedId, List<RawEpisode> rawEpisodes) {
+    public ReconcileResult reconcile(UUID feedId, String feedTitle, List<RawEpisode> rawEpisodes) {
         List<EpisodeRef> existing = refs.findByFeedId(feedId);
 
         Map<String, EpisodeRef> byGuid = new HashMap<>();
@@ -98,7 +99,10 @@ public class Reconciler {
 
             // No exact planned match: create a new PUBLISHED ref (case 1) and propose any fuzzy bindings.
             collectFuzzySuggestions(planned, raw, suggestions);
-            EpisodeRef fresh = EpisodeRef.published(feedId, raw.externalGuid(), raw.season(), raw.episodeNumber());
+            String slug = EpisodeSlug.generate(
+                    feedTitle, raw.season(), raw.episodeNumber(), raw.title(), refs::existsBySlug);
+            EpisodeRef fresh =
+                    EpisodeRef.published(feedId, raw.externalGuid(), raw.season(), raw.episodeNumber(), slug);
             refs.save(fresh);
             upsertDisplay(fresh.getId(), raw);
             created++;

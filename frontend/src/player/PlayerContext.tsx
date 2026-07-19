@@ -25,7 +25,8 @@ import { PlayerBar } from './PlayerBar';
 
 /** The minimum a caller needs to start playback; the audio URL is fetched (detail-only) when absent. */
 export interface PlayableEpisode {
-  id: string;
+  id: string; // internal UUID — progress + local key
+  slug: string; // public slug — episode API + detail URL
   title: string;
   audioUrl?: string | null;
   imageUrl?: string | null;
@@ -83,7 +84,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       let url = episode.audioUrl ?? null;
       if (!url) {
         try {
-          url = (await api.get<EpisodeDetail>(`/api/episodes/${episode.id}`)).audioUrl;
+          // The episode API is keyed by the public slug; progress below stays keyed by the UUID.
+          url = (await api.get<EpisodeDetail>(`/api/episodes/${episode.slug}`)).audioUrl;
         } catch {
           url = null;
         }
@@ -153,11 +155,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      const adjacent = await api.get<{ next: EpisodeSummary | null }>(`/api/episodes/${current.id}/adjacent`);
+      const adjacent = await api.get<{ next: EpisodeSummary | null }>(`/api/episodes/${current.slug}/adjacent`);
       const next = adjacent.next;
       if (next) {
         void play({
           id: next.id,
+          slug: next.slug,
           title: next.title,
           imageUrl: next.imageUrl,
           season: next.season,

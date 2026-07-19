@@ -18,12 +18,19 @@ export interface CtxInputs {
   pluginId: string;
   scope: Scope;
   episodes: string[];
+  episodeLabels: Record<string, string>;
   user: MeView | null;
   theme: ThemeTokenSet | undefined;
   locale: string;
   playerCurrentTime: () => number;
   playerSeekTo: (seconds: number) => void;
 }
+
+/**
+ * The context the host sets on a plugin element: the SDK `PluginContext` plus `episodeLabels` (slug → human
+ * label), which formalizes into the SDK type in a later release; until then the host provides it directly.
+ */
+export type HostPluginContext = PluginContext & { episodeLabels: Record<string, string> };
 
 const FALLBACK_THEME: ThemeTokens = {
   bg: '#ffffff',
@@ -36,11 +43,12 @@ const FALLBACK_THEME: ThemeTokens = {
   border: '#e7ddcf',
 };
 
-export function buildCtx(inputs: CtxInputs): PluginContext {
+export function buildCtx(inputs: CtxInputs): HostPluginContext {
   const noop = () => {};
   return {
     scope: inputs.scope,
     episodes: inputs.episodes,
+    episodeLabels: inputs.episodeLabels,
     user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
     api: makePluginApi(inputs.pluginId),
     consent: { has: () => true, onChange: noop },

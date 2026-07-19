@@ -32,7 +32,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
     <article className={`mc-card${upcoming ? ' mc-card--upcoming' : ''}${locked ? ' mc-card--locked' : ''}`}>
       <div className="mc-card__cover">
         {/* Redundant with the title link — kept as a mouse convenience, hidden from AT/tab order. */}
-        <Link to={`/episodes/${episode.id}`} aria-hidden="true" tabIndex={-1}>
+        <Link to={`/episodes/${episode.slug}`} aria-hidden="true" tabIndex={-1}>
           <Cover id={episode.id} imageUrl={episode.imageUrl} size={132} />
         </Link>
         {playable && (
@@ -42,6 +42,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
             onClick={() =>
               play({
                 id: episode.id,
+                slug: episode.slug,
                 title: episode.title,
                 imageUrl: episode.imageUrl,
                 feedTitle,
@@ -63,7 +64,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
         </div>
 
         <h3 className="mc-card__title">
-          <Link to={`/episodes/${episode.id}`}>{episode.title}</Link>
+          <Link to={`/episodes/${episode.slug}`}>{episode.title}</Link>
         </h3>
         {episode.subtitle && <p className="mc-card__subtitle mc-muted">{episode.subtitle}</p>}
 
@@ -83,7 +84,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
         {episode.excerpt && <p className="mc-card__excerpt">{episode.excerpt}</p>}
 
         {/* Compact plugin renderings (E5) mount here. */}
-        <SlotRegion name="card" scope={{ type: 'episode', id: episode.id }} />
+        <SlotRegion name="card" scope={{ type: 'episode', id: episode.slug }} />
       </div>
     </article>
   );

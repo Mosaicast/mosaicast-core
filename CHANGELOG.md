@@ -14,6 +14,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Readable episode slugs (`0.5.2`, ARCHITECTURE §4.1):** every episode now has a stable, human-readable
+  **slug** (e.g. `the-sample-cast-s01e06`) as its public identifier, while the UUID stays the internal key.
+  - Minted once at creation from the feed title + season/episode (title fallback; numeric suffix on
+    collision) and **immutable** — a later feed-title/number edit never re-slugs an episode, so URLs and
+    plugin data never orphan. Existing episodes are backfilled at boot. Migration `V13`.
+  - **Public URLs and the episode API use the slug:** `/episodes/{slug}` and `GET /api/episodes/{slug}`
+    (+ `/adjacent`). `EpisodeSummary`/`EpisodeDetail` now carry both `slug` (public) and `id` (UUID, used for
+    listening progress and audio).
+  - **Plugins address episodes by slug:** `ctx.episodes` and the episode `scope.id` are slugs (so a plugin's
+    doc-store path `data/episode/{slug}/…` matches the episode URL), and a new `ctx.episodeLabels` gives each
+    a display label (`S01E06 · <title>`) so plugin pickers show titles, not ids. Backed by
+    `GET /api/plugins/scope-episodes` returning `[{id, label}]`.
+
+
+
 - **Plugin system — frontend mounting (M5 E5b, `0.5.1`, ARCHITECTURE §7.3/§7.5):** the shell now renders
   plugins.
   - **Mounting:** on load the shell fetches `GET /api/plugins/manifest`, injects each plugin's frontend bundle

@@ -73,8 +73,25 @@ public class EpisodeQueryService {
      * 404. The neighbours are found in the feed's ordered visible list (fine for feed sizes in v1).
      */
     public AdjacentEpisodes adjacent(UUID refId) {
-        EpisodeRef ref = refs.findVisibleById(refId)
-                .orElseThrow(() -> new NotFoundException("Episode not found: " + refId));
+        return adjacentOf(refs.findVisibleById(refId)
+                .orElseThrow(() -> new NotFoundException("Episode not found: " + refId)));
+    }
+
+    /** Detail for one episode by its public slug (§6.2). */
+    public EpisodeDetail detailBySlug(String slug) {
+        EpisodeRef ref = refs.findVisibleBySlug(slug)
+                .orElseThrow(() -> new NotFoundException("Episode not found: " + slug));
+        return EpisodeDetail.from(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))));
+    }
+
+    /** Previous/next by the current episode's public slug (§6.2). */
+    public AdjacentEpisodes adjacentBySlug(String slug) {
+        return adjacentOf(refs.findVisibleBySlug(slug)
+                .orElseThrow(() -> new NotFoundException("Episode not found: " + slug)));
+    }
+
+    private AdjacentEpisodes adjacentOf(EpisodeRef ref) {
+        UUID refId = ref.getId();
         List<EpisodeRef> ordered = refs.findVisible(ref.getFeedId(), null, Pageable.unpaged()).getContent();
         int index = -1;
         for (int i = 0; i < ordered.size(); i++) {
@@ -121,6 +138,13 @@ public class EpisodeQueryService {
      */
     public DisplaySnapshot displayFor(UUID refId) {
         return refs.findVisibleById(refId)
+                .map(ref -> resolveDisplay(ref, snapshotsFor(List.of(ref))))
+                .orElse(EMPTY);
+    }
+
+    /** The display snapshot for a visible episode by its public slug — the slug counterpart of {@link #displayFor}. */
+    public DisplaySnapshot displayForSlug(String slug) {
+        return refs.findVisibleBySlug(slug)
                 .map(ref -> resolveDisplay(ref, snapshotsFor(List.of(ref))))
                 .orElse(EMPTY);
     }

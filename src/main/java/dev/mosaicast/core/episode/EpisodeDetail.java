@@ -14,6 +14,7 @@ import java.util.UUID;
  */
 public record EpisodeDetail(
         UUID id,
+        String slug,
         UUID feedId,
         Integer season,
         Integer episodeNo,
@@ -33,6 +34,7 @@ public record EpisodeDetail(
     public static EpisodeDetail from(EpisodeRef ref, DisplaySnapshot snapshot) {
         return new EpisodeDetail(
                 ref.getId(),
+                ref.getSlug(),
                 ref.getFeedId(),
                 ref.getSeason(),
                 ref.getEpisodeNo(),

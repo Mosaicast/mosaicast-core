@@ -58,7 +58,7 @@ public class FeedPipeline {
                 feeds.save(locked);
                 return PollOutcome.notModified();
             }
-            ReconcileResult reconciled = reconciler.reconcile(locked.getId(), result.episodes());
+            ReconcileResult reconciled = reconciler.reconcile(locked.getId(), locked.getTitle(), result.episodes());
             persistSuggestions(locked.getId(), reconciled.suggestions());
             locked.updateChannelMeta(result.feedImageUrl(), result.feedAuthor(), result.feedDescription());
             locked.recordSuccess(result.etag(), result.lastModified(), "OK");

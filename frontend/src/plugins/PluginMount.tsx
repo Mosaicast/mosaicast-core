@@ -23,9 +23,10 @@ interface PluginMountProps {
   tag: string;
   scope: Scope;
   episodes: string[];
+  episodeLabels: Record<string, string>;
 }
 
-export function PluginMount({ pluginId, tag, scope, episodes }: PluginMountProps) {
+export function PluginMount({ pluginId, tag, scope, episodes, episodeLabels }: PluginMountProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
   const { user } = useUser();
@@ -39,13 +40,14 @@ export function PluginMount({ pluginId, tag, scope, episodes }: PluginMountProps
         pluginId,
         scope,
         episodes,
+        episodeLabels,
         user,
         theme: site?.theme[mode],
         locale: i18n.language,
         playerCurrentTime: () => player.currentTime,
         playerSeekTo: player.seek,
       }),
-    [pluginId, scope, episodes, user, site, mode, i18n.language, player],
+    [pluginId, scope, episodes, episodeLabels, user, site, mode, i18n.language, player],
   );
 
   useEffect(() => {

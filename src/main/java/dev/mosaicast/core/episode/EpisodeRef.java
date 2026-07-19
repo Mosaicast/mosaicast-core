@@ -35,6 +35,13 @@ public class EpisodeRef {
     @Column(name = "feed_id", nullable = false)
     private UUID feedId;
 
+    /**
+     * The stable, human-readable public identifier (§4.1) — used in URLs, the episode API and the plugin
+     * contract. Minted once at creation and never updated, so it never orphans links or plugin data.
+     */
+    @Column(unique = true, updatable = false)
+    private String slug;
+
     @Column(name = "external_guid")
     private String externalGuid;
 
@@ -79,11 +86,13 @@ public class EpisodeRef {
      * Creates a {@code PUBLISHED} ref for a freshly-seen feed item (identity + relations only; the
      * display snapshot is stored separately, §5.2 case 1).
      */
-    public static EpisodeRef published(UUID feedId, String externalGuid, Integer season, Integer episodeNo) {
+    public static EpisodeRef published(UUID feedId, String externalGuid, Integer season, Integer episodeNo,
+                                       String slug) {
         EpisodeRef ref = new EpisodeRef(UUID.randomUUID(), feedId, EpisodeStatus.PUBLISHED);
         ref.externalGuid = externalGuid;
         ref.season = season;
         ref.episodeNo = episodeNo;
+        ref.slug = slug;
         return ref;
     }
 
@@ -91,11 +100,13 @@ public class EpisodeRef {
      * Creates a host-authored {@code PLANNED} ref (§4.3). Its {@code provisionalDisplay} is authoritative
      * until the real feed item binds.
      */
-    public static EpisodeRef planned(UUID feedId, Integer season, Integer episodeNo, DisplaySnapshot provisional) {
+    public static EpisodeRef planned(UUID feedId, Integer season, Integer episodeNo, DisplaySnapshot provisional,
+                                     String slug) {
         EpisodeRef ref = new EpisodeRef(UUID.randomUUID(), feedId, EpisodeStatus.PLANNED);
         ref.season = season;
         ref.episodeNo = episodeNo;
         ref.provisionalDisplay = provisional;
+        ref.slug = slug;
         return ref;
     }
 
@@ -134,6 +145,20 @@ public class EpisodeRef {
 
     public UUID getFeedId() {
         return feedId;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    /**
+     * One-time slug assignment for legacy rows created before slugs existed (the boot-time backfill). Never
+     * overwrites an existing slug — the identifier is immutable once set.
+     */
+    public void assignSlugIfAbsent(String slug) {
+        if (this.slug == null) {
+            this.slug = slug;
+        }
     }
 
     public String getExternalGuid() {
