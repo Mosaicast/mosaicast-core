@@ -109,25 +109,31 @@ tasks.processResources {
 // so the plugin-loading integration test can point MOSAICAST_PLUGINS_DIR at a real, hermetic plugins dir.
 // The same JAR is reused across the three folders; only the manifest differs (good loads; broken has an
 // incompatible platformApi; schema declares deferred schema storage) so the test can assert failure isolation.
-val fixtureLibs = project(":test-fixtures:sample-plugin").layout.buildDirectory.dir("libs")
-val stageTestPlugins = tasks.register<Sync>("stageTestPlugins") {
-    // Lazy task-path dependency so the fixture project is built first without an eager cross-project
-    // task reference (which would resolve before that project is configured).
-    dependsOn(":test-fixtures:sample-plugin:jar")
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    into(layout.buildDirectory.dir("test-plugins"))
-    listOf("good", "broken", "schema").forEach { name ->
-        into(name) {
-            from("src/test/resources/plugin-fixtures/$name")
-            from(fixtureLibs) { rename { "plugin.jar" } }
+// Only when the test-only fixture project is present (it is absent from the production Docker build context,
+// which copies `src/` but not `test-fixtures/` and skips tests — see settings.gradle.kts).
+val fixtureProject = findProject(":test-fixtures:sample-plugin")
+val stageTestPlugins = fixtureProject?.let { fixture ->
+    tasks.register<Sync>("stageTestPlugins") {
+        // Lazy task-path dependency so the fixture project is built first without an eager cross-project
+        // task reference (which would resolve before that project is configured).
+        dependsOn("${fixture.path}:jar")
+        duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        into(layout.buildDirectory.dir("test-plugins"))
+        listOf("good", "broken", "schema").forEach { name ->
+            into(name) {
+                from("src/test/resources/plugin-fixtures/$name")
+                from(fixture.layout.buildDirectory.dir("libs")) { rename { "plugin.jar" } }
+            }
         }
     }
 }
 
 tasks.withType<Test>().configureEach {
-    dependsOn(stageTestPlugins)
-    systemProperty("mosaicast.test.plugins-dir",
-        layout.buildDirectory.dir("test-plugins").get().asFile.absolutePath)
+    stageTestPlugins?.let {
+        dependsOn(it)
+        systemProperty("mosaicast.test.plugins-dir",
+            layout.buildDirectory.dir("test-plugins").get().asFile.absolutePath)
+    }
     useJUnitPlatform()
     // Docker Engine 29+ dropped support for API < 1.44. Setting DOCKER_HOST makes Testcontainers use
     // its environment-based client strategy, which honors DOCKER_API_VERSION (the unix-socket strategy
