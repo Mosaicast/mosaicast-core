@@ -66,6 +66,8 @@ public class SecurityConfig {
         "/login/**", "/oauth2/**", "/api/auth/**",
         // Branding is public (needed at boot, §12); it lives outside /api so no denyAll fallthrough applies.
         "/branding/**",
+        // Plugin frontend bundles are served openly (like branding, outside /api), §7.5.
+        "/plugins/**",
     };
 
     /**
@@ -131,6 +133,11 @@ public class SecurityConfig {
                         // hits the /api/** deny-by-default below instead of a handler-level 405.
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**", "/api/tags").permitAll()
+                        // Plugin manifest + doc-store reads are public at the filter (the controller enforces
+                        // the plugin's visibleTo read floor); writes require a signed-in user, and the
+                        // controller enforces the write-role floor (§7.5/§7.6).
+                        .requestMatchers(HttpMethod.GET, "/api/plugins/**").permitAll()
+                        .requestMatchers("/api/plugins/**").authenticated()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()
                         // Feeds/planned episodes are a podcaster capability; other admin endpoints are ADMIN.

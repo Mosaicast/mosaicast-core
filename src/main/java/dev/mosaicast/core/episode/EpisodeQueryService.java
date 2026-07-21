@@ -114,6 +114,17 @@ public class EpisodeQueryService {
         return EpisodeDetail.from(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))));
     }
 
+    /**
+     * The display snapshot for a visible episode by id — the same presentation the shell renders (§4.2),
+     * for {@code FeedAccess.display}. Returns the empty snapshot (never null) for a missing, withdrawn or
+     * disabled-feed ref, so a plugin never sees a null.
+     */
+    public DisplaySnapshot displayFor(UUID refId) {
+        return refs.findVisibleById(refId)
+                .map(ref -> resolveDisplay(ref, snapshotsFor(List.of(ref))))
+                .orElse(EMPTY);
+    }
+
     /** Full-text search over display snapshots, ranked by relevance (paginated). */
     public Page<EpisodeSummary> search(String query, Pageable pageable) {
         Page<UUID> ids = displays.search(query, pageable);
