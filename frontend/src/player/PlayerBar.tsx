@@ -68,7 +68,7 @@ export function PlayerBar() {
       </div>
 
       <div className="mc-player__right">
-        <SlotRegion name="player" />
+        <SlotRegion name="player" scope={{ type: 'episode', id: current.id }} />
         <input
           className="mc-player__vol"
           type="range"

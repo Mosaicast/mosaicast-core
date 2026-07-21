@@ -119,10 +119,10 @@ export function EpisodePage() {
             )}
           </div>
           {/* Full-width plugin renderings (e.g. bingo) mount here in E5. */}
-          <SlotRegion name="main" />
+          <SlotRegion name="main" scope={{ type: 'episode', id: episode.id }} />
         </div>
         <aside className="mc-detail__side">
-          <SlotRegion name="sidebar" />
+          <SlotRegion name="sidebar" scope={{ type: 'episode', id: episode.id }} />
         </aside>
       </div>
 

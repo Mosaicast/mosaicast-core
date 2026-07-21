@@ -1,0 +1,73 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+
+import type { PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-sdk';
+
+import type { MeView, ThemeTokenSet } from '../api/types';
+import { makePluginApi } from './pluginApi';
+
+/**
+ * Assembles the {@link PluginContext} the host sets on a mounted plugin element (ARCHITECTURE §7.5). The shell
+ * resolves the scope, the host-filtered `episodes`, the current `user`, the plugin's `api` client, the active
+ * `locale` and the `theme` tokens. `consent`, `filter`, `player`, `route` and `progress` are wired to the
+ * shell where cheap and stubbed where their full mechanism lands in later phases (consent E5d, deep-links E5c);
+ * the shell re-renders the element by reassigning `ctx` whenever these inputs change, so `onChange` handlers
+ * are intentionally inert.
+ */
+export interface CtxInputs {
+  pluginId: string;
+  scope: Scope;
+  episodes: string[];
+  user: MeView | null;
+  theme: ThemeTokenSet | undefined;
+  locale: string;
+  playerCurrentTime: () => number;
+  playerSeekTo: (seconds: number) => void;
+}
+
+const FALLBACK_THEME: ThemeTokens = {
+  bg: '#ffffff',
+  surface: '#ffffff',
+  text: '#1c1a17',
+  textMuted: '#6b6459',
+  accent: '#c8553d',
+  accentContrast: '#fff8f2',
+  accent2: '#3d7d8c',
+  border: '#e7ddcf',
+};
+
+export function buildCtx(inputs: CtxInputs): PluginContext {
+  const noop = () => {};
+  return {
+    scope: inputs.scope,
+    episodes: inputs.episodes,
+    user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
+    api: makePluginApi(inputs.pluginId),
+    consent: { has: () => true, onChange: noop },
+    filter: { current: () => ({}), onChange: noop },
+    player: {
+      currentTime: inputs.playerCurrentTime,
+      seekTo: inputs.playerSeekTo,
+      on: noop,
+    },
+    route: { path: '', onChange: noop },
+    locale: { current: () => inputs.locale, onChange: noop },
+    progress: {
+      get: (episodeId: string) => {
+        const stored = localStorage.getItem(`mc.progress.${episodeId}`);
+        return Promise.resolve(stored != null ? Number(stored) : null);
+      },
+    },
+    theme: inputs.theme ?? FALLBACK_THEME,
+  };
+}
+
+/** Privilege ranks matching the backend `PluginAccessPolicy`; anonymous is 0. */
+const RANK: Record<string, number> = { anonymous: 0, fan: 1, podcaster: 2, admin: 3 };
+
+/** Whether a (possibly anonymous) user meets a slot's `visibleTo` floor — the shell hides what it can't show. */
+export function canSeeSlot(visibleTo: string | null, role: Role | undefined): boolean {
+  const floor = RANK[(visibleTo ?? 'anonymous').toLowerCase()] ?? RANK.podcaster;
+  const have = role ? (RANK[role] ?? 0) : 0;
+  return have >= floor;
+}

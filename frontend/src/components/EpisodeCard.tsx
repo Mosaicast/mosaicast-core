@@ -83,7 +83,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
         {episode.excerpt && <p className="mc-card__excerpt">{episode.excerpt}</p>}
 
         {/* Compact plugin renderings (E5) mount here. */}
-        <SlotRegion name="card" />
+        <SlotRegion name="card" scope={{ type: 'episode', id: episode.id }} />
       </div>
     </article>
   );
