@@ -175,6 +175,11 @@ each in an error boundary. The host sets the SDK `PluginContext` on the element 
 `episodes`, `user`, a namespaced `api` client, `locale`, `theme`). **Admin → Plugins** shows every discovered
 plugin's load state and flags rejected ones. The generated config form and an activation toggle come next.
 
+Episodes are addressed by their **public slug** (§4.1) — a stable, human-readable id (`the-sample-cast-s01e06`)
+used in `/episodes/{slug}`, `GET /api/episodes/{slug}`, and, for plugins, `ctx.episodes` / the episode
+`scope.id` (so a plugin's `data/episode/{slug}/…` matches the URL). The UUID stays the internal key (listening
+progress, audio). Plugins get `ctx.episodeLabels` (`S01E06 · <title>`) so pickers show titles, not ids.
+
 ## Project layout
 
 ```

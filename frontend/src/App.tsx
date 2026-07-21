@@ -43,7 +43,7 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/feeds/:feedId" element={<FeedPage />} />
-                  <Route path="/episodes/:episodeId" element={<EpisodePage />} />
+                  <Route path="/episodes/:slug" element={<EpisodePage />} />
                   <Route path="/legal/:slug" element={<LegalPage />} />
                   <Route
                     path="/account"

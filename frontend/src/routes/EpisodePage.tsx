@@ -21,7 +21,7 @@ import { NotFound } from './Placeholder';
  * A missing/withdrawn episode renders the 404 landmark (real 404 — §6.6).
  */
 export function EpisodePage() {
-  const { episodeId = '' } = useParams();
+  const { slug = '' } = useParams();
   const { t, i18n } = useTranslation();
   const { play } = usePlayer();
   const { titleOf } = useFeeds();
@@ -34,7 +34,7 @@ export function EpisodePage() {
     setNotFound(false);
     setEpisode(null);
     api
-      .get<EpisodeDetail>(`/api/episodes/${episodeId}`)
+      .get<EpisodeDetail>(`/api/episodes/${slug}`)
       .then(setEpisode)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 404) {
@@ -42,10 +42,10 @@ export function EpisodePage() {
         }
       });
     api
-      .get<AdjacentEpisodes>(`/api/episodes/${episodeId}/adjacent`)
+      .get<AdjacentEpisodes>(`/api/episodes/${slug}/adjacent`)
       .then(setAdjacent)
       .catch(() => setAdjacent(null));
-  }, [episodeId]);
+  }, [slug]);
 
   if (notFound) {
     return <NotFound />;
@@ -93,6 +93,7 @@ export function EpisodePage() {
               onClick={() =>
                 play({
                   id: episode.id,
+                  slug: episode.slug,
                   title: episode.title,
                   audioUrl: episode.audioUrl,
                   imageUrl: episode.imageUrl,
@@ -119,23 +120,23 @@ export function EpisodePage() {
             )}
           </div>
           {/* Full-width plugin renderings (e.g. bingo) mount here in E5. */}
-          <SlotRegion name="main" scope={{ type: 'episode', id: episode.id }} />
+          <SlotRegion name="main" scope={{ type: 'episode', id: episode.slug }} />
         </div>
         <aside className="mc-detail__side">
-          <SlotRegion name="sidebar" scope={{ type: 'episode', id: episode.id }} />
+          <SlotRegion name="sidebar" scope={{ type: 'episode', id: episode.slug }} />
         </aside>
       </div>
 
       <nav className="mc-prevnext" aria-label={t('episode.sequence')}>
         {adjacent?.prev ? (
-          <Link className="mc-prevnext__link" to={`/episodes/${adjacent.prev.id}`}>
+          <Link className="mc-prevnext__link" to={`/episodes/${adjacent.prev.slug}`}>
             ← {adjacent.prev.title}
           </Link>
         ) : (
           <span />
         )}
         {adjacent?.next ? (
-          <Link className="mc-prevnext__link mc-prevnext__link--next" to={`/episodes/${adjacent.next.id}`}>
+          <Link className="mc-prevnext__link mc-prevnext__link--next" to={`/episodes/${adjacent.next.slug}`}>
             {adjacent.next.title} →
           </Link>
         ) : (

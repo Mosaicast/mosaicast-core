@@ -26,7 +26,7 @@ export function PlayerBar() {
     current.season != null && current.episodeNo != null
       ? `S${String(current.season).padStart(2, '0')} · E${String(current.episodeNo).padStart(2, '0')}`
       : null;
-  const detailPath = `/episodes/${current.id}`;
+  const detailPath = `/episodes/${current.slug}`;
 
   return (
     <div className="mc-player" data-slot="player" role="region" aria-label={t('player.region')}>
@@ -68,7 +68,7 @@ export function PlayerBar() {
       </div>
 
       <div className="mc-player__right">
-        <SlotRegion name="player" scope={{ type: 'episode', id: current.id }} />
+        <SlotRegion name="player" scope={{ type: 'episode', id: current.slug }} />
         <input
           className="mc-player__vol"
           type="range"

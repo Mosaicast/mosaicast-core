@@ -35,6 +35,20 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             """)
     Optional<EpisodeRef> findVisibleById(@Param("id") UUID id);
 
+    /** A publicly visible ref by its public slug — the slug counterpart of {@link #findVisibleById}. */
+    @Query("""
+            select e from EpisodeRef e
+            where e.slug = :slug and e.status <> 'WITHDRAWN'
+              and e.feedId in (select f.id from Feed f where f.enabled = true)
+            """)
+    Optional<EpisodeRef> findVisibleBySlug(@Param("slug") String slug);
+
+    /** Whether a slug is already taken (uniqueness guard when minting a new slug). */
+    boolean existsBySlug(String slug);
+
+    /** Refs created before slugs existed, for the boot-time backfill. */
+    List<EpisodeRef> findBySlugIsNull();
+
     /** Distinct seasons present in a feed (a season is "all refs with season=N", §4.4). */
     @Query("""
             select distinct e.season from EpisodeRef e
