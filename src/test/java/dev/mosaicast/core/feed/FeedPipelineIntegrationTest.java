@@ -280,6 +280,45 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void datelessEpisodeZero_sortsAsSeriesStart_notLast() {
+        // A season-1 "episode 0" trailer that ships without a <pubDate> (so its snapshot has no publishedAt),
+        // plus two dated regular episodes. The site feed must treat the dateless item as the earliest point in
+        // the series — first in oldest order (before episode 1), last in newest order — rather than dumping it
+        // after the last episode (regression: publishedAt `nulls last` in both directions).
+        String feedXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+                  <channel>
+                    <title>Zero Cast</title>
+                    <description>d</description>
+                    <item>
+                      <title>Trailer</title><guid>z0</guid><description>n</description>
+                      <itunes:season>1</itunes:season><itunes:episode>0</itunes:episode>
+                    </item>
+                    <item>
+                      <title>One</title><guid>z1</guid><description>n</description>
+                      <pubDate>Mon, 08 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:season>1</itunes:season><itunes:episode>1</itunes:episode>
+                    </item>
+                    <item>
+                      <title>Two</title><guid>z2</guid><description>n</description>
+                      <pubDate>Mon, 15 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:season>1</itunes:season><itunes:episode>2</itunes:episode>
+                    </item>
+                  </channel>
+                </rss>
+                """;
+        body.set(feedXml);
+        FeedView feed = feedService.createRss(feedUrl, "Zero Cast");
+
+        var oldest = episodes.listSite(feed.id(), null, null, false, PageRequest.of(0, 20)).getContent();
+        assertThat(oldest).extracting(EpisodeSummary::episodeNo).containsExactly(0, 1, 2);
+
+        var newest = episodes.listSite(feed.id(), null, null, true, PageRequest.of(0, 20)).getContent();
+        assertThat(newest).extracting(EpisodeSummary::episodeNo).containsExactly(2, 1, 0);
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());

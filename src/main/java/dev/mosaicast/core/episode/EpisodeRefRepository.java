@@ -92,6 +92,11 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
      * (newest/oldest per {@code newest}), cast to numeric so epoch-second strings order chronologically.
      * A LEFT JOIN keeps PLANNED refs, which have no {@code episode_display} row. Returns ids (like search)
      * so the service can batch-resolve snapshots and preserve order.
+     *
+     * <p>An episode with no {@code publishedAt} (e.g. an "episode 0" trailer that ships without a
+     * {@code pubDate}) is treated as the <em>earliest</em> point in the series rather than being dumped at
+     * the end: {@code nulls last} in newest order, {@code nulls first} in oldest order. Ties (equal or
+     * absent dates) then fall back to season/episode number, so a dateless S1E0 sits before S1E1.
      */
     @Query(value = """
             select er.id
@@ -106,7 +111,9 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             order by
               case when er.status = 'PLANNED' then 0 else 1 end,
               case when :newest then (ed.snapshot->>'publishedAt')::numeric end desc nulls last,
-              case when not :newest then (ed.snapshot->>'publishedAt')::numeric end asc nulls last,
+              case when not :newest then (ed.snapshot->>'publishedAt')::numeric end asc nulls first,
+              er.season asc nulls last,
+              er.episode_no asc nulls last,
               er.first_seen_at desc
             """,
             countQuery = """
