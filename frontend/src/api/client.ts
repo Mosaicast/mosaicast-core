@@ -56,7 +56,10 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     } catch {
       /* no/!json body */
     }
-    throw new ApiError(response.status, detail ?? response.statusText, detail);
+    // statusText is empty under HTTP/2, and bodiless errors (401/403 from the security filters) carry no
+    // problem+json — always fall back to a non-empty message so the UI never shows a blank error.
+    const message = detail || response.statusText || `HTTP ${response.status}`;
+    throw new ApiError(response.status, message, detail);
   }
 
   // Tolerate empty bodies (204, or a 201/200 with no content) — only parse JSON when there is a body.
