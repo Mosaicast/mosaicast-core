@@ -60,14 +60,19 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
 
     /**
      * Visible episodes of a feed, optionally filtered by season, in canonical order (§6.2): season then
-     * episode number, nulls last. WITHDRAWN items are excluded from listings.
+     * episode number. WITHDRAWN items are excluded from listings.
+     *
+     * <p>A numberless episode ({@code episodeNo} null) sorts <em>first</em> within its season, not last: a
+     * season-opening trailer/prologue tagged with a season but no {@code itunes:episode} then leads the
+     * season (right after the previous season's finale) rather than being stranded after the finale — which
+     * also keeps the detail/player prev-next navigation in the order listeners expect.
      */
     @Query("""
             select e from EpisodeRef e
             where e.feedId = :feedId and e.status <> 'WITHDRAWN'
               and (:season is null or e.season = :season)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
-            order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
+            order by e.season asc nulls last, e.episodeNo asc nulls first, e.firstSeenAt desc
             """)
     Page<EpisodeRef> findVisible(@Param("feedId") UUID feedId, @Param("season") Integer season, Pageable pageable);
 
@@ -81,7 +86,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             where e.feedId = :feedId and e.status <> 'WITHDRAWN'
               and (:season is null or e.season = :season)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
-            order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
+            order by e.season asc nulls last, e.episodeNo asc nulls first, e.firstSeenAt desc
             """)
     List<UUID> findVisibleIds(@Param("feedId") UUID feedId, @Param("season") Integer season);
 

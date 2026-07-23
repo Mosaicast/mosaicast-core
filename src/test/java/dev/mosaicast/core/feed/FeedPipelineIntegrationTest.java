@@ -319,6 +319,48 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void numberlessSeasonTrailer_leadsItsSeason_inOrderAndNavigation() {
+        // A season-2 trailer tagged with a season but no <itunes:episode> (episodeNo null), between season 1
+        // and the numbered season-2 episodes. It must lead season 2 — so from season 1's finale "next" is the
+        // trailer, the trailer's "next" is S2E1, and season 2's last episode has no "next" — rather than being
+        // stranded after the finale (regression: episodeNo `nulls last`).
+        String feedXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+                  <channel>
+                    <title>Trailer Cast</title><description>d</description>
+                    <item><title>S1E1</title><guid>t-s1e1</guid><description>n</description>
+                      <itunes:season>1</itunes:season><itunes:episode>1</itunes:episode></item>
+                    <item><title>S2 Trailer</title><guid>t-s2e0</guid><description>n</description>
+                      <itunes:season>2</itunes:season><itunes:episodeType>trailer</itunes:episodeType></item>
+                    <item><title>S2E1</title><guid>t-s2e1</guid><description>n</description>
+                      <itunes:season>2</itunes:season><itunes:episode>1</itunes:episode></item>
+                    <item><title>S2E2</title><guid>t-s2e2</guid><description>n</description>
+                      <itunes:season>2</itunes:season><itunes:episode>2</itunes:episode></item>
+                  </channel>
+                </rss>
+                """;
+        body.set(feedXml);
+        FeedView feed = feedService.createRss(feedUrl, "Trailer Cast");
+
+        var ordered = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
+        assertThat(ordered).extracting(EpisodeSummary::title)
+                .containsExactly("S1E1", "S2 Trailer", "S2E1", "S2E2");
+
+        java.util.Map<String, UUID> id = ordered.stream()
+                .collect(java.util.stream.Collectors.toMap(EpisodeSummary::title, EpisodeSummary::id));
+
+        // Season 1 finale → the trailer leads season 2.
+        assertThat(episodes.adjacent(id.get("S1E1")).next().id()).isEqualTo(id.get("S2 Trailer"));
+        // The trailer sits between the finale and S2E1.
+        var fromTrailer = episodes.adjacent(id.get("S2 Trailer"));
+        assertThat(fromTrailer.prev().id()).isEqualTo(id.get("S1E1"));
+        assertThat(fromTrailer.next().id()).isEqualTo(id.get("S2E1"));
+        // Season 2's last numbered episode is the end of the sequence.
+        assertThat(episodes.adjacent(id.get("S2E2")).next()).isNull();
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());
