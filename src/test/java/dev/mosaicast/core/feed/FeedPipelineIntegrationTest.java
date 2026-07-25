@@ -365,6 +365,29 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void plannedEpisode_isNotANavigationNeighbour() {
+        // Upcoming (PLANNED) episodes lead the browsable listing (§6.1) but are not part of the navigation
+        // sequence (§6.2): they have no audio, so the player must never auto-advance into one. Regression:
+        // the nav order reused the listing query, which sorts PLANNED first — the oldest release then had an
+        // unreleased episode as its "previous".
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        var ordered = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
+        UUID e11 = ordered.stream().filter(e -> e.episodeNo() == 11).findFirst().orElseThrow().id();
+        UUID e12 = ordered.stream().filter(e -> e.episodeNo() == 12).findFirst().orElseThrow().id();
+        UUID planned = feedService.createPlannedEpisode(feed.id(), 2, 13, "The one about pigeons, again", "tbd");
+
+        // The released sequence is unchanged and closed at both ends.
+        assertThat(episodes.adjacent(e11).prev()).isNull();
+        assertThat(episodes.adjacent(e11).next().id()).isEqualTo(e12);
+        assertThat(episodes.adjacent(e12).next()).isNull();
+
+        // The planned episode's own page links back to the latest release, and nowhere forward.
+        var fromPlanned = episodes.adjacent(planned);
+        assertThat(fromPlanned.prev().id()).isEqualTo(e12);
+        assertThat(fromPlanned.next()).isNull();
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());

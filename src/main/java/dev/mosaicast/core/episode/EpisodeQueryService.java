@@ -75,8 +75,9 @@ public class EpisodeQueryService {
      * A missing/withdrawn id is a 404. The neighbours are found in the feed's ordered list (fine for feed
      * sizes in v1).
      *
-     * <p>Deviates from the season/episode "canonical sequence" wording in ARCHITECTURE §6.2: episode numbers
-     * are too often absent or inconsistent in real feeds to drive navigation reliably.
+     * <p>Only released episodes take part: a {@code PLANNED} episode is never anyone's {@code next} (the
+     * player auto-advances into it and it has no audio); its own page links back to the latest release.
+     * See ARCHITECTURE §6.2.
      */
     public AdjacentEpisodes adjacent(UUID refId) {
         return adjacentOf(refs.findVisibleById(refId)
@@ -100,11 +101,19 @@ public class EpisodeQueryService {
         UUID refId = ref.getId();
         // Same release order (oldest→newest) as the browsable feed, so navigation is consistent with the list
         // and independent of episode numbers: index-1 is the previously-released episode, index+1 the next.
-        List<UUID> ordered = refs.findSiteVisibleIds(
-                ref.getFeedId(), null, null, false, Pageable.unpaged()).getContent();
+        List<UUID> ordered = refs.findNavSequenceIds(ref.getFeedId());
         int index = ordered.indexOf(refId);
-        UUID prevId = index > 0 ? ordered.get(index - 1) : null;
-        UUID nextId = index >= 0 && index < ordered.size() - 1 ? ordered.get(index + 1) : null;
+        UUID prevId;
+        UUID nextId;
+        if (index < 0) {
+            // The current episode is PLANNED, so it is not part of the sequence: it trails the released ones
+            // (its date is unknown) — link back to the latest release, and never forward into it.
+            prevId = ordered.isEmpty() ? null : ordered.get(ordered.size() - 1);
+            nextId = null;
+        } else {
+            prevId = index > 0 ? ordered.get(index - 1) : null;
+            nextId = index < ordered.size() - 1 ? ordered.get(index + 1) : null;
+        }
         List<EpisodeRef> neighbours = refs.findAllById(
                 java.util.stream.Stream.of(prevId, nextId).filter(java.util.Objects::nonNull).toList());
         Map<UUID, EpisodeRef> byId = neighbours.stream()

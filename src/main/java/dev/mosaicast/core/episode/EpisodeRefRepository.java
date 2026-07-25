@@ -133,4 +133,28 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             @Param("tag") String tag,
             @Param("newest") boolean newest,
             Pageable pageable);
+
+    /**
+     * A feed's navigation sequence (§6.2): its <em>released</em> episodes, oldest→newest by the feed
+     * snapshot's {@code publishedAt}. Same release order as the browsable feed ({@link #findSiteVisibleIds}
+     * with {@code newest=false}) but without {@code PLANNED} refs: upcoming episodes lead the listing yet
+     * have no audio, so they must never be a prev/next neighbour — the player auto-advances into {@code next}
+     * and would land on an unplayable episode. An episode with no {@code publishedAt} counts as the series
+     * start ({@code nulls first}); ties fall back to season/episode number.
+     */
+    @Query(value = """
+            select er.id
+            from episode_ref er
+            left join episode_display ed on ed.episode_ref_id = er.id
+            where er.status not in ('WITHDRAWN', 'PLANNED')
+              and er.feed_id = :feedId
+              and er.feed_id in (select f.id from feed f where f.enabled = true)
+            order by
+              (ed.snapshot->>'publishedAt')::numeric asc nulls first,
+              er.season asc nulls last,
+              er.episode_no asc nulls last,
+              er.first_seen_at desc
+            """,
+            nativeQuery = true)
+    List<UUID> findNavSequenceIds(@Param("feedId") UUID feedId);
 }
