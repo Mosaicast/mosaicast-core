@@ -52,6 +52,18 @@ public record PluginManifest(
     public static final Set<String> KNOWN_PLACEMENTS =
             Set.of("top", "card", "main", "sidebar", "player", "feed", "site", "admin");
 
+    /** Config field types the generated admin form can render and type-check (§7.2). */
+    public static final String CONFIG_TYPE_STRING = "string";
+    public static final String CONFIG_TYPE_NUMBER = "number";
+    public static final String CONFIG_TYPE_BOOLEAN = "boolean";
+    public static final Set<String> KNOWN_CONFIG_TYPES =
+            Set.of(CONFIG_TYPE_STRING, CONFIG_TYPE_NUMBER, CONFIG_TYPE_BOOLEAN);
+
+    /** Roles a config field may be delegated to; anything else (including a fan) is rejected (§8.5). */
+    public static final String EDITABLE_BY_ADMIN = "admin";
+    public static final String EDITABLE_BY_PODCASTER = "podcaster";
+    public static final Set<String> KNOWN_EDITABLE_BY = Set.of(EDITABLE_BY_ADMIN, EDITABLE_BY_PODCASTER);
+
     /** Backend entry points. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Backend(String basePath, List<String> extensions) {
@@ -70,9 +82,34 @@ public record PluginManifest(
     public record Slot(String scope, String element, String placement, String visibleTo, Integer order) {
     }
 
-    /** A declared config field: its type, default value (raw JSON) and who may edit it. */
+    /**
+     * A declared config field: its type, default value (raw JSON) and who may edit it (ARCHITECTURE §7.2).
+     * The host renders these as a generic admin form — plugins never build their own config UI — so the
+     * declaration has to carry enough to render and validate an input.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ConfigField(String type, @JsonProperty("default") JsonNode defaultValue, String editableBy) {
+
+        /** The role a field defaults to when the manifest names none: the most restrictive one. */
+        public String editableByOrDefault() {
+            return editableBy == null || editableBy.isBlank() ? EDITABLE_BY_ADMIN : editableBy.toLowerCase();
+        }
+
+        /**
+         * Whether {@code value} is a legal setting for this field. JSON null always passes: it is how an
+         * admin clears an override and falls back to the manifest default.
+         */
+        public boolean accepts(JsonNode value) {
+            if (value == null || value.isNull()) {
+                return true;
+            }
+            return switch (type == null ? "" : type.toLowerCase()) {
+                case CONFIG_TYPE_STRING -> value.isTextual();
+                case CONFIG_TYPE_NUMBER -> value.isNumber();
+                case CONFIG_TYPE_BOOLEAN -> value.isBoolean();
+                default -> false;
+            };
+        }
     }
 
     /** Declared consent surface (empty lists mean no cookie banner / no third-party sources). */
@@ -103,6 +140,33 @@ public record PluginManifest(
                 if (slot.placement() == null || !KNOWN_PLACEMENTS.contains(slot.placement())) {
                     throw new PluginValidationException("unknown slot placement: " + slot.placement());
                 }
+            }
+        }
+        validateConfig();
+    }
+
+    /**
+     * The host renders declared config fields as a form and type-checks admin input against them, so a field
+     * it cannot render or check is rejected at load rather than surfacing as a broken admin page.
+     */
+    private void validateConfig() {
+        if (config == null) {
+            return;
+        }
+        for (Map.Entry<String, ConfigField> entry : config.entrySet()) {
+            ConfigField field = entry.getValue();
+            String type = field.type() == null ? null : field.type().toLowerCase();
+            if (type == null || !KNOWN_CONFIG_TYPES.contains(type)) {
+                throw new PluginValidationException(
+                        "config field '%s' has unknown type: %s".formatted(entry.getKey(), field.type()));
+            }
+            if (!KNOWN_EDITABLE_BY.contains(field.editableByOrDefault())) {
+                throw new PluginValidationException(
+                        "config field '%s' has unknown editableBy: %s".formatted(entry.getKey(), field.editableBy()));
+            }
+            if (!field.accepts(field.defaultValue())) {
+                throw new PluginValidationException(
+                        "config field '%s' default does not match declared type %s".formatted(entry.getKey(), type));
             }
         }
     }

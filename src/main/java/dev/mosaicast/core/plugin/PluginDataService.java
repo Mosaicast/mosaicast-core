@@ -13,6 +13,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,10 +29,13 @@ public class PluginDataService {
     private static final Pattern KEY = Pattern.compile(DocStore.KEY_PATTERN);
 
     private final PluginDataRepository repository;
+    private final PluginSettingsService settings;
     private final ObjectMapper objectMapper;
 
-    public PluginDataService(PluginDataRepository repository, ObjectMapper objectMapper) {
+    public PluginDataService(PluginDataRepository repository, PluginSettingsService settings,
+                             ObjectMapper objectMapper) {
         this.repository = repository;
+        this.settings = settings;
         this.objectMapper = objectMapper;
     }
 
@@ -56,6 +60,7 @@ public class PluginDataService {
     /** Upserts a raw JSON document at {@code (scope, key)}, last-write-wins. */
     @Transactional
     public void putRaw(String pluginId, Scope scope, String key, JsonNode value) {
+        requireWritable(pluginId);
         requireValidKey(key);
         PluginDataKey id = keyOf(pluginId, scope, key);
         repository.findById(id).ifPresentOrElse(
@@ -66,6 +71,7 @@ public class PluginDataService {
     /** Removes the document at {@code (scope, key)}; returns whether one existed. Idempotent. */
     @Transactional
     public boolean delete(String pluginId, Scope scope, String key) {
+        requireWritable(pluginId);
         PluginDataKey id = keyOf(pluginId, scope, key);
         if (!repository.existsById(id)) {
             return false;
@@ -90,6 +96,20 @@ public class PluginDataService {
         return repository
                 .pageInScope(pluginId, scope.type().name().toLowerCase(), scope.id(), keyPrefix, pageable)
                 .map(d -> new DocEntry(d.getId().getKey(), d.getValue()));
+    }
+
+    /**
+     * Refuses writes from a switched-off plugin (ARCHITECTURE §7.8). The HTTP surface already 404s for a
+     * disabled plugin, but a plugin's own backend keeps running in-process until the next restart — a thread
+     * or scheduled task it started must not keep mutating the store after an admin switched it off. Reads are
+     * left open: they change nothing, and a disabled plugin's data stays intact until an explicit purge.
+     *
+     * @throws AccessDeniedException if the plugin is disabled
+     */
+    private void requireWritable(String pluginId) {
+        if (!settings.enabled(pluginId)) {
+            throw new AccessDeniedException("Plugin is disabled: " + pluginId);
+        }
     }
 
     /**

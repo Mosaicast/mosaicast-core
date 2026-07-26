@@ -45,17 +45,20 @@ public class PluginLoaderService implements ApplicationRunner {
     private final PluginDataService dataService;
     private final FeedAccess feedAccess;
     private final PluginScheduler scheduler;
+    private final PluginSettingsService settings;
     private final ObjectMapper objectMapper;
 
     /** Registrations in discovery order, keyed by id; populated once at startup. */
     private final Map<String, PluginRegistration> registrations = new LinkedHashMap<>();
 
     public PluginLoaderService(PluginProperties properties, PluginDataService dataService,
-                               FeedAccess feedAccess, PluginScheduler scheduler, ObjectMapper objectMapper) {
+                               FeedAccess feedAccess, PluginScheduler scheduler,
+                               PluginSettingsService settings, ObjectMapper objectMapper) {
         this.properties = properties;
         this.dataService = dataService;
         this.feedAccess = feedAccess;
         this.scheduler = scheduler;
+        this.settings = settings;
         this.objectMapper = objectMapper;
     }
 
@@ -89,6 +92,14 @@ public class PluginLoaderService implements ApplicationRunner {
             manifest = objectMapper.readValue(manifestFile.toFile(), PluginManifest.class);
             manifest.validate();
 
+            if (!settings.enabled(manifest.id())) {
+                // Switched off by an admin: never start the backend at all. This is the half of activation
+                // that a running host cannot do (§7.8) — at runtime the host can only gate its own surfaces.
+                register(PluginRegistration.disabled(manifest, folder));
+                log.info("Skipped plugin '{}': disabled by admin", manifest.id());
+                return;
+            }
+
             String pluginId = manager.loadPlugin(folder);
             PluginState state = manager.startPlugin(pluginId);
             if (state != PluginState.STARTED) {
@@ -110,7 +121,8 @@ public class PluginLoaderService implements ApplicationRunner {
 
     private PluginContextImpl buildContext(PluginManifest manifest) {
         DocStoreImpl store = new DocStoreImpl(manifest.id(), dataService);
-        PluginConfigImpl config = new PluginConfigImpl(manifest.config(), objectMapper);
+        PluginConfigImpl config =
+                new PluginConfigImpl(manifest.id(), manifest.config(), settings, objectMapper);
         return new PluginContextImpl(manifest.id(), store, config, feedAccess, scheduler);
     }
 
@@ -134,8 +146,38 @@ public class PluginLoaderService implements ApplicationRunner {
         return new ArrayList<>(registrations.values());
     }
 
+    /**
+     * The registration of any discovered plugin, whatever its state — the admin surface must be able to
+     * configure and re-enable a plugin that is currently disabled or rejected.
+     */
+    public Optional<PluginRegistration> registration(String id) {
+        return Optional.ofNullable(registrations.get(id));
+    }
+
     /** The registration for a loaded plugin by id, or empty when unknown or rejected. */
     public Optional<PluginRegistration> loaded(String id) {
         return Optional.ofNullable(registrations.get(id)).filter(PluginRegistration::isLoaded);
+    }
+
+    /**
+     * The registration for a plugin that is loaded <em>and</em> currently switched on — the gate every
+     * public surface uses (manifest, doc-store API, assets). Distinct from {@link #loaded}: a plugin toggled
+     * off while the host runs stays {@code LOADED} until the next boot, but must stop serving immediately.
+     */
+    public Optional<PluginRegistration> active(String id) {
+        return loaded(id).filter(r -> settings.enabled(id));
+    }
+
+    /** Every plugin that is loaded and switched on, in discovery order. */
+    public List<PluginRegistration> allActive() {
+        return registrations.values().stream()
+                .filter(PluginRegistration::isLoaded)
+                .filter(r -> settings.enabled(r.id()))
+                .toList();
+    }
+
+    /** Whether the plugin is currently switched on (an unknown or never-toggled plugin counts as on). */
+    public boolean isEnabled(String id) {
+        return settings.enabled(id);
     }
 }

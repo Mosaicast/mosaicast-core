@@ -59,6 +59,47 @@ class PluginManifestValidationTest {
                 .hasMessageContaining("placement");
     }
 
+    @Test
+    void declaredConfigFieldsAreAccepted() throws Exception {
+        assertThatCode(parse(withConfig("""
+                {"minutes":{"type":"number","default":30,"editableBy":"podcaster"},
+                 "label":{"type":"string","default":"hi"},
+                 "loud":{"type":"boolean","default":true,"editableBy":"admin"}}
+                """))::validate).doesNotThrowAnyException();
+    }
+
+    @Test
+    void unknownConfigTypeIsRejected() throws Exception {
+        // The host renders the form and type-checks admin input from this declaration, so a type it cannot
+        // render is a load-time rejection rather than a broken admin page.
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"colour\",\"default\":\"red\"}}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("unknown type");
+    }
+
+    @Test
+    void unknownEditableByIsRejected() throws Exception {
+        assertThatThrownBy(parse(withConfig(
+                "{\"x\":{\"type\":\"string\",\"default\":\"a\",\"editableBy\":\"fan\"}}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("editableBy");
+    }
+
+    @Test
+    void defaultMustMatchDeclaredType() throws Exception {
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"number\",\"default\":\"thirty\"}}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("default");
+    }
+
+    @Test
+    void fieldWithoutEditableByDefaultsToAdmin() throws Exception {
+        PluginManifest manifest = parse(withConfig("{\"x\":{\"type\":\"string\",\"default\":\"a\"}}"));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.config().get("x").editableByOrDefault())
+                .isEqualTo(PluginManifest.EDITABLE_BY_ADMIN);
+    }
+
     private PluginManifest parse(String json) throws Exception {
         return mapper.readValue(json, PluginManifest.class);
     }
@@ -69,5 +110,14 @@ class PluginManifestValidationTest {
                  "slots":[{"scope":"site","element":"e","placement":"%s","visibleTo":"anonymous"}],
                  "storage":"%s","config":{},"consent":{"categories":[],"externalSources":[]}}
                 """.formatted(platformApi, placement, storage);
+    }
+
+    /** A valid manifest carrying the given {@code config} block, to isolate config validation. */
+    private static String withConfig(String config) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"0.3.0","name":"P",
+                 "slots":[{"scope":"site","element":"e","placement":"sidebar","visibleTo":"anonymous"}],
+                 "storage":"doc","config":%s,"consent":{"categories":[],"externalSources":[]}}
+                """.formatted(config);
     }
 }

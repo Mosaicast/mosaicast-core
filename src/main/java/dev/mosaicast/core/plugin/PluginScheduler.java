@@ -27,8 +27,10 @@ public class PluginScheduler {
 
     private final ThreadPoolTaskScheduler taskScheduler;
     private final LockingTaskExecutor lockingExecutor;
+    private final PluginSettingsService settings;
 
-    public PluginScheduler(LockProvider lockProvider) {
+    public PluginScheduler(LockProvider lockProvider, PluginSettingsService settings) {
+        this.settings = settings;
         this.lockingExecutor = new DefaultLockingTaskExecutor(lockProvider);
         this.taskScheduler = new ThreadPoolTaskScheduler();
         this.taskScheduler.setPoolSize(2);
@@ -50,10 +52,15 @@ public class PluginScheduler {
             throw new IllegalArgumentException("onSchedule period must be positive, was " + every);
         }
         String lockName = "plugin:" + pluginId + ":" + index;
-        taskScheduler.scheduleAtFixedRate(() -> runLocked(lockName, every, task), every);
+        taskScheduler.scheduleAtFixedRate(() -> runLocked(pluginId, lockName, every, task), every);
     }
 
-    private void runLocked(String lockName, Duration every, Runnable task) {
+    private void runLocked(String pluginId, String lockName, Duration every, Runnable task) {
+        if (!settings.enabled(pluginId)) {
+            // Switched off while the host runs: the task stays registered but stops firing, so disabling a
+            // plugin quiets it immediately instead of at the next restart (§7.8).
+            return;
+        }
         LockConfiguration lock = new LockConfiguration(Instant.now(), lockName, every, Duration.ZERO);
         lockingExecutor.executeWithLock((Runnable) () -> {
             try {

@@ -143,6 +143,165 @@ class PluginLoadingIntegrationTest {
                 .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
+    @Test
+    void disablingAPluginClosesEverySurfaceItServes() {
+        Session admin = devLogin("admin");
+        try {
+            setEnabled(admin, "good", false);
+
+            // Dropped from the manifest, so the shell unmounts it on its next fetch (§7.8).
+            assertThat(rest.getForEntity("/api/plugins/manifest", String.class).getBody())
+                    .doesNotContain("\"id\":\"good\"");
+            // Data surface and bundle behave exactly like an unknown plugin.
+            assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(rest.getForEntity("/plugins/good/assets/fixture.js", String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            // The admin list still shows it — you must be able to find and re-enable it.
+            assertThat(adminPlugins(admin)).contains("\"id\":\"good\"").contains("\"enabled\":false");
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+
+        // Re-enabling restores the surfaces; nothing was deleted.
+        assertThat(rest.getForEntity("/api/plugins/manifest", String.class).getBody())
+                .contains("\"id\":\"good\"");
+        assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void disabledPluginCannotWriteToItsDocStore() {
+        Session admin = devLogin("admin");
+        Session podcaster = devLogin("podcaster");
+        String path = "/api/plugins/good/data/site/main/blocked";
+        try {
+            setEnabled(admin, "good", false);
+            // 404 at the HTTP surface; the in-process guard in PluginDataService covers the plugin's own
+            // threads, which no HTTP test can reach.
+            assertThat(rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+    }
+
+    @Test
+    void configOverrideBeatsTheManifestDefaultAndClearingRestoresIt() {
+        Session admin = devLogin("admin");
+        assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("30");
+
+        rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":5}", true), String.class);
+        assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("5");
+        assertThat(adminPlugins(admin)).contains("\"overridden\":true");
+
+        // A JSON null clears the override rather than pinning an empty value.
+        rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":null}", true), String.class);
+        assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("30");
+    }
+
+    @Test
+    void configRejectsUndeclaredFieldsAndWrongTypes() {
+        Session admin = devLogin("admin");
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"nosuchfield\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":\"soon\"}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void podcasterMayEditOnlyTheFieldsDelegatedToThem() {
+        Session podcaster = devLogin("podcaster");
+        // refreshIntervalMinutes is editableBy podcaster …
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                podcaster.write("{\"refreshIntervalMinutes\":15}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+        // … apiToken is admin-only.
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                podcaster.write("{\"apiToken\":\"secret\"}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        // A fan has no business here at all — the filter rule stops them before the controller.
+        Session fan = devLogin("fan");
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                fan.write("{\"refreshIntervalMinutes\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        Session admin = devLogin("admin");
+        rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":null}", true), String.class);
+    }
+
+    @Test
+    void purgeRemovesDocsButKeepsHostSettings() {
+        Session admin = devLogin("admin");
+        Session podcaster = devLogin("podcaster");
+        String path = "/api/plugins/good/data/episode/ep-purge/note";
+        rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"text\":\"bye\"}", true), String.class);
+        rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":7}", true), String.class);
+
+        ResponseEntity<String> purge = rest.exchange(
+                "/api/admin/plugins/good/purge", HttpMethod.POST, admin.write("", true), String.class);
+        assertThat(purge.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(purge.getBody()).contains("\"purged\":");
+
+        // Documents are gone — including the ones the plugin's register(ctx) seeded at boot …
+        assertThat(rest.getForEntity(path, String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        // … while the plugin keeps serving and its config survives: purging data is not a reset.
+        assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("7");
+        assertThat(rest.getForEntity("/api/plugins/manifest", String.class).getBody())
+                .contains("\"id\":\"good\"");
+
+        rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":null}", true), String.class);
+        // Restore what register(ctx) seeded at boot: this context is shared with the other tests, and only a
+        // restart would re-run register().
+        rest.exchange("/api/plugins/good/data/site/main/greeting", HttpMethod.PUT,
+                podcaster.write("\"hello from fixture\"", true), String.class);
+        rest.exchange("/api/plugins/good/data/site/main/episode-count", HttpMethod.PUT,
+                podcaster.write("0", true), String.class);
+    }
+
+    @Test
+    void togglingAnUnknownPluginIs404() {
+        Session admin = devLogin("admin");
+        assertThat(rest.exchange("/api/admin/plugins/nope/enabled?value=false", HttpMethod.PUT,
+                admin.write("", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    private void setEnabled(Session admin, String pluginId, boolean enabled) {
+        ResponseEntity<String> response = rest.exchange(
+                "/api/admin/plugins/" + pluginId + "/enabled?value=" + enabled,
+                HttpMethod.PUT, admin.write("", true), String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    private String adminPlugins(Session admin) {
+        return rest.exchange("/api/admin/plugins", HttpMethod.GET, admin.get(), String.class).getBody();
+    }
+
+    /** The effective value of one config field of the {@code good} plugin, as JSON text. */
+    private String configValueOf(Session admin, String field) {
+        String body = adminPlugins(admin);
+        int fieldAt = body.indexOf("\"" + field + "\"");
+        assertThat(fieldAt).isNotNegative();
+        int valueAt = body.indexOf("\"value\":", fieldAt);
+        assertThat(valueAt).isNotNegative();
+        int from = valueAt + "\"value\":".length();
+        int to = from;
+        while (to < body.length() && body.charAt(to) != ',' && body.charAt(to) != '}') {
+            to++;
+        }
+        return body.substring(from, to).trim();
+    }
+
     private static HttpEntity<String> json(String body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);

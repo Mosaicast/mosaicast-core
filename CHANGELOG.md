@@ -14,6 +14,30 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Plugin config, activation & purge — backend (M5 E5c, `0.5.3`, ARCHITECTURE §7.2/§7.8/§8.5):** the host now
+  owns per-plugin settings. Migration `V14` adds `plugin_activation` (absent row = enabled, so a fresh install
+  needs no bookkeeping) and `plugin_config` (absent key = the manifest default still applies).
+  - **Config persistence:** `PluginConfig` resolves **admin override → manifest default → empty**, read
+    through on every call, so an edit applies without a restart. Only fields the manifest declares are
+    readable, so a stale override can never surface as config.
+  - **Activation (§7.8):** `PUT /api/admin/plugins/{id}/enabled`. Switching off takes effect **immediately**
+    for every host-mediated surface — dropped from `GET /api/plugins/manifest` (the shell unmounts), data API
+    and asset bundle 404, scheduled tasks stop firing, and the plugin's **doc-store writes are refused**, which
+    also stops a thread it started itself. Its PF4J extension stays in process until the next boot, where the
+    loader skips it entirely (status `DISABLED`). Full containment needs a restart either way — PF4J
+    `stopPlugin` would not kill a plugin's own threads, so the host does not pretend otherwise.
+  - **Purge (§7.8):** `POST /api/admin/plugins/{id}/purge` deletes every doc-store document of a plugin and
+    reports the count. Activation and config survive on purpose — purging data is not a reset.
+  - **Admin surface:** `GET /api/admin/plugins` now carries `enabled`, the declared `config` (type,
+    `editableBy`, default, effective value, whether it is overridden) and the declared `consent` block.
+    `PUT /api/admin/plugins/{id}/config` sets or clears overrides — a JSON `null` clears one; an undeclared
+    field or a wrong-typed value is a 400, a field the caller's role may not edit a 403. Per §7.2 the endpoint
+    is open to **PODCASTER** for fields delegated to them; activation and purge stay ADMIN.
+  - **Manifest validation** now rejects a config field whose `type` is not `string`/`number`/`boolean`, whose
+    `editableBy` is not `admin`/`podcaster`, or whose default contradicts its own declared type — the host
+    renders and type-checks from this declaration, so it must be renderable at load time.
+  - **Not yet:** the admin UI for all of this (next), deep links/SEO (E5c), consent (E5d).
+
 - **Readable episode slugs (`0.5.2`, ARCHITECTURE §4.1):** every episode now has a stable, human-readable
   **slug** (e.g. `the-sample-cast-s01e06`) as its public identifier, while the UUID stays the internal key.
   - Minted once at creation from the feed title + season/episode (title fallback; numeric suffix on
