@@ -326,6 +326,44 @@ class PluginLoadingIntegrationTest {
         }
     }
 
+    @Test
+    void consentAggregatesWhatActivePluginsDeclared() {
+        // The core sets nothing needing consent, so the payload is empty until a plugin declares a category;
+        // the fixture declares `analytics` plus `necessary`, and `necessary` is never asked about (§12.5).
+        ResponseEntity<String> consent = rest.getForEntity("/api/consent", String.class);
+        assertThat(consent.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(consent.getBody())
+                .contains("\"category\":\"analytics\"")
+                .contains("\"good\"")
+                .contains("plausible.example");
+        assertThat(consent.getBody()).doesNotContain("\"category\":\"necessary\"");
+    }
+
+    @Test
+    void declaredHostsWidenTheCspAndUndeclaredOnesDoNot() {
+        HttpHeaders headers = rest.getForEntity("/api/meta", String.class).getHeaders();
+        String csp = headers.getFirst("Content-Security-Policy");
+        assertThat(csp).isNotNull();
+        assertThat(csp).contains("script-src 'self' https://plausible.example");
+        // The fixture also declares a host containing a separator; it is dropped, not escaped.
+        assertThat(csp).doesNotContain("bad;host");
+    }
+
+    @Test
+    void switchingAPluginOffWithdrawsItsConsentAskAndCspAllowance() {
+        Session admin = devLogin("admin");
+        try {
+            setEnabled(admin, "good", false);
+            assertThat(rest.getForEntity("/api/consent", String.class).getBody())
+                    .doesNotContain("analytics");
+            assertThat(rest.getForEntity("/api/meta", String.class)
+                    .getHeaders().getFirst("Content-Security-Policy"))
+                    .doesNotContain("plausible.example");
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+    }
+
     private void setEnabled(Session admin, String pluginId, boolean enabled) {
         ResponseEntity<String> response = rest.exchange(
                 "/api/admin/plugins/" + pluginId + "/enabled?value=" + enabled,

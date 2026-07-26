@@ -45,16 +45,6 @@ import org.springframework.web.filter.OncePerRequestFilter;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    private static final String CONTENT_SECURITY_POLICY =
-            "default-src 'self'; "
-                    + "img-src 'self' data: https:; "
-                    + "media-src 'self' https:; "
-                    + "style-src 'self' 'unsafe-inline'; "
-                    + "script-src 'self'; "
-                    + "object-src 'none'; "
-                    + "base-uri 'self'; "
-                    + "frame-ancestors 'none'";
-
     /**
      * Endpoints the SPA and anonymous visitors may reach without authentication, on any method. The static
      * shell / actuator / branding paths sit outside {@code /api/**} (so an errant non-GET just 405s at the
@@ -77,21 +67,24 @@ public class SecurityConfig {
      * {@code /api/admin/site}), and the legal pages (managed via {@code /api/admin/legal}).
      */
     private static final String[] PUBLIC_GET_PATHS = {
-        "/api/meta", "/api/site", "/api/legal/**",
+        // The consent payload has to be readable before anyone logs in — that is the whole point of a banner.
+        "/api/meta", "/api/site", "/api/legal/**", "/api/consent",
     };
 
     private final DiscordOAuth2UserService discordUserService;
     private final PersonalAccessTokenService tokenService;
     private final UserRepository users;
     private final Environment environment;
+    private final PluginCspHeaderWriter cspHeaderWriter;
 
     public SecurityConfig(DiscordOAuth2UserService discordUserService,
                           PersonalAccessTokenService tokenService, UserRepository users,
-                          Environment environment) {
+                          Environment environment, PluginCspHeaderWriter cspHeaderWriter) {
         this.discordUserService = discordUserService;
         this.tokenService = tokenService;
         this.users = users;
         this.environment = environment;
+        this.cspHeaderWriter = cspHeaderWriter;
     }
 
     /** Shared with the dev-login controller so both persist the SecurityContext the same way. */
@@ -159,7 +152,9 @@ public class SecurityConfig {
                         .logoutSuccessHandler((req, res, authn) -> res.setStatus(HttpStatus.NO_CONTENT.value()))
                         .deleteCookies(SessionConfig.SESSION_COOKIE_NAME))
                 .headers(headers -> headers
-                        .contentSecurityPolicy(csp -> csp.policyDirectives(CONTENT_SECURITY_POLICY))
+                        // The policy is built per request from the third-party hosts active plugins declared
+                        // (§12.5) — the declaration is both the notice and the permission.
+                        .addHeaderWriter(cspHeaderWriter)
                         .referrerPolicy(ref -> ref.policy(
                                 ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)));
 

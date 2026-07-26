@@ -25,5 +25,8 @@
     "refreshIntervalMinutes": { "type": "number", "default": 30, "editableBy": "podcaster" },
     "apiToken": { "type": "string", "default": "", "editableBy": "admin" }
   },
-  "consent": { "categories": [], "externalSources": [] }
+  "consent": {
+    "categories": ["analytics", "necessary"],
+    "externalSources": ["https://plausible.example", "bad;host"]
+  }
 }
