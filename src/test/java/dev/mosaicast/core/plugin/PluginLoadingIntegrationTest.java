@@ -296,6 +296,17 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void deepLinkOfAPluginWithoutAPageSlotIsARealNotFound() {
+        // The `nopage` fixture loads fine but declares no `page` slot, so the shell renders its not-found
+        // view — the status must say the same thing. Regression: this answered 200 (a soft-404, §6.6).
+        ResponseEntity<String> response = rest.getForEntity("/p/nopage/anything", String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        // It is still a loaded plugin in every other respect.
+        assertThat(rest.getForEntity("/api/plugins/manifest", String.class).getBody())
+                .contains("\"id\":\"nopage\"");
+    }
+
+    @Test
     void deepLinkOfAnUnknownPluginIsARealNotFound() {
         // §6.6: no soft-404 — the status is a real 404 even though the shell is still returned so the client
         // route can render its own not-found page.
