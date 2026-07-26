@@ -1064,6 +1064,34 @@ code {
   gap: 0.35rem;
   font-size: 0.85rem;
 }
+
+/* Admin → Plugins: a card per plugin, with the generated config form below its header row. */
+.mc-pluginrow {
+  list-style: none;
+  padding: 0.85rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+}
+.mc-pluginrow__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.mc-pluginrow__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.mc-pluginrow__config {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--mc-border);
+  display: grid;
+  gap: 0.6rem;
+}
 .mc-suggestions {
   margin-top: 0.75rem;
   border-top: 1px solid var(--mc-border);

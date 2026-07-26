@@ -14,6 +14,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Plugin admin UI (M5 E5c, `0.5.4`, ARCHITECTURE §7.2/§7.8):** **Admin → Plugins** becomes operable. Each
+  plugin is a card with an **activation toggle**, a **generated config form** — one input per declared field,
+  its kind chosen from the declared `type`, the delegated role shown next to the label, and a **Reset** that
+  clears the override back to the manifest default — and a **Purge data** action behind a confirm that names
+  the plugin and states what survives. A switched-off plugin is chipped `Disabled` and says plainly that it
+  no longer renders, serves data or runs tasks, and that its backend stops at the next restart. Errors surface
+  from problem+json rather than as a silent no-op.
+  - **Not yet:** the page stays ADMIN-gated, so a podcaster cannot reach the fields the backend already
+    delegates to them (`editableBy: podcaster`) — that needs the admin route opened to podcasters and is
+    tracked with the rest of E5c.
+
 - **Plugin config, activation & purge — backend (M5 E5c, `0.5.3`, ARCHITECTURE §7.2/§7.8/§8.5):** the host now
   owns per-plugin settings. Migration `V14` adds `plugin_activation` (absent row = enabled, so a fresh install
   needs no bookkeeping) and `plugin_config` (absent key = the manifest default still applies).
