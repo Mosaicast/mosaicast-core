@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { RequireRole } from './auth/RequireRole';
 import { UserProvider } from './auth/UserContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedsProvider } from './components/FeedsContext';
 import { Footer } from './components/Footer';
 import { LoginErrorBanner } from './components/LoginErrorBanner';
@@ -30,6 +31,7 @@ import { SiteProvider } from './theme/SiteContext';
  * player, under the site/user providers. Auth (E4c) gates the account page and the admin area (E4d).
  */
 export default function App() {
+  const location = useLocation();
   return (
     <SiteProvider>
       <UserProvider>
@@ -40,6 +42,7 @@ export default function App() {
               <TopBar />
               <main className="mc-main">
                 <LoginErrorBanner />
+                <ErrorBoundary key={location.pathname}>
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/feeds/:feedId" element={<FeedPage />} />
@@ -98,6 +101,7 @@ export default function App() {
                   </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </ErrorBoundary>
               </main>
               <Footer />
             </div>

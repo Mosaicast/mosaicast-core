@@ -280,6 +280,114 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void datelessEpisodeZero_sortsAsSeriesStart_notLast() {
+        // A season-1 "episode 0" trailer that ships without a <pubDate> (so its snapshot has no publishedAt),
+        // plus two dated regular episodes. The site feed must treat the dateless item as the earliest point in
+        // the series — first in oldest order (before episode 1), last in newest order — rather than dumping it
+        // after the last episode (regression: publishedAt `nulls last` in both directions).
+        String feedXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+                  <channel>
+                    <title>Zero Cast</title>
+                    <description>d</description>
+                    <item>
+                      <title>Trailer</title><guid>z0</guid><description>n</description>
+                      <itunes:season>1</itunes:season><itunes:episode>0</itunes:episode>
+                    </item>
+                    <item>
+                      <title>One</title><guid>z1</guid><description>n</description>
+                      <pubDate>Mon, 08 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:season>1</itunes:season><itunes:episode>1</itunes:episode>
+                    </item>
+                    <item>
+                      <title>Two</title><guid>z2</guid><description>n</description>
+                      <pubDate>Mon, 15 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:season>1</itunes:season><itunes:episode>2</itunes:episode>
+                    </item>
+                  </channel>
+                </rss>
+                """;
+        body.set(feedXml);
+        FeedView feed = feedService.createRss(feedUrl, "Zero Cast");
+
+        var oldest = episodes.listSite(feed.id(), null, null, false, PageRequest.of(0, 20)).getContent();
+        assertThat(oldest).extracting(EpisodeSummary::episodeNo).containsExactly(0, 1, 2);
+
+        var newest = episodes.listSite(feed.id(), null, null, true, PageRequest.of(0, 20)).getContent();
+        assertThat(newest).extracting(EpisodeSummary::episodeNo).containsExactly(2, 1, 0);
+    }
+
+    @Test
+    void adjacentNavigation_followsReleaseOrder_notEpisodeNumber() {
+        // Prev/next follow release order (publishedAt), matching the browsable feed and independent of episode
+        // numbers. A numberless episode (episodeNo null — e.g. an Acast item that omits itunes:episode) is
+        // placed by its date, NOT coerced to "episode 0": the early trailer leads, but the late bonus (also
+        // numberless) sorts by its date at the end rather than jumping to the front.
+        String feedXml = """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">
+                  <channel>
+                    <title>Release Cast</title><description>d</description>
+                    <item><title>Trailer</title><guid>r0</guid><description>n</description>
+                      <pubDate>Mon, 01 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:episodeType>trailer</itunes:episodeType></item>
+                    <item><title>One</title><guid>r1</guid><description>n</description>
+                      <pubDate>Mon, 08 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:season>1</itunes:season><itunes:episode>1</itunes:episode></item>
+                    <item><title>Two</title><guid>r2</guid><description>n</description>
+                      <pubDate>Mon, 15 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:season>1</itunes:season><itunes:episode>2</itunes:episode></item>
+                    <item><title>Bonus</title><guid>r3</guid><description>n</description>
+                      <pubDate>Mon, 22 Jan 2024 10:00:00 +0000</pubDate>
+                      <itunes:episodeType>bonus</itunes:episodeType></item>
+                  </channel>
+                </rss>
+                """;
+        body.set(feedXml);
+        FeedView feed = feedService.createRss(feedUrl, "Release Cast");
+
+        // Release order (oldest→newest): Trailer, One, Two, Bonus — the numberless Bonus is last by date.
+        var oldest = episodes.listSite(feed.id(), null, null, false, PageRequest.of(0, 20)).getContent();
+        assertThat(oldest).extracting(EpisodeSummary::title)
+                .containsExactly("Trailer", "One", "Two", "Bonus");
+
+        java.util.Map<String, UUID> id = oldest.stream()
+                .collect(java.util.stream.Collectors.toMap(EpisodeSummary::title, EpisodeSummary::id));
+
+        assertThat(episodes.adjacent(id.get("Trailer")).prev()).isNull();
+        assertThat(episodes.adjacent(id.get("Trailer")).next().id()).isEqualTo(id.get("One"));
+        var fromTwo = episodes.adjacent(id.get("Two"));
+        assertThat(fromTwo.prev().id()).isEqualTo(id.get("One"));
+        assertThat(fromTwo.next().id()).isEqualTo(id.get("Bonus"));
+        // The late numberless bonus ends the sequence — not treated as an "episode 0" at the front.
+        assertThat(episodes.adjacent(id.get("Bonus")).next()).isNull();
+    }
+
+    @Test
+    void plannedEpisode_isNotANavigationNeighbour() {
+        // Upcoming (PLANNED) episodes lead the browsable listing (§6.1) but are not part of the navigation
+        // sequence (§6.2): they have no audio, so the player must never auto-advance into one. Regression:
+        // the nav order reused the listing query, which sorts PLANNED first — the oldest release then had an
+        // unreleased episode as its "previous".
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        var ordered = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
+        UUID e11 = ordered.stream().filter(e -> e.episodeNo() == 11).findFirst().orElseThrow().id();
+        UUID e12 = ordered.stream().filter(e -> e.episodeNo() == 12).findFirst().orElseThrow().id();
+        UUID planned = feedService.createPlannedEpisode(feed.id(), 2, 13, "The one about pigeons, again", "tbd");
+
+        // The released sequence is unchanged and closed at both ends.
+        assertThat(episodes.adjacent(e11).prev()).isNull();
+        assertThat(episodes.adjacent(e11).next().id()).isEqualTo(e12);
+        assertThat(episodes.adjacent(e12).next()).isNull();
+
+        // The planned episode's own page links back to the latest release, and nowhere forward.
+        var fromPlanned = episodes.adjacent(planned);
+        assertThat(fromPlanned.prev().id()).isEqualTo(e12);
+        assertThat(fromPlanned.next()).isNull();
+    }
+
+    @Test
     void secondPoll_unchangedFeed_isNotModified() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
         PollOutcome outcome = feedService.refreshNow(feed.id());

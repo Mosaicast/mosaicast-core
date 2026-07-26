@@ -174,7 +174,7 @@ export interface AdminFeed {
 export interface FeedPreview {
   title: string;
   episodeCount: number;
-  sample: string[];
+  sampleTitles: string[];
 }
 
 /** A fuzzy PLANNED-binding suggestion (`feed/SuggestionView`), `GET /api/admin/feeds/{id}/suggestions`. */

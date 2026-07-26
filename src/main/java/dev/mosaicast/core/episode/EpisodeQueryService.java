@@ -68,9 +68,16 @@ public class EpisodeQueryService {
     }
 
     /**
-     * The previous/next episode in a feed's canonical sequence (§6.2): season then episode number, so the
-     * detail page and the player's auto-advance move through the show in order. A missing/withdrawn id is a
-     * 404. The neighbours are found in the feed's ordered visible list (fine for feed sizes in v1).
+     * The previous/next episode for the detail page and the player's auto-advance. Navigation follows the
+     * feed's <em>release order</em> (publishedAt) — the same order the browsable feed uses — so prev/next
+     * match what the listener sees and do not depend on episode numbers, which some hosts (e.g. Acast) leave
+     * unset in the RSS. {@code prev} is the previously-released episode, {@code next} the next-released one.
+     * A missing/withdrawn id is a 404. The neighbours are found in the feed's ordered list (fine for feed
+     * sizes in v1).
+     *
+     * <p>Only released episodes take part: a {@code PLANNED} episode is never anyone's {@code next} (the
+     * player auto-advances into it and it has no audio); its own page links back to the latest release.
+     * See ARCHITECTURE §6.2.
      */
     public AdjacentEpisodes adjacent(UUID refId) {
         return adjacentOf(refs.findVisibleById(refId)
@@ -92,16 +99,27 @@ public class EpisodeQueryService {
 
     private AdjacentEpisodes adjacentOf(EpisodeRef ref) {
         UUID refId = ref.getId();
-        List<EpisodeRef> ordered = refs.findVisible(ref.getFeedId(), null, Pageable.unpaged()).getContent();
-        int index = -1;
-        for (int i = 0; i < ordered.size(); i++) {
-            if (ordered.get(i).getId().equals(refId)) {
-                index = i;
-                break;
-            }
+        // Same release order (oldest→newest) as the browsable feed, so navigation is consistent with the list
+        // and independent of episode numbers: index-1 is the previously-released episode, index+1 the next.
+        List<UUID> ordered = refs.findNavSequenceIds(ref.getFeedId());
+        int index = ordered.indexOf(refId);
+        UUID prevId;
+        UUID nextId;
+        if (index < 0) {
+            // The current episode is PLANNED, so it is not part of the sequence: it trails the released ones
+            // (its date is unknown) — link back to the latest release, and never forward into it.
+            prevId = ordered.isEmpty() ? null : ordered.get(ordered.size() - 1);
+            nextId = null;
+        } else {
+            prevId = index > 0 ? ordered.get(index - 1) : null;
+            nextId = index < ordered.size() - 1 ? ordered.get(index + 1) : null;
         }
-        EpisodeRef prev = index > 0 ? ordered.get(index - 1) : null;
-        EpisodeRef next = index >= 0 && index < ordered.size() - 1 ? ordered.get(index + 1) : null;
+        List<EpisodeRef> neighbours = refs.findAllById(
+                java.util.stream.Stream.of(prevId, nextId).filter(java.util.Objects::nonNull).toList());
+        Map<UUID, EpisodeRef> byId = neighbours.stream()
+                .collect(java.util.stream.Collectors.toMap(EpisodeRef::getId, Function.identity()));
+        EpisodeRef prev = prevId == null ? null : byId.get(prevId);
+        EpisodeRef next = nextId == null ? null : byId.get(nextId);
         Map<UUID, DisplaySnapshot> snapshots =
                 snapshotsFor(java.util.stream.Stream.of(prev, next).filter(java.util.Objects::nonNull).toList());
         return new AdjacentEpisodes(summaryOrNull(prev, snapshots), summaryOrNull(next, snapshots));
