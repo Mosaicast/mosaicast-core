@@ -40,7 +40,10 @@ public class PluginPageController {
 
     @GetMapping(path = {"/p/{pluginId}", "/p/{pluginId}/**"}, produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> page(@PathVariable String pluginId, HttpServletRequest request) {
-        if (plugins.active(pluginId).isEmpty()) {
+        // The status has to match what the shell will actually render: a plugin that is unknown, switched off,
+        // or simply declares no `page` slot has no page here, and the shell shows its not-found view. Answering
+        // 200 for those would be the soft-404 §6.6 rules out.
+        if (!hasPage(pluginId)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .contentType(MediaType.TEXT_HTML)
                     .body(indexHtml.plain());
@@ -50,6 +53,16 @@ public class PluginPageController {
                 .map(PluginPageController::toMeta)
                 .orElseGet(indexHtml::siteMeta);
         return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(indexHtml.render(meta));
+    }
+
+    /** Whether an active plugin actually opted into the deep-link page by declaring a {@code page} slot. */
+    private boolean hasPage(String pluginId) {
+        return plugins.active(pluginId)
+                .map(PluginRegistration::manifest)
+                .filter(manifest -> manifest.slots() != null)
+                .stream()
+                .flatMap(manifest -> manifest.slots().stream())
+                .anyMatch(slot -> PluginManifest.PLACEMENT_PAGE.equals(slot.placement()));
     }
 
     /** An {@code OgMeta} with a null image falls back to the host's own default, per the SDK contract. */
