@@ -10,6 +10,8 @@ import { FeedsProvider } from './components/FeedsContext';
 import { Footer } from './components/Footer';
 import { LoginErrorBanner } from './components/LoginErrorBanner';
 import { TopBar } from './components/TopBar';
+import { ConsentBanner } from './consent/ConsentBanner';
+import { ConsentProvider } from './consent/ConsentContext';
 import { PlayerProvider } from './player/PlayerContext';
 import { PluginRegistryProvider } from './plugins/PluginRegistry';
 import { AccountPage } from './routes/AccountPage';
@@ -38,11 +40,14 @@ export default function App() {
       <UserProvider>
         <FeedsProvider>
           <PlayerProvider>
+            <ConsentProvider>
             <PluginRegistryProvider>
             <div className="mc-root">
               <TopBar />
               <main className="mc-main">
                 <LoginErrorBanner />
+                {/* Outside the route boundary: a crashing route must not take the consent ask with it. */}
+                <ConsentBanner />
                 <ErrorBoundary key={location.pathname}>
                 <Routes>
                   <Route path="/" element={<Home />} />
@@ -110,6 +115,7 @@ export default function App() {
               <Footer />
             </div>
             </PluginRegistryProvider>
+            </ConsentProvider>
           </PlayerProvider>
         </FeedsProvider>
       </UserProvider>

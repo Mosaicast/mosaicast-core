@@ -9,9 +9,9 @@ import { makePluginApi } from './pluginApi';
 /**
  * Assembles the {@link PluginContext} the host sets on a mounted plugin element (ARCHITECTURE §7.5). The shell
  * resolves the scope, the host-filtered `episodes`, the current `user`, the plugin's `api` client, the active
- * `locale`, the `theme` tokens and — on a `/p/{pluginId}/…` page — the `route` subpath. `consent`, `filter`
- * and `progress` are wired to the shell where cheap and stubbed where their full mechanism lands in a later
- * phase (consent E5d); the shell re-renders the element by reassigning `ctx` whenever these inputs change,
+ * `locale`, the `theme` tokens, the visitor's `consent` decisions and — on a `/p/{pluginId}/…` page — the
+ * `route` subpath. `filter` and `progress` are wired to the shell where cheap and stubbed where their full
+ * mechanism lands later; the shell re-renders the element by reassigning `ctx` whenever these inputs change,
  * so `onChange` handlers are intentionally inert.
  */
 export interface CtxInputs {
@@ -26,6 +26,8 @@ export interface CtxInputs {
   playerSeekTo: (seconds: number) => void;
   /** The subpath below `/p/{pluginId}/` when the plugin is rendered as a deep-link page; else empty. */
   routePath?: string;
+  /** Whether the visitor granted a consent category (§12.5); defaults to deny when absent. */
+  consentHas?: (category: string) => boolean;
 }
 
 /**
@@ -53,7 +55,8 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     episodeLabels: inputs.episodeLabels,
     user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
     api: makePluginApi(inputs.pluginId),
-    consent: { has: () => true, onChange: noop },
+    // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
+    consent: { has: (category: string) => inputs.consentHas?.(category) ?? false, onChange: noop },
     filter: { current: () => ({}), onChange: noop },
     player: {
       currentTime: inputs.playerCurrentTime,

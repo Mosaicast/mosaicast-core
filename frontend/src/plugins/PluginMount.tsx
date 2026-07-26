@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import type { Scope } from '@mosaicast/plugin-sdk';
 
 import { useUser } from '../auth/UserContext';
+import { useConsent } from '../consent/ConsentContext';
 import { usePlayer } from '../player/PlayerContext';
 import { useSite } from '../theme/SiteContext';
 import { buildCtx } from './buildCtx';
@@ -41,6 +42,7 @@ export function PluginMount({
   const { user } = useUser();
   const { site, mode } = useSite();
   const player = usePlayer();
+  const consent = useConsent();
   const { i18n } = useTranslation();
 
   const ctx = useMemo(
@@ -56,8 +58,21 @@ export function PluginMount({
         playerCurrentTime: () => player.currentTime,
         playerSeekTo: player.seek,
         routePath,
+        consentHas: consent.has,
       }),
-    [pluginId, scope, episodes, episodeLabels, user, site, mode, i18n.language, player, routePath],
+    [
+      pluginId,
+      scope,
+      episodes,
+      episodeLabels,
+      user,
+      site,
+      mode,
+      i18n.language,
+      player,
+      routePath,
+      consent.has,
+    ],
   );
 
   useEffect(() => {

@@ -1065,6 +1065,39 @@ code {
   font-size: 0.85rem;
 }
 
+/* Consent (§12.5): only rendered when a plugin declares a category — the core alone stays banner-free. */
+.mc-consent {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+}
+.mc-consent__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+}
+.mc-consent__list {
+  list-style: none;
+  margin: 0.6rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+.mc-consent__link {
+  align-self: center;
+  font-size: 0.85rem;
+}
+.mc-foot__consent {
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* Admin → Plugins: a card per plugin, with the generated config form below its header row. */
 .mc-pluginrow {
   list-style: none;

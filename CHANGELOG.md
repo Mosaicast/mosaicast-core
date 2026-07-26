@@ -14,6 +14,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Consent service (M5 E5d, `0.5.6`, ARCHITECTURE §12.5):** the platform consent mechanism, driven entirely
+  by what plugins declare.
+  - **The core stays banner-free.** It sets only strictly necessary and functional storage, so `GET /api/consent`
+    returns an empty payload and the shell asks nothing — until an *active* plugin declares a category.
+    `necessary` is never asked about, and switching a plugin off withdraws its ask again.
+  - **The notice is generated, not written:** the banner names each category, the plugins that requested it and
+    the third-party hosts they declared, and links the legal page marked `privacy` (§12.6). Decisions are per
+    category, revocable via a **Cookie settings** entry in the footer (shown only where consent is asked for),
+    and stored in `localStorage` so they work for anonymous visitors.
+  - **`ctx.consent.has()` is real and denies by default** — it previously returned `true` unconditionally,
+    the inverse of the SDK's own default. A plugin now gets exactly the permission the visitor granted.
+  - **The declaration is also the permission:** the CSP is built per request from the declared
+    `externalSources` of active plugins (`script-src`/`frame-src`/`connect-src`), so an undeclared third party
+    stays blocked even if a plugin tries to load it, and a value that could break out of the header is dropped
+    rather than escaped. The base policy stays `default-src 'self'`.
+  - Consent declarations also surface in the admin plugin list as the §12.5 audit.
+
 - **Plugin deep links, share metadata & sitemap (M5 E5c, `0.5.5`, ARCHITECTURE §6.4/§6.6/§7.4):** plugin
   content becomes linkable, shareable and discoverable.
   - **`/p/{pluginId}/*` is reserved:** the shell renders the plugin's slots in a new **`page`** region at site
