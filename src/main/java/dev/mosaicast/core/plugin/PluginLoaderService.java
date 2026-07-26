@@ -51,6 +51,9 @@ public class PluginLoaderService implements ApplicationRunner {
     /** Registrations in discovery order, keyed by id; populated once at startup. */
     private final Map<String, PluginRegistration> registrations = new LinkedHashMap<>();
 
+    /** The PF4J manager, kept after boot so optional extension points can be resolved on demand (§7.4). */
+    private MosaicastPluginManager manager;
+
     public PluginLoaderService(PluginProperties properties, PluginDataService dataService,
                                FeedAccess feedAccess, PluginScheduler scheduler,
                                PluginSettingsService settings, ObjectMapper objectMapper) {
@@ -69,7 +72,7 @@ public class PluginLoaderService implements ApplicationRunner {
             log.info("Plugins directory {} does not exist; no plugins loaded", root.toAbsolutePath());
             return;
         }
-        MosaicastPluginManager manager = new MosaicastPluginManager(root);
+        manager = new MosaicastPluginManager(root);
         manager.setSystemVersion(PlatformApi.VERSION);
         List<Path> folders = pluginFolders(root);
         for (Path folder : folders) {
@@ -144,6 +147,25 @@ public class PluginLoaderService implements ApplicationRunner {
     /** All discovered plugins with their load state, in discovery order (for the admin surface). */
     public List<PluginRegistration> all() {
         return new ArrayList<>(registrations.values());
+    }
+
+    /**
+     * The plugin's implementations of an optional extension point (ARCHITECTURE §7.4), e.g.
+     * {@code ShareMetadataProvider} or {@code SitemapProvider}. Empty for an unknown, rejected or
+     * switched-off plugin, and empty — never a throw — when PF4J cannot resolve the type, so an optional
+     * contract a plugin does not implement stays optional.
+     */
+    public <T> List<T> extensions(Class<T> extensionPoint, String pluginId) {
+        if (manager == null || active(pluginId).isEmpty()) {
+            return List.of();
+        }
+        try {
+            return manager.getExtensions(extensionPoint, pluginId);
+        } catch (Exception e) {
+            log.warn("Cannot resolve {} of plugin '{}': {}", extensionPoint.getSimpleName(), pluginId,
+                    e.getMessage());
+            return List.of();
+        }
     }
 
     /**

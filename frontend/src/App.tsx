@@ -24,6 +24,7 @@ import { FeedPage } from './routes/FeedPage';
 import { Home } from './routes/Home';
 import { LegalPage } from './routes/LegalPage';
 import { NotFound } from './routes/Placeholder';
+import { PluginPage } from './routes/PluginPage';
 import { SiteProvider } from './theme/SiteContext';
 
 /**
@@ -48,6 +49,9 @@ export default function App() {
                   <Route path="/feeds/:feedId" element={<FeedPage />} />
                   <Route path="/episodes/:slug" element={<EpisodePage />} />
                   <Route path="/legal/:slug" element={<LegalPage />} />
+                  {/* Reserved for plugin deep links (§6.4): the subpath becomes ctx.route. */}
+                  <Route path="/p/:pluginId/*" element={<PluginPage />} />
+                  <Route path="/p/:pluginId" element={<PluginPage />} />
                   <Route
                     path="/account"
                     element={

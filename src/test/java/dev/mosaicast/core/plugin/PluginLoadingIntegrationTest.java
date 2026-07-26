@@ -276,6 +276,56 @@ class PluginLoadingIntegrationTest {
                 .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void deepLinkCarriesThePluginsShareMetadata() {
+        // A link scraper runs no JS, so the preview has to be in the HTML the server returns (§6.4). The
+        // fixture's ShareMetadataProvider answers for the "shared" subpath.
+        ResponseEntity<String> shared = rest.getForEntity("/p/good/shared", String.class);
+        assertThat(shared.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(shared.getBody())
+                .contains("og:title")
+                .contains("Fixture shared page")
+                .contains("A page shared from the fixture");
+    }
+
+    @Test
+    void deepLinkWithoutAMatchFallsBackToSiteMetadata() {
+        ResponseEntity<String> other = rest.getForEntity("/p/good/somewhere-else", String.class);
+        assertThat(other.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(other.getBody()).contains("og:title").doesNotContain("Fixture shared page");
+    }
+
+    @Test
+    void deepLinkOfAnUnknownPluginIsARealNotFound() {
+        // §6.6: no soft-404 — the status is a real 404 even though the shell is still returned so the client
+        // route can render its own not-found page.
+        ResponseEntity<String> response = rest.getForEntity("/p/nope/whatever", String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void sitemapCarriesPluginUrlsButOnlyWithinTheirOwnNamespace() {
+        ResponseEntity<String> sitemap = rest.getForEntity("/sitemap.xml", String.class);
+        assertThat(sitemap.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(sitemap.getBody()).contains("<urlset").contains("/p/good/shared");
+        // The fixture also offers a URL outside its namespace; a plugin cannot inject site URLs.
+        assertThat(sitemap.getBody()).doesNotContain("/episodes/not-mine");
+    }
+
+    @Test
+    void disablingAPluginRemovesItsDeepLinksAndSitemapEntries() {
+        Session admin = devLogin("admin");
+        try {
+            setEnabled(admin, "good", false);
+            assertThat(rest.getForEntity("/p/good/shared", String.class).getStatusCode())
+                    .isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(rest.getForEntity("/sitemap.xml", String.class).getBody())
+                    .doesNotContain("/p/good/shared");
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+    }
+
     private void setEnabled(Session admin, String pluginId, boolean enabled) {
         ResponseEntity<String> response = rest.exchange(
                 "/api/admin/plugins/" + pluginId + "/enabled?value=" + enabled,

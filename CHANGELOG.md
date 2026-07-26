@@ -14,6 +14,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Plugin deep links, share metadata & sitemap (M5 E5c, `0.5.5`, ARCHITECTURE §6.4/§6.6/§7.4):** plugin
+  content becomes linkable, shareable and discoverable.
+  - **`/p/{pluginId}/*` is reserved:** the shell renders the plugin's slots in a new **`page`** region at site
+    scope and hands the subpath below the prefix to the element as `ctx.route` — until now a stub. Only the
+    addressed plugin renders there, and only if it declares a `page` slot.
+  - **Server-side OpenGraph (§6.4):** link scrapers run no JS, so the host now answers `/p/{id}/…` itself with
+    the shell plus injected `og:*`/`twitter:*` tags, taken from the plugin's optional `ShareMetadataProvider`
+    (in the SDK since `0.3.0`, never called until now) and falling back to site-level metadata when a plugin
+    has no provider or no match. The new `IndexHtmlService` is the seam M6 extends to episode/feed OG, JSON-LD
+    and the no-JS content block. An unknown or switched-off plugin gets a **real 404** (§6.6, no soft-404).
+  - **Dynamic `sitemap.xml` (§6.6):** episodes, feed views and legal pages, plus entries from each active
+    plugin's optional `SitemapProvider`. A plugin's URLs are validated to sit under its own `/p/{id}/`
+    namespace, so it cannot inject site URLs or another plugin's. Disabling a plugin removes its entries.
+  - Plugin extension points are resolved through the retained PF4J manager and every call is isolated like a
+    scheduled task: a provider that throws is logged and skipped, never breaking a render or the sitemap.
+  - **Not yet:** `robots.txt`, the admin-configurable AI-crawler policy and JSON-LD stay M6.
+
 - **Plugin admin UI (M5 E5c, `0.5.4`, ARCHITECTURE §7.2/§7.8):** **Admin → Plugins** becomes operable. Each
   plugin is a card with an **activation toggle**, a **generated config form** — one input per declared field,
   its kind chosen from the declared `type`, the delegated role shown next to the label, and a **Reset** that
