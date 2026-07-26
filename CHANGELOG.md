@@ -112,6 +112,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Roadmap
 
+- **Disabled buttons must look disabled (UI polish, next shell change):** `styles.css` has no `:disabled`
+  rule at all, so a disabled `.mc-btn` is visually identical to an active one — it still shows the pointer
+  cursor and full contrast. **Admin → Legal pages → "Create page"** is the reported case (disabled until a
+  slug is typed, so it reads as a dead button), but the same applies everywhere the shell disables a control.
+  Fix once in `.mc-btn:disabled` (reduced opacity, `cursor: not-allowed`, no hover state), not per page.
+
 - **Consent service (§12.5):** the full category-based cookie consent (necessary / functional / analytics /
   plugin-declared, `ctx.consent`, click-to-load placeholders, generated notice) is **plugin-driven** and
   lands with **E5 (plugins)** — no banner is needed until a plugin sets non-essential cookies.
