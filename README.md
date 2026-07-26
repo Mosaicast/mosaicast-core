@@ -146,10 +146,11 @@ plugins/sample/
   assets/sample.es.js # the frontend Web Component bundle
 ```
 
-At boot the host validates each manifest (the declared `platformApi` must match the host's `0.3.x`), loads the
-JAR, and calls `register(ctx)`. A bad manifest, an incompatible `platformApi`, a declared relational `schema`
-(deferred), or a thrown exception **disables only that plugin** — it is recorded as rejected while the host
-keeps booting (ARCHITECTURE §7.8).
+At boot the host validates each manifest (the declared `platformApi` must match the host's `0.3.x`; config
+fields must be renderable), loads the JAR, and calls `register(ctx)`. A bad manifest, an incompatible
+`platformApi`, a declared relational `schema` (deferred to the next SDK contract), or a thrown exception
+**disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
+A plugin an admin switched off is skipped here entirely.
 
 The frontend never calls plugin-authored routes; there are none. Instead the host exposes a fixed, generic,
 per-plugin **doc-store** surface the plugin's Web Component reaches via `ctx.api`:
@@ -159,9 +160,14 @@ GET    /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # one doc; 404 if
 GET    /api/plugins/{id}/data/{scopeType}/{scopeId}?prefix=&page=&size=   # paginated list
 PUT    /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # upsert (last-write-wins)
 DELETE /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # idempotent
-GET    /api/plugins/manifest                                   # public: loaded plugins' frontend + slots (E5b mounts them)
-GET    /api/admin/plugins                                      # ADMIN: every discovered plugin + load state
+GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
+GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags)
+GET    /api/consent                                            # public: consent categories plugins declared
+GET    /api/admin/plugins                                      # ADMIN: discovered plugins, state, config, consent
+PUT    /api/admin/plugins/{id}/enabled?value=                  # ADMIN: activation toggle
+PUT    /api/admin/plugins/{id}/config                          # ADMIN + PODCASTER (per field `editableBy`)
+POST   /api/admin/plugins/{id}/purge                           # ADMIN: delete the plugin's stored documents
 ```
 
 Reads are gated by the plugin's least-privileged slot `visibleTo`; writes require a signed-in user at the
@@ -172,8 +178,48 @@ restart the host (the `mosaicast-plugin-sample` repo's `./build.sh` + `./install
 **Frontend (E5b):** the shell fetches the manifest, injects each plugin's bundle once, and mounts its Web
 Components into the slot regions — matched by `placement` + scope, gated by `visibleTo`, stacked by `order`,
 each in an error boundary. The host sets the SDK `PluginContext` on the element (scope, host-resolved
-`episodes`, `user`, a namespaced `api` client, `locale`, `theme`). **Admin → Plugins** shows every discovered
-plugin's load state and flags rejected ones. The generated config form and an activation toggle come next.
+`episodes`, `user`, a namespaced `api` client, `locale`, `theme`, `consent`, and `route` on a deep-link page).
+
+### Configuring, switching off and purging a plugin (E5c)
+
+**Admin → Plugins** lists every discovered plugin with its load state and, per plugin:
+
+- a **config form generated from the manifest** — one input per declared field, its kind from the declared
+  `type` (`string`, `number`, `boolean`), and **Reset** to drop back to the manifest default. Plugins never
+  ship a config UI; a field the host cannot render is rejected at load. `editableBy` (`admin` | `podcaster`)
+  decides who may set a field — the backend enforces it per field.
+- an **activation toggle**. Switching a plugin off takes effect at once for everything the host mediates: it
+  leaves `/api/plugins/manifest` (the shell unmounts it), its data API, assets and deep links 404, its
+  scheduled tasks stop firing, and its doc-store **writes are refused** — which also stops a thread the plugin
+  started itself. Its PF4J extension stays in process until the next restart, where the loader skips it
+  entirely. Full containment needs that restart in any design (PF4J's own `stopPlugin` would not kill a
+  plugin's threads either), and the UI says so rather than implying a kill switch.
+- **Purge data** — deletes everything the plugin stored in the doc store. Deleting a plugin folder only makes
+  it dormant; its data survives until this explicit action (§7.8). Configuration and on/off state are kept.
+
+### Deep links, sharing and the sitemap (E5c)
+
+The host reserves **`/p/{pluginId}/*`**. A plugin that declares a slot at the `page` placement renders there
+at site scope and receives the subpath as `ctx.route`, which is what makes plugin content linkable. Because
+link scrapers run no JS, the server answers those URLs itself with OpenGraph/Twitter tags from the plugin's
+optional `ShareMetadataProvider`, falling back to site metadata; an unknown or switched-off plugin gets a real
+404. `GET /sitemap.xml` lists episodes, feed views and legal pages plus each active plugin's `SitemapProvider`
+entries, validated to sit under that plugin's own `/p/{id}/` namespace.
+
+### Consent (E5d)
+
+The core sets only strictly necessary and functional client storage, so **it runs banner-free**. Consent
+exists for plugins that load third-party content: a manifest declares `consent.categories` and
+`consent.externalSources`, and only then does the shell ask. The host knows `necessary` (never asked about),
+`functional` and `analytics`; any other string is passed through as a plugin-declared category (with no
+translated label). The banner is generated from the declarations — it names the categories, the plugins that
+asked and the hosts involved — and links the legal page marked `privacy`. Decisions are per category, stored
+in `localStorage` (so anonymous visitors get a working choice), revocable from the footer, and reach plugins
+as `ctx.consent.has(category)`, which **denies by default**.
+
+The same declaration is the permission: the CSP is widened by exactly the declared `externalSources`
+(`script-src`/`frame-src`/`connect-src`) of active plugins, so an undeclared third party stays blocked even
+with consent given, and switching a plugin off narrows the policy again.
 
 Episodes are addressed by their **public slug** (§4.1) — a stable, human-readable id (`the-sample-cast-s01e06`)
 used in `/episodes/{slug}`, `GET /api/episodes/{slug}`, and, for plugins, `ctx.episodes` / the episode
