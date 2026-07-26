@@ -9,10 +9,10 @@ import { makePluginApi } from './pluginApi';
 /**
  * Assembles the {@link PluginContext} the host sets on a mounted plugin element (ARCHITECTURE §7.5). The shell
  * resolves the scope, the host-filtered `episodes`, the current `user`, the plugin's `api` client, the active
- * `locale` and the `theme` tokens. `consent`, `filter`, `player`, `route` and `progress` are wired to the
- * shell where cheap and stubbed where their full mechanism lands in later phases (consent E5d, deep-links E5c);
- * the shell re-renders the element by reassigning `ctx` whenever these inputs change, so `onChange` handlers
- * are intentionally inert.
+ * `locale`, the `theme` tokens and — on a `/p/{pluginId}/…` page — the `route` subpath. `consent`, `filter`
+ * and `progress` are wired to the shell where cheap and stubbed where their full mechanism lands in a later
+ * phase (consent E5d); the shell re-renders the element by reassigning `ctx` whenever these inputs change,
+ * so `onChange` handlers are intentionally inert.
  */
 export interface CtxInputs {
   pluginId: string;
@@ -24,6 +24,8 @@ export interface CtxInputs {
   locale: string;
   playerCurrentTime: () => number;
   playerSeekTo: (seconds: number) => void;
+  /** The subpath below `/p/{pluginId}/` when the plugin is rendered as a deep-link page; else empty. */
+  routePath?: string;
 }
 
 /**
@@ -58,7 +60,7 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
       seekTo: inputs.playerSeekTo,
       on: noop,
     },
-    route: { path: '', onChange: noop },
+    route: { path: inputs.routePath ?? '', onChange: noop },
     locale: { current: () => inputs.locale, onChange: noop },
     progress: {
       get: (episodeId: string) => {

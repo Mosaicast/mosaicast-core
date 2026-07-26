@@ -5,15 +5,20 @@
   "name": "Good Fixture",
   "backend": {
     "basePath": "/api/plugins/good",
-    "extensions": ["dev.mosaicast.plugin.fixture.FixturePlugin"]
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin",
+      "dev.mosaicast.plugin.fixture.FixtureShareMetadata",
+      "dev.mosaicast.plugin.fixture.FixtureSitemap"
+    ]
   },
   "frontend": {
     "entry": "fixture.js",
-    "elements": ["fixture-card"]
+    "elements": ["fixture-card", "fixture-page"]
   },
   "slots": [
     { "scope": "episode", "element": "fixture-card", "placement": "main", "visibleTo": "anonymous", "order": 100 },
-    { "scope": "site", "element": "fixture-admin", "placement": "sidebar", "visibleTo": "podcaster" }
+    { "scope": "site", "element": "fixture-admin", "placement": "sidebar", "visibleTo": "podcaster" },
+    { "scope": "site", "element": "fixture-page", "placement": "page", "visibleTo": "anonymous" }
   ],
   "storage": "doc",
   "config": {

@@ -21,9 +21,13 @@ import { selectMounts } from '../plugins/slots';
 const SITE_SCOPE: Scope = { type: 'site', id: 'main' };
 
 interface SlotRegionProps {
-  name: 'top' | 'card' | 'main' | 'sidebar' | 'player' | 'feed' | 'site';
+  name: 'top' | 'card' | 'main' | 'sidebar' | 'player' | 'feed' | 'site' | 'admin' | 'page';
   /** The scope this region is rendered in; defaults to the site scope. */
   scope?: Scope;
+  /** Only for the `page` region: the subpath below `/p/{pluginId}/`, handed to plugins as `ctx.route`. */
+  routePath?: string;
+  /** Renders only the named plugin's slots — the deep-link page belongs to one plugin. */
+  onlyPluginId?: string;
   children?: ReactNode;
 }
 
@@ -47,13 +51,25 @@ class SlotErrorBoundary extends Component<{ children: ReactNode }, BoundaryState
   }
 }
 
-export function SlotRegion({ name, scope = SITE_SCOPE, children }: SlotRegionProps) {
+export function SlotRegion({
+  name,
+  scope = SITE_SCOPE,
+  routePath,
+  onlyPluginId,
+  children,
+}: SlotRegionProps) {
   const { plugins } = usePluginRegistry();
   const { user } = useUser();
   const role = user?.role;
 
   // Which plugin elements belong in this (placement, scope), visible to this user, in stack order.
-  const mounts = useMemo(() => selectMounts(plugins, name, scope.type, role), [plugins, name, scope.type, role]);
+  const mounts = useMemo(
+    () =>
+      selectMounts(plugins, name, scope.type, role).filter(
+        (mount) => onlyPluginId == null || mount.pluginId === onlyPluginId,
+      ),
+    [plugins, name, scope.type, role, onlyPluginId],
+  );
 
   // Host-resolved episodes for the scope: slugs (ctx.episodes) + slug→label (ctx.episodeLabels). Fetched
   // only when something mounts here.
@@ -95,6 +111,7 @@ export function SlotRegion({ name, scope = SITE_SCOPE, children }: SlotRegionPro
             scope={scope}
             episodes={episodes}
             episodeLabels={episodeLabels}
+            routePath={routePath}
           />
         </SlotErrorBoundary>
       ))}

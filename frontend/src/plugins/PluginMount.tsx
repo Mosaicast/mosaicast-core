@@ -24,9 +24,18 @@ interface PluginMountProps {
   scope: Scope;
   episodes: string[];
   episodeLabels: Record<string, string>;
+  /** Subpath below `/p/{pluginId}/` when this mount is a deep-link page (§6.4); empty elsewhere. */
+  routePath?: string;
 }
 
-export function PluginMount({ pluginId, tag, scope, episodes, episodeLabels }: PluginMountProps) {
+export function PluginMount({
+  pluginId,
+  tag,
+  scope,
+  episodes,
+  episodeLabels,
+  routePath,
+}: PluginMountProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
   const { user } = useUser();
@@ -46,8 +55,9 @@ export function PluginMount({ pluginId, tag, scope, episodes, episodeLabels }: P
         locale: i18n.language,
         playerCurrentTime: () => player.currentTime,
         playerSeekTo: player.seek,
+        routePath,
       }),
-    [pluginId, scope, episodes, episodeLabels, user, site, mode, i18n.language, player],
+    [pluginId, scope, episodes, episodeLabels, user, site, mode, i18n.language, player, routePath],
   );
 
   useEffect(() => {
