@@ -142,6 +142,15 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Previous/next navigation follows release order** (ARCHITECTURE §6.2, spec updated to match): the detail
+  page and the player's auto-advance walk the feed's `publishedAt` order — the same sequence the browsable
+  list shows — instead of season/episode number. Real feeds routinely omit `itunes:episode` (e.g. Acast), so
+  a numberless trailer or bonus episode used to be coerced to "episode 0" and jump to the front of the
+  sequence; it is now placed by its date. An episode without a `pubDate` still counts as the series start.
+- **Upcoming episodes are no longer navigation neighbours** (§6.2): `PLANNED` episodes lead the *listing* but
+  have no audio, and the nav sequence reused the listing order — so the oldest release had an unreleased
+  episode as its "previous", and auto-advance could land on an unplayable one. The sequence now contains only
+  released episodes; a planned episode's own page links back to the latest release.
 - **Disabling a feed now hides it from the public site**, not just from polling (ARCHITECTURE §5.4/§6.1). A
   disabled feed and its episodes are excluded from the feed tabs (`GET /api/feeds`), the unified episode feed,
   per-feed listings, seasons/tags, and search, and its feed/episode detail pages 404. Nothing is deleted —
@@ -180,6 +189,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     seed (it read the site config before it loaded and never refreshed after save).
 
 ### Roadmap
+
+- **Disabled buttons must look disabled (UI polish, next shell change):** `styles.css` has no `:disabled`
+  rule at all, so a disabled `.mc-btn` is visually identical to an active one — it still shows the pointer
+  cursor and full contrast. **Admin → Legal pages → "Create page"** is the reported case (disabled until a
+  slug is typed, so it reads as a dead button), but the same applies everywhere the shell disables a control.
+  Fix once in `.mc-btn:disabled` (reduced opacity, `cursor: not-allowed`, no hover state), not per page.
 
 - **Consent service (§12.5):** the full category-based cookie consent (necessary / functional / analytics /
   plugin-declared, `ctx.consent`, click-to-load placeholders, generated notice) is **plugin-driven** and

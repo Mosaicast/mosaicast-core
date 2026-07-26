@@ -37,7 +37,7 @@ export function AdminFeeds() {
     try {
       setPreview(await api.post<FeedPreview>('/api/admin/feeds/preview', { url: url.trim() }));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('admin.feeds.previewFailed'));
+      setError((e instanceof ApiError && e.message) || t('admin.feeds.previewFailed'));
     }
   };
   const doAdd = async () => {
@@ -48,7 +48,7 @@ export function AdminFeeds() {
       setPreview(null);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : t('admin.feeds.addFailed'));
+      setError((e instanceof ApiError && e.message) || t('admin.feeds.addFailed'));
     }
   };
   const toggle = async (feed: AdminFeed) => {
@@ -101,7 +101,7 @@ export function AdminFeeds() {
         <div className="mc-preview">
           <strong>{preview.title}</strong> · {t('feed.episodeCount', { count: preview.episodeCount })}
           <ul>
-            {preview.sample.slice(0, 5).map((title) => (
+            {(preview.sampleTitles ?? []).slice(0, 5).map((title) => (
               <li key={title} className="mc-muted">
                 {title}
               </li>

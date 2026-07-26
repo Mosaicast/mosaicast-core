@@ -827,6 +827,19 @@ code {
   color: var(--mc-accent);
 }
 
+.mc-errorpage {
+  max-width: 32rem;
+  margin: 3rem auto;
+  padding: 1.5rem;
+  text-align: center;
+}
+.mc-errorpage__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
 .mc-list {
   list-style: none;
   padding: 0;

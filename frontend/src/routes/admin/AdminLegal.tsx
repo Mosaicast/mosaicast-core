@@ -4,17 +4,33 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { api } from '../../api/client';
+import { ApiError, api } from '../../api/client';
 import type { LegalAdminPage } from '../../api/types';
 import { availableLocales, localeName } from '../../i18n';
 
 const ROLE_MARKERS = ['', 'privacy', 'imprint', 'terms'];
 
+/** Prefers the server's problem+json detail (e.g. "slug 'privacy' already exists") over a generic message. */
+function messageOf(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) {
+    return error.detail ?? error.message ?? fallback;
+  }
+  return fallback;
+}
+
 /**
  * Editor for one legal page: role marker + sort order, and a **tabbed** title/markdown body per available UI
  * language (§12.6). Tabs come from the registered i18n locales, so a new language needs no change here.
  */
-function PageEditor({ page, onChanged }: { page: LegalAdminPage; onChanged: () => void }) {
+function PageEditor({
+  page,
+  onChanged,
+  onError,
+}: {
+  page: LegalAdminPage;
+  onChanged: () => void;
+  onError: (message: string | null) => void;
+}) {
   const { t } = useTranslation();
   const locales = availableLocales();
   const [roleMarker, setRoleMarker] = useState(page.roleMarker ?? '');
@@ -29,17 +45,32 @@ function PageEditor({ page, onChanged }: { page: LegalAdminPage; onChanged: () =
     return map;
   });
 
-  const saveMeta = async () => {
-    await api.put(`/api/admin/legal/${page.slug}`, { slug: page.slug, roleMarker: roleMarker || null, sortOrder });
-    onChanged();
+  // Every write goes through here: a rejected request has to say so, never fail silently.
+  const run = async (action: () => Promise<unknown>) => {
+    onError(null);
+    try {
+      await action();
+      onChanged();
+    } catch (e) {
+      onError(messageOf(e, t('admin.legal.saveFailed')));
+    }
   };
-  const saveTranslation = async (locale: string) => {
-    await api.put(`/api/admin/legal/${page.slug}/translations/${locale}`, bodies[locale]);
-    onChanged();
-  };
-  const deletePage = async () => {
-    await api.del(`/api/admin/legal/${page.slug}`);
-    onChanged();
+
+  const saveMeta = () =>
+    run(() =>
+      api.put(`/api/admin/legal/${page.slug}`, {
+        slug: page.slug,
+        roleMarker: roleMarker || null,
+        sortOrder,
+      }),
+    );
+  const saveTranslation = (locale: string) =>
+    run(() => api.put(`/api/admin/legal/${page.slug}/translations/${locale}`, bodies[locale]));
+  const deletePage = () => {
+    if (!window.confirm(t('admin.legal.deleteConfirm', { slug: page.slug }))) {
+      return;
+    }
+    void run(() => api.del(`/api/admin/legal/${page.slug}`));
   };
 
   const body = bodies[activeLocale] ?? { title: '', markdown: '' };
@@ -120,16 +151,34 @@ export function AdminLegal() {
   const [pages, setPages] = useState<LegalAdminPage[]>([]);
   const [newSlug, setNewSlug] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const load = () => api.get<LegalAdminPage[]>('/api/admin/legal').then(setPages).catch(() => {});
+  const load = () =>
+    api
+      .get<LegalAdminPage[]>('/api/admin/legal')
+      .then(setPages)
+      .catch((e) => setError(messageOf(e, t('admin.legal.loadFailed'))));
   useEffect(() => {
     void load();
+    // `t` is stable for a given language and reloading on a language switch would be pointless work.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const createPage = async () => {
-    await api.post('/api/admin/legal', { slug: newSlug.trim(), roleMarker: null, sortOrder: pages.length });
-    setNewSlug('');
-    await load();
+    setError(null);
+    try {
+      await api.post('/api/admin/legal', {
+        slug: newSlug.trim(),
+        roleMarker: null,
+        sortOrder: pages.length,
+      });
+      setNewSlug('');
+      await load();
+    } catch (e) {
+      // The common case is a duplicate slug (409). Before this, the rejection was thrown into the void and
+      // the button looked dead.
+      setError(messageOf(e, t('admin.legal.createFailed')));
+    }
   };
 
   return (
@@ -147,6 +196,7 @@ export function AdminLegal() {
           {t('admin.legal.create')}
         </button>
       </div>
+      {error && <p className="mc-error">{error}</p>}
 
       <ul className="mc-list">
         {pages.map((page) => (
@@ -173,6 +223,7 @@ export function AdminLegal() {
                 onChanged={() => {
                   void load();
                 }}
+                onError={setError}
               />
             )}
           </li>
