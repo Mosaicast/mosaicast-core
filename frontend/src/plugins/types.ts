@@ -26,11 +26,31 @@ export interface PublicPlugin {
   slots: PluginSlot[] | null;
 }
 
-/** A discovered plugin's load state, `GET /api/admin/plugins`. */
+/** One declared config field with the value currently in effect — a row of the generated admin form. */
+export interface AdminConfigField {
+  type: 'string' | 'number' | 'boolean';
+  editableBy: 'admin' | 'podcaster';
+  /** The manifest default; what the field falls back to when the override is cleared. */
+  defaultValue: string | number | boolean | null;
+  /** The effective value: the admin override when there is one, otherwise the default. */
+  value: string | number | boolean | null;
+  overridden: boolean;
+}
+
+/**
+ * A discovered plugin's load state plus its host settings, `GET /api/admin/plugins`.
+ *
+ * `status` is the boot outcome, `enabled` the current switch: `DISABLED` means it was already off when the
+ * host booted, while `LOADED` + `enabled: false` means an admin switched it off since — its backend keeps
+ * running until the next restart, though every surface it serves is already closed.
+ */
 export interface AdminPlugin {
   id: string;
-  status: 'LOADED' | 'REJECTED';
+  status: 'LOADED' | 'DISABLED' | 'REJECTED';
   reason: string | null;
   name: string | null;
   version: string | null;
+  enabled: boolean;
+  config: Record<string, AdminConfigField>;
+  consent: { categories: string[] | null; externalSources: string[] | null } | null;
 }
