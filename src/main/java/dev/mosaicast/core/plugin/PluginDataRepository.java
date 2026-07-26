@@ -7,6 +7,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,6 +34,14 @@ public interface PluginDataRepository extends JpaRepository<PluginData, PluginDa
             @Param("scopeType") String scopeType,
             @Param("scopeId") String scopeId,
             @Param("prefix") String prefix);
+
+    /**
+     * Deletes every document of one plugin, across all scopes — the primitive behind the admin's
+     * "purge plugin data" action (ARCHITECTURE §7.8). Returns the number of documents removed.
+     */
+    @Modifying
+    @Query("delete from PluginData d where d.id.pluginId = :pluginId")
+    int deleteByPluginId(@Param("pluginId") String pluginId);
 
     /** Paginated variant of {@link #findInScope} for the host's HTTP list endpoint. */
     @Query("""

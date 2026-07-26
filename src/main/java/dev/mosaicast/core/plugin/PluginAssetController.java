@@ -33,7 +33,8 @@ public class PluginAssetController {
 
     @GetMapping("/plugins/{id}/assets/{*path}")
     public ResponseEntity<byte[]> serve(@PathVariable String id, @PathVariable String path, WebRequest request) {
-        PluginRegistration plugin = plugins.loaded(id)
+        // Active, not merely loaded: a switched-off plugin serves no bundle either (§7.8).
+        PluginRegistration plugin = plugins.active(id)
                 .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id));
         Path file = resolveAsset(plugin.directory(), path);
 

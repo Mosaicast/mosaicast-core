@@ -11,26 +11,41 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Read-only {@link PluginConfig} over a plugin's declared config fields (ARCHITECTURE §7.2). In this
- * milestone values are the manifest defaults; admin-set overrides arrive with the config admin UI (E5b).
+ * Read-only {@link PluginConfig} over a plugin's declared config fields (ARCHITECTURE §7.2). Resolution order
+ * is <strong>admin override → manifest default → empty</strong>: only fields the manifest declares are
+ * readable at all, so a stale override left over from an older manifest can never surface as config.
+ *
+ * <p>Overrides are read through {@link PluginSettingsService} on every call (it caches them), so an admin
+ * edit takes effect without restarting the host. Plugins stay read-only by contract — they never write config.
  */
 public class PluginConfigImpl implements PluginConfig {
 
+    private final String pluginId;
     private final Map<String, ConfigField> fields;
+    private final PluginSettingsService settings;
     private final ObjectMapper objectMapper;
 
-    public PluginConfigImpl(Map<String, ConfigField> fields, ObjectMapper objectMapper) {
+    public PluginConfigImpl(String pluginId, Map<String, ConfigField> fields,
+                            PluginSettingsService settings, ObjectMapper objectMapper) {
+        this.pluginId = pluginId;
         this.fields = fields == null ? Map.of() : fields;
+        this.settings = settings;
         this.objectMapper = objectMapper;
     }
 
     @Override
     public <T> Optional<T> get(String key, Class<T> type) {
         ConfigField field = fields.get(key);
-        if (field == null || field.defaultValue() == null || field.defaultValue().isNull()) {
+        if (field == null) {
             return Optional.empty();
         }
-        JsonNode value = field.defaultValue();
+        JsonNode value = settings.config(pluginId).get(key);
+        if (value == null || value.isNull()) {
+            value = field.defaultValue();
+        }
+        if (value == null || value.isNull()) {
+            return Optional.empty();
+        }
         return Optional.of(objectMapper.convertValue(value, type));
     }
 }

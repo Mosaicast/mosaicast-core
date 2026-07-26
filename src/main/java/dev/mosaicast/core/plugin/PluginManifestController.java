@@ -11,8 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * The public plugin manifest the shell fetches to mount plugin Web Components (ARCHITECTURE §7.3/§7.5). Only
- * the client-facing fields of loaded plugins are exposed — frontend bundle and slots — never backend or
- * source details. The actual mounting lands with the frontend (E5b).
+ * the client-facing fields of loaded <em>and activated</em> plugins are exposed — frontend bundle and slots —
+ * never backend or source details. Switching a plugin off drops it from this list, so the shell unmounts its
+ * elements on the next fetch without waiting for a restart (§7.8).
  */
 @RestController
 public class PluginManifestController {
@@ -25,8 +26,7 @@ public class PluginManifestController {
 
     @GetMapping("/api/plugins/manifest")
     public List<PublicPlugin> manifest() {
-        return plugins.all().stream()
-                .filter(PluginRegistration::isLoaded)
+        return plugins.allActive().stream()
                 .map(PluginRegistration::manifest)
                 .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), m.slots()))
                 .toList();

@@ -102,8 +102,13 @@ public class PluginDataController {
         return manifest;
     }
 
+    /**
+     * The manifest of a plugin that is loaded and switched on. A disabled plugin is indistinguishable from an
+     * absent one here on purpose (§7.8): switching a plugin off must close its data surface immediately, not
+     * at the next restart.
+     */
     private PluginManifest manifestOf(String id) {
-        return plugins.loaded(id)
+        return plugins.active(id)
                 .map(PluginRegistration::manifest)
                 .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id));
     }

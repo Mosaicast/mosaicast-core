@@ -142,6 +142,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/me/**").authenticated()
                         // Feeds/planned episodes are a podcaster capability; other admin endpoints are ADMIN.
                         .requestMatchers("/api/admin/feeds/**").hasAnyRole("ADMIN", "PODCASTER")
+                        // Plugin config may be delegated to podcasters per field (manifest `editableBy`,
+                        // §7.2); the controller enforces which fields this role may actually set. Activation
+                        // and purge stay ADMIN via the catch-all below.
+                        .requestMatchers("/api/admin/plugins/*/config").hasAnyRole("ADMIN", "PODCASTER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Deny any other API path by default (no accidental fail-open for new endpoints).
                         .requestMatchers("/api/**").denyAll()
