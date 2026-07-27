@@ -32,8 +32,25 @@ import org.springframework.stereotype.Component;
 @Component
 public class AppLogAppender extends AppenderBase<ILoggingEvent> {
 
-    /** Only core's own loggers; framework noise stays on stdout where it belongs. */
-    private static final String PACKAGE_PREFIX = "dev.mosaicast.";
+    /**
+     * Only core's own loggers; framework noise stays on stdout where it belongs.
+     *
+     * <p><strong>Derived, never written out.</strong> A literal {@code "dev.mosaicast."} would keep compiling
+     * after a package rename and simply stop capturing anything — a silent hole in the one feature meant to
+     * explain silence. Taking the first two segments of this class's own package means the prefix moves with
+     * the code, whatever the organisation is called.
+     */
+    private static final String PACKAGE_PREFIX = corePrefix();
+
+    /**
+     * Loggers handed to plugins by the host, named {@code plugin.<pluginId>}.
+     *
+     * <p>Plugins are <em>not</em> expected to live under core's package — a third-party plugin can be called
+     * anything — so capture cannot key off their package. The host names the logger instead, which also means
+     * attribution survives a plugin logging from its own thread: the plugin id is in the logger name, not in
+     * a thread-local MDC that a plugin-spawned thread would never carry.
+     */
+    private static final String PLUGIN_LOGGER_PREFIX = "plugin.";
 
     /** MDC keys the appender lifts into their own columns. */
     static final String MDC_PLUGIN_ID = "pluginId";
@@ -75,7 +92,11 @@ public class AppLogAppender extends AppenderBase<ILoggingEvent> {
             return;
         }
         String logger = event.getLoggerName();
-        if (logger == null || !logger.startsWith(PACKAGE_PREFIX)) {
+        if (logger == null) {
+            return;
+        }
+        boolean fromPlugin = logger.startsWith(PLUGIN_LOGGER_PREFIX);
+        if (!fromPlugin && !logger.startsWith(PACKAGE_PREFIX)) {
             return;
         }
         AppLogLevel level = levelOf(event.getLevel());
@@ -83,14 +104,29 @@ public class AppLogAppender extends AppenderBase<ILoggingEvent> {
             return;
         }
         Map<String, String> mdc = event.getMDCPropertyMap();
+        String pluginId = fromPlugin ? pluginIdOf(logger) : mdc.get(MDC_PLUGIN_ID);
         logs.record(
                 level,
-                mdc.getOrDefault(MDC_SUBSYSTEM, subsystemOf(logger)),
-                simpleNameOf(logger),
-                mdc.get(MDC_PLUGIN_ID),
+                fromPlugin ? "plugin" : mdc.getOrDefault(MDC_SUBSYSTEM, subsystemOf(logger)),
+                fromPlugin ? "backend" : simpleNameOf(logger),
+                pluginId,
                 event.getFormattedMessage(),
                 stackTraceOf(event.getThrowableProxy()),
                 contextOf(mdc));
+    }
+
+    /** The plugin id out of a {@code plugin.<pluginId>} logger name. */
+    static String pluginIdOf(String logger) {
+        String rest = logger.substring(PLUGIN_LOGGER_PREFIX.length());
+        int dot = rest.indexOf('.');
+        return dot > 0 ? rest.substring(0, dot) : rest;
+    }
+
+    /** The first two segments of this class's package, e.g. {@code dev.mosaicast.} */
+    private static String corePrefix() {
+        String pkg = AppLogAppender.class.getPackageName();
+        String[] parts = pkg.split("\\.");
+        return parts.length >= 2 ? parts[0] + "." + parts[1] + "." : pkg + ".";
     }
 
     /**

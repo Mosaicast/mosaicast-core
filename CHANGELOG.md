@@ -33,8 +33,14 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     the last 24 h, version and uptime.
   - **Plugins can report their own trouble:** `POST /api/plugins/{id}/log`, gated exactly like the doc store
     (active plugin, signed-in user at the plugin's write floor), with size caps and a per-plugin rate limit so
-    a component in a render loop cannot fill the table. Backend plugins get the same via `ctx.log(...)` when
-    the plugin contract next bumps.
+    a component in a render loop cannot fill the table. An explicit report is always stored; *captured* log
+    statements obey the configured threshold.
+  - **Capture follows the code, not a spelling.** The core package prefix is derived from the appender's own
+    package, so renaming the namespace cannot silently switch capture off. Plugins are recognised by the
+    logger name the host gives them (`plugin.<pluginId>`) rather than by their package — a third-party plugin
+    can live anywhere — and because the id is in the name, attribution also survives a plugin logging from its
+    own thread, which a thread-local MDC would not. Backend plugins get such a logger from the SDK
+    (`ctx.logger()`) when the plugin contract next bumps.
   - Retention prunes daily under ShedLock by age (30 days) and row cap (100 000); both configurable under
     `mosaicast.log.*`.
 
