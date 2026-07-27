@@ -17,10 +17,9 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 - **Admin log & health viewer (`0.5.7`, ARCHITECTURE §13):** everything the host knew about its own failures
   used to go to stdout and die with the container — an operator without a terminal could not find out why a
   plugin had vanished from the site. **Admin → Logs & health** now shows it.
-  - **Capture is automatic:** a Logback appender records core's own log statements (default `WARN` and above)
-    into a new `app_log` table (Flyway `V15`), so the ten existing WARN/ERROR sites — rejected plugin, failed
-    feed poll, the catch-all 500 — appear without their call sites being touched, and so does every one added
-    later. Throwables are kept as expandable detail; `pluginId`/`feedId` travel via MDC, so entries can be
+  - **Capture is automatic:** a Logback appender records core's own log statements into a new `app_log` table
+    (Flyway `V15`), so the ten existing WARN/ERROR sites — rejected plugin, failed feed poll, the catch-all
+    500 — appear without their call sites being touched, and so does every one added later. Throwables are kept as expandable detail; `pluginId`/`feedId` travel via MDC, so entries can be
     filtered by plugin rather than by grepping message text.
   - **Writes never block a request:** entries go through a bounded queue drained by one daemon thread, in
     their own transaction, with drops counted and reported rather than applied as back-pressure. The writer
@@ -41,8 +40,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     can live anywhere — and because the id is in the name, attribution also survives a plugin logging from its
     own thread, which a thread-local MDC would not. Backend plugins get such a logger from the SDK
     (`ctx.logger()`) when the plugin contract next bumps.
+  - **Storing and showing are separate decisions.** The store keeps **INFO and above** (the dev profile
+    lowers it to `DEBUG`), because the routine line before a failure is usually what explains it and an entry
+    never stored cannot be found later. The viewer opens at **WARN and above** so nobody has to read chatter
+    to find the problem — one dropdown away from everything else. The level filter means "this level *and
+    above*": a view filtered to WARN that hid ERRORs would be actively misleading.
   - Retention prunes daily under ShedLock by age (30 days) and row cap (100 000); both configurable under
-    `mosaicast.log.*`.
+    `mosaicast.log.*`, as is `capture-level`.
 
 ### Fixed
 

@@ -27,6 +27,9 @@ public class AdminLogController {
         this.logs = logs;
     }
 
+    /**
+     * @param level minimum severity — {@code WARN} returns WARN and ERROR; omitted returns every level
+     */
     @GetMapping("/api/admin/logs")
     public PagedResponse<AppLogView> list(
             @RequestParam(required = false) String level,

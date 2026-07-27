@@ -200,9 +200,15 @@ each in an error boundary. The host sets the SDK `PluginContext` on the element 
 ### Logs & health (Admin → Logs & health)
 
 Everything the host logs about itself is also readable in the admin UI, so diagnosing a problem does not
-require access to the container. A Logback appender captures core's own statements (`WARN` and above by
-default) into the `app_log` table; entries carry the area they came from, the plugin or feed they concern,
-and the stack trace where there is one. Filter by level, area, plugin or text; expand a row for detail.
+require access to the container. A Logback appender captures core's own statements into the `app_log` table;
+entries carry the area they came from, the plugin or feed they concern, and the stack trace where there is one.
+Filter by level, area, plugin or text; expand a row for detail.
+
+**Storing and showing are separate settings.** The store keeps **INFO and above** — the line before a failure
+is usually what explains it — and the dev profile lowers that to `DEBUG`. The viewer *opens* at **WARN and
+above** so routine chatter is not in the way, one dropdown from the rest. A level filter always means "that
+level and above", so a view set to WARN never hides an error. Change what is stored with
+`mosaicast.log.capture-level`.
 
 The health card at the top answers *is anything broken right now?* — each plugin's state **with the reason it
 was rejected**, each feed's poll state **with its last error**, and error/warning counts for the last 24 hours.

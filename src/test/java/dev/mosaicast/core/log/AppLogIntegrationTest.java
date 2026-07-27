@@ -83,13 +83,43 @@ class AppLogIntegrationTest {
     }
 
     @Test
+    void infoIsStoredSoTheContextOfAFailureSurvives() {
+        // The store keeps INFO by default: the line before a failure is usually what explains it, and an
+        // entry that was never stored cannot be found later. Hiding it is the viewer's job, not the store's.
+        log.info("a routine step that will matter in hindsight");
+
+        AppLogEntry entry = awaitOne();
+        assertThat(entry.getLevel()).isEqualTo("INFO");
+    }
+
+    @Test
     void debugIsBelowTheDefaultThresholdAndIsNotCaptured() {
-        log.debug("chatter nobody needs in the viewer");
+        // Default (non-dev) capture is INFO; the dev profile lowers it to DEBUG.
+        log.debug("chatter nobody needs outside development");
         log.warn("the marker that proves the writer ran");
 
         AppLogEntry entry = awaitOne();
         assertThat(entry.getMessage()).isEqualTo("the marker that proves the writer ran");
         assertThat(repository.count()).isEqualTo(1);
+    }
+
+    @Test
+    void aLevelFilterMeansThatLevelAndAbove() {
+        logs.record(AppLogLevel.ERROR, "feed", "FeedPipeline", null, "an error", null, null);
+        logs.record(AppLogLevel.WARN, "feed", "FeedPipeline", null, "a warning", null, null);
+        logs.record(AppLogLevel.INFO, "feed", "FeedPipeline", null, "an info", null, null);
+        await().atMost(Duration.ofSeconds(10)).until(() -> repository.count() == 3);
+
+        // A viewer filtered to WARN that hid ERRORs would be actively misleading.
+        assertThat(logs.search("WARN", null, null, null, null, PageRequest.of(0, 10)).getContent())
+                .extracting(AppLogEntry::getLevel).containsExactlyInAnyOrder("ERROR", "WARN");
+        assertThat(logs.search("INFO", null, null, null, null, PageRequest.of(0, 10)).getTotalElements())
+                .isEqualTo(3);
+        assertThat(logs.search("ERROR", null, null, null, null, PageRequest.of(0, 10)).getContent())
+                .singleElement().extracting(AppLogEntry::getLevel).isEqualTo("ERROR");
+        // No level filter means every level.
+        assertThat(logs.search(null, null, null, null, null, PageRequest.of(0, 10)).getTotalElements())
+                .isEqualTo(3);
     }
 
     @Test

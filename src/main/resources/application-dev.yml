@@ -17,6 +17,10 @@ mosaicast:
   security:
     # Local dev runs over plain http; don't mark the session cookie Secure (prod default is true).
     secure-cookie: false
+  log:
+    # While developing, store what the console shows (see logging.level below) so the admin viewer is a
+    # complete picture rather than a summary. Production keeps INFO — the viewer filters, not the store.
+    capture-level: DEBUG
 
 logging:
   level:

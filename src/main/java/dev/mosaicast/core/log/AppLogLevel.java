@@ -3,6 +3,8 @@
 
 package dev.mosaicast.core.log;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -20,6 +22,20 @@ public enum AppLogLevel {
     /** Whether this level is at least as severe as {@code threshold} (ERROR is the most severe). */
     public boolean isAtLeast(AppLogLevel threshold) {
         return ordinal() <= threshold.ordinal();
+    }
+
+    /**
+     * This level and everything more severe, as names — what a viewer filtered to "WARN" should show. A
+     * filter that matched WARN exactly would hide the ERRORs, which is the opposite of what the person
+     * choosing it wants.
+     */
+    public List<String> andAbove() {
+        return Arrays.stream(values()).filter(level -> level.isAtLeast(this)).map(Enum::name).toList();
+    }
+
+    /** Every level — the "no restriction" set. */
+    public static List<String> all() {
+        return Arrays.stream(values()).map(Enum::name).toList();
     }
 
     /** Parses a level case-insensitively; empty when the value is null, blank or unknown. */

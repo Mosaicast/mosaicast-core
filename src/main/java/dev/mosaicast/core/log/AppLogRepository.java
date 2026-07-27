@@ -16,8 +16,10 @@ import org.springframework.data.repository.query.Param;
 public interface AppLogRepository extends JpaRepository<AppLogEntry, Long> {
 
     /**
-     * One page of the viewer, newest first. Every filter is optional, expressed as a <em>sentinel</em> rather
-     * than a null: an empty string (or {@link java.time.Instant#EPOCH}) means "no restriction". Postgres
+     * One page of the viewer, newest first. {@code levels} is the set to include — the caller expands a
+     * chosen minimum severity into "that level and above", because a viewer filtered to WARN that hid ERRORs
+     * would be actively misleading. The remaining filters are optional, expressed as a <em>sentinel</em>
+     * rather than a null: an empty string (or {@link java.time.Instant#EPOCH}) means "no restriction". Postgres
      * cannot infer the type of a null bind parameter — a null text filter here reaches the driver as
      * {@code bytea} and the query fails with {@code function lower(bytea) does not exist} — and sentinels
      * avoid that without scattering casts through the JPQL. The id is the tie-breaker so entries written in
@@ -25,7 +27,7 @@ public interface AppLogRepository extends JpaRepository<AppLogEntry, Long> {
      */
     @Query("""
             select e from AppLogEntry e
-            where (:level = '' or e.level = :level)
+            where (e.level in :levels)
               and (:subsystem = '' or e.subsystem = :subsystem)
               and (:pluginId = '' or e.pluginId = :pluginId)
               and (e.at >= :since)
@@ -33,7 +35,7 @@ public interface AppLogRepository extends JpaRepository<AppLogEntry, Long> {
             order by e.at desc, e.id desc
             """)
     Page<AppLogEntry> search(
-            @Param("level") String level,
+            @Param("levels") java.util.Collection<String> levels,
             @Param("subsystem") String subsystem,
             @Param("pluginId") String pluginId,
             @Param("since") Instant since,

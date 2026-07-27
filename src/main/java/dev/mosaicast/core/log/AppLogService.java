@@ -105,14 +105,19 @@ public class AppLogService {
     }
 
     /**
-     * One filtered page for the viewer, newest first. Null or blank filters mean "no restriction"; they are
-     * translated to the sentinels the query expects (see {@link AppLogRepository#search}).
+     * One filtered page for the viewer, newest first. {@code minLevel} is a <em>minimum</em> severity —
+     * "WARN" means WARN and ERROR — and null means every level. The other filters are optional; null or
+     * blank means "no restriction" and is translated to the sentinels the query expects (see
+     * {@link AppLogRepository#search}).
      */
     @Transactional(readOnly = true)
-    public Page<AppLogEntry> search(String level, String subsystem, String pluginId, Instant since,
+    public Page<AppLogEntry> search(String minLevel, String subsystem, String pluginId, Instant since,
                                     String text, Pageable pageable) {
+        List<String> levels = AppLogLevel.parse(minLevel)
+                .map(AppLogLevel::andAbove)
+                .orElseGet(AppLogLevel::all);
         return repository.search(
-                orEmpty(level), orEmpty(subsystem), orEmpty(pluginId),
+                levels, orEmpty(subsystem), orEmpty(pluginId),
                 since == null ? Instant.EPOCH : since,
                 orEmpty(text), pageable);
     }

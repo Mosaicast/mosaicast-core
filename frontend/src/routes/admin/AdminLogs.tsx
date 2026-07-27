@@ -14,7 +14,8 @@ import type { AppLogEntry, AppLogFacets, HealthView, Paged } from '../../api/typ
  * stopped working. This is that information, filterable and readable in the browser.
  */
 
-const LEVELS = ['', 'ERROR', 'WARN', 'INFO', 'DEBUG'] as const;
+/** Minimum severity, not an exact match: WARN shows WARN and ERROR. '' shows everything. */
+const LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG', ''] as const;
 const PAGE_SIZE = 50;
 const REFRESH_MS = 10_000;
 
@@ -25,7 +26,9 @@ interface Filters {
   q: string;
 }
 
-const EMPTY_FILTERS: Filters = { level: '', subsystem: '', pluginId: '', q: '' };
+// The store keeps INFO (DEBUG in dev) so a failure's context survives; the viewer opens at WARN and above
+// so an operator is not asked to read routine chatter to find the problem. Both are one dropdown apart.
+const EMPTY_FILTERS: Filters = { level: 'WARN', subsystem: '', pluginId: '', q: '' };
 
 function queryOf(filters: Filters, page: number): string {
   const params = new URLSearchParams();
@@ -107,7 +110,7 @@ export function AdminLogs() {
           <select value={filters.level} onChange={(e) => update({ level: e.target.value })}>
             {LEVELS.map((level) => (
               <option key={level} value={level}>
-                {level || t('admin.logs.anyLevel')}
+                {level ? t('admin.logs.levelAtLeast', { level }) : t('admin.logs.anyLevel')}
               </option>
             ))}
           </select>

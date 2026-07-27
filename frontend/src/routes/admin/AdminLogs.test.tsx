@@ -73,15 +73,25 @@ describe('AdminLogs', () => {
     expect(screen.getByText('platformApi mismatch')).toBeInTheDocument();
   });
 
+  it('opens at WARN and above rather than showing everything stored', async () => {
+    // The store keeps INFO (DEBUG in dev); the viewer starts where an operator wants to look, one dropdown
+    // away from the rest.
+    const calls = stubFetch();
+    render(<AdminLogs />);
+
+    await waitFor(() => expect(calls.some((url) => url.includes('level=WARN'))).toBe(true));
+    expect((screen.getByLabelText('Level') as HTMLSelectElement).value).toBe('WARN');
+  });
+
   it('turns filters into query parameters', async () => {
     const calls = stubFetch();
     render(<AdminLogs />);
     await screen.findByText(/Rejected plugin/);
 
-    fireEvent.change(screen.getByLabelText('Level'), { target: { value: 'ERROR' } });
+    fireEvent.change(screen.getByLabelText('Level'), { target: { value: 'INFO' } });
 
     await waitFor(() => {
-      expect(calls.some((url) => url.includes('level=ERROR') && url.includes('page=0'))).toBe(true);
+      expect(calls.some((url) => url.includes('level=INFO') && url.includes('page=0'))).toBe(true);
     });
   });
 
