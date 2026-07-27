@@ -14,6 +14,38 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Admin log & health viewer (`0.5.7`, ARCHITECTURE §13):** everything the host knew about its own failures
+  used to go to stdout and die with the container — an operator without a terminal could not find out why a
+  plugin had vanished from the site. **Admin → Logs & health** now shows it.
+  - **Capture is automatic:** a Logback appender records core's own log statements (default `WARN` and above)
+    into a new `app_log` table (Flyway `V15`), so the ten existing WARN/ERROR sites — rejected plugin, failed
+    feed poll, the catch-all 500 — appear without their call sites being touched, and so does every one added
+    later. Throwables are kept as expandable detail; `pluginId`/`feedId` travel via MDC, so entries can be
+    filtered by plugin rather than by grepping message text.
+  - **Writes never block a request:** entries go through a bounded queue drained by one daemon thread, in
+    their own transaction, with drops counted and reported rather than applied as back-pressure. The writer
+    cannot feed itself — a failure while storing an entry is reported to stderr, never through SLF4J.
+  - **Viewer:** `GET /api/admin/logs` (filter by level, area, plugin, free text, time; paginated — the first
+    paginated admin endpoint) plus `/logs/facets` for the dropdowns, an expandable detail row, and an
+    off-by-default 10 s auto-refresh that pauses while a row is open.
+  - **Health card:** `GET /api/admin/health` answers "is anything broken right now?" — every plugin's state
+    *with its rejection reason*, every feed's poll state **including the error text**, error/warning counts for
+    the last 24 h, version and uptime.
+  - **Plugins can report their own trouble:** `POST /api/plugins/{id}/log`, gated exactly like the doc store
+    (active plugin, signed-in user at the plugin's write floor), with size caps and a per-plugin rate limit so
+    a component in a render loop cannot fill the table. Backend plugins get the same via `ctx.log(...)` when
+    the plugin contract next bumps.
+  - Retention prunes daily under ShedLock by age (30 days) and row cap (100 000); both configurable under
+    `mosaicast.log.*`.
+
+### Fixed
+
+- **A failing feed now shows *why*** in Admin → Feeds. `lastError` was persisted, serialised into `FeedView`
+  and sent to the browser, and the page rendered only the status word — so a broken feed showed `ERROR` with
+  no way to find out what went wrong.
+
+### Added
+
 - **Consent service (M5 E5d, `0.5.6`, ARCHITECTURE §12.5):** the platform consent mechanism, driven entirely
   by what plugins declare.
   - **The core stays banner-free.** It sets only strictly necessary and functional storage, so `GET /api/consent`

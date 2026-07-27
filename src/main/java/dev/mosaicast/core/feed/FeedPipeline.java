@@ -6,6 +6,7 @@ package dev.mosaicast.core.feed;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,6 +41,14 @@ public class FeedPipeline {
      */
     @Transactional
     public PollOutcome poll(Feed feed) {
+        // Tag everything logged during this poll with the feed it concerns, so the admin log can filter by
+        // feed instead of parsing ids out of message text.
+        try (MDC.MDCCloseable ignored = MDC.putCloseable("feedId", String.valueOf(feed.getId()))) {
+            return pollTagged(feed);
+        }
+    }
+
+    private PollOutcome pollTagged(Feed feed) {
         // Take a pessimistic lock on the feed row so a scheduler tick and a "refresh now" (or two clicks)
         // can't reconcile the same feed at once and both insert the same GUID (§5.4).
         Feed locked = feeds.lockById(feed.getId())

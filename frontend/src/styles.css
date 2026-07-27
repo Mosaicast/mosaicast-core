@@ -1242,3 +1242,96 @@ code {
   gap: 0.6rem;
   margin-top: 0.8rem;
 }
+
+/* Admin → Logs & health (§13): a filter bar, a dense log list, and the "is anything broken?" card. */
+.mc-health {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-left: 4px solid var(--mc-accent);
+  border-radius: 10px;
+}
+.mc-health--ok {
+  border-left-color: var(--mc-accent-2);
+}
+.mc-health__summary {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.mc-health__list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+.mc-logfilters {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+.mc-loglist {
+  font-size: 0.9rem;
+}
+.mc-logrow {
+  list-style: none;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-logrow__head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  width: 100%;
+  padding: 0.45rem 0.25rem;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mc-logrow__head:hover {
+  background: color-mix(in srgb, var(--mc-accent) 6%, transparent);
+}
+.mc-logrow__at {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+.mc-logrow__origin {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+}
+.mc-logrow__message {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.mc-logrow__detail {
+  padding: 0 0.25rem 0.6rem;
+}
+.mc-logrow__detail pre {
+  margin: 0.35rem 0 0;
+  padding: 0.6rem;
+  overflow-x: auto;
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+/* Level chips read at a glance without relying on colour alone — the label is always the level name. */
+.mc-chip--error {
+  background: color-mix(in srgb, #d64545 22%, transparent);
+}
+.mc-chip--warn {
+  background: color-mix(in srgb, #d69e45 22%, transparent);
+}
+.mc-chip--info,
+.mc-chip--debug {
+  background: color-mix(in srgb, var(--mc-text-muted) 15%, transparent);
+}

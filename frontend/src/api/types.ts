@@ -240,3 +240,52 @@ export interface Paged<T> {
   totalElements: number;
   totalPages: number;
 }
+
+/** One entry of the operational log (`log/AppLogView.java`), `GET /api/admin/logs`. */
+export interface AppLogEntry {
+  id: number;
+  at: string;
+  level: 'ERROR' | 'WARN' | 'INFO' | 'DEBUG';
+  subsystem: string;
+  source: string | null;
+  pluginId: string | null;
+  message: string;
+  detail: string | null;
+  context: Record<string, unknown> | null;
+}
+
+/** Filter options that actually occur in the log, `GET /api/admin/logs/facets`. */
+export interface AppLogFacets {
+  subsystems: string[];
+  pluginIds: string[];
+}
+
+/** A plugin's health as the operator sees it (`log/AdminHealthController.PluginHealth`). */
+export interface PluginHealth {
+  id: string;
+  name: string | null;
+  status: 'LOADED' | 'DISABLED' | 'REJECTED';
+  enabled: boolean;
+  reason: string | null;
+}
+
+/** A feed's poll state, including the error text the feeds page long ignored. */
+export interface FeedHealth {
+  id: string;
+  title: string;
+  enabled: boolean;
+  lastFetchStatus: string | null;
+  lastError: string | null;
+  consecutiveFailures: number;
+  lastFetchedAt: string | null;
+}
+
+/** The health overview, `GET /api/admin/health`. */
+export interface HealthView {
+  version: string;
+  uptimeSeconds: number;
+  plugins: PluginHealth[];
+  feeds: FeedHealth[];
+  counts: { subsystem: string; level: string; count: number }[];
+  countsSince: string;
+}

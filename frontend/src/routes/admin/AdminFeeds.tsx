@@ -126,6 +126,9 @@ export function AdminFeeds() {
                   {feed.lastFetchStatus ?? '—'}
                   {feed.consecutiveFailures > 0 && ` · ⚠ ${feed.consecutiveFailures}`}
                 </div>
+                {/* The error text was fetched and typed all along, and never shown — so a failing feed
+                    looked like a bare status word with no way to find out why. */}
+                {feed.lastError && <p className="mc-error">{feed.lastError}</p>}
               </div>
               <div className="mc-feedrow__actions">
                 <label className="mc-toggle">

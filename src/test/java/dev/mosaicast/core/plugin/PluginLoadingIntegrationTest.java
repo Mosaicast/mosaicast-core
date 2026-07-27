@@ -375,6 +375,74 @@ class PluginLoadingIntegrationTest {
         }
     }
 
+    @Test
+    void aPluginCanReportAnEntryButOnlyWithinTheRules() {
+        String path = "/api/plugins/good/log";
+        // Anonymous is refused (CSRF-less PUT/POST never reaches the handler) — logging is a write.
+        assertThat(rest.exchange(path, HttpMethod.POST, json("{\"level\":\"WARN\",\"message\":\"x\"}"),
+                String.class).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        Session podcaster = devLogin("podcaster");
+        assertThat(rest.exchange(path, HttpMethod.POST,
+                podcaster.write("{\"level\":\"WARN\",\"message\":\"the widget could not load\"}", true),
+                String.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        // An unusable level or an empty message is a 400, not a silently stored entry.
+        assertThat(rest.exchange(path, HttpMethod.POST,
+                podcaster.write("{\"level\":\"SHOUT\",\"message\":\"x\"}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(rest.exchange(path, HttpMethod.POST,
+                podcaster.write("{\"level\":\"WARN\",\"message\":\"  \"}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        // The entry reaches the admin log, attributed to the plugin.
+        Session admin = devLogin("admin");
+        ResponseEntity<String> logs = rest.exchange(
+                "/api/admin/logs?pluginId=good", HttpMethod.GET, admin.get(), String.class);
+        assertThat(logs.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(logs.getBody()).contains("the widget could not load").contains("\"pluginId\":\"good\"");
+    }
+
+    @Test
+    void aDisabledPluginCannotReportEntries() {
+        Session admin = devLogin("admin");
+        Session podcaster = devLogin("podcaster");
+        try {
+            setEnabled(admin, "good", false);
+            assertThat(rest.exchange("/api/plugins/good/log", HttpMethod.POST,
+                    podcaster.write("{\"level\":\"WARN\",\"message\":\"still here\"}", true), String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+    }
+
+    @Test
+    void aRejectionIsLoggedAgainstThePluginItConcerns() {
+        // Regression: the MDC tag used to be opened with try-with-resources around the try block, and Java
+        // closes the resource *before* the catch runs — so the rejection, the one entry an operator actually
+        // looks for, was written with no plugin attribution and could not be filtered by plugin.
+        Session admin = devLogin("admin");
+        ResponseEntity<String> logs = rest.exchange(
+                "/api/admin/logs?pluginId=broken", HttpMethod.GET, admin.get(), String.class);
+        assertThat(logs.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(logs.getBody())
+                .contains("\"pluginId\":\"broken\"")
+                .containsIgnoringCase("platformApi");
+    }
+
+    @Test
+    void theHealthViewExplainsWhyEachPluginIsOrIsNotRunning() {
+        Session admin = devLogin("admin");
+        ResponseEntity<String> health = rest.exchange(
+                "/api/admin/health", HttpMethod.GET, admin.get(), String.class);
+        assertThat(health.getStatusCode()).isEqualTo(HttpStatus.OK);
+        // The rejected fixtures carry their reason here, so an operator never needs the container logs.
+        assertThat(health.getBody())
+                .contains("\"id\":\"good\"").contains("LOADED")
+                .contains("REJECTED").containsIgnoringCase("platformApi");
+    }
+
     private void setEnabled(Session admin, String pluginId, boolean enabled) {
         ResponseEntity<String> response = rest.exchange(
                 "/api/admin/plugins/" + pluginId + "/enabled?value=" + enabled,
