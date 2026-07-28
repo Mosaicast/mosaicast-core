@@ -12,6 +12,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.data.domain.Sort;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +33,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/admin/users")
 public class UserAdminController {
+
+    private static final Logger log = LoggerFactory.getLogger(UserAdminController.class);
 
     private final UserRepository users;
     private final LinkedIdentityRepository identities;
@@ -73,8 +77,12 @@ public class UserAdminController {
             throw new ConflictException("Cannot demote the last admin.");
         }
 
+        Role previous = user.getRole();
         user.changeRole(newRole);
         users.save(user);
+        // Who can do what is worth a permanent record: display name for the reader, ids for correlation.
+        log.info("Role of '{}' ({}) changed {} → {} by admin {}",
+                user.getDisplayName(), user.getId(), previous, newRole, currentUserId);
         return MeView.of(user);
     }
 

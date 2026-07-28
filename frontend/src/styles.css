@@ -1242,3 +1242,241 @@ code {
   gap: 0.6rem;
   margin-top: 0.8rem;
 }
+
+/* Admin → Logs & health (§13): a filter bar, a dense log list, and the "is anything broken?" card. */
+.mc-health {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-left: 4px solid var(--mc-accent);
+  border-radius: 10px;
+}
+.mc-health--ok {
+  border-left-color: var(--mc-accent-2);
+}
+.mc-health__summary {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.mc-health__list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+.mc-logfilters {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 0.85rem;
+}
+.mc-loglist {
+  font-size: 0.9rem;
+}
+.mc-logrow {
+  list-style: none;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-logrow__head {
+  display: flex;
+  gap: 0.6rem;
+  align-items: baseline;
+  width: 100%;
+  padding: 0.45rem 0.25rem;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mc-logrow__head:hover {
+  background: color-mix(in srgb, var(--mc-accent) 6%, transparent);
+}
+.mc-logrow__at {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+.mc-logrow__origin {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+}
+.mc-logrow__message {
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.mc-logrow__detail {
+  padding: 0 0.25rem 0.6rem;
+}
+.mc-logrow__detail pre {
+  margin: 0.35rem 0 0;
+  padding: 0.6rem;
+  overflow-x: auto;
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+/* Level chips read at a glance without relying on colour alone — the label is always the level name. */
+.mc-chip--error {
+  background: color-mix(in srgb, #d64545 22%, transparent);
+}
+.mc-chip--warn {
+  background: color-mix(in srgb, #d69e45 22%, transparent);
+}
+.mc-chip--info,
+.mc-chip--debug {
+  background: color-mix(in srgb, var(--mc-text-muted) 15%, transparent);
+}
+
+/* Logs table: fixed columns so the message always starts at the same x, whatever the time or source. */
+.mc-logtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  table-layout: fixed;
+}
+.mc-logtable th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-text-muted);
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-logtable td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--mc-border);
+  vertical-align: top;
+}
+.mc-logtable__expander {
+  width: 2rem;
+  padding-right: 0;
+}
+.mc-logtable__at {
+  width: 7.5rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--mc-text-muted);
+}
+.mc-logtable th:nth-child(3),
+.mc-logtable td:nth-child(3) {
+  width: 4.75rem;
+}
+.mc-logtable th:nth-child(4),
+.mc-logtable td:nth-child(4) {
+  width: 6rem;
+}
+.mc-logtable__source {
+  width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-logtable__message {
+  overflow-wrap: anywhere;
+}
+.mc-logtable__row--expandable {
+  cursor: pointer;
+}
+.mc-logtable__row--expandable:hover {
+  background: color-mix(in srgb, var(--mc-accent) 6%, transparent);
+}
+.mc-logtable__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--mc-text-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.mc-logtable__detailrow td {
+  padding-top: 0;
+}
+.mc-logtable__detailrow pre {
+  margin: 0 0 0.35rem;
+  padding: 0.6rem;
+  overflow-x: auto;
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+.mc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The message is the column people read, so the ones around it yield first: source goes when the panel
+   gets tight, area follows on a phone. Neither is lost — both are in the filter dropdowns. */
+@media (max-width: 1100px) {
+  .mc-logtable__source,
+  .mc-logtable th:nth-child(5) {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .mc-logtable__at {
+    width: 6.5rem;
+  }
+  .mc-logtable th:nth-child(4),
+  .mc-logtable td:nth-child(4),
+  .mc-logtable__source {
+    display: none;
+  }
+}
+
+/* The log is a bounded instrument, not a document: filters on top, rows scrolling inside, paging pinned
+   below. Deliberately unlike the episode feed, which should grow — this page will gain more health panels,
+   and fixed-height boxes stack predictably where an ever-growing table does not. */
+.mc-logpanel {
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+  background: var(--mc-surface);
+  overflow: hidden;
+}
+.mc-logpanel .mc-logfilters {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-logpanel__scroll {
+  max-height: min(60vh, 34rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mc-logpanel__note {
+  padding: 1rem 0.75rem;
+  margin: 0;
+}
+.mc-logpanel__foot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--mc-border);
+}
+/* Headers stay put while the rows scroll under them — a column you cannot name is not a column. */
+.mc-logpanel__scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mc-surface);
+}

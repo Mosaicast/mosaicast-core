@@ -18,6 +18,7 @@ import { AccountPage } from './routes/AccountPage';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLegal } from './routes/admin/AdminLegal';
+import { AdminLogs } from './routes/admin/AdminLogs';
 import { AdminPlugins } from './routes/admin/AdminPlugins';
 import { AdminSite } from './routes/admin/AdminSite';
 import { AdminUsers } from './routes/admin/AdminUsers';
@@ -99,6 +100,14 @@ export default function App() {
                       }
                     />
                     <Route path="feeds" element={<AdminFeeds />} />
+                    <Route
+                      path="logs"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminLogs />
+                        </RequireRole>
+                      }
+                    />
                     <Route
                       path="plugins"
                       element={

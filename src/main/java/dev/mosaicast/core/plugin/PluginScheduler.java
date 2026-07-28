@@ -11,6 +11,7 @@ import net.javacrumbs.shedlock.core.LockProvider;
 import net.javacrumbs.shedlock.core.LockingTaskExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Component;
 
@@ -56,6 +57,12 @@ public class PluginScheduler {
     }
 
     private void runLocked(String pluginId, String lockName, Duration every, Runnable task) {
+        try (MDC.MDCCloseable ignored = MDC.putCloseable("pluginId", pluginId)) {
+            runLockedTagged(pluginId, lockName, every, task);
+        }
+    }
+
+    private void runLockedTagged(String pluginId, String lockName, Duration every, Runnable task) {
         if (!settings.enabled(pluginId)) {
             // Switched off while the host runs: the task stays registered but stops firing, so disabling a
             // plugin quiets it immediately instead of at the next restart (§7.8).

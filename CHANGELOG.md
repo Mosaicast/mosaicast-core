@@ -14,6 +14,59 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Admin log & health viewer (`0.5.7`, ARCHITECTURE §13):** everything the host knew about its own failures
+  used to go to stdout and die with the container — an operator without a terminal could not find out why a
+  plugin had vanished from the site. **Admin → Logs & health** now shows it.
+  - **Capture is automatic:** a Logback appender records core's own log statements into a new `app_log` table
+    (Flyway `V15`), so the ten existing WARN/ERROR sites — rejected plugin, failed feed poll, the catch-all
+    500 — appear without their call sites being touched, and so does every one added later. Throwables are kept as expandable detail; `pluginId`/`feedId` travel via MDC, so entries can be
+    filtered by plugin rather than by grepping message text.
+  - **Writes never block a request:** entries go through a bounded queue drained by one daemon thread, in
+    their own transaction, with drops counted and reported rather than applied as back-pressure. The writer
+    cannot feed itself — a failure while storing an entry is reported to stderr, never through SLF4J.
+  - **Viewer:** `GET /api/admin/logs` (filter by level, area, plugin, free text, time; paginated — the first
+    paginated admin endpoint) plus `/logs/facets` for the dropdowns, an expandable detail row, and an
+    off-by-default 10 s auto-refresh that pauses while a row is open.
+  - **Health card:** `GET /api/admin/health` answers "is anything broken right now?" — every plugin's state
+    *with its rejection reason*, every feed's poll state **including the error text**, error/warning counts for
+    the last 24 h, version and uptime.
+  - **Plugins can report their own trouble:** `POST /api/plugins/{id}/log`, gated exactly like the doc store
+    (active plugin, signed-in user at the plugin's write floor), with size caps and a per-plugin rate limit so
+    a component in a render loop cannot fill the table. An explicit report is always stored; *captured* log
+    statements obey the configured threshold.
+  - **Capture follows the code, not a spelling.** The core package prefix is derived from the appender's own
+    package, so renaming the namespace cannot silently switch capture off. Plugins are recognised by the
+    logger name the host gives them (`plugin.<pluginId>`) rather than by their package — a third-party plugin
+    can live anywhere — and because the id is in the name, attribution also survives a plugin logging from its
+    own thread, which a thread-local MDC would not. Backend plugins get such a logger from the SDK
+    (`ctx.logger()`) when the plugin contract next bumps.
+  - **The viewer is a table.** Time, level, area, source and message are fixed columns, so the message always
+    starts at the same place instead of being pushed around by the length of whatever came before it. A caret
+    marks the rows that can be expanded — only entries that actually carry a stack trace or structured
+    context — so nobody has to click a row to find out whether there is anything under it.
+  - **The application talks now.** Feed polls report item counts, what changed and how long they took;
+    site settings log what changed old → new; branding, legal pages and their translations, plugin
+    activation/config/purge, feed add/enable/interval/refresh, planned episodes, account creation, identity
+    linking and access-token create/revoke all leave an entry. A startup summary records version, profile,
+    Java, plugin contract, capture level, plugin states (naming any that are not running) and feed counts.
+    Nothing per-request, and no secrets: token entries carry the prefix, never the secret, and account
+    entries carry ids, not email addresses.
+  - **Storing and showing are separate decisions.** The store keeps **INFO and above** (the dev profile
+    lowers it to `DEBUG`), because the routine line before a failure is usually what explains it and an entry
+    never stored cannot be found later. The viewer opens at **WARN and above** so nobody has to read chatter
+    to find the problem — one dropdown away from everything else. The level filter means "this level *and
+    above*": a view filtered to WARN that hid ERRORs would be actively misleading.
+  - Retention prunes daily under ShedLock by age (30 days) and row cap (100 000); both configurable under
+    `mosaicast.log.*`, as is `capture-level`.
+
+### Fixed
+
+- **A failing feed now shows *why*** in Admin → Feeds. `lastError` was persisted, serialised into `FeedView`
+  and sent to the browser, and the page rendered only the status word — so a broken feed showed `ERROR` with
+  no way to find out what went wrong.
+
+### Added
+
 - **Consent service (M5 E5d, `0.5.6`, ARCHITECTURE §12.5):** the platform consent mechanism, driven entirely
   by what plugins declare.
   - **The core stays banner-free.** It sets only strictly necessary and functional storage, so `GET /api/consent`

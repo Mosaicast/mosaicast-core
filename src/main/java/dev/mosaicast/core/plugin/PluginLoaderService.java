@@ -20,6 +20,7 @@ import java.util.stream.Stream;
 import org.pf4j.PluginState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.annotation.Order;
@@ -85,6 +86,16 @@ public class PluginLoaderService implements ApplicationRunner {
 
     private void loadOne(MosaicastPluginManager manager, Path folder) {
         String fallbackId = folder.getFileName().toString();
+        // Tag everything logged while handling this folder with the plugin it belongs to, so the admin log can
+        // filter by plugin instead of parsing ids back out of message text. The tag wraps the whole call
+        // rather than the try block inside it: try-with-resources closes its resource *before* a catch runs,
+        // so a rejection — the entry that matters most here — would otherwise be logged untagged.
+        try (MDC.MDCCloseable ignored = MDC.putCloseable("pluginId", fallbackId)) {
+            loadOneTagged(manager, folder, fallbackId);
+        }
+    }
+
+    private void loadOneTagged(MosaicastPluginManager manager, Path folder, String fallbackId) {
         PluginManifest manifest = null;
         try {
             Path manifestFile = folder.resolve("plugin.json");

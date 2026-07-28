@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class PluginSettingsService {
+
+    private static final Logger log = LoggerFactory.getLogger(PluginSettingsService.class);
 
     private final PluginActivationRepository activations;
     private final PluginConfigValueRepository configValues;
@@ -60,6 +64,8 @@ public class PluginSettingsService {
                 existing -> existing.setEnabled(enabled),
                 () -> activations.save(new PluginActivation(pluginId, enabled)));
         enabledCache.put(pluginId, enabled);
+        log.info("Plugin '{}' {} by an admin{}", pluginId, enabled ? "enabled" : "disabled",
+                enabled ? " — its backend starts at the next restart" : " — it stops serving immediately");
     }
 
     /** Every admin-set override of one plugin, keyed by field name. Never null. */
@@ -87,6 +93,8 @@ public class PluginSettingsService {
                     () -> configValues.save(new PluginConfigValue(id, value)));
         }
         configCache.remove(pluginId);
+        log.info("Plugin '{}' config: {} {}", pluginId, key,
+                value == null || value.isNull() ? "reset to the manifest default" : "set to " + value);
     }
 
     /**
@@ -97,6 +105,10 @@ public class PluginSettingsService {
      */
     @Transactional
     public int purgeData(String pluginId) {
-        return data.deleteByPluginId(pluginId);
+        int removed = data.deleteByPluginId(pluginId);
+        // Irreversible and admin-initiated: worth a permanent record of how much went.
+        log.info("Purged {} stored document(s) of plugin '{}'; its config and on/off state were kept",
+                removed, pluginId);
+        return removed;
     }
 }
