@@ -1335,3 +1335,99 @@ code {
 .mc-chip--debug {
   background: color-mix(in srgb, var(--mc-text-muted) 15%, transparent);
 }
+
+/* Logs table: fixed columns so the message always starts at the same x, whatever the time or source. */
+.mc-logtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  table-layout: fixed;
+}
+.mc-logtable th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-text-muted);
+  font-weight: 600;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-logtable td {
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--mc-border);
+  vertical-align: top;
+}
+.mc-logtable__expander {
+  width: 2rem;
+  padding-right: 0;
+}
+.mc-logtable__at {
+  width: 11rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--mc-text-muted);
+}
+.mc-logtable th:nth-child(3),
+.mc-logtable td:nth-child(3) {
+  width: 5.5rem;
+}
+.mc-logtable__source {
+  width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mc-logtable__message {
+  overflow-wrap: anywhere;
+}
+.mc-logtable__row--expandable {
+  cursor: pointer;
+}
+.mc-logtable__row--expandable:hover {
+  background: color-mix(in srgb, var(--mc-accent) 6%, transparent);
+}
+.mc-logtable__toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--mc-text-muted);
+  font: inherit;
+  line-height: 1;
+  cursor: pointer;
+}
+.mc-logtable__detailrow td {
+  padding-top: 0;
+}
+.mc-logtable__detailrow pre {
+  margin: 0 0 0.35rem;
+  padding: 0.6rem;
+  overflow-x: auto;
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+.mc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Small screens: drop the columns that are least load-bearing rather than scrolling sideways. */
+@media (max-width: 700px) {
+  .mc-logtable__at {
+    width: 6.5rem;
+  }
+  .mc-logtable th:nth-child(4),
+  .mc-logtable td:nth-child(4),
+  .mc-logtable__source {
+    display: none;
+  }
+}

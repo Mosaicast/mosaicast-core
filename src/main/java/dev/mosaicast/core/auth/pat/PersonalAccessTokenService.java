@@ -14,6 +14,8 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class PersonalAccessTokenService {
+
+    private static final Logger log = LoggerFactory.getLogger(PersonalAccessTokenService.class);
 
     /** Token prefix so a leaked/committed token is greppable and identifiable as a Mosaicast token. */
     private static final String TOKEN_PREFIX = "mcp_";
@@ -51,6 +55,8 @@ public class PersonalAccessTokenService {
         String prefix = secret.substring(0, Math.min(12, secret.length()));
         PersonalAccessToken token = tokens.save(
                 new PersonalAccessToken(userId, name, sha256(secret), prefix));
+        // The prefix only — never the secret, which exists in plaintext exactly once, in the response.
+        log.info("Access token '{}' ({}…) created for user {}", name, prefix, userId);
         return new Issued(secret, token);
     }
 
@@ -64,6 +70,7 @@ public class PersonalAccessTokenService {
         PersonalAccessToken token = tokens.findByIdAndUserId(tokenId, userId)
                 .orElseThrow(() -> new NotFoundException("Token not found: " + tokenId));
         tokens.delete(token);
+        log.info("Access token '{}' revoked for user {}", token.getName(), userId);
     }
 
     /**

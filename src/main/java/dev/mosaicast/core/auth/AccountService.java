@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.springframework.lang.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class AccountService {
+
+    private static final Logger log = LoggerFactory.getLogger(AccountService.class);
 
     private final UserRepository users;
     private final LinkedIdentityRepository identities;
@@ -85,6 +89,7 @@ public class AccountService {
             User current = users.findById(currentUserId)
                     .orElseThrow(() -> new IllegalStateException("Logged-in user no longer exists"));
             attach(current.getId(), claim, email);
+            log.info("Linked a {} identity to account {}", claim.provider(), current.getId());
             return current;
         }
 
@@ -99,6 +104,10 @@ public class AccountService {
         // Otherwise: a brand-new account (default role FAN; the bootstrap identity is promoted below).
         User created = users.save(User.create(claim.displayName(), claim.avatarUrl(), Role.FAN));
         attach(created.getId(), claim, email);
+        // No email in the log: an account id and the provider identify the event without storing a
+        // personal identifier in a table an operator browses casually.
+        log.info("New account '{}' ({}) created via {}", created.getDisplayName(), created.getId(),
+                claim.provider());
         return created;
     }
 

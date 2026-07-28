@@ -14,6 +14,8 @@ import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class FeedService {
+
+    private static final Logger log = LoggerFactory.getLogger(FeedService.class);
 
     private final FeedRepository feeds;
     private final EpisodeRefRepository refs;
@@ -98,6 +102,7 @@ public class FeedService {
         validateHttpUrl(url);
         String resolvedTitle = (title == null || title.isBlank()) ? deriveTitle(url) : title;
         Feed feed = feeds.save(Feed.rss(url, resolvedTitle));
+        log.info("Feed added: '{}' ({}) — polling now", resolvedTitle, url);
         pipeline.poll(feed);
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
     }
@@ -106,6 +111,7 @@ public class FeedService {
     @Transactional
     public PollOutcome refreshNow(UUID id) {
         Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
+        log.info("Manual refresh requested for feed '{}'", feed.getTitle());
         return pipeline.poll(feed);
     }
 
@@ -114,6 +120,10 @@ public class FeedService {
         Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
         feed.setEnabled(enabled);
         feeds.save(feed);
+        // Disabling hides the feed and its episodes from the whole public site (§5.4/§6.1), so it is a
+        // bigger deal than it looks in the admin toggle.
+        log.info("Feed '{}' {} — {} on the public site", feed.getTitle(),
+                enabled ? "enabled" : "disabled", enabled ? "visible again" : "now hidden");
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
     }
 
@@ -132,6 +142,8 @@ public class FeedService {
         long clamped = Math.max(MIN_POLL_INTERVAL.toSeconds(), Math.min(MAX_POLL_INTERVAL.toSeconds(), seconds));
         feed.setPollInterval(Duration.ofSeconds(clamped));
         feeds.save(feed);
+        log.info("Feed '{}' poll interval set to {} s{}", feed.getTitle(), clamped,
+                clamped == seconds ? "" : " (clamped from " + seconds + " s)");
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
     }
 
@@ -149,7 +161,10 @@ public class FeedService {
         String slug = dev.mosaicast.core.episode.EpisodeSlug.generate(
                 feed.getTitle(), season, episodeNo, title, refs::existsBySlug);
         EpisodeRef planned = EpisodeRef.planned(feed.getId(), season, episodeNo, provisional, slug);
-        return refs.save(planned).getId();
+        UUID plannedId = refs.save(planned).getId();
+        log.info("Planned episode created on '{}': S{}E{} '{}' (slug {})", feed.getTitle(),
+                season == null ? "?" : season, episodeNo == null ? "?" : episodeNo, title, slug);
+        return plannedId;
     }
 
     /** The feed's outstanding fuzzy-binding suggestions, strongest match first (§5.3). */

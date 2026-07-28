@@ -14,6 +14,8 @@ import dev.mosaicast.core.web.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class LegalService {
+
+    private static final Logger log = LoggerFactory.getLogger(LegalService.class);
 
     /** The ultimate fallback locale when the site default is unset/unavailable (§12.7). */
     public static final String DEFAULT_LOCALE = "en";
@@ -105,19 +109,25 @@ public class LegalService {
         if (pages.existsBySlug(slug)) {
             throw new ConflictException("A legal page with slug '" + slug + "' already exists");
         }
-        return pages.save(new LegalPage(slug, blankToNull(roleMarker), sortOrder));
+        LegalPage created = pages.save(new LegalPage(slug, blankToNull(roleMarker), sortOrder));
+        log.info("Legal page '{}' created (role marker {}, sort order {})", slug,
+                blankToNull(roleMarker) == null ? "none" : roleMarker, sortOrder);
+        return created;
     }
 
     @Transactional
     public LegalPage updatePage(String slug, String roleMarker, int sortOrder) {
         LegalPage page = requirePage(slug);
         page.update(blankToNull(roleMarker), sortOrder);
+        log.info("Legal page '{}' updated (role marker {}, sort order {})", slug,
+                blankToNull(roleMarker) == null ? "none" : roleMarker, sortOrder);
         return pages.save(page);
     }
 
     @Transactional
     public void deletePage(String slug) {
         LegalPage page = requirePage(slug);
+        log.info("Legal page '{}' deleted with all its translations", slug);
         translations.deleteByPageId(page.getId());
         pages.delete(page);
     }
@@ -131,15 +141,21 @@ public class LegalService {
                         existing -> {
                             existing.update(title, markdownBody);
                             translations.save(existing);
+                            log.info("Legal page '{}' [{}] edited: '{}', {} characters", slug, locale, title,
+                                    markdownBody == null ? 0 : markdownBody.length());
                         },
-                        () -> translations.save(
-                                new LegalPageTranslation(page.getId(), locale, title, markdownBody)));
+                        () -> {
+                            translations.save(
+                                    new LegalPageTranslation(page.getId(), locale, title, markdownBody));
+                            log.info("Legal page '{}' translated to [{}]: '{}'", slug, locale, title);
+                        });
     }
 
     @Transactional
     public void deleteTranslation(String slug, String locale) {
         LegalPage page = requirePage(slug);
         translations.deleteByPageIdAndLocale(page.getId(), locale);
+        log.info("Legal page '{}' [{}] translation removed", slug, locale);
     }
 
     private LegalPage requirePage(String slug) {

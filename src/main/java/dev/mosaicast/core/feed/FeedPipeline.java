@@ -33,6 +33,11 @@ public class FeedPipeline {
         this.suggestions = suggestions;
     }
 
+    /** Elapsed milliseconds since a {@code System.nanoTime()} mark — poll timings are worth having. */
+    private static long millisSince(long startedAtNanos) {
+        return (System.nanoTime() - startedAtNanos) / 1_000_000;
+    }
+
     /**
      * Polls one feed and reconciles the result.
      *
@@ -49,6 +54,7 @@ public class FeedPipeline {
     }
 
     private PollOutcome pollTagged(Feed feed) {
+        long startedAt = System.nanoTime();
         // Take a pessimistic lock on the feed row so a scheduler tick and a "refresh now" (or two clicks)
         // can't reconcile the same feed at once and both insert the same GUID (§5.4).
         Feed locked = feeds.lockById(feed.getId())
@@ -65,6 +71,7 @@ public class FeedPipeline {
             if (result.unchanged()) {
                 locked.recordSuccess(locked.getEtag(), locked.getLastModified(), "NOT_MODIFIED");
                 feeds.save(locked);
+                log.info("Polled feed '{}': unchanged (304) in {} ms", locked.getTitle(), millisSince(startedAt));
                 return PollOutcome.notModified();
             }
             ReconcileResult reconciled = reconciler.reconcile(locked.getId(), locked.getTitle(), result.episodes());
@@ -72,13 +79,19 @@ public class FeedPipeline {
             locked.updateChannelMeta(result.feedImageUrl(), result.feedAuthor(), result.feedDescription());
             locked.recordSuccess(result.etag(), result.lastModified(), "OK");
             feeds.save(locked);
-            log.info("Reconciled feed {} ({}): {}", locked.getId(), locked.getTitle(), reconciled);
+            log.info("Polled feed '{}': {} item(s) fetched in {} ms — {} new, {} updated, {} withdrawn, "
+                            + "{} bound to planned, {} suggestion(s)",
+                    locked.getTitle(), result.episodes().size(), millisSince(startedAt),
+                    reconciled.created(), reconciled.updated(), reconciled.withdrawn(), reconciled.bound(),
+                    reconciled.suggestions().size());
             return PollOutcome.reconciled(reconciled);
         } catch (FetchException e) {
             // A fetch error (thrown before any reconcile write) backs off; the last good state stays visible.
             locked.recordFailure(e.getMessage());
             feeds.save(locked);
-            log.warn("Feed poll failed for {} ({}): {}", locked.getId(), locked.getTitle(), e.getMessage());
+            log.warn("Feed poll failed for '{}' after {} ms ({} consecutive failure(s), next attempt backs "
+                            + "off): {}",
+                    locked.getTitle(), millisSince(startedAt), locked.getConsecutiveFailures(), e.getMessage());
             return PollOutcome.failed(e.getMessage());
         }
         // Any other RuntimeException (a bug, or a DB error the pessimistic lock did not prevent) propagates;

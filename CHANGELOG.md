@@ -40,6 +40,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     can live anywhere — and because the id is in the name, attribution also survives a plugin logging from its
     own thread, which a thread-local MDC would not. Backend plugins get such a logger from the SDK
     (`ctx.logger()`) when the plugin contract next bumps.
+  - **The viewer is a table.** Time, level, area, source and message are fixed columns, so the message always
+    starts at the same place instead of being pushed around by the length of whatever came before it. A caret
+    marks the rows that can be expanded — only entries that actually carry a stack trace or structured
+    context — so nobody has to click a row to find out whether there is anything under it.
+  - **The application talks now.** Feed polls report item counts, what changed and how long they took;
+    site settings log what changed old → new; branding, legal pages and their translations, plugin
+    activation/config/purge, feed add/enable/interval/refresh, planned episodes, account creation, identity
+    linking and access-token create/revoke all leave an entry. A startup summary records version, profile,
+    Java, plugin contract, capture level, plugin states (naming any that are not running) and feed counts.
+    Nothing per-request, and no secrets: token entries carry the prefix, never the secret, and account
+    entries carry ids, not email addresses.
   - **Storing and showing are separate decisions.** The store keeps **INFO and above** (the dev profile
     lowers it to `DEBUG`), because the routine line before a failure is usually what explains it and an entry
     never stored cannot be found later. The viewer opens at **WARN and above** so nobody has to read chatter

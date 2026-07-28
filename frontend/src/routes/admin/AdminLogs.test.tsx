@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import '../../i18n';
@@ -55,14 +55,31 @@ describe('AdminLogs', () => {
     vi.useRealTimers();
   });
 
-  it('lists entries with their level, origin and message', async () => {
+  it('lists entries in aligned columns', async () => {
     stubFetch();
     render(<AdminLogs />);
 
     expect(await screen.findByText(/Rejected plugin 'acme'/)).toBeInTheDocument();
     // "WARN" is also a filter option, so assert the row's chip rather than any matching text.
     expect(screen.getAllByText('WARN').some((el) => el.className.includes('mc-chip--warn'))).toBe(true);
-    expect(screen.getByText(/plugin · acme · PluginLoaderService/)).toBeInTheDocument();
+    // Subsystem and origin are their own cells now, not one run-on string that pushes the message around.
+    const row = screen.getByText(/Rejected plugin 'acme'/).closest('tr');
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLElement).getByText('plugin')).toBeInTheDocument();
+    expect(within(row as HTMLElement).getByText('acme')).toBeInTheDocument();
+  });
+
+  it('offers an expand affordance only on rows that have detail', async () => {
+    stubFetch([ENTRY, { ...ENTRY, id: 2, message: 'nothing to expand', detail: null, context: null }]);
+    render(<AdminLogs />);
+
+    await screen.findByText(/Rejected plugin 'acme'/);
+    // One caret, on the row that actually carries something — nobody should have to click to find out.
+    const toggles = screen.getAllByRole('button', { name: 'Show detail' });
+    expect(toggles).toHaveLength(1);
+
+    const plainRow = screen.getByText('nothing to expand').closest('tr');
+    expect(plainRow?.className).not.toContain('expandable');
   });
 
   it('shows the rejection reason on the health card', async () => {

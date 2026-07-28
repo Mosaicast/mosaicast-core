@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
@@ -24,6 +24,12 @@ interface Filters {
   subsystem: string;
   pluginId: string;
   q: string;
+}
+
+/** Fixed-width, second-precision timestamp so the column stays aligned down the page. */
+function formatTime(at: string): string {
+  const date = new Date(at);
+  return `${date.toLocaleDateString()} ${date.toLocaleTimeString(undefined, { hour12: false })}`;
 }
 
 // The store keeps INFO (DEBUG in dev) so a failure's context survives; the viewer opens at WARN and above
@@ -163,32 +169,70 @@ export function AdminLogs() {
       ) : result.items.length === 0 ? (
         <p className="mc-muted">{t('admin.logs.empty')}</p>
       ) : (
-        <ul className="mc-list mc-loglist">
-          {result.items.map((entry) => (
-            <li key={entry.id} className="mc-logrow">
-              <button
-                type="button"
-                className="mc-logrow__head"
-                onClick={() => setExpanded(expanded === entry.id ? null : entry.id)}
-              >
-                <span className="mc-muted mc-logrow__at">{new Date(entry.at).toLocaleString()}</span>
-                <span className={`mc-chip mc-chip--${entry.level.toLowerCase()}`}>{entry.level}</span>
-                <span className="mc-muted mc-logrow__origin">
-                  {entry.subsystem}
-                  {entry.pluginId ? ` · ${entry.pluginId}` : ''}
-                  {entry.source ? ` · ${entry.source}` : ''}
-                </span>
-                <span className="mc-logrow__message">{entry.message}</span>
-              </button>
-              {expanded === entry.id && (entry.detail || entry.context) && (
-                <div className="mc-logrow__detail">
-                  {entry.context && <pre>{JSON.stringify(entry.context, null, 2)}</pre>}
-                  {entry.detail && <pre>{entry.detail}</pre>}
-                </div>
-              )}
-            </li>
-          ))}
-        </ul>
+        <table className="mc-logtable">
+          <thead>
+            <tr>
+              <th scope="col" className="mc-logtable__expander">
+                <span className="mc-sr-only">{t('admin.logs.detail')}</span>
+              </th>
+              <th scope="col">{t('admin.logs.time')}</th>
+              <th scope="col">{t('admin.logs.level')}</th>
+              <th scope="col">{t('admin.logs.subsystem')}</th>
+              <th scope="col">{t('admin.logs.source')}</th>
+              <th scope="col">{t('admin.logs.message')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.items.map((entry) => {
+              const expandable = Boolean(entry.detail || entry.context);
+              const open = expanded === entry.id;
+              return (
+                <Fragment key={entry.id}>
+                  <tr
+                    className={`mc-logtable__row${expandable ? ' mc-logtable__row--expandable' : ''}`}
+                    onClick={expandable ? () => setExpanded(open ? null : entry.id) : undefined}
+                  >
+                    <td className="mc-logtable__expander">
+                      {/* Only rows that carry a stack trace or context are expandable — the caret says
+                          which, so nobody has to click every row to find out. */}
+                      {expandable && (
+                        <button
+                          type="button"
+                          className="mc-logtable__toggle"
+                          aria-expanded={open}
+                          aria-label={t(open ? 'admin.logs.hideDetail' : 'admin.logs.showDetail')}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpanded(open ? null : entry.id);
+                          }}
+                        >
+                          {open ? '▾' : '▸'}
+                        </button>
+                      )}
+                    </td>
+                    <td className="mc-logtable__at">{formatTime(entry.at)}</td>
+                    <td>
+                      <span className={`mc-chip mc-chip--${entry.level.toLowerCase()}`}>{entry.level}</span>
+                    </td>
+                    <td className="mc-muted">{entry.subsystem}</td>
+                    <td className="mc-muted mc-logtable__source">
+                      {entry.pluginId ?? entry.source ?? '—'}
+                    </td>
+                    <td className="mc-logtable__message">{entry.message}</td>
+                  </tr>
+                  {open && expandable && (
+                    <tr className="mc-logtable__detailrow">
+                      <td colSpan={6}>
+                        {entry.context && <pre>{JSON.stringify(entry.context, null, 2)}</pre>}
+                        {entry.detail && <pre>{entry.detail}</pre>}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       )}
 
       {result != null && result.totalPages > 1 && (
