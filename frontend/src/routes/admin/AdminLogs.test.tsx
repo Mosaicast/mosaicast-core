@@ -5,9 +5,10 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import '../../i18n';
+import type { AppLogEntry, HealthView } from '../../api/types';
 import { AdminLogs } from './AdminLogs';
 
-const ENTRY = {
+const ENTRY: AppLogEntry = {
   id: 1,
   at: '2026-07-27T10:15:30Z',
   level: 'WARN',
@@ -19,7 +20,7 @@ const ENTRY = {
   context: { feedId: 'feed-7' },
 };
 
-const HEALTH = {
+const HEALTH: HealthView = {
   version: '0.5.7',
   uptimeSeconds: 1234,
   plugins: [{ id: 'acme', name: 'Acme', status: 'REJECTED', enabled: true, reason: 'platformApi mismatch' }],
