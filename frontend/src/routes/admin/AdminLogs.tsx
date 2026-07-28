@@ -26,10 +26,20 @@ interface Filters {
   q: string;
 }
 
-/** Fixed-width, second-precision timestamp so the column stays aligned down the page. */
+/**
+ * Fixed-width, second-precision timestamp so the column stays aligned down the page. The year is left out
+ * on purpose: retention is 30 days, so it is the same for every row and would only steal width from the
+ * message, which is the column anyone actually reads.
+ */
 function formatTime(at: string): string {
-  const date = new Date(at);
-  return `${date.toLocaleDateString()} ${date.toLocaleTimeString(undefined, { hour12: false })}`;
+  return new Date(at).toLocaleString(undefined, {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
 }
 
 // The store keeps INFO (DEBUG in dev) so a failure's context survives; the viewer opens at WARN and above
@@ -110,7 +120,10 @@ export function AdminLogs() {
       {health && <HealthCard health={health} />}
       {error && <p className="mc-error">{error}</p>}
 
-      <div className="mc-logfilters">
+      {/* Filters, rows and paging live in one bounded box: the log is a fixed-size instrument on a page
+          that will grow more health panels, not a document that stretches until the browser gives up. */}
+      <section className="mc-logpanel">
+        <div className="mc-logfilters">
         <label className="mc-field mc-field--inline">
           <span>{t('admin.logs.level')}</span>
           <select value={filters.level} onChange={(e) => update({ level: e.target.value })}>
@@ -159,16 +172,17 @@ export function AdminLogs() {
           <input type="checkbox" checked={autoRefresh} onChange={(e) => setAutoRefresh(e.target.checked)} />
           {t('admin.logs.autoRefresh')}
         </label>
-        <button type="button" className="mc-btn" onClick={() => void load()}>
-          {t('admin.logs.refresh')}
-        </button>
-      </div>
+          <button type="button" className="mc-btn" onClick={() => void load()}>
+            {t('admin.logs.refresh')}
+          </button>
+        </div>
 
       {result == null ? (
-        <p className="mc-muted">{t('common.loading')}</p>
+        <p className="mc-muted mc-logpanel__note">{t('common.loading')}</p>
       ) : result.items.length === 0 ? (
-        <p className="mc-muted">{t('admin.logs.empty')}</p>
+        <p className="mc-muted mc-logpanel__note">{t('admin.logs.empty')}</p>
       ) : (
+        <div className="mc-logpanel__scroll">
         <table className="mc-logtable">
           <thead>
             <tr>
@@ -218,7 +232,9 @@ export function AdminLogs() {
                     <td className="mc-muted mc-logtable__source">
                       {entry.pluginId ?? entry.source ?? '—'}
                     </td>
-                    <td className="mc-logtable__message">{entry.message}</td>
+                    <td className="mc-logtable__message" title={entry.message}>
+                      {entry.message}
+                    </td>
                   </tr>
                   {open && expandable && (
                     <tr className="mc-logtable__detailrow">
@@ -233,10 +249,11 @@ export function AdminLogs() {
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       {result != null && result.totalPages > 1 && (
-        <div className="mc-form__actions">
+        <div className="mc-logpanel__foot">
           <button type="button" className="mc-btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
             {t('admin.logs.previous')}
           </button>
@@ -253,6 +270,7 @@ export function AdminLogs() {
           </button>
         </div>
       )}
+      </section>
     </div>
   );
 }

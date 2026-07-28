@@ -1363,17 +1363,21 @@ code {
   padding-right: 0;
 }
 .mc-logtable__at {
-  width: 11rem;
+  width: 7.5rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--mc-text-muted);
 }
 .mc-logtable th:nth-child(3),
 .mc-logtable td:nth-child(3) {
-  width: 5.5rem;
+  width: 4.75rem;
+}
+.mc-logtable th:nth-child(4),
+.mc-logtable td:nth-child(4) {
+  width: 6rem;
 }
 .mc-logtable__source {
-  width: 12rem;
+  width: 9rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1420,7 +1424,14 @@ code {
   border: 0;
 }
 
-/* Small screens: drop the columns that are least load-bearing rather than scrolling sideways. */
+/* The message is the column people read, so the ones around it yield first: source goes when the panel
+   gets tight, area follows on a phone. Neither is lost — both are in the filter dropdowns. */
+@media (max-width: 1100px) {
+  .mc-logtable__source,
+  .mc-logtable th:nth-child(5) {
+    display: none;
+  }
+}
 @media (max-width: 700px) {
   .mc-logtable__at {
     width: 6.5rem;
@@ -1430,4 +1441,42 @@ code {
   .mc-logtable__source {
     display: none;
   }
+}
+
+/* The log is a bounded instrument, not a document: filters on top, rows scrolling inside, paging pinned
+   below. Deliberately unlike the episode feed, which should grow — this page will gain more health panels,
+   and fixed-height boxes stack predictably where an ever-growing table does not. */
+.mc-logpanel {
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+  background: var(--mc-surface);
+  overflow: hidden;
+}
+.mc-logpanel .mc-logfilters {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-logpanel__scroll {
+  max-height: min(60vh, 34rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.mc-logpanel__note {
+  padding: 1rem 0.75rem;
+  margin: 0;
+}
+.mc-logpanel__foot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--mc-border);
+}
+/* Headers stay put while the rows scroll under them — a column you cannot name is not a column. */
+.mc-logpanel__scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--mc-surface);
 }
