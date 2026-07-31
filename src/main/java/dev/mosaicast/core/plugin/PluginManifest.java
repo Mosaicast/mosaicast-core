@@ -5,7 +5,7 @@ package dev.mosaicast.core.plugin;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.mosaicast.plugin.api.PlatformApi;
 import java.util.List;
 import java.util.Map;
@@ -111,7 +111,7 @@ public record PluginManifest(
                 return true;
             }
             return switch (type == null ? "" : type.toLowerCase()) {
-                case CONFIG_TYPE_STRING -> value.isTextual();
+                case CONFIG_TYPE_STRING -> value.isString();
                 case CONFIG_TYPE_NUMBER -> value.isNumber();
                 case CONFIG_TYPE_BOOLEAN -> value.isBoolean();
                 default -> false;

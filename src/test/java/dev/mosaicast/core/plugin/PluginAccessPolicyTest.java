@@ -48,6 +48,6 @@ class PluginAccessPolicyTest {
     }
 
     private static PluginManifest manifest(Slot... slots) {
-        return new PluginManifest("p", "1.0.0", "0.3.0", "P", null, null, List.of(slots), "doc", null, null);
+        return new PluginManifest("p", "1.0.0", "0.4.0", "P", null, null, List.of(slots), "doc", null, null);
     }
 }

@@ -146,9 +146,9 @@ plugins/sample/
   assets/sample.es.js # the frontend Web Component bundle
 ```
 
-At boot the host validates each manifest (the declared `platformApi` must match the host's `0.3.x`; config
+At boot the host validates each manifest (the declared `platformApi` must match the host's `0.4.x`; config
 fields must be renderable), loads the JAR, and calls `register(ctx)`. A bad manifest, an incompatible
-`platformApi`, a declared relational `schema` (deferred to the next SDK contract), or a thrown exception
+`platformApi`, a declared relational `schema` (the SDK has the surface since `0.4.0`; the host side is not built yet), or a thrown exception
 **disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
 A plugin an admin switched off is skipped here entirely.
 

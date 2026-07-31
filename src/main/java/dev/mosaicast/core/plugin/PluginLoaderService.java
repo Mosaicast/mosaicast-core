@@ -3,7 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import dev.mosaicast.plugin.api.FeedAccess;
 import dev.mosaicast.plugin.api.PlatformApi;
 import dev.mosaicast.plugin.api.PluginBackend;

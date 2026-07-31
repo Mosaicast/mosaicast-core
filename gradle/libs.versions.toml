@@ -5,11 +5,10 @@
 # everything it manages; only libraries outside the BOM pin an explicit version here.
 
 [versions]
-springBoot = "3.4.1"
-springDependencyManagement = "1.1.7"
+springBoot = "4.1.0"
 # The plugin contract this host builds against. MUST match the published SDK
 # (dev.mosaicast:plugin-api / @mosaicast/plugin-sdk) and the manifest platformApi.
-mosaicastSdk = "0.3.0"
+mosaicastSdk = "0.4.0"
 rome = "2.1.0"
 pf4j = "3.15.0"
 shedlock = "7.7.0"
@@ -44,4 +43,3 @@ commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" 
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "springBoot" }
-spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "springDependencyManagement" }

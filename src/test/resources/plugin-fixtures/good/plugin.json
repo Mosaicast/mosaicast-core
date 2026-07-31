@@ -1,7 +1,7 @@
 {
   "id": "good",
   "version": "1.0.0",
-  "platformApi": "0.3.0",
+  "platformApi": "0.4.0",
   "name": "Good Fixture",
   "backend": {
     "basePath": "/api/plugins/good",

@@ -3,12 +3,15 @@
 
 package dev.mosaicast.core.plugin;
 
+import dev.mosaicast.core.log.AppLogAppender;
 import dev.mosaicast.plugin.api.DocStore;
 import dev.mosaicast.plugin.api.FeedAccess;
 import dev.mosaicast.plugin.api.PluginConfig;
 import dev.mosaicast.plugin.api.PluginContext;
 import dev.mosaicast.plugin.api.SchemaStore;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The {@link PluginContext} handed to one plugin's {@code register(ctx)} (ARCHITECTURE §7.4). Wires the
@@ -37,6 +40,19 @@ public class PluginContextImpl implements PluginContext {
     @Override
     public DocStore store() {
         return store;
+    }
+
+    /**
+     * The plugin's logger, named {@code plugin.<pluginId>} by the host (§7.4).
+     *
+     * <p>The name is the attribution: {@code AppLogAppender} reads the plugin id straight out of it, so an
+     * entry stays attributed even when a plugin logs from its own thread or an {@code onSchedule} task,
+     * where a thread-local MDC would arrive empty. A plugin that built its own logger would lose that,
+     * which is why the SDK tells authors to take this one.
+     */
+    @Override
+    public Logger logger() {
+        return LoggerFactory.getLogger(AppLogAppender.loggerNameFor(pluginId));
     }
 
     @Override

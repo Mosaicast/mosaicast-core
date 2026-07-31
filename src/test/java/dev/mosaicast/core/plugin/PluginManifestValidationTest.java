@@ -7,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -22,7 +22,7 @@ class PluginManifestValidationTest {
     @Test
     void compatibleManifestValidates() throws Exception {
         PluginManifest manifest = parse("""
-                {"id":"sample","version":"1.0.0","platformApi":"0.3.0","name":"Sample",
+                {"id":"sample","version":"1.0.0","platformApi":"0.4.0","name":"Sample",
                  "backend":{"basePath":"/api/plugins/sample","extensions":["X"]},
                  "frontend":{"entry":"s.js","elements":["s-card"]},
                  "slots":[{"scope":"site","element":"s-card","placement":"sidebar","visibleTo":"anonymous"}],
@@ -34,8 +34,8 @@ class PluginManifestValidationTest {
 
     @Test
     void patchDifferenceIsCompatible() throws Exception {
-        // Same major.minor as the host (0.3.x), different patch — accepted.
-        assertThatCode(parse(base("0.3.7", "doc", "sidebar"))::validate).doesNotThrowAnyException();
+        // Same major.minor as the host (0.4.x), different patch — accepted.
+        assertThatCode(parse(base("0.4.7", "doc", "sidebar"))::validate).doesNotThrowAnyException();
     }
 
     @Test
@@ -47,14 +47,14 @@ class PluginManifestValidationTest {
 
     @Test
     void declaredSchemaStorageIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.3.0", "schema", "sidebar"))::validate)
+        assertThatThrownBy(parse(base("0.4.0", "schema", "sidebar"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("schema");
     }
 
     @Test
     void unknownSlotPlacementIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.3.0", "doc", "nowhere"))::validate)
+        assertThatThrownBy(parse(base("0.4.0", "doc", "nowhere"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("placement");
     }
@@ -115,7 +115,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code config} block, to isolate config validation. */
     private static String withConfig(String config) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.3.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.4.0","name":"P",
                  "slots":[{"scope":"site","element":"e","placement":"sidebar","visibleTo":"anonymous"}],
                  "storage":"doc","config":%s,"consent":{"categories":[],"externalSources":[]}}
                 """.formatted(config);

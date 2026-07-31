@@ -9,9 +9,9 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.classic.spi.IThrowableProxy;
 import ch.qos.logback.classic.spi.ThrowableProxyUtil;
 import ch.qos.logback.core.AppenderBase;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import com.fasterxml.jackson.databind.node.ObjectNode;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.JsonNodeFactory;
+import tools.jackson.databind.node.ObjectNode;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.util.Map;
@@ -50,7 +50,16 @@ public class AppLogAppender extends AppenderBase<ILoggingEvent> {
      * attribution survives a plugin logging from its own thread: the plugin id is in the logger name, not in
      * a thread-local MDC that a plugin-spawned thread would never carry.
      */
-    private static final String PLUGIN_LOGGER_PREFIX = "plugin.";
+    static final String PLUGIN_LOGGER_PREFIX = "plugin.";
+
+    /**
+     * The logger name the host gives a plugin, {@code plugin.<pluginId>}. Lives here, next to the code that
+     * parses it back out, so the naming convention has exactly one definition —
+     * {@code PluginContextImpl.logger()} hands this to plugins and {@link #pluginIdOf} reads it.
+     */
+    public static String loggerNameFor(String pluginId) {
+        return PLUGIN_LOGGER_PREFIX + pluginId;
+    }
 
     /** MDC keys the appender lifts into their own columns. */
     static final String MDC_PLUGIN_ID = "pluginId";
