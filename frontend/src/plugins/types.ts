@@ -38,6 +38,21 @@ export interface AdminConfigField {
 }
 
 /**
+ * One third-party service a plugin declares (`PluginManifest.Service`, ARCHITECTURE §12.5). `hosts` doubles
+ * as the CSP allow-list, so an origin missing here stays blocked even once the visitor consents.
+ */
+export interface ConsentServiceDeclaration {
+  id: string | null;
+  name: string;
+  provider: string | null;
+  category: string;
+  privacyUrl: string | null;
+  hosts: string[] | null;
+  thirdCountryTransfer: boolean | null;
+  storage: { name: string; type: string; purpose: string; duration: string }[] | null;
+}
+
+/**
  * A discovered plugin's load state plus its host settings, `GET /api/admin/plugins`.
  *
  * `status` is the boot outcome, `enabled` the current switch: `DISABLED` means it was already off when the
@@ -52,5 +67,5 @@ export interface AdminPlugin {
   version: string | null;
   enabled: boolean;
   config: Record<string, AdminConfigField>;
-  consent: { categories: string[] | null; externalSources: string[] | null } | null;
+  consent: { services: ConsentServiceDeclaration[] | null } | null;
 }

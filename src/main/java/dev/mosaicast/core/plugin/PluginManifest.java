@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
 import dev.mosaicast.plugin.api.PlatformApi;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -119,9 +120,71 @@ public record PluginManifest(
         }
     }
 
-    /** Declared consent surface (empty lists mean no cookie banner / no third-party sources). */
+    /**
+     * Declared consent surface (ARCHITECTURE §12.5). A plugin that touches no third party omits {@code
+     * consent} entirely and the site stays banner-free.
+     *
+     * <p>The legacy {@code {categories, externalSources}} form is gone as of {@code platformApi 0.4.0}:
+     * category slugs and bare hostnames cannot produce a notice that satisfies §25 TDDDG / Art. 5(3) ePD,
+     * which needs each stored item named with its purpose, lifetime, provider and third-country status — and
+     * they force the notice to talk about "plugins" to visitors who care about cookies and companies.
+     */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Consent(List<String> categories, List<String> externalSources) {
+    public record Consent(List<Service> services) {
+
+        /** The services this plugin declares, never null. */
+        public List<Service> servicesOrEmpty() {
+            return services == null ? List.of() : services;
+        }
+    }
+
+    /**
+     * One third-party service a plugin contacts.
+     *
+     * @param id                   stable identifier within the plugin
+     * @param name                 what a visitor would recognise, e.g. "Plausible Analytics"
+     * @param provider             the legal entity operating it — the company, not the plugin
+     * @param category             the consent category gating it; {@code necessary} is never prompted for
+     * @param privacyUrl           the provider's own privacy policy
+     * @param hosts                every origin it is contacted on; <strong>also the CSP allow-list</strong>
+     * @param thirdCountryTransfer whether personal data leaves the EU/EEA
+     * @param storage              what it stores on the device
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Service(String id, String name, String provider, String category, String privacyUrl,
+                          List<String> hosts, Boolean thirdCountryTransfer, List<StorageItem> storage) {
+
+        /**
+         * Whether the service transfers data outside the EU/EEA; absent means no.
+         *
+         * <p>Boxed on purpose: Jackson 3 refuses to map a missing or null value onto a primitive, so a
+         * {@code boolean} here would make a manifest that simply omits the flag fail to parse — with a raw
+         * deserialization error instead of this class's own validation message. Optional fields have to
+         * behave as optional.
+         */
+        public boolean transfersToThirdCountry() {
+            return Boolean.TRUE.equals(thirdCountryTransfer);
+        }
+
+        public List<String> hostsOrEmpty() {
+            return hosts == null ? List.of() : hosts;
+        }
+
+        public List<StorageItem> storageOrEmpty() {
+            return storage == null ? List.of() : storage;
+        }
+    }
+
+    /**
+     * One item a service stores on the visitor's device.
+     *
+     * @param name     the cookie / key name as it appears in the browser
+     * @param type     {@code cookie}, {@code localStorage} or {@code sessionStorage}
+     * @param purpose  plain-language reason, shown to visitors
+     * @param duration how long it lasts, e.g. {@code session}, {@code 12 months}, {@code persistent}
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record StorageItem(String name, String type, String purpose, String duration) {
     }
 
     /**
@@ -150,6 +213,65 @@ public record PluginManifest(
             }
         }
         validateConfig();
+        validateConsent();
+    }
+
+    /**
+     * The consent declaration is what the visitor-facing notice is generated from <em>and</em> what the CSP
+     * allows, so a malformed one is rejected at load rather than producing a notice that is quietly wrong.
+     *
+     * <p>A plugin that declares nothing passes: no consent block means no third parties, which is the
+     * banner-free default.
+     */
+    private void validateConsent() {
+        if (consent == null) {
+            return;
+        }
+        if (consent.services() == null) {
+            throw new PluginValidationException(
+                    "consent must declare services[]; the categories/externalSources form was removed in "
+                            + "platformApi 0.4 — see the SDK README for the shape");
+        }
+        for (Service service : consent.servicesOrEmpty()) {
+            if (service.name() == null || service.name().isBlank()) {
+                throw new PluginValidationException("consent service '%s' has no name — visitors are shown "
+                        + "this, so it cannot be blank".formatted(service.id()));
+            }
+            if (service.category() == null || service.category().isBlank()) {
+                throw new PluginValidationException(
+                        "consent service '%s' declares no category".formatted(service.name()));
+            }
+            for (String host : service.hostsOrEmpty()) {
+                requireAbsoluteOrigin(service, host);
+            }
+        }
+    }
+
+    /**
+     * A host doubles as a CSP origin, which needs a scheme to mean anything — {@code plausible.example} is
+     * not an origin and would silently never match. Rejecting it here beats a plugin whose embeds fail to
+     * load with consent granted and no explanation.
+     */
+    private static void requireAbsoluteOrigin(Service service, String host) {
+        if (host == null || host.isBlank()) {
+            throw new PluginValidationException(
+                    "consent service '%s' declares a blank host".formatted(service.name()));
+        }
+        if (!host.startsWith("https://") && !host.startsWith("http://")) {
+            throw new PluginValidationException(
+                    "consent service '%s' host '%s' needs a scheme (https://%s)"
+                            .formatted(service.name(), host, host));
+        }
+        try {
+            URI uri = URI.create(host);
+            if (uri.getHost() == null) {
+                throw new PluginValidationException(
+                        "consent service '%s' host '%s' is not a valid origin".formatted(service.name(), host));
+            }
+        } catch (IllegalArgumentException e) {
+            throw new PluginValidationException(
+                    "consent service '%s' host '%s' is not a valid origin".formatted(service.name(), host));
+        }
     }
 
     /**
