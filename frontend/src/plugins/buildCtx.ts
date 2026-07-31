@@ -3,6 +3,7 @@
 
 import type { PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-sdk';
 
+import { api } from '../api/client';
 import type { MeView, ThemeTokenSet } from '../api/types';
 import { makePluginApi } from './pluginApi';
 
@@ -28,13 +29,19 @@ export interface CtxInputs {
   routePath?: string;
   /** Whether the visitor granted a consent category (§12.5); defaults to deny when absent. */
   consentHas?: (category: string) => boolean;
+  /** Every granted category, for `ctx.consent.granted()`. */
+  consentGranted?: () => string[];
+  /** Opens the host's settings for one category and resolves with the visitor's answer. */
+  consentRequest?: (category: string) => Promise<boolean>;
+  /** Subscribes to consent changes; returns the unsubscribe the SDK contract requires. */
+  consentSubscribe?: (listener: () => void) => () => void;
 }
 
 /**
- * The context the host sets on a plugin element: the SDK `PluginContext` plus `episodeLabels` (slug → human
- * label), which formalizes into the SDK type in a later release; until then the host provides it directly.
+ * The context the host sets on a plugin element. `episodeLabels` used to be bolted on here; the SDK
+ * formalised it in 0.4.0, so this is now plain {@link PluginContext}.
  */
-export type HostPluginContext = PluginContext & { episodeLabels: Record<string, string> };
+export type HostPluginContext = PluginContext;
 
 const FALLBACK_THEME: ThemeTokens = {
   bg: '#ffffff',
@@ -48,7 +55,10 @@ const FALLBACK_THEME: ThemeTokens = {
 };
 
 export function buildCtx(inputs: CtxInputs): HostPluginContext {
-  const noop = () => {};
+  // Subscription handlers must hand back an unsubscribe (SDK 0.4.0). Where the shell has nothing to
+  // subscribe to yet, this returns a no-op *unsubscribe* rather than nothing — a plugin calling it inside a
+  // React effect uses the return value as the cleanup, so `undefined` would throw at unmount.
+  const noUnsubscribe = () => () => {};
   return {
     scope: inputs.scope,
     episodes: inputs.episodes,
@@ -56,15 +66,21 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
     api: makePluginApi(inputs.pluginId),
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
-    consent: { has: (category: string) => inputs.consentHas?.(category) ?? false, onChange: noop },
-    filter: { current: () => ({}), onChange: noop },
+    consent: {
+      // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
+      has: (category: string) => inputs.consentHas?.(category) ?? false,
+      granted: () => inputs.consentGranted?.() ?? [],
+      request: (category: string) => inputs.consentRequest?.(category) ?? Promise.resolve(false),
+      onChange: (cb: () => void) => inputs.consentSubscribe?.(cb) ?? (() => {}),
+    },
+    filter: { current: () => ({}), onChange: noUnsubscribe },
     player: {
       currentTime: inputs.playerCurrentTime,
       seekTo: inputs.playerSeekTo,
-      on: noop,
+      on: noUnsubscribe,
     },
-    route: { path: inputs.routePath ?? '', onChange: noop },
-    locale: { current: () => inputs.locale, onChange: noop },
+    route: { path: inputs.routePath ?? '', onChange: noUnsubscribe },
+    locale: { current: () => inputs.locale, onChange: noUnsubscribe },
     progress: {
       get: (episodeId: string) => {
         const stored = localStorage.getItem(`mc.progress.${episodeId}`);
@@ -72,6 +88,16 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
       },
     },
     theme: inputs.theme ?? FALLBACK_THEME,
+    /**
+     * Plugin-reported entries go to the host's log endpoint, which is what the admin viewer reads. Failures
+     * are swallowed on purpose: a plugin trying to report a problem must never turn that into a second,
+     * louder problem in the visitor's browser.
+     */
+    log: (level, message) => {
+      void api
+        .post(`/api/plugins/${inputs.pluginId}/log`, { level: level.toUpperCase(), message })
+        .catch(() => {});
+    },
   };
 }
 

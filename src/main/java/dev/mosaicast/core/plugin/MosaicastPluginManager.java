@@ -3,7 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.pf4j.BasePluginLoader;

@@ -4,7 +4,6 @@
 plugins {
     java
     alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
 }
 
 group = "dev.mosaicast"
@@ -38,20 +37,15 @@ repositories {
     mavenCentral()
 }
 
-configurations.all {
-    resolutionStrategy.eachDependency {
-        // Testcontainers 1.20.x ships docker-java 3.4.0, whose client pins Docker API 1.32 — rejected
-        // by Docker Engine 29+ ("client version 1.32 is too old"). Force the API-compatible latest
-        // docker-java so it negotiates a supported API version.
-        if (requested.group == "com.github.docker-java") {
-            useVersion("3.7.1")
-        }
-    }
-}
-
 dependencies {
     // --- Spring Boot (versions from the Boot BOM) ---
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    // Boot 4 drops the io.spring.dependency-management plugin in favour of importing the BOM directly;
+    // `platform(...)` is the supported replacement and keeps every starter version-free below.
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}"))
+    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:${libs.versions.springBoot.get()}"))
+
+    // `-starter-web` became `-starter-webmvc` in Boot 4.0.
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-oauth2-client")
@@ -62,7 +56,8 @@ dependencies {
     implementation("org.springframework.session:spring-session-core")
 
     // --- Migrations: Flyway only (ARCHITECTURE §2) ---
-    implementation("org.flywaydb:flyway-core")
+    // Boot 4 requires the starter rather than a bare flyway-core dependency for auto-configuration.
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-database-postgresql")
 
     // --- Feed pipeline, plugin loading, scheduler locks, sanitizing ---
@@ -84,8 +79,12 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
-    testImplementation("org.testcontainers:junit-jupiter")
-    testImplementation("org.testcontainers:postgresql")
+    // Testcontainers 2 renamed every artifact with a `testcontainers-` prefix; Java packages are unchanged.
+    testImplementation("org.testcontainers:testcontainers-junit-jupiter")
+    testImplementation("org.testcontainers:testcontainers-postgresql")
+    // Boot 4 no longer auto-provides TestRestTemplate; these carry it (see @AutoConfigureTestRestTemplate).
+    testImplementation("org.springframework.boot:spring-boot-resttestclient")
+    testImplementation("org.springframework.boot:spring-boot-restclient")
     testImplementation(libs.mosaicast.plugin.testkit)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -93,6 +92,7 @@ dependencies {
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
+    options.compilerArgs.add("-Xlint:deprecation")
 }
 
 // Filter the build version into build-metadata.properties (only that file, so it never collides with

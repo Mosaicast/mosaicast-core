@@ -59,6 +59,9 @@ export function PluginMount({
         playerSeekTo: player.seek,
         routePath,
         consentHas: consent.has,
+        consentGranted: consent.granted,
+        consentRequest: consent.request,
+        consentSubscribe: consent.subscribe,
       }),
     [
       pluginId,
@@ -72,6 +75,9 @@ export function PluginMount({
       player,
       routePath,
       consent.has,
+      consent.granted,
+      consent.request,
+      consent.subscribe,
     ],
   );
 

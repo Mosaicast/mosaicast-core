@@ -3,7 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.plugin.PluginManifest.ConfigField;
 import dev.mosaicast.core.plugin.PluginManifest.Consent;

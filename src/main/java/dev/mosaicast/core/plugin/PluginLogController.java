@@ -4,7 +4,7 @@
 package dev.mosaicast.core.plugin;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.log.AppLogEntry;
 import dev.mosaicast.core.log.AppLogLevel;
@@ -29,8 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
  * plugin's write floor. Size caps and a per-plugin rate limit keep one looping component from filling the
  * table — the log has to stay readable precisely when something is misbehaving.
  *
- * <p>Backend plugins get the same capability as {@code ctx.log(...)} once the plugin contract bumps; the
- * {@code PluginContext} has no logging method today.
+ * <p>The shell's {@code ctx.log(level, message)} posts here, and backend plugins reach the same log through
+ * {@code ctx.logger()} in-process — that path needs no HTTP and is not rate-limited by this class.
  */
 @RestController
 public class PluginLogController {

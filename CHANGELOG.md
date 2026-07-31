@@ -12,6 +12,36 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Changed
+
+- **Spring Boot 4.1, Jackson 3 and plugin contract `0.4.0` (`0.5.8`)** — one coordinated move, because each
+  blocks the others: Boot 3.4 is past OSS support, Boot 4 defaults to Jackson 3, and SDK `0.4.0` types the
+  contract on Jackson 3.
+  - **Every `0.3.x` plugin is rejected at load until it declares `platformApi: "0.4.0"` and rebuilds.** The
+    rejection is visible in **Admin → Logs & health** with its reason, which is why the log viewer shipped
+    first. The bundled sample plugin is already migrated (`2.3.0`).
+  - **JSONB keeps its exact encoding.** Hibernate detects Jackson by its old `com.fasterxml` package, so from
+    Jackson 3 it finds no mapper at all and JSON columns break; core now ships
+    `Jackson3JsonFormatMapper`. It deliberately writes temporal values as **numbers**
+    (`"duration": 3134.000000000`, `"publishedAt": 1783231200.000000000`) exactly as the old mapper did —
+    Jackson 3 would default to ISO-8601 strings and quietly leave the table holding two encodings of the same
+    field. Proven against **real rows dumped from a 3.4.1 instance before the upgrade**, kept as fixtures in
+    `src/test/resources/premigration/`.
+  - **`ctx.logger()`** is implemented: plugins get an SLF4J logger the host names `plugin.<pluginId>`, so a
+    plugin's own entries land in the admin viewer attributed to it — including from its own threads and
+    scheduled tasks, where a thread-local MDC would arrive empty.
+  - **Frontend `ctx`** matches the new contract: `log(level, message)` (routed to
+    `POST /api/plugins/{id}/log`), `consent.granted()` / `consent.request(category)` for click-to-load, and
+    every `onChange`/`player.on` now returns an **unsubscribe** — a plugin calling one inside a React effect
+    uses that as its cleanup, so returning nothing would throw at unmount. `episodeLabels` is native on the
+    SDK type now, so the host's intersection type is gone.
+  - Build: `-starter-web` → `-starter-webmvc`, Flyway via its starter, Testcontainers 2 artifact names,
+    `io.spring.dependency-management` replaced by importing the BOM, `TestRestTemplate` opted into with
+    `@AutoConfigureTestRestTemplate`, and JSpecify annotations in place of Spring's removed `lang` ones.
+  - **Not in this change:** the `SchemaStore` implementation (`schema()` still returns `null`, `storage:
+    "schema"` still rejected) and the manifest `consent.services[]` shape. Until that lands, a plugin
+    declaring the new consent form loads but contributes **no** consent categories and no CSP origins.
+
 ### Added
 
 - **Admin log & health viewer (`0.5.7`, ARCHITECTURE §13):** everything the host knew about its own failures

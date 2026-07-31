@@ -3,7 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import tools.jackson.databind.JsonNode;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.web.PagedResponse;
 import dev.mosaicast.plugin.api.DocEntry;
