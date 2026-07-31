@@ -32,6 +32,26 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
   `// SPDX-FileCopyrightText: 2026 The Mosaicast Authors`
   Don't guess the copyright holder from git config — use this fixed value. CI blocks PRs without a header.
 
+## Frontend & UI (binding)
+- **Plain CSS, one file:** `frontend/src/styles.css`, flat `mc-*` class names. **No Tailwind, no shadcn, no
+  CSS-in-JS, no component library** — do not introduce one, and ignore skill guidance that assumes them.
+- **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): shell and plugin Web
+  Components read the same properties, which is what makes plugin UIs re-theme automatically. Renaming or
+  dropping one breaks every plugin. Add tokens freely; change existing names only deliberately.
+- **Light and dark are both first-class** (`data-theme` on the root; `frontend/public/theme-init.js` sets it
+  before first paint to avoid a flash). Check both for every visual change.
+- **i18n:** flat dotted keys in `frontend/src/locales/{en,de}.json`. **Both locales, always** — German is a
+  launch-market requirement, not a translation afterthought. No hardcoded user-facing strings.
+- Plugin UIs mount inside `SlotRegion`; shell CSS styles the region, never a plugin's internals.
+- **Structure is spec, looks are not.** ARCHITECTURE binds *what must exist and why* — per-feed tabs and the
+  feed/site scope panels (§6.1), the slot region names plugins declare against (`top card main sidebar player
+  feed site admin page`, §7.3), roles and admin surfaces (§8.5) — not how any of it looks. Visual design,
+  layout within those structures, spacing, type and colour are free to change; a region must keep existing
+  and stay somewhere sensible, because a plugin targeting it would otherwise render nowhere.
+- Commands: `cd frontend && npm test && npx tsc --noEmit && npm run build`. **`npm run build` writes into
+  `src/main/resources/static`, but a running app serves `build/resources/main` — restart the app after
+  building or you are looking at the previous bundle.**
+
 ## Architecture guardrails (do not violate)
 - Identity (`EpisodeRef`) is separate from presentation (feed snapshot). Runtime/date in the core display come from the feed; plugin metrics are non-authoritative and live only in the plugin UI.
 - The host resolves scopes and decides access/filters — plugins only consume.
