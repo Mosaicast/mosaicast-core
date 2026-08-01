@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import type { ConsentCategory, ConsentServiceView } from '../api/types';
 import { formatDate } from '../util/format';
 import { useConsent } from './ConsentContext';
+import { ProgressPreference } from './ProgressPreference';
 
 /**
  * The consent settings, in one component (ARCHITECTURE §12.5).
@@ -94,17 +95,7 @@ export function CookieSettings({
         />
       </section>
 
-      <section className="mc-consent__pref">
-        <label className="mc-toggle">
-          <input
-            type="checkbox"
-            checked={consent.progressEnabled}
-            onChange={(event) => consent.setProgressEnabled(event.target.checked)}
-          />
-          <span>{t('consent.progress.title')}</span>
-        </label>
-        <p className="mc-muted mc-consent__hint">{t('consent.progress.hint')}</p>
-      </section>
+      <ProgressPreference />
 
       <section className="mc-consent__receipt">
         <h3 className="mc-consent__subtitle">{t('consent.receipt.title')}</h3>

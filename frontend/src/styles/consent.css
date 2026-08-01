@@ -100,8 +100,10 @@
   vertical-align: top;
 }
 
+/* The rules separate the sections of the settings panel. Scoped to it, because the playback switch also
+   appears on the account page, where it has its own heading and needs no rule above it. */
 .mc-consent__essential,
-.mc-consent__pref,
+.mc-consent .mc-consent__pref,
 .mc-consent__receipt {
   margin-top: var(--mc-space-5);
   padding-top: var(--mc-space-4);

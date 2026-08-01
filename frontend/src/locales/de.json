@@ -41,6 +41,8 @@
   "common.loading": "Wird geladen…",
   "common.comingSoon": "Diese Ansicht folgt im nächsten Meilenstein.",
   "account.title": "Konto",
+  "account.playback": "Wiedergabe",
+  "account.playbackDevice": "Diese Einstellung gilt für diesen Browser. Auf einem anderen Gerät stellen Sie sie erneut ein.",
   "account.identities": "Verknüpfte Konten",
   "account.tokens": "Persönliche Zugriffstokens",
   "account.tokensHelp": "Für Automatisierung (z. B. Statistik-Upload). Als Bearer-Token gesendet.",

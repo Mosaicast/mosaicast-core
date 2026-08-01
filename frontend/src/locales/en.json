@@ -41,6 +41,8 @@
   "common.loading": "Loading…",
   "common.comingSoon": "This view arrives in the next milestone.",
   "account.title": "Account",
+  "account.playback": "Playback",
+  "account.playbackDevice": "This switch applies to this browser. Signing in on another device sets it there separately.",
   "account.identities": "Linked accounts",
   "account.tokens": "Personal access tokens",
   "account.tokensHelp": "For automation (e.g. stats upload). Sent as a Bearer token.",
