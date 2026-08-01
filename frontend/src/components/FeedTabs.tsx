@@ -7,7 +7,7 @@ import { NavLink } from 'react-router-dom';
 import { useFeeds } from './FeedsContext';
 
 /**
- * Per-feed navigation tabs (§6.1): **All** + one tab per feed, as route links (`/` and `/feeds/:id`), so
+ * Per-feed navigation tabs (§6.1): **All** + one tab per feed, as route links (`/` and `/feeds/:feedSlug`), so
  * the active tab is just the current URL and every tab is bookmarkable. With a **single feed there are no
  * tabs** (the site collapses to that one feed) — see the Home redirect. Episodes stay the content; the feed
  * is a scope selector.
@@ -28,7 +28,7 @@ export function FeedTabs() {
       {feeds.map((feed) => (
         <NavLink
           key={feed.id}
-          to={`/feeds/${feed.id}`}
+          to={`/feeds/${feed.slug}`}
           className={({ isActive }) => `mc-tab${isActive ? ' mc-tab--active' : ''}`}
         >
           {feed.title}

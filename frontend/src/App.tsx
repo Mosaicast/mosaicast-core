@@ -56,7 +56,7 @@ export default function App() {
                 <ErrorBoundary key={location.pathname}>
                 <Routes>
                   <Route path="/" element={<Home />} />
-                  <Route path="/feeds/:feedId" element={<FeedPage />} />
+                  <Route path="/feeds/:feedSlug" element={<FeedPage />} />
                   <Route path="/episodes/:slug" element={<EpisodePage />} />
                   <Route path="/legal/:slug" element={<LegalPage />} />
                   {/* Reachable on every install, plugins or not — core stores things too (§12.5). */}

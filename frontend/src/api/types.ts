@@ -50,6 +50,8 @@ export interface SiteView {
 /** A feed in the public catalog (`feed/PublicFeedView.java`), `GET /api/feeds`. */
 export interface PublicFeed {
   id: string;
+  /** The public identifier used in URLs and as the plugin feed scope id. */
+  slug: string;
   title: string;
   episodeCount: number;
 }
@@ -57,6 +59,7 @@ export interface PublicFeed {
 /** Public detail of one feed (`feed/FeedDetailView.java`), `GET /api/feeds/{id}` — for the feed panel. */
 export interface FeedDetail {
   id: string;
+  slug: string;
   title: string;
   imageUrl: string | null;
   author: string | null;

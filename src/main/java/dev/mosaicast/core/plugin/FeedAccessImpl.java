@@ -5,6 +5,8 @@ package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.core.episode.EpisodeQueryService;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
+import dev.mosaicast.core.feed.Feed;
+import dev.mosaicast.core.feed.FeedRepository;
 import dev.mosaicast.core.episode.EpisodeSummary;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import dev.mosaicast.plugin.api.FeedAccess;
@@ -33,17 +35,19 @@ public class FeedAccessImpl implements FeedAccess {
 
     private final EpisodeQueryService query;
     private final EpisodeRefRepository refs;
+    private final FeedRepository feeds;
 
-    public FeedAccessImpl(EpisodeQueryService query, EpisodeRefRepository refs) {
+    public FeedAccessImpl(EpisodeQueryService query, EpisodeRefRepository refs, FeedRepository feeds) {
         this.query = query;
         this.refs = refs;
+        this.feeds = feeds;
     }
 
     /** The visible episode summaries in a scope, in canonical order — the source for ids and labels. */
     public List<EpisodeSummary> summariesIn(Scope scope) {
         return switch (scope.type()) {
             case SITE -> query.listSite(null, null, null, true, Pageable.unpaged()).getContent();
-            case FEED -> parseUuid(scope.id())
+            case FEED -> resolveFeed(scope.id())
                     .map(feedId -> query.listByFeed(feedId, null, Pageable.unpaged()).getContent())
                     .orElseGet(List::of);
             case SEASON -> parseSeason(scope.id())
@@ -67,6 +71,15 @@ public class FeedAccessImpl implements FeedAccess {
         return snapshot == null ? EMPTY : snapshot;
     }
 
+    /**
+     * Resolves a feed scope id. It is the feed's **public slug** — the same value that appears in the URL
+     * and partitions the plugin's doc store, matching how the episode scope has worked since slugs landed.
+     * A UUID still resolves, because a plugin that stored one before this release must keep working.
+     */
+    private Optional<UUID> resolveFeed(String id) {
+        return feeds.findBySlug(id).map(Feed::getId).or(() -> parseUuid(id));
+    }
+
     private static Optional<UUID> parseUuid(String s) {
         try {
             return Optional.of(UUID.fromString(s));
@@ -75,13 +88,16 @@ public class FeedAccessImpl implements FeedAccess {
         }
     }
 
-    /** Splits a season scope id {@code "<feedId>:<season>"} (feed UUIDs contain no colon). */
-    private static Optional<FeedSeason> parseSeason(String id) {
+    /**
+     * Splits a season scope id {@code "<feed>:<season>"}, where {@code <feed>} is the feed's public slug
+     * (neither a slug nor a UUID contains a colon, so the last one is unambiguous).
+     */
+    private Optional<FeedSeason> parseSeason(String id) {
         int sep = id.lastIndexOf(':');
         if (sep <= 0 || sep == id.length() - 1) {
             return Optional.empty();
         }
-        Optional<UUID> feedId = parseUuid(id.substring(0, sep));
+        Optional<UUID> feedId = resolveFeed(id.substring(0, sep));
         if (feedId.isEmpty()) {
             return Optional.empty();
         }

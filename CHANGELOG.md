@@ -34,6 +34,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Chrome, forms and admin moved onto the tokens: translucent top bar, a mobile-collapsing nav, hover and
     active states throughout, styled native selects, and **a disabled button that looks disabled** (an open
     note from the M4 review — a control that looks live and does nothing reads as a broken page).
+  - **Feeds get readable URLs too.** Episodes have lived at `/episodes/the-sample-cast-s01e06` since `0.5.2`
+    while their own show sat at `/feeds/7a48fcb5-0fe5-429e-a1b6-187002b35940`. A feed now has the same kind of
+    slug, minted once at creation and never changed — a feed title comes from the feed and moves on any poll,
+    so re-slugging would break every shared link.
+    - It is the public identifier everywhere: URLs, `GET /api/feeds/{slug}` and its sub-resources, the
+      `feedId` filter, the sitemap, and the plugin `feed` / `season` `scope.id`.
+    - **Old links keep working.** Feed URLs were UUID-shaped until now, so the API resolves a UUID as well;
+      no slug can parse as one, so there is no ambiguity.
+    - **Existing plugin documents move with the feed.** `scope.id` is what partitions a plugin's doc store, so
+      rows written under the old UUID would present as missing — indistinguishable from data loss to the
+      plugin. `FeedSlugBackfill` mints the slugs and repoints `feed`- and `season`-scoped rows in the same
+      transaction, before the plugin loader runs.
   - **Code:** `useResource` replaces the fetch/`useEffect`/`active`-flag triple that had been copied into
     fifteen components with subtly different failure behaviour, and a `MetaProvider` ends the duplicate
     `/api/meta` request that `TopBar` and `Footer` each made on every load.

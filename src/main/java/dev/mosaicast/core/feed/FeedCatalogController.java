@@ -29,9 +29,13 @@ public class FeedCatalogController {
         return feeds.catalog();
     }
 
-    /** Public detail of one feed (cover, title, author, description, count) for the feed panel (§6.1). */
-    @GetMapping("/api/feeds/{id}")
-    public FeedDetailView detail(@PathVariable UUID id) {
-        return feeds.detail(id);
+    /**
+     * Public detail of one feed (cover, title, author, description, count) for the feed panel (§6.1).
+     * Addressed by the feed's public slug; its UUID still resolves, so links shared before slugs existed
+     * keep working.
+     */
+    @GetMapping("/api/feeds/{feedRef}")
+    public FeedDetailView detail(@PathVariable String feedRef) {
+        return feeds.detail(feedRef);
     }
 }

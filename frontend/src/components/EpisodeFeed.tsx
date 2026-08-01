@@ -24,6 +24,8 @@ import { SitePanel } from './SitePanel';
 const PAGE_SIZE = 20;
 
 export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
+  // `fixedFeedId` is the feed's public slug when the view is scoped to one feed — the same value the URL
+  // carries and the plugin `feed` scope is addressed by. The API resolves a UUID here too (older links).
   const { t } = useTranslation();
   const { titleOf } = useFeeds();
   const [params, setParams] = useSearchParams();
@@ -130,7 +132,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     <div>
       <FeedTabs />
       <div className="mc-feedlayout">
-        {fixedFeedId ? <FeedPanel feedId={fixedFeedId} /> : <SitePanel />}
+        {fixedFeedId ? <FeedPanel feedSlug={fixedFeedId} /> : <SitePanel />}
 
         <div className="mc-feedmain">
           <FilterBar values={values} seasons={seasons} tags={tags} onChange={updateFilters} />

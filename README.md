@@ -292,10 +292,14 @@ The same declaration is the permission: the CSP is widened by exactly the declar
 (`script-src`/`frame-src`/`connect-src`) of active plugins, so an undeclared third party stays blocked even
 with consent given, and switching a plugin off narrows the policy again.
 
-Episodes are addressed by their **public slug** (§4.1) — a stable, human-readable id (`the-sample-cast-s01e06`)
-used in `/episodes/{slug}`, `GET /api/episodes/{slug}`, and, for plugins, `ctx.episodes` / the episode
-`scope.id` (so a plugin's `data/episode/{slug}/…` matches the URL). The UUID stays the internal key (listening
-progress, audio). Plugins get `ctx.episodeLabels` (`S01E06 · <title>`) so pickers show titles, not ids.
+**Feeds and episodes are both addressed by a public slug** (§4.1) — stable, human-readable ids
+(`the-sample-cast`, `the-sample-cast-s01e06`) used in `/feeds/{slug}` and `/episodes/{slug}`, in the API, and,
+for plugins, in `ctx.episodes` and the `feed` / `season` / `episode` `scope.id` (so a plugin's
+`data/feed/{slug}/…` matches the URL). The UUID stays the internal key (listening progress, audio, episode
+filters). Slugs are minted **once at creation and never change**, because a feed title moves on any poll and
+re-slugging would break shared links and orphan plugin data. Feed URLs were UUID-shaped before `0.5.12`, so
+the API still resolves a feed UUID; existing plugin documents are moved to the new scope ids at boot.
+Plugins get `ctx.episodeLabels` (`S01E06 · <title>`) so pickers show titles, not ids.
 
 ## Project layout
 
@@ -320,10 +324,10 @@ frontend/    React/Vite host shell (built into resources/static)
 Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/admin/feeds/{id}/suggestions` + `POST …/suggestions/{id}/confirm` + `DELETE …/suggestions/{id}`
 (review/confirm/dismiss fuzzy PLANNED bindings, §5.3, **PODCASTER/ADMIN**),
-`GET /api/feeds` (public catalog), `GET /api/feeds/{id}` (feed detail for the panel),
+`GET /api/feeds` (public catalog), `GET /api/feeds/{slug}` (feed detail for the panel),
 `GET /api/episodes?feedId=&season=&tag=&order=` (unified site-scope feed),
-`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{id}/episodes?season=`,
-`GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
+`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{slug}/episodes?season=`,
+`GET /api/feeds/{slug}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
 `GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.
