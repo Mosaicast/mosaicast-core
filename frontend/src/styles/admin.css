@@ -499,3 +499,22 @@
   z-index: 1;
   background: var(--mc-surface);
 }
+
+/* Admin → Consent: what each plugin declared, which is the half the visitor-facing payload leaves out. */
+.mc-consentaudit__meta {
+  font-size: var(--mc-text-sm);
+  margin-top: var(--mc-space-1);
+}
+.mc-consentaudit__hosts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2);
+  margin-top: var(--mc-space-2);
+  font-size: var(--mc-text-xs);
+}
+.mc-consentaudit__storage {
+  list-style: none;
+  margin: var(--mc-space-2) 0 0;
+  padding: 0;
+  font-size: var(--mc-text-xs);
+}

@@ -289,3 +289,79 @@ export interface HealthView {
   counts: { subsystem: string; level: string; count: number }[];
   countsSince: string;
 }
+
+/**
+ * One item a third-party service stores on the device, `GET /api/consent`
+ * (`ConsentService.StorageView`). The text is the plugin author's, verbatim from their manifest — the shell
+ * shows it rather than translating it, because only they know what their service does.
+ */
+export interface ConsentStorage {
+  name: string;
+  type: string;
+  purpose: string;
+  duration: string;
+}
+
+/** One third-party service, as a visitor reads about it. Deliberately carries no plugin id (§12.5). */
+export interface ConsentServiceView {
+  name: string;
+  provider: string | null;
+  privacyUrl: string | null;
+  thirdCountryTransfer: boolean;
+  storage: ConsentStorage[];
+}
+
+/**
+ * One decision on offer. The unit of decision is the category, not the service: two services sharing a
+ * category are granted or refused together, which is what `ctx.consent.has(category)` gates on.
+ */
+export interface ConsentCategory {
+  id: string;
+  known: boolean;
+  services: ConsentServiceView[];
+}
+
+/**
+ * One item the core itself stores. Purposes and durations arrive as **i18n keys**, not sentences, because
+ * only the shell knows the active locale — unlike plugin storage, whose text comes from a manifest.
+ */
+export interface EssentialStorage {
+  name: string;
+  type: string;
+  purposeKey: string;
+  durationKey: string;
+  /** True for listening progress, the one item with an off switch rather than a consent gate. */
+  optional: boolean;
+}
+
+/** The public consent payload, `GET /api/consent`. */
+export interface ConsentPayload {
+  /** Digest of everything declared; a change means a stored answer no longer answers the question. */
+  fingerprint: string;
+  categories: ConsentCategory[];
+  essential: { storage: EssentialStorage[] };
+  privacySlug: string | null;
+}
+
+/** One declared service with the plugin behind it, `GET /api/admin/consent` (ADMIN). */
+export interface AdminConsentService {
+  pluginId: string;
+  serviceId: string | null;
+  name: string;
+  provider: string | null;
+  category: string | null;
+  privacyUrl: string | null;
+  hosts: string[];
+  thirdCountryTransfer: boolean;
+  storage: ConsentStorage[];
+  /** False for `necessary`: declared, allowed by the CSP, disclosed — but never asked about. */
+  prompted: boolean;
+}
+
+/** The consent audit, `GET /api/admin/consent`. */
+export interface AdminConsentView {
+  fingerprint: string;
+  services: AdminConsentService[];
+  /** The origins the CSP is widened by, which is exactly the declared hosts of active plugins. */
+  csp: string[];
+}

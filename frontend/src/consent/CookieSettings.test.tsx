@@ -1,0 +1,126 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import type { ConsentPayload } from '../api/types';
+import '../i18n';
+import { ConsentProvider } from './ConsentContext';
+import { CookieSettings } from './CookieSettings';
+
+const PAYLOAD: ConsentPayload = {
+  fingerprint: 'abc123',
+  categories: [
+    {
+      id: 'analytics',
+      known: true,
+      services: [
+        {
+          name: 'Plausible Analytics',
+          provider: 'Plausible Insights OÜ',
+          privacyUrl: 'https://plausible.example/privacy',
+          thirdCountryTransfer: true,
+          storage: [{ name: 'pa', type: 'cookie', purpose: 'counts a visit', duration: '24 hours' }],
+        },
+      ],
+    },
+  ],
+  essential: {
+    storage: [
+      {
+        name: 'mc.progress.*',
+        type: 'localStorage',
+        purposeKey: 'consent.purpose.progress',
+        durationKey: 'consent.duration.persistent',
+        optional: true,
+      },
+    ],
+  },
+  privacySlug: 'privacy',
+};
+
+function stubConsent(payload: unknown) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(payload)) })),
+  );
+}
+
+function renderSettings() {
+  return render(
+    <MemoryRouter>
+      <ConsentProvider>
+        <CookieSettings />
+      </ConsentProvider>
+    </MemoryRouter>,
+  );
+}
+
+describe('Cookie settings (§12.5)', () => {
+  beforeEach(() => localStorage.clear());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('discloses what each service stores, and who runs it', async () => {
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    expect(await screen.findByText(/run by Plausible Insights OÜ/)).toBeInTheDocument();
+    expect(screen.getByText('Privacy policy of Plausible Analytics')).toBeInTheDocument();
+    // Name, purpose and lifetime of each stored item — the disclosure §25 TDDDG asks for.
+    expect(screen.getByText('pa')).toBeInTheDocument();
+    expect(screen.getByText('counts a visit')).toBeInTheDocument();
+    expect(screen.getByText('24 hours')).toBeInTheDocument();
+    expect(screen.getByText(/outside the EU\/EEA/)).toBeInTheDocument();
+  });
+
+  it("shows the core's own storage with a translated purpose, even with nothing to consent to", async () => {
+    stubConsent({ ...PAYLOAD, categories: [] });
+    renderSettings();
+
+    // The purpose arrives as an i18n key, because only the shell knows the active locale.
+    expect(await screen.findByText('Remembers where you stopped listening')).toBeInTheDocument();
+    expect(screen.getByText('mc.progress.*')).toBeInTheDocument();
+  });
+
+  it('forgets stored positions when the visitor switches remembering off', async () => {
+    localStorage.setItem('mc.progress.abc', '120');
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    const toggle = await screen.findByLabelText('Remember where I stopped listening');
+    fireEvent.click(toggle);
+
+    // Switching it off is also a request to forget — leaving the positions behind would keep storing
+    // exactly what the visitor just asked not to have stored.
+    await waitFor(() => expect(localStorage.getItem('mc.progress.abc')).toBeNull());
+    expect(localStorage.getItem('mc.prefs.progress')).toBe('off');
+  });
+
+  it('records a receipt the visitor can read back', async () => {
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    fireEvent.click(await screen.findByText('Allow all'));
+
+    expect(await screen.findByText(/You decided on/)).toBeInTheDocument();
+    expect(screen.getByText('Allowed')).toBeInTheDocument();
+    const stored = JSON.parse(localStorage.getItem('mc.consent') ?? '{}');
+    expect(stored.fingerprint).toBe('abc123');
+    expect(stored.categories).toEqual({ analytics: true });
+    expect(Date.parse(stored.decidedAt)).toBeGreaterThan(0);
+  });
+
+  it('withdraws in one click, exactly like granting', async () => {
+    stubConsent(PAYLOAD);
+    renderSettings();
+    fireEvent.click(await screen.findByText('Allow all'));
+    await screen.findByText('Allowed');
+
+    fireEvent.click(screen.getByText('Allow none'));
+
+    await waitFor(() => expect(screen.getByText('Not allowed')).toBeInTheDocument());
+    expect(JSON.parse(localStorage.getItem('mc.consent') ?? '{}').categories).toEqual({ analytics: false });
+  });
+});

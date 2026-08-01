@@ -13,34 +13,51 @@ import {
 } from 'react';
 
 import { api } from '../api/client';
+import type { ConsentPayload } from '../api/types';
 
 /**
- * The shell's side of the consent service (ARCHITECTURE §12.5). The core sets only strictly necessary and
- * functional storage, so it stays **banner-free**: this asks for nothing until an active plugin declares a
- * category. What a plugin declared is what visitors are asked about — and the same declaration is what the
- * server's CSP allows, so an undeclared third party cannot load even with consent given.
+ * The shell's side of the consent service (ARCHITECTURE §12.5).
  *
- * Decisions live in `localStorage` (like `mc.locale`) so they work for anonymous visitors, which is exactly
- * who a banner is for. Granting is per category and always revocable.
+ * The core stores only what the requested service needs, so it stays **banner-free**: nothing is asked until
+ * an active plugin declares a third-party service. What that plugin declared is what visitors are asked
+ * about — and the same declaration is what the server's CSP allows, so an undeclared third party cannot load
+ * even with consent given.
+ *
+ * Decisions live in `localStorage`, like `mc.locale`, because a consent surface that needs a login is not a
+ * consent surface. Three things make a stored decision stop counting, and each is a rule rather than a
+ * nicety:
+ *
+ * - **The declaration changed.** The stored record carries the `fingerprint` the server computed over
+ *   everything a visitor is told. Install a plugin and the fingerprint moves, so consent given for two
+ *   services cannot silently cover a third. Before this, a stored decision was simply a decision, whatever
+ *   it had been about.
+ * - **It expired.** Twelve months, dated by `decidedAt` rather than inferred.
+ * - **It was never asked for.** Global Privacy Control is a machine-readable objection; where the browser
+ *   sends one, everything optional counts as refused and no banner goes in front of someone who has already
+ *   answered. An explicit choice in the settings still wins — the signal is a default, not a cage.
  */
 
 const STORAGE_KEY = 'mc.consent';
+const RECORD_VERSION = 1;
+const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
+const PROGRESS_PREF_KEY = 'mc.prefs.progress';
 
-interface ConsentCategory {
-  category: string;
-  pluginIds: string[];
-  known: boolean;
-}
-
-interface ConsentSource {
-  source: string;
-  pluginId: string;
-}
-
-interface ConsentPayload {
-  categories: ConsentCategory[];
-  sources: ConsentSource[];
-  privacySlug: string | null;
+/**
+ * The stored decision — a **consent receipt**, kept on the visitor's own device.
+ *
+ * Deliberately not sent to the server: a per-visitor consent table would be a new store of personal data,
+ * needing its own legal basis, retention and deletion, in order to prove something about visitors who are
+ * otherwise anonymous here. The visitor can read and export this from the settings page instead, and the
+ * operator's proof is what the site declared (`GET /api/admin/consent`) — the half they actually control.
+ */
+export interface ConsentRecord {
+  version: number;
+  /** ISO timestamp of the decision — what the twelve-month expiry is measured from. */
+  decidedAt: string;
+  /** The declaration this answer was given about. */
+  fingerprint: string;
+  /** Per category: granted or refused. Absent means refused. */
+  categories: Record<string, boolean>;
 }
 
 interface ConsentValue extends ConsentPayload {
@@ -50,7 +67,8 @@ interface ConsentValue extends ConsentPayload {
   granted: () => string[];
   /**
    * Opens the settings for one category and resolves with what the visitor decided — the click-to-load flow
-   * (§12.5). Resolves `false` if they decide without granting it.
+   * (§12.5). Resolves `false` if they decide without granting it. Concurrent calls join the one surface and
+   * each resolves exactly once, which is what the SDK promises plugin authors.
    */
   request: (category: string) => Promise<boolean>;
   /**
@@ -59,16 +77,31 @@ interface ConsentValue extends ConsentPayload {
    * to its placeholder.
    */
   subscribe: (listener: () => void) => () => void;
-  /** Records a decision per category and closes the banner. */
+  /** Records a decision per category. Everything not named is refused. */
   decide: (decisions: Record<string, boolean>) => void;
-  /** True once a decision was stored — until then the banner asks. */
+  /** Refuses everything optional — the withdrawal that has to be as easy as granting. */
+  withdraw: () => void;
+  /** True once a decision applies: stored, unexpired, and about the current declaration. */
   decided: boolean;
-  /** Reopens the settings after a decision (the footer entry point). */
-  reopen: () => void;
+  /** The stored receipt, for the settings page to show and export. */
+  record: ConsentRecord | null;
+  /** True when the browser sent a Global Privacy Control signal and no explicit choice overrides it. */
+  gpc: boolean;
+  /** Opens the settings (the footer entry point and the `/cookies` page both use this). */
+  openSettings: () => void;
+  closeSettings: () => void;
   settingsOpen: boolean;
+  /** Whether playback positions are being stored — an off switch, not a consent gate (see below). */
+  progressEnabled: boolean;
+  setProgressEnabled: (on: boolean) => void;
 }
 
-const EMPTY: ConsentPayload = { categories: [], sources: [], privacySlug: null };
+const EMPTY: ConsentPayload = {
+  fingerprint: '',
+  categories: [],
+  essential: { storage: [] },
+  privacySlug: null,
+};
 
 const ConsentContext = createContext<ConsentValue>({
   ...EMPTY,
@@ -77,9 +110,15 @@ const ConsentContext = createContext<ConsentValue>({
   request: () => Promise.resolve(false),
   subscribe: () => () => {},
   decide: () => {},
+  withdraw: () => {},
   decided: true,
-  reopen: () => {},
+  record: null,
+  gpc: false,
+  openSettings: () => {},
+  closeSettings: () => {},
   settingsOpen: false,
+  progressEnabled: true,
+  setProgressEnabled: () => {},
 });
 
 /**
@@ -88,27 +127,73 @@ const ConsentContext = createContext<ConsentValue>({
  */
 function normalize(payload: Partial<ConsentPayload> | null | undefined): ConsentPayload {
   return {
+    fingerprint: typeof payload?.fingerprint === 'string' ? payload.fingerprint : '',
     categories: Array.isArray(payload?.categories)
-      ? payload.categories.filter((c) => typeof c?.category === 'string')
+      ? payload.categories.filter((category) => typeof category?.id === 'string')
       : [],
-    sources: Array.isArray(payload?.sources) ? payload.sources : [],
+    essential: { storage: payload?.essential?.storage ?? [] },
     privacySlug: typeof payload?.privacySlug === 'string' ? payload.privacySlug : null,
   };
 }
 
-function readStored(): Record<string, boolean> | null {
+function readRecord(): ConsentRecord | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Record<string, boolean>) : null;
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as Partial<ConsentRecord>;
+    if (parsed?.version !== RECORD_VERSION || typeof parsed.decidedAt !== 'string') {
+      return null;
+    }
+    return {
+      version: RECORD_VERSION,
+      decidedAt: parsed.decidedAt,
+      fingerprint: typeof parsed.fingerprint === 'string' ? parsed.fingerprint : '',
+      categories: parsed.categories ?? {},
+    };
   } catch {
     return null;
   }
 }
 
+/** Whether a stored answer still answers the question being asked. */
+export function isCurrent(record: ConsentRecord | null, fingerprint: string, now = Date.now()): boolean {
+  if (!record || record.fingerprint !== fingerprint) {
+    return false;
+  }
+  const decidedAt = Date.parse(record.decidedAt);
+  return Number.isFinite(decidedAt) && now - decidedAt < TWELVE_MONTHS_MS;
+}
+
+/** The browser's Global Privacy Control signal, where it exists. */
+function readGpc(): boolean {
+  return (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+}
+
+/**
+ * Whether the player may store listening positions.
+ *
+ * Not a consent category on purpose: it is first-party, stays on the device, is never profiled, and is only
+ * ever written after the visitor deliberately pressed play — so it is part of the service they asked for, and
+ * gating it behind a banner would trade a real feature for a fake choice. It is disclosed, and it has an off
+ * switch, which is the honest arrangement. Exported as a plain function so the player can read it without
+ * reaching for React context in a callback.
+ */
+export function progressEnabled(): boolean {
+  try {
+    return localStorage.getItem(PROGRESS_PREF_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
 export function ConsentProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<ConsentPayload>(EMPTY);
-  const [decisions, setDecisions] = useState<Record<string, boolean> | null>(() => readStored());
+  const [record, setRecord] = useState<ConsentRecord | null>(() => readRecord());
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [progressOn, setProgressOn] = useState(() => progressEnabled());
+  const gpc = useMemo(readGpc, []);
   /** Subscribers (plugins) and in-flight `request()` calls awaiting the visitor's next decision. */
   const listeners = useRef(new Set<() => void>());
   const pending = useRef<{ category: string; resolve: (granted: boolean) => void }[]>([]);
@@ -116,9 +201,15 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     api
       .get<Partial<ConsentPayload>>('/api/consent')
-      .then((payload) => setPayload(normalize(payload)))
+      .then((fetched) => setPayload(normalize(fetched)))
       .catch(() => setPayload(EMPTY));
   }, []);
+
+  const stored = isCurrent(record, payload.fingerprint);
+  const effective = useMemo(
+    () => (stored && record ? record.categories : {}),
+    [stored, record],
+  );
 
   const has = useCallback(
     (category: string) => {
@@ -126,33 +217,48 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         return true;
       }
       // Default deny: an ungranted category is not consented to, whatever the plugin assumes.
-      return decisions?.[category] === true;
+      return effective[category] === true;
     },
-    [decisions],
+    [effective],
   );
-
-  const decide = useCallback((next: Record<string, boolean>) => {
-    setDecisions(next);
-    setSettingsOpen(false);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // A visitor blocking storage still gets their choice for this page view.
-    }
-    // Tell anything already mounted — a plugin that loaded third-party content must be able to unload it
-    // the moment the visitor withdraws, not at the next navigation.
-    listeners.current.forEach((listener) => listener());
-    pending.current.splice(0).forEach(({ category, resolve }) => resolve(next[category] === true));
-  }, []);
 
   const granted = useCallback(
-    () => Object.entries(decisions ?? {}).filter(([, on]) => on).map(([category]) => category),
-    [decisions],
+    () => Object.entries(effective).filter(([, on]) => on).map(([category]) => category),
+    [effective],
   );
+
+  const decide = useCallback(
+    (next: Record<string, boolean>) => {
+      const receipt: ConsentRecord = {
+        version: RECORD_VERSION,
+        decidedAt: new Date().toISOString(),
+        fingerprint: payload.fingerprint,
+        categories: next,
+      };
+      setRecord(receipt);
+      setSettingsOpen(false);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(receipt));
+      } catch {
+        // A visitor blocking storage still gets their choice for this page view.
+      }
+      // Tell anything already mounted — a plugin that loaded third-party content must be able to unload it
+      // the moment the visitor withdraws, not at the next navigation.
+      listeners.current.forEach((listener) => listener());
+      pending.current.splice(0).forEach(({ category, resolve }) => resolve(next[category] === true));
+    },
+    [payload.fingerprint],
+  );
+
+  const withdraw = useCallback(() => {
+    decide(Object.fromEntries(payload.categories.map((category) => [category.id, false])));
+  }, [decide, payload.categories]);
 
   const subscribe = useCallback((listener: () => void) => {
     listeners.current.add(listener);
-    return () => listeners.current.delete(listener);
+    return () => {
+      listeners.current.delete(listener);
+    };
   }, []);
 
   /**
@@ -162,7 +268,27 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
    */
   const request = useCallback((category: string) => {
     setSettingsOpen(true);
-    return new Promise<boolean>((resolve) => pending.current.push({ category, resolve }));
+    return new Promise<boolean>((resolve) => {
+      pending.current.push({ category, resolve });
+    });
+  }, []);
+
+  const setProgress = useCallback((on: boolean) => {
+    setProgressOn(on);
+    try {
+      if (on) {
+        localStorage.removeItem(PROGRESS_PREF_KEY);
+      } else {
+        localStorage.setItem(PROGRESS_PREF_KEY, 'off');
+        // Switching it off is also a request to forget: leaving the positions behind would keep storing
+        // exactly what the visitor just asked not to have stored.
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith('mc.progress.'))
+          .forEach((key) => localStorage.removeItem(key));
+      }
+    } catch {
+      // Same as above: the choice still holds for this page view.
+    }
   }, []);
 
   const value = useMemo<ConsentValue>(
@@ -173,11 +299,20 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       request,
       subscribe,
       decide,
-      decided: decisions != null,
-      reopen: () => setSettingsOpen(true),
+      withdraw,
+      // A GPC signal is an answer, so it closes the question without a banner — but it is not a *stored*
+      // answer, which is why the settings still present it as changeable.
+      decided: stored || (gpc && record == null),
+      record,
+      gpc: gpc && record == null,
+      openSettings: () => setSettingsOpen(true),
+      closeSettings: () => setSettingsOpen(false),
       settingsOpen,
+      progressEnabled: progressOn,
+      setProgressEnabled: setProgress,
     }),
-    [payload, has, granted, request, subscribe, decide, decisions, settingsOpen],
+    [payload, has, granted, request, subscribe, decide, withdraw, stored, record, gpc, settingsOpen,
+      progressOn, setProgress],
   );
 
   return <ConsentContext.Provider value={value}>{children}</ConsentContext.Provider>;

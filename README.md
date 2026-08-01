@@ -163,7 +163,8 @@ DELETE /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # idempotent
 GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
 GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags)
-GET    /api/consent                                            # public: consent categories plugins declared
+GET    /api/consent                                            # public: services, storage and the fingerprint
+GET    /api/admin/consent                                      # ADMIN: the same, attributed to plugins, + the CSP
 GET    /api/admin/plugins                                      # ADMIN: discovered plugins, state, config, consent
 PUT    /api/admin/plugins/{id}/enabled?value=                  # ADMIN: activation toggle
 PUT    /api/admin/plugins/{id}/config                          # ADMIN + PODCASTER (per field `editableBy`)
@@ -262,16 +263,32 @@ entries, validated to sit under that plugin's own `/p/{id}/` namespace.
 
 ### Consent (E5d)
 
-The core sets only strictly necessary and functional client storage, so **it runs banner-free**. Consent
-exists for plugins that load third-party content: a manifest declares `consent.categories` and
-`consent.externalSources`, and only then does the shell ask. The host knows `necessary` (never asked about),
-`functional` and `analytics`; any other string is passed through as a plugin-declared category (with no
-translated label). The banner is generated from the declarations — it names the categories, the plugins that
-asked and the hosts involved — and links the legal page marked `privacy`. Decisions are per category, stored
-in `localStorage` (so anonymous visitors get a working choice), revocable from the footer, and reach plugins
-as `ctx.consent.has(category)`, which **denies by default**.
+The core stores only what the requested service needs — session, CSRF token, language, cached branding, the
+consent decision itself — so **it runs banner-free**. A visitor is asked something only because a plugin
+declared a third-party service in `consent.services[]`: a name, the **company** operating it, a category, a
+privacy URL, the origins it is contacted on, whether data leaves the EU/EEA, and every item it stores with a
+purpose and a lifetime.
 
-The same declaration is the permission: the CSP is widened by exactly the declared `externalSources`
+What visitors see is generated from those declarations and **never mentions plugins** — they decide about
+services and companies, not about the site's architecture. Allow and refuse carry identical weight on the
+first layer. The host knows `necessary` (never asked about), `functional` and `analytics`; any other string
+passes through as a plugin-declared category, shown under its own name.
+
+**The settings are one component in three places** — `/cookies`, appended below the legal page marked
+`privacy`, and inside the banner — because withdrawal has to be as easy as granting. The footer link is
+unconditional: even with no plugin installed, the core's own storage is disclosed there and the
+playback-position switch lives there. Decisions are per category, stored in `localStorage` as a receipt the
+visitor can read and export (`decidedAt`, the declaration fingerprint, the per-category answer), and reach
+plugins as `ctx.consent.has(category)`, which **denies by default**.
+
+A stored answer stops counting when the **declaration changes** (the server's fingerprint moves, so a newly
+installed service cannot inherit consent given before it existed), after **twelve months**, or when the
+browser sends **Global Privacy Control** — which is honoured as a refusal without showing a banner, and can
+still be overridden in the settings. Nothing about who consented is stored server-side; **Admin → Consent**
+shows the operator's half instead: every declared service attributed to its plugin, the resulting CSP
+allow-list, and the fingerprint.
+
+The same declaration is the permission: the CSP is widened by exactly the declared `hosts`
 (`script-src`/`frame-src`/`connect-src`) of active plugins, so an undeclared third party stays blocked even
 with consent given, and switching a plugin off narrows the policy again.
 

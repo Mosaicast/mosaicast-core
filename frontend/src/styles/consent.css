@@ -1,37 +1,174 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
 
-/* Consent (§12.5): the banner and the settings surfaces built from plugin declarations. */
+/*
+ * Consent (§12.5): the banner and the settings, which are the same component in three places.
+ *
+ * One rule here is load-bearing rather than cosmetic: **accept and reject carry the same visual weight**.
+ * A reject button styled as a quiet link is a dark pattern with a case history, so both are
+ * `.mc-btn--accent` and nothing in this file may make one recede.
+ */
 
-/* Consent (§12.5): only rendered when a plugin declares a category — the core alone stays banner-free. */
 .mc-consent {
-  margin: 0 0 1rem;
-  padding: 1rem;
+  margin: 0 0 var(--mc-space-4);
+  padding: var(--mc-space-5);
   background: var(--mc-surface);
   border: 1px solid var(--mc-border);
-  border-radius: 10px;
+  border-radius: var(--mc-radius-lg);
 }
+
 .mc-consent__title {
-  margin: 0 0 0.35rem;
-  font-size: 1.05rem;
+  margin: 0 0 var(--mc-space-2);
+  font-size: var(--mc-text-xl);
+  line-height: var(--mc-leading-tight);
 }
+
+.mc-consent__subtitle {
+  margin: var(--mc-space-5) 0 var(--mc-space-2);
+  font-size: var(--mc-text-base);
+}
+
+/* The first layer: pinned above the fold, but never covering the page it is asking about. */
+.mc-consent--banner {
+  max-width: var(--mc-container-narrow);
+  margin: var(--mc-space-5) auto 0;
+  box-shadow: var(--mc-shadow-2);
+}
+
 .mc-consent__list {
   list-style: none;
-  margin: 0.6rem 0;
+  margin: var(--mc-space-4) 0;
   padding: 0;
   display: grid;
-  gap: 0.35rem;
+  gap: var(--mc-space-4);
 }
+
+.mc-consent__category {
+  padding: var(--mc-space-4);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-bg);
+}
+
+.mc-consent__switch {
+  font-size: var(--mc-text-base);
+  font-weight: var(--mc-weight-medium);
+}
+
+.mc-consent__label {
+  font-weight: var(--mc-weight-medium);
+}
+
+.mc-consent__hint {
+  margin: var(--mc-space-1) 0 0;
+  font-size: var(--mc-text-sm);
+}
+
+/* One named company, with what it stores under it — the disclosure §25 TDDDG asks for. */
+.mc-consent__service {
+  margin-top: var(--mc-space-3);
+  padding-top: var(--mc-space-3);
+  border-top: 1px solid var(--mc-border);
+  font-size: var(--mc-text-sm);
+}
+
+.mc-consent__servicename {
+  margin: 0 0 var(--mc-space-2);
+  font-weight: var(--mc-weight-medium);
+}
+
+.mc-consent__warn {
+  margin: 0 0 var(--mc-space-2);
+  color: var(--mc-warning);
+}
+
+.mc-consent__storage {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--mc-space-2) 0;
+  font-size: var(--mc-text-xs);
+}
+.mc-consent__storage th {
+  text-align: left;
+  font-weight: var(--mc-weight-medium);
+  color: var(--mc-text-muted);
+}
+.mc-consent__storage th,
+.mc-consent__storage td {
+  padding: var(--mc-space-1) var(--mc-space-2) var(--mc-space-1) 0;
+  border-bottom: 1px solid var(--mc-border);
+  vertical-align: top;
+}
+
+.mc-consent__essential,
+.mc-consent__pref,
+.mc-consent__receipt {
+  margin-top: var(--mc-space-5);
+  padding-top: var(--mc-space-4);
+  border-top: 1px solid var(--mc-border);
+}
+
+.mc-consent__answers {
+  list-style: none;
+  margin: var(--mc-space-2) 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mc-space-1);
+  font-size: var(--mc-text-sm);
+  max-width: 22rem;
+}
+.mc-consent__answers li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--mc-space-4);
+}
+.mc-consent__yes {
+  color: var(--mc-success);
+}
+
+/* The browser's own objection, stated rather than silently obeyed. */
+.mc-consent__signal {
+  margin: var(--mc-space-2) 0;
+  padding: var(--mc-space-3);
+  border-left: 3px solid var(--mc-accent-2);
+  background: var(--mc-accent-soft);
+  font-size: var(--mc-text-sm);
+}
+
+.mc-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-3);
+  margin-top: var(--mc-space-5);
+}
+
 .mc-consent__link {
   align-self: center;
-  font-size: 0.85rem;
+  font-size: var(--mc-text-sm);
 }
+
+/* The settings opened over the page — also what a plugin's `ctx.consent.request()` surfaces. */
+.mc-consent__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--mc-space-5);
+  overflow-y: auto;
+  background: var(--mc-overlay);
+}
+.mc-consent__sheet {
+  width: min(46rem, 100%);
+  box-shadow: var(--mc-shadow-3);
+  border-radius: var(--mc-radius-lg);
+}
+.mc-consent__sheet .mc-consent {
+  margin: 0;
+}
+
 .mc-foot__consent {
-  background: none;
-  border: none;
-  padding: 0;
   color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  cursor: pointer;
 }

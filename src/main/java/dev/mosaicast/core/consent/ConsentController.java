@@ -3,14 +3,22 @@
 
 package dev.mosaicast.core.consent;
 
+import dev.mosaicast.core.consent.ConsentService.AuditView;
 import dev.mosaicast.core.consent.ConsentService.ConsentView;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * The public consent payload (ARCHITECTURE §12.5): which categories active plugins ask for, which
- * third-party hosts they declared, and the privacy page to link to. Anonymous by necessity — the banner has
- * to work before anyone logs in. An empty {@code categories} list means the site stays banner-free.
+ * The consent endpoints (ARCHITECTURE §12.5).
+ *
+ * <p>{@code /api/consent} is the visitor's: the decisions on offer, what each service stores and who operates
+ * it, what the core itself stores, and a fingerprint of the whole declaration so a stored answer can be told
+ * apart from an answer to a different question. Anonymous by necessity — a consent surface that needs a login
+ * is not a consent surface. An empty {@code categories} list means the site stays banner-free.
+ *
+ * <p>{@code /api/admin/consent} is the operator's, ADMIN via the {@code /api/admin/**} rule. It carries the
+ * one thing the public payload deliberately omits — which plugin declared what — plus the resulting CSP
+ * allow-list, so "why is this origin allowed?" has an answer that does not involve reading manifests on disk.
  */
 @RestController
 public class ConsentController {
@@ -24,5 +32,10 @@ public class ConsentController {
     @GetMapping("/api/consent")
     public ConsentView current() {
         return consent.current();
+    }
+
+    @GetMapping("/api/admin/consent")
+    public AuditView audit() {
+        return consent.audit();
     }
 }

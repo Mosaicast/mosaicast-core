@@ -15,6 +15,8 @@ import { ConsentProvider } from './consent/ConsentContext';
 import { PlayerProvider } from './player/PlayerContext';
 import { PluginRegistryProvider } from './plugins/PluginRegistry';
 import { AccountPage } from './routes/AccountPage';
+import { CookiesPage } from './routes/CookiesPage';
+import { AdminConsent } from './routes/admin/AdminConsent';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLegal } from './routes/admin/AdminLegal';
@@ -55,6 +57,8 @@ export default function App() {
                   <Route path="/feeds/:feedId" element={<FeedPage />} />
                   <Route path="/episodes/:slug" element={<EpisodePage />} />
                   <Route path="/legal/:slug" element={<LegalPage />} />
+                  {/* Reachable on every install, plugins or not — core stores things too (§12.5). */}
+                  <Route path="/cookies" element={<CookiesPage />} />
                   {/* Reserved for plugin deep links (§6.4): the subpath becomes ctx.route. */}
                   <Route path="/p/:pluginId/*" element={<PluginPage />} />
                   <Route path="/p/:pluginId" element={<PluginPage />} />
@@ -100,6 +104,14 @@ export default function App() {
                       }
                     />
                     <Route path="feeds" element={<AdminFeeds />} />
+                    <Route
+                      path="consent"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminConsent />
+                        </RequireRole>
+                      }
+                    />
                     <Route
                       path="logs"
                       element={

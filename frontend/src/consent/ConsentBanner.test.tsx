@@ -5,15 +5,52 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ConsentPayload } from '../api/types';
 import '../i18n';
 import { buildCtx } from '../plugins/buildCtx';
 import { ConsentBanner } from './ConsentBanner';
 import { ConsentProvider, useConsent } from './ConsentContext';
 
-const WITH_CATEGORY = {
-  categories: [{ category: 'analytics', pluginIds: ['stats'], known: true }],
-  sources: [{ source: 'plausible.example', pluginId: 'stats' }],
+const ESSENTIAL = {
+  storage: [
+    {
+      name: 'mc.locale',
+      type: 'localStorage',
+      purposeKey: 'consent.purpose.locale',
+      durationKey: 'consent.duration.persistent',
+      optional: false,
+    },
+  ],
+};
+
+const WITH_CATEGORY: ConsentPayload = {
+  fingerprint: 'abc123',
+  categories: [
+    {
+      id: 'analytics',
+      known: true,
+      services: [
+        {
+          name: 'Plausible Analytics',
+          provider: 'Plausible Insights OÜ',
+          privacyUrl: 'https://plausible.example/privacy',
+          thirdCountryTransfer: false,
+          storage: [
+            { name: 'pa', type: 'cookie', purpose: 'counts a visit', duration: '24 hours' },
+          ],
+        },
+      ],
+    },
+  ],
+  essential: ESSENTIAL,
   privacySlug: 'privacy',
+};
+
+const NOTHING: ConsentPayload = {
+  fingerprint: 'empty1',
+  categories: [],
+  essential: ESSENTIAL,
+  privacySlug: null,
 };
 
 function stubConsent(payload: unknown) {
@@ -52,44 +89,90 @@ function renderBanner() {
   );
 }
 
-describe('Consent (M5 E5d)', () => {
+const TITLE = 'Before you carry on';
+
+describe('Consent (§12.5)', () => {
   beforeEach(() => localStorage.clear());
   afterEach(() => vi.unstubAllGlobals());
 
-  it('stays banner-free when no plugin declares a category', async () => {
-    stubConsent({ categories: [], sources: [], privacySlug: null });
+  it('stays banner-free when no service is declared', async () => {
+    stubConsent(NOTHING);
     renderBanner();
     await waitFor(() => expect(screen.getByTestId('granted')).toBeInTheDocument());
-    expect(screen.queryByText('Third-party content')).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
-  it('asks once a plugin declares one, and denies until the visitor agrees', async () => {
+  it('names the company rather than the plugin, and denies until the visitor agrees', async () => {
     stubConsent(WITH_CATEGORY);
     renderBanner();
 
-    expect(await screen.findByText('Third-party content')).toBeInTheDocument();
-    // Named plugin and declared host are shown — the notice comes from the declaration, not from prose.
-    expect(screen.getByText(/stats/)).toBeInTheDocument();
-    expect(screen.getByText(/plausible\.example/)).toBeInTheDocument();
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
+    // The wording rule, asserted: a visitor is told who is involved, not which plugin asked.
+    expect(screen.getByText(/Plausible Insights OÜ/)).toBeInTheDocument();
+    expect(screen.queryByText(/stats/)).not.toBeInTheDocument();
     // Default deny while undecided.
     expect(screen.getByTestId('granted')).toHaveTextContent('false');
 
     fireEvent.click(screen.getByText('Allow all'));
     await waitFor(() => expect(screen.getByTestId('granted')).toHaveTextContent('true'));
-    expect(screen.queryByText('Third-party content')).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
   it('persists a refusal, so the banner does not ask again', async () => {
     stubConsent(WITH_CATEGORY);
     const first = renderBanner();
-    expect(await screen.findByText('Third-party content')).toBeInTheDocument();
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
     fireEvent.click(screen.getByText('Allow none'));
-    await waitFor(() => expect(screen.queryByText('Third-party content')).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(TITLE)).not.toBeInTheDocument());
     first.unmount();
 
     renderBanner();
     await waitFor(() => expect(screen.getByTestId('granted')).toHaveTextContent('false'));
-    expect(screen.queryByText('Third-party content')).not.toBeInTheDocument();
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
+  });
+
+  it('asks again when the declared set changed', async () => {
+    stubConsent(WITH_CATEGORY);
+    const first = renderBanner();
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Allow all'));
+    await waitFor(() => expect(screen.getByTestId('granted')).toHaveTextContent('true'));
+    first.unmount();
+
+    // A newly installed service moves the fingerprint. Consent given for one company is not consent for
+    // another, and the stored answer must stop counting rather than quietly covering it.
+    stubConsent({ ...WITH_CATEGORY, fingerprint: 'different' });
+    renderBanner();
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
+    expect(screen.getByTestId('granted')).toHaveTextContent('false');
+  });
+
+  it('stops honouring an answer older than twelve months', async () => {
+    localStorage.setItem(
+      'mc.consent',
+      JSON.stringify({
+        version: 1,
+        decidedAt: new Date(Date.now() - 400 * 24 * 60 * 60 * 1000).toISOString(),
+        fingerprint: 'abc123',
+        categories: { analytics: true },
+      }),
+    );
+    stubConsent(WITH_CATEGORY);
+    renderBanner();
+
+    expect(await screen.findByText(TITLE)).toBeInTheDocument();
+    expect(screen.getByTestId('granted')).toHaveTextContent('false');
+  });
+
+  it('treats a Global Privacy Control signal as a refusal, without asking', async () => {
+    vi.stubGlobal('navigator', { ...navigator, globalPrivacyControl: true });
+    stubConsent(WITH_CATEGORY);
+    renderBanner();
+
+    await waitFor(() => expect(screen.getByTestId('granted')).toHaveTextContent('false'));
+    // The visitor already answered, in their browser settings. Putting a banner in front of them anyway
+    // would be asking a question that has been answered.
+    expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
   it('survives a payload that is missing its arrays', async () => {

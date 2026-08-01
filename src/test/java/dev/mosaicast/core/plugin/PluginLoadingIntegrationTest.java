@@ -341,16 +341,62 @@ class PluginLoadingIntegrationTest {
 
     @Test
     void consentAggregatesWhatActivePluginsDeclared() {
-        // The core sets nothing needing consent, so the payload is empty until a plugin declares a service;
-        // the fixture declares an `analytics` one and a `necessary` one, and `necessary` is never asked
-        // about — it is not optional (§12.5).
+        // The core asks nothing of its own, so the payload is empty until a plugin declares a service; the
+        // fixture declares an `analytics` one and a `necessary` one, and `necessary` is never asked about —
+        // it is not optional (§12.5).
         ResponseEntity<String> consent = rest.getForEntity("/api/consent", String.class);
         assertThat(consent.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(consent.getBody())
-                .contains("\"category\":\"analytics\"")
-                .contains("\"good\"")
-                .contains("plausible.example");
-        assertThat(consent.getBody()).doesNotContain("\"category\":\"necessary\"");
+                .contains("\"id\":\"analytics\"")
+                .contains("\"provider\"")
+                .contains("\"fingerprint\"");
+        assertThat(consent.getBody()).doesNotContain("\"id\":\"necessary\"");
+        // What core itself stores is disclosed rather than asked about, as i18n keys the shell resolves.
+        assertThat(consent.getBody())
+                .contains("\"essential\"")
+                .contains("mc.consent")
+                .contains("consent.purpose.progress");
+        // The visitor-facing payload names services and providers, never plugins or bare hostnames: the
+        // wording rules for §12.5 are enforced by what the endpoint is able to say, not by review.
+        assertThat(consent.getBody())
+                .doesNotContain("\"pluginId\"")
+                .doesNotContain("\"good\"")
+                .doesNotContain("plausible.example");
+    }
+
+    @Test
+    void theConsentAuditAttributesEveryDeclarationToItsPlugin() {
+        // The operator's view is the mirror image: it has to name the plugin, the origins and the services
+        // nobody is asked about, because "why is this host in the CSP?" is an operator question.
+        assertThat(rest.getForEntity("/api/admin/consent", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        Session admin = devLogin("admin");
+        ResponseEntity<String> audit =
+                rest.exchange("/api/admin/consent", HttpMethod.GET, admin.get(), String.class);
+        assertThat(audit.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(audit.getBody())
+                .contains("\"pluginId\":\"good\"")
+                .contains("https://plausible.example")
+                .contains("\"category\":\"necessary\"")
+                .contains("\"prompted\":false");
+    }
+
+    @Test
+    void theFingerprintChangesOnlyWhenTheDeclarationDoes() {
+        String before = rest.getForEntity("/api/consent", String.class).getBody();
+        assertThat(rest.getForEntity("/api/consent", String.class).getBody()).isEqualTo(before);
+
+        // Switching a plugin off removes its services, so the question a visitor already answered is no
+        // longer the question being asked — the shell must be able to see that.
+        Session admin = devLogin("admin");
+        setEnabled(admin, "good", false);
+        try {
+            assertThat(rest.getForEntity("/api/consent", String.class).getBody()).isNotEqualTo(before);
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+        assertThat(rest.getForEntity("/api/consent", String.class).getBody()).isEqualTo(before);
     }
 
     @Test

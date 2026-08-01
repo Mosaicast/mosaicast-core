@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { api } from '../api/client';
+import { progressEnabled } from '../consent/ConsentContext';
 import type { EpisodeDetail, EpisodeSummary } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { PlayerBar } from './PlayerBar';
@@ -96,7 +97,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (current?.id !== episode.id) {
         audio.src = url;
         // Restore the resume position: server-side for a logged-in user (§6.5), else localStorage.
-        let saved = Number(localStorage.getItem(progressKey(episode.id)) ?? 0);
+        // Nothing to restore once the visitor switched remembering off — the stored positions are gone.
+        let saved = progressEnabled() ? Number(localStorage.getItem(progressKey(episode.id)) ?? 0) : 0;
         if (userRef.current) {
           try {
             const map = await api.get<Record<string, number>>(
@@ -193,6 +195,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         return;
       }
       const seconds = Math.floor(audio.currentTime);
+      // Remembering the position is a disclosed feature with an off switch rather than a consent gate
+      // (§12.5) — first-party, local, never profiled, written only after a deliberate press of play. When
+      // it is off, nothing is written here or sent to the server.
+      if (!progressEnabled()) {
+        return;
+      }
       // localStorage every tick is cheap and covers anonymous + logout; server writes are throttled.
       localStorage.setItem(progressKey(current.id), String(seconds));
       const now = Date.now();

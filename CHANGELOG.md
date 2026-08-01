@@ -14,6 +14,42 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **Consent is now written for visitors (`0.5.11`, ARCHITECTURE §12.5)** — the declaration half shipped in
+  `0.5.9`; this is the half people actually read. The old banner said *"An installed plugin wants to load
+  content from third parties"* and listed `requested by: sample`, which is the site's architecture, not a
+  question anyone can answer. It also rendered raw category slugs, and its settings link existed **only**
+  when a plugin declared something — so a core-only install had no withdrawal surface at all, while still
+  writing `mc.locale`, `mc.site`, `mc.progress.*` and `mc.consent` to the device.
+  - **Visitors are told about services and companies.** Layer one names the providers involved and links the
+    privacy page; the settings name each service, who operates it, whether data leaves the EU/EEA, and every
+    item it stores with purpose and lifetime — from the manifest, so the notice cannot drift from what loads.
+    The words *plugin*, *slot* and *manifest* do not appear in visitor-facing text, and the endpoint that
+    feeds it has nowhere to put a plugin id.
+  - **Allow and refuse are the same button in the same row.** A quieter reject is a dark pattern with a case
+    history (DSK, Nov 2024; OLG Köln 2025), so both are the accent style and a test asserts the wording.
+  - **One settings component in three places** — `/cookies`, appended below the legal page marked `privacy`,
+    and inside the banner — because withdrawal has to be as easy as granting, and three near-identical
+    surfaces are how that stops being true. The footer link is now **unconditional**.
+  - **A stored answer can now stop counting.** `decided` used to be a single boolean, so a newly installed
+    plugin silently inherited a decision taken before it existed. The record now carries `decidedAt` and the
+    server's **declaration fingerprint**: change a provider, a host or even a cookie's lifetime and the
+    fingerprint moves, so the question is asked again. Answers also expire after twelve months.
+  - **Global Privacy Control is honoured** as a refusal — and, since it is an answer, without a banner. An
+    explicit choice in the settings still overrides it.
+  - **Playback position gets an off switch, not a consent gate.** It is first-party, local, never profiled
+    and written only after a deliberate press of play, so gating it would trade a real feature for a fake
+    choice. Switching it off also deletes the positions already stored.
+  - **The receipt stays on the visitor's device** (`mc.consent`, readable and exportable from the settings).
+    No server-side consent table: that would be a new store of personal data, with its own legal basis and
+    retention, created to prove something about visitors who are anonymous here. The operator's half is
+    **Admin → Consent** (`GET /api/admin/consent`) — every declared service attributed to its plugin, the
+    resulting CSP allow-list, and the fingerprint.
+  - **The core's own storage is generated, not written down.** `CoreStorageInventory` produces the "always
+    active" list from constants, with purposes and durations travelling as i18n keys so the disclosure reads
+    correctly in both locales. Flyway `V16` replaces the hand-written list in the seeded privacy page — which
+    had already drifted, having never mentioned `mc.consent` — with a pointer to it, by targeted replacement
+    so an operator's own edits to that template survive.
+
 - **The shell has a design-token layer, and the stylesheet is split (`0.5.10`, ARCHITECTURE §12.3)** — the
   `--mc-*` custom properties are a contract with plugins, and until now that contract was eight colours.
   Everything else a plugin might want to match — spacing, radii, elevation, type scale, motion — did not
