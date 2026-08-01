@@ -26,7 +26,29 @@
     "apiToken": { "type": "string", "default": "", "editableBy": "admin" }
   },
   "consent": {
-    "categories": ["analytics", "necessary"],
-    "externalSources": ["https://plausible.example", "bad;host"]
+    "services": [
+      {
+        "id": "stats",
+        "name": "Fixture Analytics",
+        "provider": "Fixture Analytics Ltd.",
+        "category": "analytics",
+        "privacyUrl": "https://plausible.example/privacy",
+        "hosts": ["https://plausible.example"],
+        "thirdCountryTransfer": false,
+        "storage": [
+          { "name": "fixture_id", "type": "cookie", "purpose": "counts a visit once", "duration": "24 hours" }
+        ]
+      },
+      {
+        "id": "session-keeper",
+        "name": "Fixture Session Keeper",
+        "provider": "The Mosaicast Authors",
+        "category": "necessary",
+        "privacyUrl": "https://necessary.example/privacy",
+        "hosts": ["https://necessary.example"],
+        "thirdCountryTransfer": false,
+        "storage": []
+      }
+    ]
   }
 }

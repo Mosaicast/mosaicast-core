@@ -5,16 +5,25 @@
   "name": "No Page Fixture",
   "backend": {
     "basePath": "/api/plugins/nopage",
-    "extensions": ["dev.mosaicast.plugin.fixture.FixturePlugin"]
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin"
+    ]
   },
   "frontend": {
     "entry": "fixture.js",
-    "elements": ["fixture-card"]
+    "elements": [
+      "fixture-card"
+    ]
   },
   "slots": [
-    { "scope": "episode", "element": "fixture-card", "placement": "main", "visibleTo": "anonymous", "order": 100 }
+    {
+      "scope": "episode",
+      "element": "fixture-card",
+      "placement": "main",
+      "visibleTo": "anonymous",
+      "order": 100
+    }
   ],
   "storage": "doc",
-  "config": {},
-  "consent": { "categories": [], "externalSources": [] }
+  "config": {}
 }

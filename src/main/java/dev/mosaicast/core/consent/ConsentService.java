@@ -68,7 +68,13 @@ public class ConsentService {
     public record SourceView(String source, String pluginId) {
     }
 
-    /** The aggregate over all active plugins. */
+    /**
+     * The aggregate over all active plugins, derived from their declared services.
+     *
+     * <p>Services are grouped into the categories the visitor actually decides on: two services sharing a
+     * category are granted or refused together, which is what {@code ctx.consent.has(category)} gates on.
+     * {@code necessary} never reaches the visitor — it is, by definition, not optional.
+     */
     public ConsentView current() {
         List<CategoryView> categories = new ArrayList<>();
         List<SourceView> sources = new ArrayList<>();
@@ -80,12 +86,9 @@ public class ConsentService {
             if (consent == null) {
                 continue;
             }
-            if (consent.categories() != null) {
-                for (String raw : consent.categories()) {
-                    String category = normalize(raw);
-                    if (category == null || CATEGORY_NECESSARY.equals(category)) {
-                        continue;
-                    }
+            for (PluginManifest.Service service : consent.servicesOrEmpty()) {
+                String category = normalize(service.category());
+                if (category != null && !CATEGORY_NECESSARY.equals(category)) {
                     if (seen.add(category)) {
                         categories.add(new CategoryView(category, new ArrayList<>(),
                                 KNOWN_CATEGORIES.contains(category)));
@@ -93,13 +96,14 @@ public class ConsentService {
                     categories.stream()
                             .filter(c -> c.category().equals(category))
                             .findFirst()
+                            .filter(c -> !c.pluginIds().contains(registration.id()))
                             .ifPresent(c -> c.pluginIds().add(registration.id()));
                 }
-            }
-            if (consent.externalSources() != null) {
-                consent.externalSources().stream()
-                        .filter(source -> source != null && !source.isBlank())
-                        .forEach(source -> sources.add(new SourceView(source.trim(), registration.id())));
+                // A `necessary` service still contributes its hosts: it loads without being asked about, so
+                // the CSP must allow it, and the notice still has to disclose it.
+                service.hostsOrEmpty().stream()
+                        .filter(host -> host != null && !host.isBlank())
+                        .forEach(host -> sources.add(new SourceView(host.trim(), registration.id())));
             }
         }
         return new ConsentView(categories, sources, privacySlug());

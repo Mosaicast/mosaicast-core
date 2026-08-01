@@ -341,8 +341,9 @@ class PluginLoadingIntegrationTest {
 
     @Test
     void consentAggregatesWhatActivePluginsDeclared() {
-        // The core sets nothing needing consent, so the payload is empty until a plugin declares a category;
-        // the fixture declares `analytics` plus `necessary`, and `necessary` is never asked about (§12.5).
+        // The core sets nothing needing consent, so the payload is empty until a plugin declares a service;
+        // the fixture declares an `analytics` one and a `necessary` one, and `necessary` is never asked
+        // about — it is not optional (§12.5).
         ResponseEntity<String> consent = rest.getForEntity("/api/consent", String.class);
         assertThat(consent.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(consent.getBody())
@@ -357,9 +358,11 @@ class PluginLoadingIntegrationTest {
         HttpHeaders headers = rest.getForEntity("/api/meta", String.class).getHeaders();
         String csp = headers.getFirst("Content-Security-Policy");
         assertThat(csp).isNotNull();
-        assertThat(csp).contains("script-src 'self' https://plausible.example");
-        // The fixture also declares a host containing a separator; it is dropped, not escaped.
-        assertThat(csp).doesNotContain("bad;host");
+        assertThat(csp).contains("script-src 'self'").contains("https://plausible.example");
+        // A `necessary` service is never asked about but still loads, so its origin must be allowed too.
+        assertThat(csp).contains("https://necessary.example");
+        // Nothing else gets in: an origin no plugin declared stays blocked.
+        assertThat(csp).doesNotContain("evil.example");
     }
 
     @Test

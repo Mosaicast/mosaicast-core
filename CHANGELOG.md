@@ -36,6 +36,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - **Accessibility baseline:** one `:focus-visible` ring for every interactive element (declared on the
     elements, not a class, so a new surface inherits it), a 32px minimum target, `color-scheme` per theme,
     and `prefers-reduced-motion` honoured both through the motion tokens and as a catch-all.
+- **Manifest `consent.services[]` (`0.5.9`, ARCHITECTURE §12.5):** the plugin consent declaration moves from
+  category slugs plus bare hostnames to **named services**, matching what SDK `0.4.0` documents. Each service
+  carries `name`, `provider` (the operating company), `category`, `privacyUrl`, `hosts`,
+  `thirdCountryTransfer` and a `storage[]` list of what it puts on the device with purpose and lifetime.
+  - **Why:** a notice that satisfies §25 TDDDG / Art. 5(3) ePD has to name each stored item, its purpose, its
+    lifetime, its provider and whether data leaves the country. Slugs and hostnames cannot produce that, and
+    they forced the notice to talk about "plugins" to visitors who care about cookies and companies.
+  - **The legacy form is rejected at load**, with a message naming the replacement — a plugin that kept it
+    would otherwise load with its consent declaration silently dropped, meaning no banner and no CSP origins
+    for third parties it really does contact.
+  - Validation also rejects a service with no name or category, and a **host without a scheme**: hosts double
+    as CSP origins, and `plausible.example` is not an origin — it would never match, so the plugin's embeds
+    would fail with consent granted and nothing to explain why.
+  - `necessary` services are never asked about but still contribute their origins to the CSP and their
+    storage to the disclosure — they load without being asked, so they must be allowed and disclosed.
+  - Optional fields may be omitted (`thirdCountryTransfer` is boxed, because Jackson 3 refuses to map a
+    missing value onto a primitive and would fail the parse before validation could explain anything).
 
 - **Spring Boot 4.1, Jackson 3 and plugin contract `0.4.0` (`0.5.8`)** — one coordinated move, because each
   blocks the others: Boot 3.4 is past OSS support, Boot 4 defaults to Jackson 3, and SDK `0.4.0` types the
