@@ -1,14 +1,19 @@
 /* SPDX-License-Identifier: AGPL-3.0-or-later */
 /* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
 
-/* The persistent player bar (§6.5) and the clearance the rest of the page owes it. */
+/*
+ * The persistent player bar (§6.5) and the clearance the rest of the page owes it.
+ *
+ * `--mc-player-height` is a token rather than a number repeated here: a plugin mounted in the `player`
+ * region needs to know how tall its container is, and the page needs to know how much to keep clear.
+ */
 
-/* ---- persistent player ---- */
 .mc-root {
   /* Clearance for the fixed player bar — on the root (not .mc-main) so the footer, a sibling after main,
      also clears the player instead of being covered by it. */
-  padding-bottom: 108px;
+  padding-bottom: calc(var(--mc-player-height) + var(--mc-space-6));
 }
+
 .mc-player {
   position: fixed;
   left: 0;
@@ -17,25 +22,28 @@
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 1.25rem;
-  min-height: 76px;
-  padding: 0.7rem 1.25rem;
-  background: var(--mc-surface);
+  gap: var(--mc-space-5);
+  min-height: var(--mc-player-height);
+  padding: var(--mc-space-2) var(--mc-space-5);
+  background: color-mix(in srgb, var(--mc-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
   border-top: 1px solid var(--mc-border);
+  box-shadow: var(--mc-shadow-3);
 }
+
 .mc-player__now {
-  flex: 0 1 280px;
+  flex: 0 1 300px;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--mc-space-3);
 }
 .mc-player__cover {
   flex: 0 0 auto;
   width: 52px;
   height: 52px;
   line-height: 0;
-  border-radius: 8px;
+  border-radius: var(--mc-radius-sm);
   overflow: hidden;
 }
 .mc-player__meta {
@@ -43,57 +51,179 @@
 }
 .mc-player__sub {
   display: flex;
-  gap: 0.5rem;
-  font-size: 0.75rem;
+  gap: var(--mc-space-2);
+  font-size: var(--mc-text-xs);
   overflow: hidden;
   white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 .mc-player__title {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--mc-weight-medium);
   color: var(--mc-text);
 }
+
 .mc-player__transport {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--mc-space-3);
+}
+.mc-player__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--mc-space-1);
 }
 .mc-player__play {
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border-radius: 50%;
   border: none;
   background: var(--mc-accent);
   color: var(--mc-accent-contrast);
   cursor: pointer;
   flex: 0 0 auto;
+  font-size: var(--mc-text-base);
+  transition: transform var(--mc-motion-fast) var(--mc-ease);
 }
+.mc-player__play:hover {
+  transform: scale(1.06);
+}
+
+/* ±15/30 s. The number rides inside the arrow, the way every podcast app draws it. */
+.mc-player__skip {
+  position: relative;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--mc-text-muted);
+  font-size: var(--mc-text-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color var(--mc-motion-fast) var(--mc-ease),
+    background var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-player__skip:hover {
+  color: var(--mc-text);
+  background: var(--mc-hover);
+}
+.mc-player__skipnum {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.55rem;
+  font-weight: var(--mc-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.mc-player__rate {
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-pill);
+  background: none;
+  color: var(--mc-text-muted);
+  font: inherit;
+  font-size: var(--mc-text-xs);
+  font-variant-numeric: tabular-nums;
+  padding: var(--mc-space-1) var(--mc-space-2);
+  min-width: 3rem;
+  cursor: pointer;
+  transition:
+    color var(--mc-motion-fast) var(--mc-ease),
+    border-color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-player__rate:hover {
+  color: var(--mc-text);
+  border-color: var(--mc-border-strong);
+}
+
+/*
+ * The scrubber. One `<input type="range">` — keyboard-seekable and announced correctly — with the played
+ * portion painted into its track from `--mc-played`, so there is no second element to keep in sync.
+ */
 .mc-player__scrub {
   flex: 1;
+  appearance: none;
+  height: 1rem;
+  background: none;
+  cursor: pointer;
 }
+.mc-player__scrub::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: var(--mc-radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--mc-accent) var(--mc-played, 0%),
+    var(--mc-border) var(--mc-played, 0%)
+  );
+}
+.mc-player__scrub::-moz-range-track {
+  height: 4px;
+  border-radius: var(--mc-radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--mc-accent) var(--mc-played, 0%),
+    var(--mc-border) var(--mc-played, 0%)
+  );
+}
+.mc-player__scrub::-webkit-slider-thumb {
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--mc-accent);
+  box-shadow: var(--mc-shadow-1);
+}
+.mc-player__scrub::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: none;
+  border-radius: 50%;
+  background: var(--mc-accent);
+}
+
 .mc-player__time {
   font-variant-numeric: tabular-nums;
-  font-size: 0.8rem;
+  font-size: var(--mc-text-xs);
   color: var(--mc-text-muted);
   flex: 0 0 auto;
 }
+
 .mc-player__right {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--mc-space-3);
 }
 .mc-player__vol {
   width: 90px;
+  accent-color: var(--mc-accent);
 }
-@media (max-width: 720px) {
+
+/* On a phone the bar keeps play, skip and the scrubber; the rest is what goes first. */
+@media (max-width: 860px) {
+  .mc-player {
+    gap: var(--mc-space-3);
+    padding: var(--mc-space-2) var(--mc-space-3);
+  }
   .mc-player__now {
     flex-basis: 120px;
   }
-  .mc-player__vol {
+  .mc-player__vol,
+  .mc-player__rate {
+    display: none;
+  }
+}
+@media (max-width: 560px) {
+  .mc-player__sub,
+  .mc-player__time {
     display: none;
   }
 }

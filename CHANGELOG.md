@@ -14,6 +14,31 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **The shell is art-directed rather than merely laid out (`0.5.12`)** — every region, route and
+  `data-slot` name is unchanged, because plugins target those; what changed is how it all looks, now that
+  there are tokens to build on.
+  - **Cards** lead with the artwork (168px), meta reads as chips instead of loose text, the title carries
+    the type weight, and hovering lifts the card and lights an accent rail. Where this device got to in an
+    episode is drawn along the bottom of the cover — read straight from `localStorage`, because thirty
+    cards should not mean thirty requests to paint a 3px line.
+  - **The detail hero is full-bleed**, with the episode's own artwork blurred behind its title and a
+    gradient dissolving into the page. Each episode page now looks like *that* episode, from data the feed
+    already provides. The sidebar region sticks while the notes scroll; prev/next are destinations rather
+    than bare links.
+  - **The player earns its bar:** ±15/30 s, a speed control cycling 1×–2× (remembered across episodes as
+    `mc.prefs.rate`, disclosed with the rest), a scrubber that shows how far in you are, and **keyboard
+    control** — space, arrows, `J`/`L` — bound at the document so it works wherever focus is, and standing
+    down inside inputs and plugin shadow DOM so typing never seeks the audio.
+  - **Loading and empty are states, not gaps:** card-shaped skeletons on first load so nothing jumps, and
+    an empty feed that says what to try next.
+  - Chrome, forms and admin moved onto the tokens: translucent top bar, a mobile-collapsing nav, hover and
+    active states throughout, styled native selects, and **a disabled button that looks disabled** (an open
+    note from the M4 review — a control that looks live and does nothing reads as a broken page).
+  - **Code:** `useResource` replaces the fetch/`useEffect`/`active`-flag triple that had been copied into
+    fifteen components with subtly different failure behaviour, and a `MetaProvider` ends the duplicate
+    `/api/meta` request that `TopBar` and `Footer` each made on every load.
+  - README screenshots refreshed (home, detail, account, admin — light and dark).
+
 - **Consent is now written for visitors (`0.5.11`, ARCHITECTURE §12.5)** — the declaration half shipped in
   `0.5.9`; this is the half people actually read. The old banner said *"An installed plugin wants to load
   content from third parties"* and listed `requested by: sample`, which is the site's architecture, not a

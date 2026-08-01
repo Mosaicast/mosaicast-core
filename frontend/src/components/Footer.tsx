@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { api } from '../api/client';
 import { MOSAICAST_REPO_URL } from '../api/constants';
+import { useMeta } from '../api/MetaContext';
 import { useLegalEntries } from '../hooks/useLegalEntries';
 import { useSite } from '../theme/SiteContext';
 
@@ -19,24 +18,7 @@ export function Footer() {
   const { t } = useTranslation();
   const { site } = useSite();
   const legal = useLegalEntries();
-  const [version, setVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .get<{ version?: string }>('/api/meta')
-      .then((meta) => {
-        if (active && meta.version) {
-          setVersion(meta.version);
-        }
-      })
-      .catch(() => {
-        /* meta is non-critical */
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const version = useMeta()?.version ?? null;
 
   return (
     <footer className="mc-foot">

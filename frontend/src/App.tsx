@@ -3,6 +3,7 @@
 
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
+import { MetaProvider } from './api/MetaContext';
 import { RequireRole } from './auth/RequireRole';
 import { UserProvider } from './auth/UserContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -40,6 +41,7 @@ export default function App() {
   const location = useLocation();
   return (
     <SiteProvider>
+      <MetaProvider>
       <UserProvider>
         <FeedsProvider>
           <PlayerProvider>
@@ -140,6 +142,7 @@ export default function App() {
           </PlayerProvider>
         </FeedsProvider>
       </UserProvider>
+      </MetaProvider>
     </SiteProvider>
   );
 }
