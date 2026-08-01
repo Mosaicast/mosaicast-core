@@ -356,12 +356,14 @@ class PluginLoadingIntegrationTest {
                 .contains("\"essential\"")
                 .contains("mc.consent")
                 .contains("consent.purpose.progress");
-        // The visitor-facing payload names services and providers, never plugins or bare hostnames: the
-        // wording rules for §12.5 are enforced by what the endpoint is able to say, not by review.
+        // The visitor-facing payload names services and providers, never plugins: the wording rules for
+        // §12.5 are enforced by what the endpoint is able to say, not by review. It also carries no `hosts`
+        // — an origin is an operator's unit, not a visitor's, and it belongs to the audit and the CSP.
+        // (The provider's own `privacyUrl` is a different thing and is meant to be there.)
         assertThat(consent.getBody())
                 .doesNotContain("\"pluginId\"")
                 .doesNotContain("\"good\"")
-                .doesNotContain("plausible.example");
+                .doesNotContain("\"hosts\"");
     }
 
     @Test
