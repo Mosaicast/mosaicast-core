@@ -1,0 +1,188 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/* Buttons, inputs and the small building blocks the account and admin forms are made of. */
+
+/* ---- buttons ---- */
+.mc-btn {
+  border-radius: 7px;
+  padding: 0.4rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-bg);
+  color: var(--mc-text);
+}
+.mc-btn:hover {
+  text-decoration: none;
+}
+.mc-btn--ghost {
+  background: transparent;
+}
+.mc-btn--accent {
+  background: var(--mc-accent);
+  color: var(--mc-accent-contrast);
+  border-color: var(--mc-accent);
+}
+
+.mc-account__profile {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.mc-account__name {
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+.mc-account h2 {
+  margin: 1.75rem 0 0.75rem;
+  font-size: 1.15rem;
+}
+.mc-error {
+  color: var(--mc-accent);
+}
+
+.mc-errorpage {
+  max-width: 32rem;
+  margin: 3rem auto;
+  padding: 1.5rem;
+  text-align: center;
+}
+.mc-errorpage__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.mc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.mc-list__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+}
+.mc-identity__provider {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.mc-token-secret {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-accent);
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 0.75rem 0 1rem;
+}
+.mc-token-secret__value {
+  display: block;
+  word-break: break-all;
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  background: var(--mc-bg);
+  border-radius: 6px;
+}
+.mc-token-create {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.mc-input {
+  font: inherit;
+  padding: 0.5rem 0.7rem;
+  border-radius: 7px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+}
+.mc-input--num {
+  width: 5rem;
+}
+.mc-textarea {
+  font: inherit;
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border-radius: 7px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  resize: vertical;
+}
+
+.mc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.mc-form h2 {
+  margin: 0.5rem 0 0;
+  font-size: 1.1rem;
+}
+.mc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 420px;
+}
+.mc-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mc-field span {
+  font-size: 0.85rem;
+  color: var(--mc-text-muted);
+}
+.mc-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+}
+
+/* ---- M4.2: accent color picker ---- */
+.mc-colorpick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.mc-colorpick__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.mc-colorpick__input::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.mc-colorpick__input::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+.mc-colorpick__input::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}

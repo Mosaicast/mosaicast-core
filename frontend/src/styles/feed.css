@@ -1,0 +1,283 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/* The feed view (§6.1): tabs, filter bar, scope panel, episode cards, paging. */
+
+/* ---- feed catalog (E4a) ---- */
+.mc-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.mc-feed-list__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+}
+
+/* ---- filter bar ---- */
+.mc-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.mc-filter {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+.mc-filter select {
+  font: inherit;
+  padding: 0.4rem 0.6rem;
+  border-radius: 7px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+}
+
+/* ---- feed tabs ---- */
+.mc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-tab {
+  padding: 0.5rem 0.9rem;
+  color: var(--mc-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.mc-tab:hover {
+  text-decoration: none;
+  color: var(--mc-text);
+}
+.mc-tab--active {
+  color: var(--mc-accent);
+  border-bottom-color: var(--mc-accent);
+  font-weight: 600;
+}
+
+.mc-tabs--sub {
+  margin-top: 1rem;
+}
+.mc-tab__empty {
+  opacity: 0.5;
+}
+
+/* ---- two-column feed layout: scope panel | list ---- */
+.mc-feedlayout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 1.75rem;
+  align-items: start;
+}
+.mc-feedmain {
+  min-width: 0;
+}
+@media (max-width: 860px) {
+  .mc-feedlayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mc-scope-panel {
+  position: sticky;
+  top: 5rem; /* clear the sticky top bar */
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+@media (max-width: 860px) {
+  .mc-scope-panel {
+    position: static;
+  }
+}
+.mc-scope-panel .mc-cover,
+.mc-scope-panel__logo {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: contain;
+  border-radius: 12px;
+}
+.mc-scope-panel__title {
+  margin: 0.4rem 0 0;
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+.mc-scope-panel__author,
+.mc-scope-panel__count {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.mc-scope-panel__desc {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.mc-scope-panel__desc :is(p, ul, ol) {
+  margin: 0 0 0.6rem;
+}
+
+/* ---- infinite scroll ---- */
+.mc-feed-sentinel {
+  height: 1px;
+}
+.mc-feed-loading {
+  text-align: center;
+  padding: 1rem 0;
+}
+.mc-feed-more {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 1rem;
+}
+
+/* ---- episode cards (one-column, cover-left) ---- */
+.mc-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.mc-card {
+  display: flex;
+  gap: 1.25rem;
+  padding: 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+}
+.mc-card--upcoming {
+  border-style: dashed;
+}
+.mc-card--locked {
+  opacity: 0.85;
+}
+
+.mc-card__cover {
+  position: relative;
+  flex: 0 0 auto;
+  width: 132px;
+  height: 132px;
+}
+.mc-cover {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.mc-cover--img {
+  object-fit: cover;
+}
+.mc-card__play,
+.mc-card__cover .mc-card__play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in srgb, var(--mc-accent) 85%, transparent);
+  color: var(--mc-accent-contrast);
+  font-size: 1.1rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+/* Reveal on hovering anywhere on the card (bigger, more discoverable target) or keyboard focus. */
+.mc-card:hover .mc-card__play,
+.mc-card:focus-within .mc-card__play {
+  opacity: 1;
+}
+/* Touch / no-hover inputs never hover — keep the play affordance visible there. */
+@media (hover: none) {
+  .mc-card__play {
+    opacity: 1;
+  }
+}
+
+.mc-card__body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.mc-card__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.82rem;
+}
+.mc-card__feed {
+  font-weight: 600;
+  color: var(--mc-accent-2);
+}
+.mc-card__title {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.25;
+}
+.mc-card__title a {
+  color: var(--mc-text);
+}
+.mc-card__subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+}
+.mc-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  align-items: center;
+}
+.mc-card__excerpt {
+  margin: 0.15rem 0 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--mc-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 620px) {
+  .mc-card {
+    flex-direction: column;
+  }
+}
+
+.mc-chip {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--mc-accent-2);
+  color: var(--mc-accent-contrast);
+  font-size: 0.75rem;
+}
+.mc-chip--lock {
+  background: var(--mc-border);
+  color: var(--mc-text-muted);
+}
+
+/* ---- pagination ---- */
+.mc-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}

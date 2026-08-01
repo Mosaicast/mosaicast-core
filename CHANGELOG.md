@@ -14,6 +14,29 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **The shell has a design-token layer, and the stylesheet is split (`0.5.10`, ARCHITECTURE §12.3)** — the
+  `--mc-*` custom properties are a contract with plugins, and until now that contract was eight colours.
+  Everything else a plugin might want to match — spacing, radii, elevation, type scale, motion — did not
+  exist, so a plugin author had two options: hard-code values that break in dark mode, or guess. The shell
+  had the same problem from the inside: 1482 lines with two `transition`s, two `box-shadow`s and no focus
+  ring worth the name.
+  - **New tokens** in `frontend/src/styles/tokens.css`: surfaces and state layers (`--mc-surface-2`,
+    `--mc-hover`, `--mc-active`, `--mc-accent-soft`, `--mc-border-strong`, `--mc-overlay`, `--mc-focus`),
+    feedback colours, a space scale, radii, three elevations, a type scale, motion, and layout constants
+    (`--mc-container`, `--mc-player-height`). The eight original colour names are untouched.
+  - **Derived, not duplicated.** The seed generator only writes the eight colours at runtime, so every other
+    colour token is a `color-mix()` over them. An admin dragging the accent moves the hover layer and the
+    strong border with it, instead of leaving them at their light-theme defaults. Only the feedback colours
+    and the shadow alphas — which cannot be derived and stay readable — are written per theme.
+  - **Plugins get this for free**, because custom properties inherit across a shadow boundary. Only the eight
+    colours are also delivered as JS (`ctx.theme`); everything else is CSS-only and needs no SDK bump. The
+    token table is in the README under *Theming a plugin*.
+  - **`styles.css` is now an `@import` manifest** over `styles/{tokens,base,chrome,feed,detail,player,forms,
+    admin,consent}.css`. Rules moved verbatim — this is a split, not a restyle.
+  - **Accessibility baseline:** one `:focus-visible` ring for every interactive element (declared on the
+    elements, not a class, so a new surface inherits it), a 32px minimum target, `color-scheme` per theme,
+    and `prefers-reduced-motion` honoured both through the motion tokens and as a catch-all.
+
 - **Spring Boot 4.1, Jackson 3 and plugin contract `0.4.0` (`0.5.8`)** — one coordinated move, because each
   blocks the others: Boot 3.4 is past OSS support, Boot 4 defaults to Jackson 3, and SDK `0.4.0` types the
   contract on Jackson 3.

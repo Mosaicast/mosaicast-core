@@ -1,0 +1,209 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/* The persistent chrome: top bar, dropdown menus, avatars, banners and the footer. */
+
+/* ---- top bar ---- */
+.mc-top {
+  background: var(--mc-surface);
+  border-bottom: 1px solid var(--mc-border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mc-top__inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.mc-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--mc-text);
+}
+.mc-brand:hover {
+  text-decoration: none;
+}
+
+.mc-brand__logo {
+  width: 1.7rem;
+  height: 1.7rem;
+  display: block;
+  object-fit: contain;
+}
+
+.mc-nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.mc-top__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+/* ---- account / auth ---- */
+.mc-avatar {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.mc-avatar--lg {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.mc-menu {
+  position: relative;
+}
+.mc-menu__summary {
+  list-style: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.15rem;
+  line-height: 1;
+}
+.mc-menu__summary::-webkit-details-marker {
+  display: none;
+}
+.mc-menu__icon {
+  display: inline-flex;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.mc-menu__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.mc-menu__label::after {
+  content: '▾';
+  font-size: 0.65em;
+  opacity: 0.7;
+}
+.mc-menu__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.4rem);
+  min-width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.4rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+  z-index: 30;
+  animation: mc-menu-in 0.12s ease;
+}
+@keyframes mc-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.mc-menu__panel [aria-current='true'] {
+  color: var(--mc-accent);
+  font-weight: 600;
+}
+.mc-menu__panel a,
+.mc-menu__panel button {
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--mc-text);
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
+}
+.mc-menu__panel a:hover,
+.mc-menu__panel button:hover {
+  background: var(--mc-bg);
+  text-decoration: none;
+}
+.mc-menu__role {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.mc-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin: 1.5rem auto 0;
+  max-width: 960px;
+}
+.mc-banner--error {
+  background: color-mix(in srgb, var(--mc-accent) 14%, var(--mc-surface));
+  border: 1px solid var(--mc-accent);
+}
+.mc-banner__close {
+  background: none;
+  border: none;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
+/* ---- footer ---- */
+.mc-foot {
+  border-top: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text-muted);
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  gap: 1rem 1.5rem;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+}
+.mc-foot__legal {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.mc-foot__legal a {
+  color: var(--mc-text-muted);
+  text-decoration: none;
+}
+.mc-foot__legal a:hover {
+  color: var(--mc-text);
+  text-decoration: underline;
+}
+
+/* ---- M4.2: footer credit ---- */
+.mc-foot__version a {
+  color: var(--mc-text-muted);
+}
+.mc-foot__version a:hover {
+  color: var(--mc-text);
+  text-decoration: none;
+}
