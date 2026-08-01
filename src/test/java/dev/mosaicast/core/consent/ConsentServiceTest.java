@@ -17,6 +17,7 @@ import dev.mosaicast.core.plugin.PluginManifest;
 import dev.mosaicast.core.plugin.PluginRegistration;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -108,6 +109,39 @@ class ConsentServiceTest {
                 .filteredOn(CoreStorageInventory.Item::optional)
                 .extracting(CoreStorageInventory.Item::name)
                 .containsExactly("mc.progress.*");
+    }
+
+    @Test
+    void aRefusedCategoryLosesItsOriginsFromThePolicy() {
+        when(plugins.allActive()).thenReturn(List.of(
+                plugin("stats", service("Fixture Analytics", "analytics", "https://plausible.example")),
+                plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
+
+        // Nothing granted — the state before any decision, and after a refusal. `has()` is advisory, so this
+        // is the part a plugin cannot ignore: the origin simply is not in the policy.
+        assertThat(service.allowedSources(Set.of())).containsExactly("https://necessary.example");
+
+        // Granted: the declared origin comes back.
+        assertThat(service.allowedSources(Set.of("analytics")))
+                .containsExactlyInAnyOrder("https://plausible.example", "https://necessary.example");
+
+        // A category nobody declared grants nothing — a forged cookie widens no further than the manifest.
+        assertThat(service.allowedSources(Set.of("analytics", "made-up")))
+                .containsExactlyInAnyOrder("https://plausible.example", "https://necessary.example");
+    }
+
+    @Test
+    void aSiteWithNothingOptionalNeedsNoPerVisitorPolicy() {
+        when(plugins.allActive()).thenReturn(List.of(
+                plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
+
+        // Drives whether the response has to carry `Vary: Cookie`: when every declared service is necessary,
+        // the policy is identical for everyone and varying would cost cacheability for nothing.
+        assertThat(service.hasOptionalSources()).isFalse();
+
+        when(plugins.allActive()).thenReturn(List.of(
+                plugin("stats", service("Fixture Analytics", "analytics", "https://plausible.example"))));
+        assertThat(service.hasOptionalSources()).isTrue();
     }
 
     @Test

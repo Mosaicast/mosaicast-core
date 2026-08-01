@@ -43,6 +43,36 @@ const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
 const PROGRESS_PREF_KEY = 'mc.prefs.progress';
 
 /**
+ * The decision, mirrored into a cookie so the **server** can act on it (`ConsentCookie` on the Java side).
+ *
+ * `localStorage` is invisible to an HTTP response, so the Content-Security-Policy — the one thing a plugin
+ * cannot talk its way past — had to be written blind and therefore allowed every declared origin whatever
+ * the visitor chose. With the decision in a cookie the server narrows the policy to the categories actually
+ * granted, so a plugin that ignores `ctx.consent.has()` gets a blocked request instead of a silent one.
+ *
+ * Dot-separated because `Set-Cookie` treats commas and spaces as separators. Strictly necessary — it exists
+ * only to carry out the visitor's own refusal — and disclosed with everything else.
+ */
+const CONSENT_COOKIE = 'mc_consent';
+const COOKIE_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
+function writeConsentCookie(categories: Record<string, boolean>): void {
+  const granted = Object.entries(categories)
+    .filter(([, on]) => on)
+    .map(([category]) => category)
+    .filter((category) => /^[a-z0-9_-]{1,40}$/i.test(category))
+    .join('.');
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie =
+    `${CONSENT_COOKIE}=${granted}; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
+}
+
+/** Drops the mirror, so the server falls back to allowing nothing optional. */
+function clearConsentCookie(): void {
+  document.cookie = `${CONSENT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+/**
  * The stored decision — a **consent receipt**, kept on the visitor's own device.
  *
  * Deliberately not sent to the server: a per-visitor consent table would be a new store of personal data,
@@ -217,6 +247,20 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       .catch(() => setPayload(EMPTY));
   }, []);
 
+  // Keep the server's copy honest about a decision that stopped counting. An expired answer, or one given
+  // about a different set of services, must not leave a stale allow-list in the policy — and a cookie the
+  // visitor cleared while keeping localStorage (or the reverse) has to converge on the stricter of the two.
+  useEffect(() => {
+    if (!payload.fingerprint) {
+      return;
+    }
+    if (isCurrent(record, payload.fingerprint)) {
+      writeConsentCookie(record!.categories);
+    } else {
+      clearConsentCookie();
+    }
+  }, [payload.fingerprint, record]);
+
   const stored = isCurrent(record, payload.fingerprint);
   const effective = useMemo(
     () => (stored && record ? record.categories : {}),
@@ -254,6 +298,9 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       } catch {
         // A visitor blocking storage still gets their choice for this page view.
       }
+      // The server reads this on the next request and narrows the CSP accordingly. Written even when
+      // localStorage refused, since the cookie is what makes the refusal enforceable.
+      writeConsentCookie(next);
       // Tell anything already mounted — a plugin that loaded third-party content must be able to unload it
       // the moment the visitor withdraws, not at the next navigation.
       listeners.current.forEach((listener) => listener());

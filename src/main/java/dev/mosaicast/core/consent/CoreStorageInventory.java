@@ -59,6 +59,9 @@ public final class CoreStorageInventory {
                     "consent.purpose.site", "consent.duration.persistent", false),
             new Item(CONSENT_KEY, "localStorage",
                     "consent.purpose.consent", "consent.duration.months12", false),
+            // The same decision, mirrored where an HTTP response can read it — see ConsentCookie.
+            new Item(ConsentCookie.NAME, "cookie",
+                    "consent.purpose.consentCookie", "consent.duration.months12", false),
             new Item("mc.progress.*", "localStorage",
                     "consent.purpose.progress", "consent.duration.persistent", true),
             new Item(PROGRESS_PREF_KEY, "localStorage",

@@ -132,6 +132,7 @@
   "consent.purpose.locale": "Remembers the language you chose",
   "consent.purpose.site": "Remembers the site's colours so the page does not flash white on load",
   "consent.purpose.consent": "Remembers the choice you make here",
+  "consent.purpose.consentCookie": "Tells the server what you allowed, so it can block the rest",
   "consent.purpose.progress": "Remembers where you stopped listening",
   "consent.purpose.progressPref": "Remembers your choice about remembering the position",
   "consent.duration.session": "Until you close the browser",

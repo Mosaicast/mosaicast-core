@@ -367,6 +367,34 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void aVisitorWhoRefusedGetsAPolicyWithoutThatOrigin() {
+        // Without the cookie — a first visit, or a refusal — nothing optional is allowed. This is the half of
+        // consent a plugin cannot ignore: `ctx.consent.has()` is advisory, a blocked connection is not.
+        HttpHeaders refused = rest.getForEntity("/api/meta", String.class).getHeaders();
+        String refusedCsp = refused.getFirst("Content-Security-Policy");
+        assertThat(refusedCsp).doesNotContain("https://plausible.example");
+        // A `necessary` service is never asked about, so no decision can withdraw it.
+        assertThat(refusedCsp).contains("https://necessary.example");
+        // The policy now differs between visitors, so a shared cache must key on the cookie.
+        assertThat(refused.get(HttpHeaders.VARY)).anySatisfy(v -> assertThat(v).containsIgnoringCase("cookie"));
+
+        HttpHeaders granted = rest.exchange("/api/meta", HttpMethod.GET,
+                new HttpEntity<>(cookieHeader("mc_consent=analytics")), String.class).getHeaders();
+        assertThat(granted.getFirst("Content-Security-Policy")).contains("https://plausible.example");
+
+        // A forged category widens nothing: the manifest, not the cookie, decides which origins exist.
+        HttpHeaders forged = rest.exchange("/api/meta", HttpMethod.GET,
+                new HttpEntity<>(cookieHeader("mc_consent=analytics.evil")), String.class).getHeaders();
+        assertThat(forged.getFirst("Content-Security-Policy")).doesNotContain("evil");
+    }
+
+    private static HttpHeaders cookieHeader(String cookie) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, cookie);
+        return headers;
+    }
+
+    @Test
     void theConsentAuditAttributesEveryDeclarationToItsPlugin() {
         // The operator's view is the mirror image: it has to name the plugin, the origins and the services
         // nobody is asked about, because "why is this host in the CSP?" is an operator question.
@@ -403,7 +431,9 @@ class PluginLoadingIntegrationTest {
 
     @Test
     void declaredHostsWidenTheCspAndUndeclaredOnesDoNot() {
-        HttpHeaders headers = rest.getForEntity("/api/meta", String.class).getHeaders();
+        // With consent granted for the declared category — the refusal case is covered separately.
+        HttpHeaders headers = rest.exchange("/api/meta", HttpMethod.GET,
+                new HttpEntity<>(cookieHeader("mc_consent=analytics")), String.class).getHeaders();
         String csp = headers.getFirst("Content-Security-Policy");
         assertThat(csp).isNotNull();
         assertThat(csp).contains("script-src 'self'").contains("https://plausible.example");

@@ -132,6 +132,7 @@
   "consent.purpose.locale": "Merkt sich die gewählte Sprache",
   "consent.purpose.site": "Merkt sich die Farben der Seite, damit sie beim Laden nicht weiß aufblitzt",
   "consent.purpose.consent": "Merkt sich Ihre Entscheidung von hier",
+  "consent.purpose.consentCookie": "Teilt dem Server mit, was Sie erlaubt haben, damit er den Rest blockiert",
   "consent.purpose.progress": "Merkt sich, wo Sie zu hören aufgehört haben",
   "consent.purpose.progressPref": "Merkt sich Ihre Entscheidung zum Merken der Hörposition",
   "consent.duration.session": "Bis Sie den Browser schließen",

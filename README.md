@@ -288,9 +288,32 @@ still be overridden in the settings. Nothing about who consented is stored serve
 shows the operator's half instead: every declared service attributed to its plugin, the resulting CSP
 allow-list, and the fingerprint.
 
+### What is enforced, and what is trusted
+
 The same declaration is the permission: the CSP is widened by exactly the declared `hosts`
-(`script-src`/`frame-src`/`connect-src`) of active plugins, so an undeclared third party stays blocked even
-with consent given, and switching a plugin off narrows the policy again.
+(`script-src`/`frame-src`/`connect-src`) of active plugins, **and only for the categories this visitor
+granted** — the decision is mirrored into an `mc_consent` cookie so the server can narrow the policy per
+request (responses carry `Vary: Cookie` when anything is gated). An undeclared third party stays blocked even
+with consent given; a declared one stays blocked until consent is given; switching a plugin off narrows the
+policy again.
+
+That distinction matters, because **`ctx.consent.has()` is advisory**. A plugin bundle is imported into the
+page's own JavaScript realm — shadow DOM encapsulates styles and markup, never capabilities — so a plugin can
+reach `localStorage`, `document.cookie` and `fetch` exactly as the shell can, and nothing in that realm can
+take those away. What the browser refuses to connect to is not advisory, which is why the CSP, not the
+contract, is where a refusal is actually enforced.
+
+**Installing a plugin is a trust decision**, in the same sense as a WordPress plugin and unlike a browser
+extension. What core guarantees:
+
+| | |
+|---|---|
+| Enforced (server) | doc-store access hard-scoped by plugin id, role floors, activation gating, asset routes, log rate limits |
+| Enforced (browser) | connections to origins that are undeclared **or** declared under a category the visitor refused |
+| Not enforced | first-party storage a plugin writes directly, and image/media requests (`img-src … https:` stays open because episode artwork comes from arbitrary feed hosts) |
+
+Under the `dev` profile the shell warns in the console when anything writes a storage key that no manifest
+declared — detection while developing a plugin, not containment.
 
 **Feeds and episodes are both addressed by a public slug** (§4.1) — stable, human-readable ids
 (`the-sample-cast`, `the-sample-cast-s01e06`) used in `/feeds/{slug}` and `/episodes/{slug}`, in the API, and,

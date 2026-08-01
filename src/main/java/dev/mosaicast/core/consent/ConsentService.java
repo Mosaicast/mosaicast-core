@@ -173,16 +173,45 @@ public class ConsentService {
     }
 
     /**
-     * Every distinct third-party origin active plugins declared — the allow-list the CSP is widened by
-     * ({@link dev.mosaicast.core.config.PluginCspHeaderWriter}). A plugin that declares nothing cannot load
-     * anything third-party, which is the point: the declaration is both the notice and the permission.
-     *
-     * <p>Includes {@code necessary} services: they load without being asked about, so they must be allowed.
+     * Every distinct third-party origin active plugins declared — the whole allow-list, ignoring what any
+     * particular visitor chose. Used by the admin audit; the CSP uses {@link #allowedSources(Set)} instead.
      */
     public Set<String> declaredExternalSources() {
+        return hosts(category -> true);
+    }
+
+    /**
+     * The origins a visitor's CSP may be widened by, given the categories they granted
+     * ({@link dev.mosaicast.core.config.PluginCspHeaderWriter}).
+     *
+     * <p>This is what turns a refusal from a promise into a rule. {@code ctx.consent.has()} is advisory —
+     * a plugin can simply not call it, and nothing in a shared JavaScript realm can force it to. What the
+     * browser refuses to connect to is not advisory, so a category the visitor declined takes its origins
+     * out of the policy and the request fails at the network layer instead of relying on plugin manners.
+     *
+     * <p>{@code necessary} services are always included: they are not offered as a choice, so there is no
+     * decision that could remove them. A category nobody granted contributes nothing, which is also the
+     * state before any decision at all — deny by default, exactly like {@code has()}.
+     *
+     * @param grantedCategories the categories this visitor granted; empty means nothing optional loads
+     */
+    public Set<String> allowedSources(Set<String> grantedCategories) {
+        return hosts(category -> CATEGORY_NECESSARY.equals(category) || grantedCategories.contains(category));
+    }
+
+    /** Whether any declared service is gated at all — i.e. whether the policy varies between visitors. */
+    public boolean hasOptionalSources() {
+        return !declaredExternalSources().equals(allowedSources(Set.of()));
+    }
+
+    private Set<String> hosts(java.util.function.Predicate<String> categoryAllowed) {
         Set<String> hosts = new LinkedHashSet<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
+                String category = normalize(service.category());
+                if (category == null || !categoryAllowed.test(category)) {
+                    continue;
+                }
                 service.hostsOrEmpty().stream()
                         .filter(host -> host != null && !host.isBlank())
                         .map(String::trim)
