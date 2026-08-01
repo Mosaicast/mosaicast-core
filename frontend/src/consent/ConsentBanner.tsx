@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
@@ -79,9 +80,25 @@ export function ConsentBanner() {
  */
 function SettingsDialog({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
+  const sheet = useRef<HTMLDivElement>(null);
+
+  // `aria-modal` is a claim, so it has to be true: focus moves into the sheet when it opens, and Escape
+  // closes it. Dismissing grants nothing — the host resolves any pending `request()` with the state as it
+  // stands rather than recording a decision the visitor did not make.
+  useEffect(() => {
+    sheet.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   return (
     <div className="mc-consent__overlay" role="dialog" aria-modal="true" aria-label={t('consent.settingsTitle')}>
-      <div className="mc-consent__sheet">
+      <div className="mc-consent__sheet" ref={sheet} tabIndex={-1}>
         <CookieSettings onClose={onClose} />
       </div>
     </div>

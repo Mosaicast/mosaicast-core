@@ -254,6 +254,16 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
     decide(Object.fromEntries(payload.categories.map((category) => [category.id, false])));
   }, [decide, payload.categories]);
 
+  /**
+   * Closing the surface without deciding is itself an answer, and the SDK promises that **every**
+   * `request()` resolves exactly once and always. Resolving with the category's current state means a
+   * dismissal reads as "not granted" without silently recording a refusal the visitor never made.
+   */
+  const closeSettings = useCallback(() => {
+    setSettingsOpen(false);
+    pending.current.splice(0).forEach(({ category, resolve }) => resolve(has(category)));
+  }, [has]);
+
   const subscribe = useCallback((listener: () => void) => {
     listeners.current.add(listener);
     return () => {
@@ -306,13 +316,13 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       record,
       gpc: gpc && record == null,
       openSettings: () => setSettingsOpen(true),
-      closeSettings: () => setSettingsOpen(false),
+      closeSettings,
       settingsOpen,
       progressEnabled: progressOn,
       setProgressEnabled: setProgress,
     }),
     [payload, has, granted, request, subscribe, decide, withdraw, stored, record, gpc, settingsOpen,
-      progressOn, setProgress],
+      closeSettings, progressOn, setProgress],
   );
 
   return <ConsentContext.Provider value={value}>{children}</ConsentContext.Provider>;

@@ -175,6 +175,36 @@ describe('Consent (§12.5)', () => {
     expect(screen.queryByText(TITLE)).not.toBeInTheDocument();
   });
 
+  it('resolves a plugin request when the visitor dismisses the surface', async () => {
+    stubConsent(WITH_CATEGORY);
+    let resolved: boolean | null = null;
+
+    function Requester() {
+      const consent = useConsent();
+      return (
+        <button type="button" onClick={() => void consent.request('analytics').then((v) => (resolved = v))}>
+          ask
+        </button>
+      );
+    }
+
+    render(
+      <MemoryRouter>
+        <ConsentProvider>
+          <ConsentBanner />
+          <Requester />
+        </ConsentProvider>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByText('ask'));
+    fireEvent.click(await screen.findByText('Close'));
+
+    // The SDK promises every request() resolves exactly once and always — including when the visitor walks
+    // away from the question. Leaving it pending would strand a plugin on its placeholder forever.
+    await waitFor(() => expect(resolved).toBe(false));
+  });
+
   it('survives a payload that is missing its arrays', async () => {
     // Consent sits at the root of the shell: a partial payload must not take the page down.
     stubConsent({});
