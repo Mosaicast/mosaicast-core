@@ -98,6 +98,24 @@ describe('Cookie settings (§12.5)', () => {
     expect(localStorage.getItem('mc.prefs.progress')).toBe('off');
   });
 
+  it('leaves the playback position off when the browser objected, until the visitor says otherwise', async () => {
+    vi.stubGlobal('navigator', { ...navigator, globalPrivacyControl: true });
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    // On by default is defensible for someone who said nothing. It is not defensible for someone whose
+    // browser is asking sites not to track them — and a position that persists indefinitely is exactly the
+    // case the strictly-necessary exemption covers least well.
+    const toggle = await screen.findByLabelText('Remember where I stopped listening');
+    expect(toggle).not.toBeChecked();
+    expect(screen.getByText(/Off because your browser asked sites not to track you/)).toBeInTheDocument();
+
+    // Still a switch, not a lock: an explicit choice outranks the signal from then on.
+    fireEvent.click(toggle);
+    await waitFor(() => expect(localStorage.getItem('mc.prefs.progress')).toBe('on'));
+    expect(toggle).toBeChecked();
+  });
+
   it('records a receipt the visitor can read back', async () => {
     stubConsent(PAYLOAD);
     renderSettings();

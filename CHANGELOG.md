@@ -38,7 +38,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     explicit choice in the settings still overrides it.
   - **Playback position gets an off switch, not a consent gate.** It is first-party, local, never profiled
     and written only after a deliberate press of play, so gating it would trade a real feature for a fake
-    choice. Switching it off also deletes the positions already stored.
+    choice. Switching it off also deletes the positions already stored, and the switch is on both the privacy
+    settings and the account page (one shared component, so they cannot drift).
+    **Under GPC it defaults to off**: on-by-default is defensible for a visitor who said nothing and not for
+    one whose browser is asking sites not to track them — and a position that persists indefinitely is the
+    part of the strictly-necessary exemption that covers a media player least well (WP29 Opinion 04/2012
+    exempts *session* state). Switching it on stores an explicit choice, which outranks the signal.
   - **The receipt stays on the visitor's device** (`mc.consent`, readable and exportable from the settings).
     No server-side consent table: that would be a new store of personal data, with its own legal basis and
     retention, created to prove something about visitors who are anonymous here. The operator's half is

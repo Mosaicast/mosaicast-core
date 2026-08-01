@@ -177,12 +177,24 @@ function readGpc(): boolean {
  * Not a consent category on purpose: it is first-party, stays on the device, is never profiled, and is only
  * ever written after the visitor deliberately pressed play — so it is part of the service they asked for, and
  * gating it behind a banner would trade a real feature for a fake choice. It is disclosed, and it has an off
- * switch, which is the honest arrangement. Exported as a plain function so the player can read it without
- * reaching for React context in a callback.
+ * switch, which is the honest arrangement.
+ *
+ * **Except when the browser has already objected.** On by default is defensible for a visitor who said
+ * nothing; it is not defensible for one whose browser is asking sites not to track them. The strictly-
+ * necessary exemption in §25 TDDDG / Art. 5(3) ePD covers a media player's *session* state comfortably, and
+ * a position that persists indefinitely sits at the edge of it (WP29 Opinion 04/2012) — so where GPC is
+ * present, the edge case defaults off. It is still a switch, not a lock: turning it on stores an explicit
+ * `on`, which outranks the signal from then on.
+ *
+ * Exported as a plain function so the player can read it without reaching for React context in a callback.
  */
 export function progressEnabled(): boolean {
   try {
-    return localStorage.getItem(PROGRESS_PREF_KEY) !== 'off';
+    const preference = localStorage.getItem(PROGRESS_PREF_KEY);
+    if (preference === 'on' || preference === 'off') {
+      return preference === 'on';
+    }
+    return !readGpc();
   } catch {
     return true;
   }
@@ -287,7 +299,9 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
     setProgressOn(on);
     try {
       if (on) {
-        localStorage.removeItem(PROGRESS_PREF_KEY);
+        // Stored as an explicit `on` rather than by clearing the key: absence means "no choice made", and
+        // under GPC that resolves to off. A visitor who switched it back on has made a choice.
+        localStorage.setItem(PROGRESS_PREF_KEY, 'on');
       } else {
         localStorage.setItem(PROGRESS_PREF_KEY, 'off');
         // Switching it off is also a request to forget: leaving the positions behind would keep storing

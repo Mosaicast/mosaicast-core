@@ -20,7 +20,7 @@ import { useConsent } from './ConsentContext';
  */
 export function ProgressPreference({ note }: { note?: string }) {
   const { t } = useTranslation();
-  const { progressEnabled, setProgressEnabled } = useConsent();
+  const { progressEnabled, setProgressEnabled, gpc } = useConsent();
 
   return (
     <div className="mc-consent__pref">
@@ -33,6 +33,8 @@ export function ProgressPreference({ note }: { note?: string }) {
         <span>{t('consent.progress.title')}</span>
       </label>
       <p className="mc-muted mc-consent__hint">{t('consent.progress.hint')}</p>
+      {/* Otherwise an off switch on the account page, which shows no consent notice, looks like a bug. */}
+      {gpc && !progressEnabled && <p className="mc-muted mc-consent__hint">{t('consent.progress.gpc')}</p>}
       {note && <p className="mc-muted mc-consent__hint">{note}</p>}
     </div>
   );
