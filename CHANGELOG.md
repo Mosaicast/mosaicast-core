@@ -29,6 +29,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     `mc.prefs.rate`, disclosed with the rest), a scrubber that shows how far in you are, and **keyboard
     control** — space, arrows, `J`/`L` — bound at the document so it works wherever focus is, and standing
     down inside inputs and plugin shadow DOM so typing never seeks the audio.
+  - **The season dropdown reads in the same direction as the list.** It ran All → 1 → 2 → 3 even with newest
+    episodes on top, so the season most people want sat at the far end of the menu. It now follows the sort
+    control, which also keeps the two from contradicting each other. Not ordered by "which season released
+    most recently": a filter list that reshuffles itself when a feed updates is harder to use than one that
+    is merely upside down.
   - **Loading and empty are states, not gaps:** card-shaped skeletons on first load so nothing jumps, and
     an empty feed that says what to try next.
   - Chrome, forms and admin moved onto the tokens: translucent top bar, a mobile-collapsing nav, hover and
