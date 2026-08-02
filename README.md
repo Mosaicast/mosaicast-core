@@ -303,6 +303,14 @@ reach `localStorage`, `document.cookie` and `fetch` exactly as the shell can, an
 take those away. What the browser refuses to connect to is not advisory, which is why the CSP, not the
 contract, is where a refusal is actually enforced.
 
+The same reasoning applies to storage, with the verb reversed. A plugin cannot be *stopped* from writing —
+patching `localStorage.setItem` is one same-origin iframe away from being bypassed — but it can be undone:
+after every decision, and on load, the shell deletes everything on the device that core did not declare, that
+no `necessary` service declared, and that this visitor did not grant. Deleting needs no cooperation from
+whoever wrote the key, because the shell owns the origin too. So a withdrawal takes the data with it rather
+than only closing the tap, and an undeclared key survives no longer than the next decision or the next page
+load — the sweep is periodic in that sense, not an interception of the write itself.
+
 **Installing a plugin is a trust decision**, in the same sense as a WordPress plugin and unlike a browser
 extension. What core guarantees:
 
@@ -310,10 +318,13 @@ extension. What core guarantees:
 |---|---|
 | Enforced (server) | doc-store access hard-scoped by plugin id, role floors, activation gating, asset routes, log rate limits |
 | Enforced (browser) | connections to origins that are undeclared **or** declared under a category the visitor refused |
-| Not enforced | first-party storage a plugin writes directly, and image/media requests (`img-src … https:` stays open because episode artwork comes from arbitrary feed hosts) |
+| Enforced (after the fact) | device storage: undeclared or withdrawn keys are swept from `localStorage`, `sessionStorage` and script-visible cookies |
+| Not enforced | the moment of the write itself; `HttpOnly` cookies set by a plugin backend; IndexedDB; and image/media requests (`img-src … https:` stays open because episode artwork comes from arbitrary feed hosts) |
 
-Under the `dev` profile the shell warns in the console when anything writes a storage key that no manifest
-declared — detection while developing a plugin, not containment.
+Under the `dev` profile the shell also warns in the console when anything writes a storage key that no
+manifest declared, naming the plugin where the stack allows — detection while developing a plugin, so an
+author learns *why* their key keeps vanishing. Declaring it in `consent.services[].storage` is the fix, and
+that declaration is also what the visitor is shown.
 
 **Feeds and episodes are both addressed by a public slug** (§4.1) — stable, human-readable ids
 (`the-sample-cast`, `the-sample-cast-s01e06`) used in `/feeds/{slug}` and `/episodes/{slug}`, in the API, and,

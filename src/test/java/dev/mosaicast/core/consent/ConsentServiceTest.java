@@ -72,6 +72,12 @@ class ConsentServiceTest {
                     assertThat(declared.category()).isEqualTo("necessary");
                     assertThat(declared.prompted()).isFalse();
                 });
+        // A visitor has to be able to see it too. Not a question does not mean not a disclosure: it still
+        // puts things on their device, and the shell needs the list for a second reason — it sweeps away
+        // everything unaccounted for, and this is what keeps it from mistaking a necessary service's own
+        // storage for a stray.
+        assertThat(view.necessaryServices()).singleElement()
+                .satisfies(declared -> assertThat(declared.name()).isEqualTo("Session Keeper"));
     }
 
     @Test

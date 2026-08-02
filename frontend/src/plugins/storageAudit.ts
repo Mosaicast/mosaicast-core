@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import type { ConsentPayload } from '../api/types';
+import { isAllowed } from '../consent/purge';
 
 /**
  * Warns, in the dev profile only, when something writes a storage key nobody declared.
@@ -24,9 +25,6 @@ import type { ConsentPayload } from '../api/types';
  * case the entry is reported without a name rather than blamed on the wrong plugin.
  */
 
-/** Keys the shell itself writes; the inventory covers the rest. */
-const CORE_PREFIXES = ['mc.', 'mc_'];
-
 let installed = false;
 
 export function installStorageAudit(payload: ConsentPayload): void {
@@ -35,17 +33,19 @@ export function installStorageAudit(payload: ConsentPayload): void {
   }
   installed = true;
 
+  // Declared, not granted: the audit is about whether something was disclosed at all, so a key belonging to a
+  // refused category is still declared. Whether it may *remain* is the purge's question, not this one.
+  //
+  // The core gets no blanket exemption for its own `mc.` namespace any more. It had one, and it hid a real
+  // omission — `mc.prefs.rate` had been written by the player and disclosed nowhere for as long as the
+  // inventory existed. A rule the author of the rule is exempt from does not stay true.
   const declared = new Set<string>();
   payload.essential.storage.forEach((item) => declared.add(item.name));
-  payload.categories.forEach((category) =>
-    category.services.forEach((service) => service.storage.forEach((item) => declared.add(item.name))),
+  [...payload.categories.flatMap((category) => category.services), ...payload.necessaryServices].forEach(
+    (service) => service.storage.forEach((item) => declared.add(item.name)),
   );
 
-  const isDeclared = (key: string) =>
-    declared.has(key) ||
-    CORE_PREFIXES.some((prefix) => key.startsWith(prefix)) ||
-    // Wildcards in the inventory (`mc.progress.*`) cover a family of keys.
-    [...declared].some((name) => name.endsWith('*') && key.startsWith(name.slice(0, -1)));
+  const isDeclared = (key: string) => isAllowed(key, declared);
 
   const blame = (): string => {
     const frame = new Error().stack?.split('\n').find((line) => line.includes('/plugins/'));

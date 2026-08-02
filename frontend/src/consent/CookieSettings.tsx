@@ -37,7 +37,7 @@ export function CookieSettings({
 }) {
   const { t, i18n } = useTranslation();
   const consent = useConsent();
-  const { categories, essential, privacySlug, record, gpc, decide, has } = consent;
+  const { categories, essential, necessaryServices, privacySlug, record, gpc, decide, has } = consent;
   const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState(false);
 
@@ -93,6 +93,16 @@ export function CookieSettings({
             duration: t(item.durationKey),
           }))}
         />
+        {/* Services a plugin declared as `necessary`. Not a choice, so not a toggle — but they put things on
+            the device just the same, and §25 TDDDG asks for disclosure whether or not consent is required. */}
+        {necessaryServices.length > 0 && (
+          <>
+            <p className="mc-muted mc-consent__hint">{t('consent.essential.services')}</p>
+            {necessaryServices.map((service) => (
+              <ServiceBlock key={service.name} service={service} />
+            ))}
+          </>
+        )}
       </section>
 
       <ProgressPreference />
