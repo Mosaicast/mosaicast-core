@@ -24,6 +24,8 @@ import { SitePanel } from './SitePanel';
 const PAGE_SIZE = 20;
 
 export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
+  // `fixedFeedId` is the feed's public slug when the view is scoped to one feed — the same value the URL
+  // carries and the plugin `feed` scope is addressed by. The API resolves a UUID here too (older links).
   const { t } = useTranslation();
   const { titleOf } = useFeeds();
   const [params, setParams] = useSearchParams();
@@ -130,13 +132,40 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     <div>
       <FeedTabs />
       <div className="mc-feedlayout">
-        {fixedFeedId ? <FeedPanel feedId={fixedFeedId} /> : <SitePanel />}
+        {fixedFeedId ? <FeedPanel feedSlug={fixedFeedId} /> : <SitePanel />}
 
         <div className="mc-feedmain">
           <FilterBar values={values} seasons={seasons} tags={tags} onChange={updateFilters} />
 
-          {failed && items.length === 0 && <p className="mc-muted">{t('feed.loadError')}</p>}
-          {!loading && !failed && items.length === 0 && <p className="mc-muted">{t('feed.empty')}</p>}
+          {failed && items.length === 0 && (
+            <div className="mc-empty">
+              <p className="mc-empty__title">{t('feed.loadError')}</p>
+            </div>
+          )}
+          {!loading && !failed && items.length === 0 && (
+            <div className="mc-empty">
+              <p className="mc-empty__title">{t('feed.empty')}</p>
+              <p>{t('feed.emptyHint')}</p>
+            </div>
+          )}
+
+          {/* First page only: placeholders in the shape of the cards, so nothing jumps when they arrive.
+              Later pages append below what is already readable and need no placeholder. */}
+          {loading && items.length === 0 && (
+            <div className="mc-card-grid" aria-hidden="true">
+              {[0, 1, 2].map((n) => (
+                <div className="mc-skeleton" key={n}>
+                  <div className="mc-skeleton__cover" />
+                  <div className="mc-skeleton__body">
+                    <div className="mc-skeleton__line mc-skeleton__line--short" />
+                    <div className="mc-skeleton__line mc-skeleton__line--title" />
+                    <div className="mc-skeleton__line" />
+                    <div className="mc-skeleton__line" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="mc-card-grid">
             {items.map((episode) => (
@@ -150,7 +179,9 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
 
           {/* Sentinel for auto-load + a keyboard/no-JS fallback. */}
           <div ref={sentinelRef} className="mc-feed-sentinel" aria-hidden="true" />
-          {loading && <p className="mc-muted mc-feed-loading">{t('common.loading')}</p>}
+          {loading && items.length > 0 && (
+            <p className="mc-muted mc-feed-loading">{t('common.loading')}</p>
+          )}
           {hasMore && !loading && (
             <div className="mc-feed-more">
               <button type="button" className="mc-btn" onClick={loadMore}>

@@ -26,4 +26,13 @@ public interface FeedRepository extends JpaRepository<Feed, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select f from Feed f where f.id = :id")
     Optional<Feed> lockById(@Param("id") UUID id);
+
+    /** Resolves a feed by its public slug — the identifier in URLs, the feed API and the plugin contract. */
+    Optional<Feed> findBySlug(String slug);
+
+    /** Uniqueness check for slug minting. */
+    boolean existsBySlug(String slug);
+
+    /** Feeds created before slugs existed, for the one-time backfill. */
+    List<Feed> findBySlugIsNull();
 }

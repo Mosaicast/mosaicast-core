@@ -14,6 +14,136 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **A refusal is now enforced, not just promised (`0.5.13`, ARCHITECTURE §12.5, §13)** — `ctx.consent.has()`
+  is advisory and always will be: a plugin bundle is imported into the page's own JavaScript realm, shadow
+  DOM encapsulates styles and markup rather than capabilities, and nothing running in that realm can take
+  `fetch` away from a plugin that declines to ask. The CSP is the part a plugin cannot talk its way past —
+  and it was written blind, allowing every declared origin whatever the visitor had chosen.
+  - **The decision now reaches the server.** It is mirrored into an `mc_consent` cookie (dot-separated
+    categories, `SameSite=Lax`), so `PluginCspHeaderWriter` narrows `script-src`/`frame-src`/`connect-src`
+    to the categories actually granted. No cookie means nothing optional — the same default-deny the client
+    applies. A plugin that ignores `has()` now gets a blocked request instead of a silent one.
+  - `necessary` services survive every decision, because they are never offered as one. A forged category
+    widens nothing: the manifest decides which origins exist, the cookie only which of them apply.
+  - **`Vary: Cookie` only when it earns its keep** — added when some declared service is actually gated. On a
+    site where everything is `necessary` the policy is identical for everyone, and varying would cost
+    cacheability for nothing.
+  - **Honest about the limits.** The cookie is visitor-controlled, which is not a hole (it can only widen
+    that visitor's own policy, and CSP protects exactly that visitor). It is not absolute containment against
+    a determined plugin either — same origin, so it could forge the value and wait for a navigation. It makes
+    a refusal take effect at the network layer for the whole of the current page, and turns evasion into a
+    deliberate, detectable act. Real containment means an iframe per plugin, which is an architecture
+    decision, not a patch. `img-src`/`media-src` stay open to `https:` because episode artwork comes from
+    arbitrary feed hosts; closing that channel needs an image proxy.
+  - **Withdrawal now reaches the data, not just the next request.** After every decision — and on load, for
+    a plugin uninstalled while the visitor was away — the shell sweeps `localStorage`, `sessionStorage` and
+    the cookies script can see down to what core declared, what a `necessary` service declared, and what the
+    visitor granted. Everything else goes, including keys no manifest ever mentioned. Blocking a *write* is
+    hopeless in one JavaScript realm (a patched `setItem` is one same-origin iframe away from being
+    bypassed); deleting needs no cooperation from whoever wrote it, because the shell owns the origin too.
+    The CSP closes the future, this closes the past — which is what Art. 17 and "as easy as granting" ask
+    for. Limits stated in `purge.ts`: `HttpOnly` cookies are the server's business, cookie scopes that
+    cannot be guessed survive, and IndexedDB is not swept yet.
+  - The consent record, its cookie and the playback-position switch can never be swept, whatever a payload
+    says. A sweep able to erase the decision it is enforcing is a loop, not a rule.
+  - **`necessary` services are now disclosed to visitors**, in their own read-only block under "Always
+    active". They were declared, allowed by the CSP and visible to an operator, but a visitor was told
+    nothing about them — and §25 TDDDG asks for the disclosure whether or not a decision is attached.
+  - **Dev-profile storage audit:** the shell warns when anything writes a storage key no manifest declared,
+    naming the plugin bundle from the stack where it can. Detection, not containment — undeclared storage
+    means the privacy settings are lying to visitors, and that is worth catching while developing.
+  - **The core holds itself to the rule it wrote.** The audit used to exempt the whole `mc.` namespace, which
+    hid `mc.prefs.rate` — written by the player, disclosed nowhere, for as long as `CoreStorageInventory`
+    has existed. The exemption is gone, the key is declared, and a test now reads both sides and fails when
+    the shell writes an `mc.` key the inventory does not list. That mattered less when the inventory was only
+    a notice; now that it is also the allow-list, an omission is a key the shell deletes out from under
+    itself.
+  - The README now states plainly what is enforced and what is trusted: installing a plugin is a trust
+    decision, in the sense a WordPress plugin is and a browser extension is not.
+
+- **The shell is art-directed rather than merely laid out (`0.5.12`)** — every region, route and
+  `data-slot` name is unchanged, because plugins target those; what changed is how it all looks, now that
+  there are tokens to build on.
+  - **Cards** lead with the artwork (168px), meta reads as chips instead of loose text, the title carries
+    the type weight, and hovering lifts the card and lights an accent rail. Where this device got to in an
+    episode is drawn along the bottom of the cover — read straight from `localStorage`, because thirty
+    cards should not mean thirty requests to paint a 3px line.
+  - **The detail hero is full-bleed**, with the episode's own artwork blurred behind its title and a
+    gradient dissolving into the page. Each episode page now looks like *that* episode, from data the feed
+    already provides. The sidebar region sticks while the notes scroll; prev/next are destinations rather
+    than bare links.
+  - **The player earns its bar:** ±15/30 s, a speed control cycling 1×–2× (remembered across episodes as
+    `mc.prefs.rate`, disclosed with the rest), a scrubber that shows how far in you are, and **keyboard
+    control** — space, arrows, `J`/`L` — bound at the document so it works wherever focus is, and standing
+    down inside inputs and plugin shadow DOM so typing never seeks the audio.
+  - **The season dropdown reads in the same direction as the list.** It ran All → 1 → 2 → 3 even with newest
+    episodes on top, so the season most people want sat at the far end of the menu. It now follows the sort
+    control, which also keeps the two from contradicting each other. Not ordered by "which season released
+    most recently": a filter list that reshuffles itself when a feed updates is harder to use than one that
+    is merely upside down.
+  - **Loading and empty are states, not gaps:** card-shaped skeletons on first load so nothing jumps, and
+    an empty feed that says what to try next.
+  - Chrome, forms and admin moved onto the tokens: translucent top bar, a mobile-collapsing nav, hover and
+    active states throughout, styled native selects, and **a disabled button that looks disabled** (an open
+    note from the M4 review — a control that looks live and does nothing reads as a broken page).
+  - **Feeds get readable URLs too.** Episodes have lived at `/episodes/the-sample-cast-s01e06` since `0.5.2`
+    while their own show sat at `/feeds/7a48fcb5-0fe5-429e-a1b6-187002b35940`. A feed now has the same kind of
+    slug, minted once at creation and never changed — a feed title comes from the feed and moves on any poll,
+    so re-slugging would break every shared link.
+    - It is the public identifier everywhere: URLs, `GET /api/feeds/{slug}` and its sub-resources, the
+      `feedId` filter, the sitemap, and the plugin `feed` / `season` `scope.id`.
+    - **Old links keep working.** Feed URLs were UUID-shaped until now, so the API resolves a UUID as well;
+      no slug can parse as one, so there is no ambiguity.
+    - **Existing plugin documents move with the feed.** `scope.id` is what partitions a plugin's doc store, so
+      rows written under the old UUID would present as missing — indistinguishable from data loss to the
+      plugin. `FeedSlugBackfill` mints the slugs and repoints `feed`- and `season`-scoped rows in the same
+      transaction, before the plugin loader runs.
+  - **Code:** `useResource` replaces the fetch/`useEffect`/`active`-flag triple that had been copied into
+    fifteen components with subtly different failure behaviour, and a `MetaProvider` ends the duplicate
+    `/api/meta` request that `TopBar` and `Footer` each made on every load.
+  - README screenshots refreshed (home, detail, account, admin — light and dark).
+
+- **Consent is now written for visitors (`0.5.11`, ARCHITECTURE §12.5)** — the declaration half shipped in
+  `0.5.9`; this is the half people actually read. The old banner said *"An installed plugin wants to load
+  content from third parties"* and listed `requested by: sample`, which is the site's architecture, not a
+  question anyone can answer. It also rendered raw category slugs, and its settings link existed **only**
+  when a plugin declared something — so a core-only install had no withdrawal surface at all, while still
+  writing `mc.locale`, `mc.site`, `mc.progress.*` and `mc.consent` to the device.
+  - **Visitors are told about services and companies.** Layer one names the providers involved and links the
+    privacy page; the settings name each service, who operates it, whether data leaves the EU/EEA, and every
+    item it stores with purpose and lifetime — from the manifest, so the notice cannot drift from what loads.
+    The words *plugin*, *slot* and *manifest* do not appear in visitor-facing text, and the endpoint that
+    feeds it has nowhere to put a plugin id.
+  - **Allow and refuse are the same button in the same row.** A quieter reject is a dark pattern with a case
+    history (DSK, Nov 2024; OLG Köln 2025), so both are the accent style and a test asserts the wording.
+  - **One settings component in three places** — `/cookies`, appended below the legal page marked `privacy`,
+    and inside the banner — because withdrawal has to be as easy as granting, and three near-identical
+    surfaces are how that stops being true. The footer link is now **unconditional**.
+  - **A stored answer can now stop counting.** `decided` used to be a single boolean, so a newly installed
+    plugin silently inherited a decision taken before it existed. The record now carries `decidedAt` and the
+    server's **declaration fingerprint**: change a provider, a host or even a cookie's lifetime and the
+    fingerprint moves, so the question is asked again. Answers also expire after twelve months.
+  - **Global Privacy Control is honoured** as a refusal — and, since it is an answer, without a banner. An
+    explicit choice in the settings still overrides it.
+  - **Playback position gets an off switch, not a consent gate.** It is first-party, local, never profiled
+    and written only after a deliberate press of play, so gating it would trade a real feature for a fake
+    choice. Switching it off also deletes the positions already stored, and the switch is on both the privacy
+    settings and the account page (one shared component, so they cannot drift).
+    **Under GPC it defaults to off**: on-by-default is defensible for a visitor who said nothing and not for
+    one whose browser is asking sites not to track them — and a position that persists indefinitely is the
+    part of the strictly-necessary exemption that covers a media player least well (WP29 Opinion 04/2012
+    exempts *session* state). Switching it on stores an explicit choice, which outranks the signal.
+  - **The receipt stays on the visitor's device** (`mc.consent`, readable and exportable from the settings).
+    No server-side consent table: that would be a new store of personal data, with its own legal basis and
+    retention, created to prove something about visitors who are anonymous here. The operator's half is
+    **Admin → Consent** (`GET /api/admin/consent`) — every declared service attributed to its plugin, the
+    resulting CSP allow-list, and the fingerprint.
+  - **The core's own storage is generated, not written down.** `CoreStorageInventory` produces the "always
+    active" list from constants, with purposes and durations travelling as i18n keys so the disclosure reads
+    correctly in both locales. Flyway `V16` replaces the hand-written list in the seeded privacy page — which
+    had already drifted, having never mentioned `mc.consent` — with a pointer to it, by targeted replacement
+    so an operator's own edits to that template survive.
+
 - **The shell has a design-token layer, and the stylesheet is split (`0.5.10`, ARCHITECTURE §12.3)** — the
   `--mc-*` custom properties are a contract with plugins, and until now that contract was eight colours.
   Everything else a plugin might want to match — spacing, radii, elevation, type scale, motion — did not
@@ -36,6 +166,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - **Accessibility baseline:** one `:focus-visible` ring for every interactive element (declared on the
     elements, not a class, so a new surface inherits it), a 32px minimum target, `color-scheme` per theme,
     and `prefers-reduced-motion` honoured both through the motion tokens and as a catch-all.
+- **Manifest `consent.services[]` (`0.5.9`, ARCHITECTURE §12.5):** the plugin consent declaration moves from
+  category slugs plus bare hostnames to **named services**, matching what SDK `0.4.0` documents. Each service
+  carries `name`, `provider` (the operating company), `category`, `privacyUrl`, `hosts`,
+  `thirdCountryTransfer` and a `storage[]` list of what it puts on the device with purpose and lifetime.
+  - **Why:** a notice that satisfies §25 TDDDG / Art. 5(3) ePD has to name each stored item, its purpose, its
+    lifetime, its provider and whether data leaves the country. Slugs and hostnames cannot produce that, and
+    they forced the notice to talk about "plugins" to visitors who care about cookies and companies.
+  - **The legacy form is rejected at load**, with a message naming the replacement — a plugin that kept it
+    would otherwise load with its consent declaration silently dropped, meaning no banner and no CSP origins
+    for third parties it really does contact.
+  - Validation also rejects a service with no name or category, and a **host without a scheme**: hosts double
+    as CSP origins, and `plausible.example` is not an origin — it would never match, so the plugin's embeds
+    would fail with consent granted and nothing to explain why.
+  - `necessary` services are never asked about but still contribute their origins to the CSP and their
+    storage to the disclosure — they load without being asked, so they must be allowed and disclosed.
+  - Optional fields may be omitted (`thirdCountryTransfer` is boxed, because Jackson 3 refuses to map a
+    missing value onto a primitive and would fail the parse before validation could explain anything).
 
 - **Spring Boot 4.1, Jackson 3 and plugin contract `0.4.0` (`0.5.8`)** — one coordinated move, because each
   blocks the others: Boot 3.4 is past OSS support, Boot 4 defaults to Jackson 3, and SDK `0.4.0` types the

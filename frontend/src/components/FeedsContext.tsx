@@ -13,10 +13,18 @@ import type { PublicFeed } from '../api/types';
 interface FeedsValue {
   feeds: PublicFeed[];
   loaded: boolean;
+  /** Title for an internal feed id — episode summaries carry the id, not the slug. */
   titleOf: (feedId: string) => string | undefined;
+  /** The public slug for an internal feed id, for building links from an episode's `feedId`. */
+  slugOf: (feedId: string) => string | undefined;
 }
 
-const FeedsContext = createContext<FeedsValue>({ feeds: [], loaded: false, titleOf: () => undefined });
+const FeedsContext = createContext<FeedsValue>({
+  feeds: [],
+  loaded: false,
+  titleOf: () => undefined,
+  slugOf: () => undefined,
+});
 
 export function useFeeds(): FeedsValue {
   return useContext(FeedsContext);
@@ -39,8 +47,13 @@ export function FeedsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<FeedsValue>(() => {
-    const byId = new Map(feeds.map((f) => [f.id, f.title]));
-    return { feeds, loaded, titleOf: (id) => byId.get(id) };
+    const byId = new Map(feeds.map((feed) => [feed.id, feed]));
+    return {
+      feeds,
+      loaded,
+      titleOf: (id) => byId.get(id)?.title,
+      slugOf: (id) => byId.get(id)?.slug,
+    };
   }, [feeds, loaded]);
 
   return <FeedsContext.Provider value={value}>{children}</FeedsContext.Provider>;

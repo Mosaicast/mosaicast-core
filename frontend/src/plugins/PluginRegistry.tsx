@@ -4,6 +4,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 
 import { api } from '../api/client';
+import { useMeta } from '../api/MetaContext';
+import { useConsent } from '../consent/ConsentContext';
+import { installStorageAudit } from './storageAudit';
 import type { PublicPlugin } from './types';
 
 /**
@@ -42,6 +45,17 @@ function injectBundle(plugin: PublicPlugin): void {
 
 export function PluginRegistryProvider({ children }: { children: ReactNode }) {
   const [plugins, setPlugins] = useState<PublicPlugin[]>([]);
+  const devProfile = useMeta()?.devLoginEnabled ?? false;
+  const consent = useConsent();
+
+  // Dev only, and before any bundle is imported: a plugin that writes storage it never declared makes the
+  // privacy settings wrong, and that is worth catching while developing it. Detection, not containment —
+  // see `storageAudit`.
+  useEffect(() => {
+    if (devProfile && consent.fingerprint) {
+      installStorageAudit(consent);
+    }
+  }, [devProfile, consent]);
 
   useEffect(() => {
     let cancelled = false;

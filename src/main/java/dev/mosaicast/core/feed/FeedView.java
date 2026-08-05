@@ -9,6 +9,7 @@ import java.util.UUID;
 /** Admin-facing view of a configured feed source, including its last-poll state (ARCHITECTURE §5.4). */
 public record FeedView(
         UUID id,
+        String slug,
         String type,
         String url,
         String title,
@@ -23,6 +24,7 @@ public record FeedView(
     public static FeedView of(Feed feed, long episodeCount) {
         return new FeedView(
                 feed.getId(),
+                feed.getSlug(),
                 feed.getType(),
                 feed.getUrl(),
                 feed.getTitle(),

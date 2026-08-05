@@ -42,6 +42,14 @@ public class Feed {
     @Column(nullable = false)
     private String title;
 
+    /**
+     * The public, human-readable identifier used in URLs, the feed API and the plugin contract. Minted once
+     * at creation and never changed: the title comes from the feed and can move on any poll, so re-slugging
+     * would break shared links and orphan plugin data partitioned under the old scope id.
+     */
+    @Column(unique = true)
+    private String slug;
+
     @Column(name = "poll_interval_seconds", nullable = false)
     private long pollIntervalSeconds = Duration.ofMinutes(30).toSeconds();
 
@@ -114,6 +122,17 @@ public class Feed {
 
     public String getTitle() {
         return title;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    /** Assigns the slug if this feed has none — mints once, and re-running is a no-op (see {@link #slug}). */
+    public void assignSlugIfAbsent(String slug) {
+        if (this.slug == null) {
+            this.slug = slug;
+        }
     }
 
     public void setTitle(String title) {

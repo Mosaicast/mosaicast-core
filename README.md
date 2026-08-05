@@ -163,7 +163,8 @@ DELETE /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # idempotent
 GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
 GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags)
-GET    /api/consent                                            # public: consent categories plugins declared
+GET    /api/consent                                            # public: services, storage and the fingerprint
+GET    /api/admin/consent                                      # ADMIN: the same, attributed to plugins, + the CSP
 GET    /api/admin/plugins                                      # ADMIN: discovered plugins, state, config, consent
 PUT    /api/admin/plugins/{id}/enabled?value=                  # ADMIN: activation toggle
 PUT    /api/admin/plugins/{id}/config                          # ADMIN + PODCASTER (per field `editableBy`)
@@ -262,23 +263,77 @@ entries, validated to sit under that plugin's own `/p/{id}/` namespace.
 
 ### Consent (E5d)
 
-The core sets only strictly necessary and functional client storage, so **it runs banner-free**. Consent
-exists for plugins that load third-party content: a manifest declares `consent.categories` and
-`consent.externalSources`, and only then does the shell ask. The host knows `necessary` (never asked about),
-`functional` and `analytics`; any other string is passed through as a plugin-declared category (with no
-translated label). The banner is generated from the declarations — it names the categories, the plugins that
-asked and the hosts involved — and links the legal page marked `privacy`. Decisions are per category, stored
-in `localStorage` (so anonymous visitors get a working choice), revocable from the footer, and reach plugins
-as `ctx.consent.has(category)`, which **denies by default**.
+The core stores only what the requested service needs — session, CSRF token, language, cached branding, the
+consent decision itself — so **it runs banner-free**. A visitor is asked something only because a plugin
+declared a third-party service in `consent.services[]`: a name, the **company** operating it, a category, a
+privacy URL, the origins it is contacted on, whether data leaves the EU/EEA, and every item it stores with a
+purpose and a lifetime.
 
-The same declaration is the permission: the CSP is widened by exactly the declared `externalSources`
-(`script-src`/`frame-src`/`connect-src`) of active plugins, so an undeclared third party stays blocked even
-with consent given, and switching a plugin off narrows the policy again.
+What visitors see is generated from those declarations and **never mentions plugins** — they decide about
+services and companies, not about the site's architecture. Allow and refuse carry identical weight on the
+first layer. The host knows `necessary` (never asked about), `functional` and `analytics`; any other string
+passes through as a plugin-declared category, shown under its own name.
 
-Episodes are addressed by their **public slug** (§4.1) — a stable, human-readable id (`the-sample-cast-s01e06`)
-used in `/episodes/{slug}`, `GET /api/episodes/{slug}`, and, for plugins, `ctx.episodes` / the episode
-`scope.id` (so a plugin's `data/episode/{slug}/…` matches the URL). The UUID stays the internal key (listening
-progress, audio). Plugins get `ctx.episodeLabels` (`S01E06 · <title>`) so pickers show titles, not ids.
+**The settings are one component in three places** — `/cookies`, appended below the legal page marked
+`privacy`, and inside the banner — because withdrawal has to be as easy as granting. The footer link is
+unconditional: even with no plugin installed, the core's own storage is disclosed there and the
+playback-position switch lives there. Decisions are per category, stored in `localStorage` as a receipt the
+visitor can read and export (`decidedAt`, the declaration fingerprint, the per-category answer), and reach
+plugins as `ctx.consent.has(category)`, which **denies by default**.
+
+A stored answer stops counting when the **declaration changes** (the server's fingerprint moves, so a newly
+installed service cannot inherit consent given before it existed), after **twelve months**, or when the
+browser sends **Global Privacy Control** — which is honoured as a refusal without showing a banner, and can
+still be overridden in the settings. Nothing about who consented is stored server-side; **Admin → Consent**
+shows the operator's half instead: every declared service attributed to its plugin, the resulting CSP
+allow-list, and the fingerprint.
+
+### What is enforced, and what is trusted
+
+The same declaration is the permission: the CSP is widened by exactly the declared `hosts`
+(`script-src`/`frame-src`/`connect-src`) of active plugins, **and only for the categories this visitor
+granted** — the decision is mirrored into an `mc_consent` cookie so the server can narrow the policy per
+request (responses carry `Vary: Cookie` when anything is gated). An undeclared third party stays blocked even
+with consent given; a declared one stays blocked until consent is given; switching a plugin off narrows the
+policy again.
+
+That distinction matters, because **`ctx.consent.has()` is advisory**. A plugin bundle is imported into the
+page's own JavaScript realm — shadow DOM encapsulates styles and markup, never capabilities — so a plugin can
+reach `localStorage`, `document.cookie` and `fetch` exactly as the shell can, and nothing in that realm can
+take those away. What the browser refuses to connect to is not advisory, which is why the CSP, not the
+contract, is where a refusal is actually enforced.
+
+The same reasoning applies to storage, with the verb reversed. A plugin cannot be *stopped* from writing —
+patching `localStorage.setItem` is one same-origin iframe away from being bypassed — but it can be undone:
+after every decision, and on load, the shell deletes everything on the device that core did not declare, that
+no `necessary` service declared, and that this visitor did not grant. Deleting needs no cooperation from
+whoever wrote the key, because the shell owns the origin too. So a withdrawal takes the data with it rather
+than only closing the tap, and an undeclared key survives no longer than the next decision or the next page
+load — the sweep is periodic in that sense, not an interception of the write itself.
+
+**Installing a plugin is a trust decision**, in the same sense as a WordPress plugin and unlike a browser
+extension. What core guarantees:
+
+| | |
+|---|---|
+| Enforced (server) | doc-store access hard-scoped by plugin id, role floors, activation gating, asset routes, log rate limits |
+| Enforced (browser) | connections to origins that are undeclared **or** declared under a category the visitor refused |
+| Enforced (after the fact) | device storage: undeclared or withdrawn keys are swept from `localStorage`, `sessionStorage` and script-visible cookies |
+| Not enforced | the moment of the write itself; `HttpOnly` cookies set by a plugin backend; IndexedDB; and image/media requests (`img-src … https:` stays open because episode artwork comes from arbitrary feed hosts) |
+
+Under the `dev` profile the shell also warns in the console when anything writes a storage key that no
+manifest declared, naming the plugin where the stack allows — detection while developing a plugin, so an
+author learns *why* their key keeps vanishing. Declaring it in `consent.services[].storage` is the fix, and
+that declaration is also what the visitor is shown.
+
+**Feeds and episodes are both addressed by a public slug** (§4.1) — stable, human-readable ids
+(`the-sample-cast`, `the-sample-cast-s01e06`) used in `/feeds/{slug}` and `/episodes/{slug}`, in the API, and,
+for plugins, in `ctx.episodes` and the `feed` / `season` / `episode` `scope.id` (so a plugin's
+`data/feed/{slug}/…` matches the URL). The UUID stays the internal key (listening progress, audio, episode
+filters). Slugs are minted **once at creation and never change**, because a feed title moves on any poll and
+re-slugging would break shared links and orphan plugin data. Feed URLs were UUID-shaped before `0.5.12`, so
+the API still resolves a feed UUID; existing plugin documents are moved to the new scope ids at boot.
+Plugins get `ctx.episodeLabels` (`S01E06 · <title>`) so pickers show titles, not ids.
 
 ## Project layout
 
@@ -303,10 +358,10 @@ frontend/    React/Vite host shell (built into resources/static)
 Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/admin/feeds/{id}/suggestions` + `POST …/suggestions/{id}/confirm` + `DELETE …/suggestions/{id}`
 (review/confirm/dismiss fuzzy PLANNED bindings, §5.3, **PODCASTER/ADMIN**),
-`GET /api/feeds` (public catalog), `GET /api/feeds/{id}` (feed detail for the panel),
+`GET /api/feeds` (public catalog), `GET /api/feeds/{slug}` (feed detail for the panel),
 `GET /api/episodes?feedId=&season=&tag=&order=` (unified site-scope feed),
-`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{id}/episodes?season=`,
-`GET /api/feeds/{id}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
+`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{slug}/episodes?season=`,
+`GET /api/feeds/{slug}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
 `GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.

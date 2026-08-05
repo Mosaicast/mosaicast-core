@@ -15,7 +15,7 @@ export function Home() {
   const { feeds, loaded } = useFeeds();
 
   if (loaded && feeds.length === 1) {
-    return <Navigate to={`/feeds/${feeds[0].id}`} replace />;
+    return <Navigate to={`/feeds/${feeds[0].slug}`} replace />;
   }
 
   return (

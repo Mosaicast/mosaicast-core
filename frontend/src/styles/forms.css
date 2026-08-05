@@ -5,24 +5,75 @@
 
 /* ---- buttons ---- */
 .mc-btn {
-  border-radius: 7px;
-  padding: 0.4rem 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mc-space-2);
+  border-radius: var(--mc-radius-md);
+  padding: var(--mc-space-2) var(--mc-space-4);
   font: inherit;
+  font-size: var(--mc-text-sm);
+  font-weight: var(--mc-weight-medium);
   cursor: pointer;
   border: 1px solid var(--mc-border);
-  background: var(--mc-bg);
+  background: var(--mc-surface);
   color: var(--mc-text);
+  transition:
+    background var(--mc-motion-fast) var(--mc-ease),
+    border-color var(--mc-motion-fast) var(--mc-ease),
+    transform var(--mc-motion-fast) var(--mc-ease);
 }
 .mc-btn:hover {
   text-decoration: none;
+  border-color: var(--mc-border-strong);
+  background: var(--mc-surface-2);
+}
+.mc-btn:active {
+  transform: translateY(1px);
 }
 .mc-btn--ghost {
   background: transparent;
+  border-color: transparent;
+}
+.mc-btn--ghost:hover {
+  background: var(--mc-hover);
+  border-color: transparent;
 }
 .mc-btn--accent {
   background: var(--mc-accent);
   color: var(--mc-accent-contrast);
   border-color: var(--mc-accent);
+}
+.mc-btn--accent:hover {
+  background: color-mix(in srgb, var(--mc-accent) 88%, var(--mc-text));
+  border-color: color-mix(in srgb, var(--mc-accent) 88%, var(--mc-text));
+}
+.mc-btn--danger {
+  color: var(--mc-danger);
+  border-color: color-mix(in srgb, var(--mc-danger) 40%, transparent);
+}
+.mc-btn--danger:hover {
+  background: color-mix(in srgb, var(--mc-danger) 10%, transparent);
+  border-color: var(--mc-danger);
+}
+.mc-btn--lg {
+  padding: var(--mc-space-3) var(--mc-space-5);
+  font-size: var(--mc-text-base);
+}
+/*
+ * A disabled button has to *look* unavailable, not merely refuse to work — a control that looks live and
+ * does nothing reads as a broken page rather than as a locked one.
+ */
+.mc-btn:disabled,
+.mc-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.mc-btn:disabled:hover,
+.mc-btn[aria-disabled='true']:hover {
+  background: var(--mc-surface);
+  border-color: var(--mc-border);
 }
 
 .mc-account__profile {
@@ -40,7 +91,7 @@
   font-size: 1.15rem;
 }
 .mc-error {
-  color: var(--mc-accent);
+  color: var(--mc-danger);
 }
 
 .mc-errorpage {
@@ -101,20 +152,48 @@
 }
 .mc-input {
   font: inherit;
-  padding: 0.5rem 0.7rem;
-  border-radius: 7px;
+  font-size: var(--mc-text-sm);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-radius: var(--mc-radius-md);
   border: 1px solid var(--mc-border);
   background: var(--mc-surface);
   color: var(--mc-text);
+  transition: border-color var(--mc-motion-fast) var(--mc-ease);
 }
+.mc-input:hover {
+  border-color: var(--mc-border-strong);
+}
+.mc-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Native selects in forms match the inputs beside them — an unstyled dropdown next to a styled field is
+   the detail that makes an admin screen look half-finished. */
+.mc-field select,
+.mc-form select {
+  font: inherit;
+  font-size: var(--mc-text-sm);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-radius: var(--mc-radius-md);
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  cursor: pointer;
+  transition: border-color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-field select:hover,
+.mc-form select:hover {
+  border-color: var(--mc-border-strong);
+}
+
 .mc-input--num {
   width: 5rem;
 }
 .mc-textarea {
   font: inherit;
   width: 100%;
-  padding: 0.6rem 0.7rem;
-  border-radius: 7px;
+  padding: var(--mc-space-3);
+  border-radius: var(--mc-radius-md);
   border: 1px solid var(--mc-border);
   background: var(--mc-surface);
   color: var(--mc-text);
@@ -154,8 +233,15 @@
 .mc-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  font-size: 0.85rem;
+  gap: var(--mc-space-2);
+  font-size: var(--mc-text-sm);
+  cursor: pointer;
+}
+.mc-toggle input {
+  accent-color: var(--mc-accent);
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
 }
 
 /* ---- M4.2: accent color picker ---- */

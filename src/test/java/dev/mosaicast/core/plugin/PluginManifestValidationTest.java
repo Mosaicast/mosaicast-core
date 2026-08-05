@@ -26,7 +26,7 @@ class PluginManifestValidationTest {
                  "backend":{"basePath":"/api/plugins/sample","extensions":["X"]},
                  "frontend":{"entry":"s.js","elements":["s-card"]},
                  "slots":[{"scope":"site","element":"s-card","placement":"sidebar","visibleTo":"anonymous"}],
-                 "storage":"doc","config":{},"consent":{"categories":[],"externalSources":[]}}
+                 "storage":"doc","config":{},"consent":{"services":[]}}
                 """);
         assertThatCode(manifest::validate).doesNotThrowAnyException();
         assertThat(manifest.id()).isEqualTo("sample");
@@ -100,6 +100,73 @@ class PluginManifestValidationTest {
                 .isEqualTo(PluginManifest.EDITABLE_BY_ADMIN);
     }
 
+    @Test
+    void theLegacyConsentFormIsRejected() throws Exception {
+        // A plugin migrated per the SDK guide declares services[]; one that did not must fail loudly rather
+        // than load with its consent declaration silently dropped — that would mean no banner and no CSP
+        // origins for third parties it actually contacts.
+        assertThatThrownBy(parse(withConsent("{\"categories\":[\"analytics\"],"
+                + "\"externalSources\":[\"https://plausible.example\"]}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("services[]")
+                .hasMessageContaining("0.4");
+    }
+
+    @Test
+    void aValidServiceDeclarationIsAccepted() throws Exception {
+        assertThatCode(parse(withConsent("""
+                {"services":[{"id":"plausible","name":"Plausible Analytics",
+                 "provider":"Plausible Insights OÜ","category":"analytics",
+                 "privacyUrl":"https://plausible.io/privacy","hosts":["https://plausible.example"],
+                 "thirdCountryTransfer":false,
+                 "storage":[{"name":"pa","type":"cookie","purpose":"counts a visit","duration":"24 hours"}]}]}
+                """))::validate).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aHostWithoutASchemeIsRejected() throws Exception {
+        // hosts double as CSP origins, and an origin without a scheme silently never matches — the plugin's
+        // embeds would fail to load with consent granted and nothing to explain why.
+        assertThatThrownBy(parse(withConsent("""
+                {"services":[{"id":"p","name":"P","category":"analytics","hosts":["plausible.example"]}]}
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("needs a scheme");
+    }
+
+    @Test
+    void aServiceWithoutANameOrCategoryIsRejected() throws Exception {
+        assertThatThrownBy(parse(withConsent(
+                "{\"services\":[{\"id\":\"p\",\"category\":\"analytics\"}]}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("no name");
+        assertThatThrownBy(parse(withConsent(
+                "{\"services\":[{\"id\":\"p\",\"name\":\"P\"}]}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("no category");
+    }
+
+    @Test
+    void optionalServiceFieldsMayBeOmitted() throws Exception {
+        // Jackson 3 refuses to map a missing value onto a primitive, so a boxed flag is what makes an
+        // omitted `thirdCountryTransfer` parse at all — a plugin should not have to spell out every field.
+        PluginManifest manifest = parse(withConsent("""
+                {"services":[{"id":"p","name":"P","category":"analytics"}]}
+                """));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.consent().servicesOrEmpty().getFirst().transfersToThirdCountry()).isFalse();
+    }
+
+    @Test
+    void declaringNoConsentAtAllIsFine() throws Exception {
+        // The banner-free default: a plugin that contacts no third party says nothing.
+        assertThatCode(parse("""
+                {"id":"p","version":"1.0.0","platformApi":"0.4.0","name":"P",
+                 "slots":[],"storage":"doc","config":{}}
+                """)::validate).doesNotThrowAnyException();
+    }
+
     private PluginManifest parse(String json) throws Exception {
         return mapper.readValue(json, PluginManifest.class);
     }
@@ -108,7 +175,7 @@ class PluginManifestValidationTest {
         return """
                 {"id":"p","version":"1.0.0","platformApi":"%s","name":"P",
                  "slots":[{"scope":"site","element":"e","placement":"%s","visibleTo":"anonymous"}],
-                 "storage":"%s","config":{},"consent":{"categories":[],"externalSources":[]}}
+                 "storage":"%s","config":{},"consent":{"services":[]}}
                 """.formatted(platformApi, placement, storage);
     }
 
@@ -117,7 +184,15 @@ class PluginManifestValidationTest {
         return """
                 {"id":"p","version":"1.0.0","platformApi":"0.4.0","name":"P",
                  "slots":[{"scope":"site","element":"e","placement":"sidebar","visibleTo":"anonymous"}],
-                 "storage":"doc","config":%s,"consent":{"categories":[],"externalSources":[]}}
+                 "storage":"doc","config":%s,"consent":{"services":[]}}
                 """.formatted(config);
+    }
+
+    /** A valid manifest carrying the given {@code consent} block, to isolate consent validation. */
+    private static String withConsent(String consent) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"0.4.0","name":"P",
+                 "slots":[],"storage":"doc","config":{},"consent":%s}
+                """.formatted(consent);
     }
 }

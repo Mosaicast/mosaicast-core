@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import type { CreatedToken, Identity, Token } from '../api/types';
 import { useUser } from '../auth/UserContext';
+import { ProgressPreference } from '../consent/ProgressPreference';
 import { formatDate } from '../util/format';
 
 /**
@@ -81,6 +82,13 @@ export function AccountPage() {
       </div>
 
       {error && <p className="mc-error">{error}</p>}
+
+      {/*
+        Duplicated deliberately from the privacy settings: this is where a signed-in listener looks for it,
+        and one shared component means the two cannot drift apart (§12.5).
+      */}
+      <h2>{t('account.playback')}</h2>
+      <ProgressPreference note={t('account.playbackDevice')} />
 
       <h2>{t('account.identities')}</h2>
       <ul className="mc-list">
