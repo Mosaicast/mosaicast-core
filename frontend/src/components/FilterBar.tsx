@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -8,6 +9,9 @@ import { useTranslation } from 'react-i18next';
  * and ordering. The feed axis is the tabs (§6.1); it is not here. Presentational; the owning view keeps the
  * state in the URL. Season is offered only once a feed is active (a season is defined within a feed, §4.4);
  * tags appear when the current scope has any.
+ *
+ * Seasons are listed in whichever direction the episodes are sorted, so the two controls never contradict
+ * each other — with newest first, season 5 sits at the top and season 1 at the bottom.
  */
 export interface FilterValues {
   season: string;
@@ -25,6 +29,14 @@ interface FilterBarProps {
 export function FilterBar({ values, seasons, tags, onChange }: FilterBarProps) {
   const { t } = useTranslation();
 
+  // The dropdown reads in the same direction as the list it filters. Newest-first — the default — puts the
+  // current season at the top, next to "All", which is where someone reaches for it; the API keeps returning
+  // seasons in canonical ascending order, because that is a property of the feed rather than of this view.
+  const ordered = useMemo(
+    () => (values.order === 'oldest' ? [...seasons].sort((a, b) => a - b) : [...seasons].sort((a, b) => b - a)),
+    [seasons, values.order],
+  );
+
   return (
     <div className="mc-filterbar" role="group" aria-label={t('filter.label')}>
       {seasons.length > 0 && (
@@ -32,7 +44,7 @@ export function FilterBar({ values, seasons, tags, onChange }: FilterBarProps) {
           <span className="mc-muted">{t('filter.season')}</span>
           <select value={values.season} onChange={(e) => onChange({ season: e.target.value })}>
             <option value="">{t('filter.allSeasons')}</option>
-            {seasons.map((s) => (
+            {ordered.map((s) => (
               <option key={s} value={String(s)}>
                 {t('filter.seasonN', { n: s })}
               </option>

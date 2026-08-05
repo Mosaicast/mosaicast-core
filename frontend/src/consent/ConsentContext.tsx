@@ -13,7 +13,9 @@ import {
 } from 'react';
 
 import { api } from '../api/client';
+import { useMeta } from '../api/MetaContext';
 import type { ConsentPayload } from '../api/types';
+import { CONSENT_COOKIE, PROGRESS_PREF_KEY, STORAGE_KEY, purgeUndeclared } from './purge';
 
 /**
  * The shell's side of the consent service (ARCHITECTURE §12.5).
@@ -37,10 +39,40 @@ import type { ConsentPayload } from '../api/types';
  *   answered. An explicit choice in the settings still wins — the signal is a default, not a cage.
  */
 
-const STORAGE_KEY = 'mc.consent';
 const RECORD_VERSION = 1;
 const TWELVE_MONTHS_MS = 365 * 24 * 60 * 60 * 1000;
-const PROGRESS_PREF_KEY = 'mc.prefs.progress';
+
+/**
+ * The decision, mirrored into a cookie so the **server** can act on it (`ConsentCookie` on the Java side).
+ *
+ * `localStorage` is invisible to an HTTP response, so the Content-Security-Policy — the one thing a plugin
+ * cannot talk its way past — had to be written blind and therefore allowed every declared origin whatever
+ * the visitor chose. With the decision in a cookie the server narrows the policy to the categories actually
+ * granted, so a plugin that ignores `ctx.consent.has()` gets a blocked request instead of a silent one.
+ *
+ * Dot-separated because `Set-Cookie` treats commas and spaces as separators. Strictly necessary — it exists
+ * only to carry out the visitor's own refusal — and disclosed with everything else.
+ *
+ * Its name, and the two `localStorage` keys beside it, are defined in `./purge` rather than here: the sweep
+ * has to recognise them before any payload arrives, so that it can never delete the decision it enforces.
+ */
+const COOKIE_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
+function writeConsentCookie(categories: Record<string, boolean>): void {
+  const granted = Object.entries(categories)
+    .filter(([, on]) => on)
+    .map(([category]) => category)
+    .filter((category) => /^[a-z0-9_-]{1,40}$/i.test(category))
+    .join('.');
+  const secure = window.location.protocol === 'https:' ? '; Secure' : '';
+  document.cookie =
+    `${CONSENT_COOKIE}=${granted}; Path=/; Max-Age=${COOKIE_MAX_AGE_SECONDS}; SameSite=Lax${secure}`;
+}
+
+/** Drops the mirror, so the server falls back to allowing nothing optional. */
+function clearConsentCookie(): void {
+  document.cookie = `${CONSENT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
 
 /**
  * The stored decision — a **consent receipt**, kept on the visitor's own device.
@@ -100,6 +132,7 @@ const EMPTY: ConsentPayload = {
   fingerprint: '',
   categories: [],
   essential: { storage: [] },
+  necessaryServices: [],
   privacySlug: null,
 };
 
@@ -132,6 +165,7 @@ function normalize(payload: Partial<ConsentPayload> | null | undefined): Consent
       ? payload.categories.filter((category) => typeof category?.id === 'string')
       : [],
     essential: { storage: payload?.essential?.storage ?? [] },
+    necessaryServices: Array.isArray(payload?.necessaryServices) ? payload.necessaryServices : [],
     privacySlug: typeof payload?.privacySlug === 'string' ? payload.privacySlug : null,
   };
 }
@@ -206,6 +240,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [progressOn, setProgressOn] = useState(() => progressEnabled());
   const gpc = useMemo(readGpc, []);
+  const devProfile = useMeta()?.devLoginEnabled ?? false;
   /** Subscribers (plugins) and in-flight `request()` calls awaiting the visitor's next decision. */
   const listeners = useRef(new Set<() => void>());
   const pending = useRef<{ category: string; resolve: (granted: boolean) => void }[]>([]);
@@ -216,6 +251,41 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       .then((fetched) => setPayload(normalize(fetched)))
       .catch(() => setPayload(EMPTY));
   }, []);
+
+  // Keep the server's copy honest about a decision that stopped counting. An expired answer, or one given
+  // about a different set of services, must not leave a stale allow-list in the policy — and a cookie the
+  // visitor cleared while keeping localStorage (or the reverse) has to converge on the stricter of the two.
+  useEffect(() => {
+    if (!payload.fingerprint) {
+      return;
+    }
+    if (isCurrent(record, payload.fingerprint)) {
+      writeConsentCookie(record!.categories);
+    } else {
+      clearConsentCookie();
+    }
+  }, [payload.fingerprint, record]);
+
+  // Enforce the decision on what is already *on* the device, not only on what may be fetched next.
+  //
+  // Withdrawal has to mean the data goes, and a plugin uninstalled while the visitor was away leaves keys no
+  // future decision of theirs will ever touch — so this runs on load as well as after every answer, keyed on
+  // the declaration and the answer together. `purgeUndeclared` no-ops until a fingerprint has arrived.
+  useEffect(() => {
+    const removed = purgeUndeclared(payload, (category) =>
+      isCurrent(record, payload.fingerprint) ? record!.categories[category] === true : false,
+    );
+    const total = removed.localStorage.length + removed.sessionStorage.length + removed.cookies.length;
+    // Only where a developer is watching — the same signal `storageAudit` uses. A plugin author whose storage
+    // keeps vanishing deserves to be told why and told the fix; a visitor does not need the console noise.
+    if (total > 0 && devProfile) {
+      console.warn(
+        `[mosaicast] purged ${total} undeclared or withdrawn item(s):`,
+        removed,
+        '\nDeclared storage survives a sweep — add it to consent.services[].storage in the manifest.',
+      );
+    }
+  }, [payload, record, devProfile]);
 
   const stored = isCurrent(record, payload.fingerprint);
   const effective = useMemo(
@@ -254,6 +324,9 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       } catch {
         // A visitor blocking storage still gets their choice for this page view.
       }
+      // The server reads this on the next request and narrows the CSP accordingly. Written even when
+      // localStorage refused, since the cookie is what makes the refusal enforceable.
+      writeConsentCookie(next);
       // Tell anything already mounted — a plugin that loaded third-party content must be able to unload it
       // the moment the visitor withdraws, not at the next navigation.
       listeners.current.forEach((listener) => listener());

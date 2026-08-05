@@ -22,6 +22,11 @@ import java.util.List;
  *
  * <p>Purposes and durations travel to the shell as <strong>i18n keys</strong>, not as English sentences: the
  * disclosure has to read correctly in every UI locale, and only the shell knows which one is active.
+ *
+ * <p><strong>It is also the allow-list.</strong> The shell sweeps the device down to what is declared here
+ * plus what the visitor granted, so an omission is no longer only a lie in the notice — it is a key that gets
+ * deleted out from under the code that wrote it. That is the intended pressure, and it applies to the core
+ * exactly as it applies to a plugin.
  */
 public final class CoreStorageInventory {
 
@@ -59,10 +64,15 @@ public final class CoreStorageInventory {
                     "consent.purpose.site", "consent.duration.persistent", false),
             new Item(CONSENT_KEY, "localStorage",
                     "consent.purpose.consent", "consent.duration.months12", false),
+            // The same decision, mirrored where an HTTP response can read it — see ConsentCookie.
+            new Item(ConsentCookie.NAME, "cookie",
+                    "consent.purpose.consentCookie", "consent.duration.months12", false),
             new Item("mc.progress.*", "localStorage",
                     "consent.purpose.progress", "consent.duration.persistent", true),
             new Item(PROGRESS_PREF_KEY, "localStorage",
-                    "consent.purpose.progressPref", "consent.duration.persistent", false));
+                    "consent.purpose.progressPref", "consent.duration.persistent", false),
+            new Item("mc.prefs.rate", "localStorage",
+                    "consent.purpose.rate", "consent.duration.persistent", false));
 
     /** Every item core stores, in the order the disclosure lists them. */
     public static List<Item> items() {

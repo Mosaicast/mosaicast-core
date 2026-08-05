@@ -3,6 +3,7 @@
 
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
+import { MetaProvider } from './api/MetaContext';
 import { RequireRole } from './auth/RequireRole';
 import { UserProvider } from './auth/UserContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -40,6 +41,7 @@ export default function App() {
   const location = useLocation();
   return (
     <SiteProvider>
+      <MetaProvider>
       <UserProvider>
         <FeedsProvider>
           <PlayerProvider>
@@ -54,7 +56,7 @@ export default function App() {
                 <ErrorBoundary key={location.pathname}>
                 <Routes>
                   <Route path="/" element={<Home />} />
-                  <Route path="/feeds/:feedId" element={<FeedPage />} />
+                  <Route path="/feeds/:feedSlug" element={<FeedPage />} />
                   <Route path="/episodes/:slug" element={<EpisodePage />} />
                   <Route path="/legal/:slug" element={<LegalPage />} />
                   {/* Reachable on every install, plugins or not — core stores things too (§12.5). */}
@@ -140,6 +142,7 @@ export default function App() {
           </PlayerProvider>
         </FeedsProvider>
       </UserProvider>
+      </MetaProvider>
     </SiteProvider>
   );
 }

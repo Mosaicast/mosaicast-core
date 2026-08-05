@@ -14,6 +14,95 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **A refusal is now enforced, not just promised (`0.5.13`, ARCHITECTURE §12.5, §13)** — `ctx.consent.has()`
+  is advisory and always will be: a plugin bundle is imported into the page's own JavaScript realm, shadow
+  DOM encapsulates styles and markup rather than capabilities, and nothing running in that realm can take
+  `fetch` away from a plugin that declines to ask. The CSP is the part a plugin cannot talk its way past —
+  and it was written blind, allowing every declared origin whatever the visitor had chosen.
+  - **The decision now reaches the server.** It is mirrored into an `mc_consent` cookie (dot-separated
+    categories, `SameSite=Lax`), so `PluginCspHeaderWriter` narrows `script-src`/`frame-src`/`connect-src`
+    to the categories actually granted. No cookie means nothing optional — the same default-deny the client
+    applies. A plugin that ignores `has()` now gets a blocked request instead of a silent one.
+  - `necessary` services survive every decision, because they are never offered as one. A forged category
+    widens nothing: the manifest decides which origins exist, the cookie only which of them apply.
+  - **`Vary: Cookie` only when it earns its keep** — added when some declared service is actually gated. On a
+    site where everything is `necessary` the policy is identical for everyone, and varying would cost
+    cacheability for nothing.
+  - **Honest about the limits.** The cookie is visitor-controlled, which is not a hole (it can only widen
+    that visitor's own policy, and CSP protects exactly that visitor). It is not absolute containment against
+    a determined plugin either — same origin, so it could forge the value and wait for a navigation. It makes
+    a refusal take effect at the network layer for the whole of the current page, and turns evasion into a
+    deliberate, detectable act. Real containment means an iframe per plugin, which is an architecture
+    decision, not a patch. `img-src`/`media-src` stay open to `https:` because episode artwork comes from
+    arbitrary feed hosts; closing that channel needs an image proxy.
+  - **Withdrawal now reaches the data, not just the next request.** After every decision — and on load, for
+    a plugin uninstalled while the visitor was away — the shell sweeps `localStorage`, `sessionStorage` and
+    the cookies script can see down to what core declared, what a `necessary` service declared, and what the
+    visitor granted. Everything else goes, including keys no manifest ever mentioned. Blocking a *write* is
+    hopeless in one JavaScript realm (a patched `setItem` is one same-origin iframe away from being
+    bypassed); deleting needs no cooperation from whoever wrote it, because the shell owns the origin too.
+    The CSP closes the future, this closes the past — which is what Art. 17 and "as easy as granting" ask
+    for. Limits stated in `purge.ts`: `HttpOnly` cookies are the server's business, cookie scopes that
+    cannot be guessed survive, and IndexedDB is not swept yet.
+  - The consent record, its cookie and the playback-position switch can never be swept, whatever a payload
+    says. A sweep able to erase the decision it is enforcing is a loop, not a rule.
+  - **`necessary` services are now disclosed to visitors**, in their own read-only block under "Always
+    active". They were declared, allowed by the CSP and visible to an operator, but a visitor was told
+    nothing about them — and §25 TDDDG asks for the disclosure whether or not a decision is attached.
+  - **Dev-profile storage audit:** the shell warns when anything writes a storage key no manifest declared,
+    naming the plugin bundle from the stack where it can. Detection, not containment — undeclared storage
+    means the privacy settings are lying to visitors, and that is worth catching while developing.
+  - **The core holds itself to the rule it wrote.** The audit used to exempt the whole `mc.` namespace, which
+    hid `mc.prefs.rate` — written by the player, disclosed nowhere, for as long as `CoreStorageInventory`
+    has existed. The exemption is gone, the key is declared, and a test now reads both sides and fails when
+    the shell writes an `mc.` key the inventory does not list. That mattered less when the inventory was only
+    a notice; now that it is also the allow-list, an omission is a key the shell deletes out from under
+    itself.
+  - The README now states plainly what is enforced and what is trusted: installing a plugin is a trust
+    decision, in the sense a WordPress plugin is and a browser extension is not.
+
+- **The shell is art-directed rather than merely laid out (`0.5.12`)** — every region, route and
+  `data-slot` name is unchanged, because plugins target those; what changed is how it all looks, now that
+  there are tokens to build on.
+  - **Cards** lead with the artwork (168px), meta reads as chips instead of loose text, the title carries
+    the type weight, and hovering lifts the card and lights an accent rail. Where this device got to in an
+    episode is drawn along the bottom of the cover — read straight from `localStorage`, because thirty
+    cards should not mean thirty requests to paint a 3px line.
+  - **The detail hero is full-bleed**, with the episode's own artwork blurred behind its title and a
+    gradient dissolving into the page. Each episode page now looks like *that* episode, from data the feed
+    already provides. The sidebar region sticks while the notes scroll; prev/next are destinations rather
+    than bare links.
+  - **The player earns its bar:** ±15/30 s, a speed control cycling 1×–2× (remembered across episodes as
+    `mc.prefs.rate`, disclosed with the rest), a scrubber that shows how far in you are, and **keyboard
+    control** — space, arrows, `J`/`L` — bound at the document so it works wherever focus is, and standing
+    down inside inputs and plugin shadow DOM so typing never seeks the audio.
+  - **The season dropdown reads in the same direction as the list.** It ran All → 1 → 2 → 3 even with newest
+    episodes on top, so the season most people want sat at the far end of the menu. It now follows the sort
+    control, which also keeps the two from contradicting each other. Not ordered by "which season released
+    most recently": a filter list that reshuffles itself when a feed updates is harder to use than one that
+    is merely upside down.
+  - **Loading and empty are states, not gaps:** card-shaped skeletons on first load so nothing jumps, and
+    an empty feed that says what to try next.
+  - Chrome, forms and admin moved onto the tokens: translucent top bar, a mobile-collapsing nav, hover and
+    active states throughout, styled native selects, and **a disabled button that looks disabled** (an open
+    note from the M4 review — a control that looks live and does nothing reads as a broken page).
+  - **Feeds get readable URLs too.** Episodes have lived at `/episodes/the-sample-cast-s01e06` since `0.5.2`
+    while their own show sat at `/feeds/7a48fcb5-0fe5-429e-a1b6-187002b35940`. A feed now has the same kind of
+    slug, minted once at creation and never changed — a feed title comes from the feed and moves on any poll,
+    so re-slugging would break every shared link.
+    - It is the public identifier everywhere: URLs, `GET /api/feeds/{slug}` and its sub-resources, the
+      `feedId` filter, the sitemap, and the plugin `feed` / `season` `scope.id`.
+    - **Old links keep working.** Feed URLs were UUID-shaped until now, so the API resolves a UUID as well;
+      no slug can parse as one, so there is no ambiguity.
+    - **Existing plugin documents move with the feed.** `scope.id` is what partitions a plugin's doc store, so
+      rows written under the old UUID would present as missing — indistinguishable from data loss to the
+      plugin. `FeedSlugBackfill` mints the slugs and repoints `feed`- and `season`-scoped rows in the same
+      transaction, before the plugin loader runs.
+  - **Code:** `useResource` replaces the fetch/`useEffect`/`active`-flag triple that had been copied into
+    fifteen components with subtly different failure behaviour, and a `MetaProvider` ends the duplicate
+    `/api/meta` request that `TopBar` and `Footer` each made on every load.
+  - README screenshots refreshed (home, detail, account, admin — light and dark).
+
 - **Consent is now written for visitors (`0.5.11`, ARCHITECTURE §12.5)** — the declaration half shipped in
   `0.5.9`; this is the half people actually read. The old banner said *"An installed plugin wants to load
   content from third parties"* and listed `requested by: sample`, which is the site's architecture, not a

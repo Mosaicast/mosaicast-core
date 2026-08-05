@@ -60,6 +60,9 @@ code {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* Lets a full-bleed section escape the page measure without adding a horizontal scrollbar. `clip`, not
+     `hidden`: `hidden` would turn this into a scroll container and break `position: sticky` inside it. */
+  overflow-x: clip;
 }
 
 .mc-main {

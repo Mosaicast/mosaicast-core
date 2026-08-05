@@ -71,6 +71,7 @@ class FeedPipelineIntegrationTest {
     private final AtomicReference<String> body = new AtomicReference<>();
     private final AtomicReference<String> etag = new AtomicReference<>("v1");
     private String feedUrl;
+    private String secondFeedUrl;
 
     private static String rss(String... items) {
         return """
@@ -126,8 +127,18 @@ class FeedPipelineIntegrationTest {
                 os.write(bytes);
             }
         });
+        // A second path serving the same body, for the cases that need two distinct feeds.
+        server.createContext("/second.xml", exchange -> {
+            byte[] bytes = body.get().getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "application/rss+xml");
+            exchange.sendResponseHeaders(200, bytes.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(bytes);
+            }
+        });
         server.start();
         feedUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/feed.xml";
+        secondFeedUrl = "http://127.0.0.1:" + server.getAddress().getPort() + "/second.xml";
     }
 
     @AfterEach
@@ -152,6 +163,30 @@ class FeedPipelineIntegrationTest {
         assertThat(episodes.seasons(feed.id())).containsExactly(2);
         assertThat(episodes.search("pigeons", PageRequest.of(0, 20)).getContent())
                 .extracting(EpisodeSummary::title).containsExactly("Why pigeons secretly hate us");
+    }
+
+    @Test
+    void aFeedGetsAReadableSlug_andItsOldUuidUrlKeepsWorking() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+
+        // The public address is readable, like the episodes inside it.
+        assertThat(feed.slug()).isEqualTo("test-cast");
+        assertThat(feedService.detail("test-cast").title()).isEqualTo("Test Cast");
+
+        // Feed URLs were UUID-shaped until this release, so anything shared before it must still resolve —
+        // the id is not secret, and no slug can parse as a UUID.
+        assertThat(feedService.detail(feed.id().toString()).slug()).isEqualTo("test-cast");
+    }
+
+    @Test
+    void twoFeedsWithTheSameTitleGetDistinctSlugs() {
+        FeedView first = feedService.createRss(feedUrl, "Test Cast");
+        FeedView second = feedService.createRss(secondFeedUrl, "Test Cast");
+
+        // The slug is the primary key of the public URL space; a collision would mean one feed shadowing
+        // the other, so minting keeps counting until it finds a free one.
+        assertThat(first.slug()).isEqualTo("test-cast");
+        assertThat(second.slug()).isEqualTo("test-cast-2");
     }
 
     @Test
@@ -216,7 +251,7 @@ class FeedPipelineIntegrationTest {
         assertThat(byTitle.get("Plain One").author()).isEqualTo("Feed Author");
 
         // Feed-level channel metadata is stored and served for the feed panel (§6.1).
-        var detail = feedService.detail(feed.id());
+        var detail = feedService.detail(feed.slug());
         assertThat(detail.imageUrl()).isEqualTo("https://img.example/feed.jpg");
         assertThat(detail.author()).isEqualTo("Feed Author");
         assertThat(detail.description()).isEqualTo("A rich demo feed.");
@@ -513,7 +548,7 @@ class FeedPipelineIntegrationTest {
         assertThat(episodes.listByFeed(id, null, PageRequest.of(0, 20)).getContent()).isEmpty();
         assertThat(episodes.seasons(id)).isEmpty();
         assertThat(episodes.search("pigeons", PageRequest.of(0, 20)).getContent()).isEmpty();
-        assertThatThrownBy(() -> feedService.detail(id)).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> feedService.detail(id.toString())).isInstanceOf(NotFoundException.class);
         assertThatThrownBy(() -> episodes.detail(episodeId)).isInstanceOf(NotFoundException.class);
 
         // Re-enabling restores everything — nothing was deleted.

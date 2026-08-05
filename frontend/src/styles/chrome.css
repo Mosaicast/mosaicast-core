@@ -4,8 +4,11 @@
 /* The persistent chrome: top bar, dropdown menus, avatars, banners and the footer. */
 
 /* ---- top bar ---- */
+/* Translucent rather than opaque: the artwork of the hero underneath shows through as it scrolls past,
+   which ties the chrome to the page instead of sitting on top of it as a separate slab. */
 .mc-top {
-  background: var(--mc-surface);
+  background: color-mix(in srgb, var(--mc-surface) 88%, transparent);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--mc-border);
   position: sticky;
   top: 0;
@@ -13,20 +16,21 @@
 }
 
 .mc-top__inner {
-  max-width: 1120px;
+  max-width: var(--mc-container);
   margin: 0 auto;
-  padding: 0.75rem 1.5rem;
+  padding: var(--mc-space-3) var(--mc-space-5);
   display: flex;
   align-items: center;
-  gap: 1.25rem;
+  gap: var(--mc-space-5);
 }
 
 .mc-brand {
   display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  font-weight: 700;
-  font-size: 1.1rem;
+  gap: var(--mc-space-2);
+  font-weight: var(--mc-weight-bold);
+  font-size: var(--mc-text-lg);
+  letter-spacing: -0.01em;
   color: var(--mc-text);
 }
 .mc-brand:hover {
@@ -34,22 +38,40 @@
 }
 
 .mc-brand__logo {
-  width: 1.7rem;
-  height: 1.7rem;
+  width: 1.75rem;
+  height: 1.75rem;
   display: block;
   object-fit: contain;
 }
 
 .mc-nav {
   display: flex;
-  gap: 1rem;
+  gap: var(--mc-space-4);
+  font-size: var(--mc-text-sm);
+  font-weight: var(--mc-weight-medium);
 }
 
 .mc-top__actions {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: var(--mc-space-2);
+}
+
+/* A phone has room for the brand and the actions; the nav is one link and moves under them. */
+@media (max-width: 560px) {
+  .mc-top__inner {
+    flex-wrap: wrap;
+    gap: var(--mc-space-2) var(--mc-space-3);
+    padding: var(--mc-space-2) var(--mc-space-4);
+  }
+  .mc-top__actions {
+    order: 2;
+  }
+  .mc-nav {
+    order: 3;
+    width: 100%;
+  }
 }
 
 /* ---- account / auth ---- */
@@ -176,17 +198,17 @@
   border-top: 1px solid var(--mc-border);
   background: var(--mc-surface);
   color: var(--mc-text-muted);
-  padding: 1.25rem 1.5rem;
+  padding: var(--mc-space-5);
   display: flex;
-  gap: 1rem 1.5rem;
+  gap: var(--mc-space-3) var(--mc-space-5);
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  font-size: 0.9rem;
+  font-size: var(--mc-text-sm);
 }
 .mc-foot__legal {
   display: flex;
-  gap: 1rem;
+  gap: var(--mc-space-4);
   flex-wrap: wrap;
 }
 

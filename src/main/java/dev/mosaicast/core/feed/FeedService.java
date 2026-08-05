@@ -72,11 +72,38 @@ public class FeedService {
 
     /** Public detail of one feed for the shell's feed panel (§6.1) — cover, title, author, description. */
     @Transactional(readOnly = true)
-    public FeedDetailView detail(UUID id) {
-        Feed feed = feeds.findById(id)
+    public FeedDetailView detail(String slugOrId) {
+        Feed feed = resolvePublic(slugOrId);
+        return FeedDetailView.of(feed, refs.countByFeedId(feed.getId()));
+    }
+
+    /**
+     * Resolves a public feed reference: the slug it is addressed by today, or its UUID.
+     *
+     * <p>The UUID is still accepted on purpose. Feed URLs were UUID-shaped until this release, so a link
+     * someone shared or bookmarked before it would otherwise 404 — and the id is neither secret nor
+     * ambiguous with a slug (slugs never parse as UUIDs). New links are minted with the slug everywhere.
+     */
+    @Transactional(readOnly = true)
+    public Feed resolvePublic(String slugOrId) {
+        return feeds.findBySlug(slugOrId)
+                .or(() -> asUuid(slugOrId).flatMap(feeds::findById))
                 .filter(Feed::isEnabled)
-                .orElseThrow(() -> new NotFoundException("Feed not found: " + id));
-        return FeedDetailView.of(feed, refs.countByFeedId(id));
+                .orElseThrow(() -> new NotFoundException("Feed not found: " + slugOrId));
+    }
+
+    /** The internal id behind a public feed reference, for the queries that still address by UUID. */
+    @Transactional(readOnly = true)
+    public UUID resolvePublicId(String slugOrId) {
+        return resolvePublic(slugOrId).getId();
+    }
+
+    private static java.util.Optional<UUID> asUuid(String value) {
+        try {
+            return java.util.Optional.of(UUID.fromString(value));
+        } catch (IllegalArgumentException e) {
+            return java.util.Optional.empty();
+        }
     }
 
     @Transactional(readOnly = true)
@@ -101,7 +128,11 @@ public class FeedService {
     public FeedView createRss(String url, String title) {
         validateHttpUrl(url);
         String resolvedTitle = (title == null || title.isBlank()) ? deriveTitle(url) : title;
-        Feed feed = feeds.save(Feed.rss(url, resolvedTitle));
+        Feed feed = Feed.rss(url, resolvedTitle);
+        // Minted here rather than in a lifecycle hook so it exists before the first poll writes episodes:
+        // episode slugs read the feed's title, and plugin scope ids read this one.
+        feed.assignSlugIfAbsent(FeedSlug.generate(resolvedTitle, feeds::existsBySlug));
+        feed = feeds.save(feed);
         log.info("Feed added: '{}' ({}) — polling now", resolvedTitle, url);
         pipeline.poll(feed);
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));

@@ -50,6 +50,8 @@ export interface SiteView {
 /** A feed in the public catalog (`feed/PublicFeedView.java`), `GET /api/feeds`. */
 export interface PublicFeed {
   id: string;
+  /** The public identifier used in URLs and as the plugin feed scope id. */
+  slug: string;
   title: string;
   episodeCount: number;
 }
@@ -57,6 +59,7 @@ export interface PublicFeed {
 /** Public detail of one feed (`feed/FeedDetailView.java`), `GET /api/feeds/{id}` — for the feed panel. */
 export interface FeedDetail {
   id: string;
+  slug: string;
   title: string;
   imageUrl: string | null;
   author: string | null;
@@ -340,6 +343,12 @@ export interface ConsentPayload {
   fingerprint: string;
   categories: ConsentCategory[];
   essential: { storage: EssentialStorage[] };
+  /**
+   * Services a plugin declared as `necessary`: disclosed, never asked about. Separate from `categories`
+   * because appearing there would imply a toggle that does not exist — and because what they store is
+   * legitimately on the device, which is what keeps the purge from mistaking it for a stray.
+   */
+  necessaryServices: ConsentServiceView[];
   privacySlug: string | null;
 }
 
