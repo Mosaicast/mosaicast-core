@@ -43,6 +43,7 @@ const WITH_CATEGORY: ConsentPayload = {
     },
   ],
   essential: ESSENTIAL,
+  necessaryServices: [],
   privacySlug: 'privacy',
 };
 
@@ -50,6 +51,7 @@ const NOTHING: ConsentPayload = {
   fingerprint: 'empty1',
   categories: [],
   essential: ESSENTIAL,
+  necessaryServices: [],
   privacySlug: null,
 };
 

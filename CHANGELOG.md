@@ -14,6 +14,53 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **A refusal is now enforced, not just promised (`0.5.13`, ARCHITECTURE §12.5, §13)** — `ctx.consent.has()`
+  is advisory and always will be: a plugin bundle is imported into the page's own JavaScript realm, shadow
+  DOM encapsulates styles and markup rather than capabilities, and nothing running in that realm can take
+  `fetch` away from a plugin that declines to ask. The CSP is the part a plugin cannot talk its way past —
+  and it was written blind, allowing every declared origin whatever the visitor had chosen.
+  - **The decision now reaches the server.** It is mirrored into an `mc_consent` cookie (dot-separated
+    categories, `SameSite=Lax`), so `PluginCspHeaderWriter` narrows `script-src`/`frame-src`/`connect-src`
+    to the categories actually granted. No cookie means nothing optional — the same default-deny the client
+    applies. A plugin that ignores `has()` now gets a blocked request instead of a silent one.
+  - `necessary` services survive every decision, because they are never offered as one. A forged category
+    widens nothing: the manifest decides which origins exist, the cookie only which of them apply.
+  - **`Vary: Cookie` only when it earns its keep** — added when some declared service is actually gated. On a
+    site where everything is `necessary` the policy is identical for everyone, and varying would cost
+    cacheability for nothing.
+  - **Honest about the limits.** The cookie is visitor-controlled, which is not a hole (it can only widen
+    that visitor's own policy, and CSP protects exactly that visitor). It is not absolute containment against
+    a determined plugin either — same origin, so it could forge the value and wait for a navigation. It makes
+    a refusal take effect at the network layer for the whole of the current page, and turns evasion into a
+    deliberate, detectable act. Real containment means an iframe per plugin, which is an architecture
+    decision, not a patch. `img-src`/`media-src` stay open to `https:` because episode artwork comes from
+    arbitrary feed hosts; closing that channel needs an image proxy.
+  - **Withdrawal now reaches the data, not just the next request.** After every decision — and on load, for
+    a plugin uninstalled while the visitor was away — the shell sweeps `localStorage`, `sessionStorage` and
+    the cookies script can see down to what core declared, what a `necessary` service declared, and what the
+    visitor granted. Everything else goes, including keys no manifest ever mentioned. Blocking a *write* is
+    hopeless in one JavaScript realm (a patched `setItem` is one same-origin iframe away from being
+    bypassed); deleting needs no cooperation from whoever wrote it, because the shell owns the origin too.
+    The CSP closes the future, this closes the past — which is what Art. 17 and "as easy as granting" ask
+    for. Limits stated in `purge.ts`: `HttpOnly` cookies are the server's business, cookie scopes that
+    cannot be guessed survive, and IndexedDB is not swept yet.
+  - The consent record, its cookie and the playback-position switch can never be swept, whatever a payload
+    says. A sweep able to erase the decision it is enforcing is a loop, not a rule.
+  - **`necessary` services are now disclosed to visitors**, in their own read-only block under "Always
+    active". They were declared, allowed by the CSP and visible to an operator, but a visitor was told
+    nothing about them — and §25 TDDDG asks for the disclosure whether or not a decision is attached.
+  - **Dev-profile storage audit:** the shell warns when anything writes a storage key no manifest declared,
+    naming the plugin bundle from the stack where it can. Detection, not containment — undeclared storage
+    means the privacy settings are lying to visitors, and that is worth catching while developing.
+  - **The core holds itself to the rule it wrote.** The audit used to exempt the whole `mc.` namespace, which
+    hid `mc.prefs.rate` — written by the player, disclosed nowhere, for as long as `CoreStorageInventory`
+    has existed. The exemption is gone, the key is declared, and a test now reads both sides and fails when
+    the shell writes an `mc.` key the inventory does not list. That mattered less when the inventory was only
+    a notice; now that it is also the allow-list, an omission is a key the shell deletes out from under
+    itself.
+  - The README now states plainly what is enforced and what is trusted: installing a plugin is a trust
+    decision, in the sense a WordPress plugin is and a browser extension is not.
+
 - **The shell is art-directed rather than merely laid out (`0.5.12`)** — every region, route and
   `data-slot` name is unchanged, because plugins target those; what changed is how it all looks, now that
   there are tokens to build on.

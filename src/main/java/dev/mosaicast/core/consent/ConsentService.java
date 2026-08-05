@@ -66,12 +66,16 @@ public class ConsentService {
      * @param fingerprint a stable digest of everything declared; when it changes, the declared set changed and
      *                    the shell asks again instead of letting a newly installed service inherit an answer
      *                    given before it existed
-     * @param categories  the decisions offered, {@code necessary} excluded; empty means <em>no banner</em>
-     * @param essential   what the core stores unconditionally — disclosed, never asked about
-     * @param privacySlug the legal page marked {@code privacy} (§12.6) to link, or {@code null}
+     * @param categories        the decisions offered, {@code necessary} excluded; empty means <em>no banner</em>
+     * @param essential         what the core stores unconditionally — disclosed, never asked about
+     * @param necessaryServices services a plugin declared as {@code necessary}: never a question, but still
+     *                          storing things on a device, so still a disclosure. They are listed separately
+     *                          rather than folded into {@link #categories()} precisely because listing them
+     *                          there would imply a toggle that does not exist
+     * @param privacySlug       the legal page marked {@code privacy} (§12.6) to link, or {@code null}
      */
     public record ConsentView(String fingerprint, List<CategoryView> categories, EssentialView essential,
-                              String privacySlug) {
+                              List<ServiceView> necessaryServices, String privacySlug) {
     }
 
     /**
@@ -136,12 +140,18 @@ public class ConsentService {
     /** The public consent payload. */
     public ConsentView current() {
         Map<String, List<ServiceView>> byCategory = new LinkedHashMap<>();
+        List<ServiceView> necessary = new ArrayList<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
                 String category = normalize(service.category());
-                if (category == null || CATEGORY_NECESSARY.equals(category)) {
-                    // Never a question: it loads either way. Its origins still reach the CSP below, and the
-                    // audit still lists it, so "declared but not asked about" stays visible to an operator.
+                if (category == null) {
+                    continue;
+                }
+                if (CATEGORY_NECESSARY.equals(category)) {
+                    // Never a question: it loads either way. It is still a disclosure, though, and the shell
+                    // needs the list for a second reason — what it stores is legitimately on the device, so a
+                    // sweep of everything unaccounted for must not mistake it for a stray.
+                    necessary.add(view(service));
                     continue;
                 }
                 byCategory.computeIfAbsent(category, key -> new ArrayList<>()).add(view(service));
@@ -154,7 +164,7 @@ public class ConsentService {
                 .toList();
 
         return new ConsentView(fingerprint(), categories,
-                new EssentialView(CoreStorageInventory.items()), privacySlug());
+                new EssentialView(CoreStorageInventory.items()), List.copyOf(necessary), privacySlug());
     }
 
     /** The admin-only view: everything above, plus who declared it and what the CSP therefore allows. */
@@ -173,16 +183,45 @@ public class ConsentService {
     }
 
     /**
-     * Every distinct third-party origin active plugins declared — the allow-list the CSP is widened by
-     * ({@link dev.mosaicast.core.config.PluginCspHeaderWriter}). A plugin that declares nothing cannot load
-     * anything third-party, which is the point: the declaration is both the notice and the permission.
-     *
-     * <p>Includes {@code necessary} services: they load without being asked about, so they must be allowed.
+     * Every distinct third-party origin active plugins declared — the whole allow-list, ignoring what any
+     * particular visitor chose. Used by the admin audit; the CSP uses {@link #allowedSources(Set)} instead.
      */
     public Set<String> declaredExternalSources() {
+        return hosts(category -> true);
+    }
+
+    /**
+     * The origins a visitor's CSP may be widened by, given the categories they granted
+     * ({@link dev.mosaicast.core.config.PluginCspHeaderWriter}).
+     *
+     * <p>This is what turns a refusal from a promise into a rule. {@code ctx.consent.has()} is advisory —
+     * a plugin can simply not call it, and nothing in a shared JavaScript realm can force it to. What the
+     * browser refuses to connect to is not advisory, so a category the visitor declined takes its origins
+     * out of the policy and the request fails at the network layer instead of relying on plugin manners.
+     *
+     * <p>{@code necessary} services are always included: they are not offered as a choice, so there is no
+     * decision that could remove them. A category nobody granted contributes nothing, which is also the
+     * state before any decision at all — deny by default, exactly like {@code has()}.
+     *
+     * @param grantedCategories the categories this visitor granted; empty means nothing optional loads
+     */
+    public Set<String> allowedSources(Set<String> grantedCategories) {
+        return hosts(category -> CATEGORY_NECESSARY.equals(category) || grantedCategories.contains(category));
+    }
+
+    /** Whether any declared service is gated at all — i.e. whether the policy varies between visitors. */
+    public boolean hasOptionalSources() {
+        return !declaredExternalSources().equals(allowedSources(Set.of()));
+    }
+
+    private Set<String> hosts(java.util.function.Predicate<String> categoryAllowed) {
         Set<String> hosts = new LinkedHashSet<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
+                String category = normalize(service.category());
+                if (category == null || !categoryAllowed.test(category)) {
+                    continue;
+                }
                 service.hostsOrEmpty().stream()
                         .filter(host -> host != null && !host.isBlank())
                         .map(String::trim)

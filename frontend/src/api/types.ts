@@ -343,6 +343,12 @@ export interface ConsentPayload {
   fingerprint: string;
   categories: ConsentCategory[];
   essential: { storage: EssentialStorage[] };
+  /**
+   * Services a plugin declared as `necessary`: disclosed, never asked about. Separate from `categories`
+   * because appearing there would imply a toggle that does not exist — and because what they store is
+   * legitimately on the device, which is what keeps the purge from mistaking it for a stray.
+   */
+  necessaryServices: ConsentServiceView[];
   privacySlug: string | null;
 }
 

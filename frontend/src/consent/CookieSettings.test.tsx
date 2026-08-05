@@ -38,6 +38,7 @@ const PAYLOAD: ConsentPayload = {
       },
     ],
   },
+  necessaryServices: [],
   privacySlug: 'privacy',
 };
 
@@ -128,6 +129,50 @@ describe('Cookie settings (§12.5)', () => {
     expect(stored.fingerprint).toBe('abc123');
     expect(stored.categories).toEqual({ analytics: true });
     expect(Date.parse(stored.decidedAt)).toBeGreaterThan(0);
+  });
+
+  it('takes the data with it when consent is withdrawn', async () => {
+    stubConsent(PAYLOAD);
+    renderSettings();
+    fireEvent.click(await screen.findByText('Allow all'));
+    await screen.findByText('Allowed');
+    // Written while the category was granted, exactly as the service declared it.
+    localStorage.setItem('pa', 'visit-1');
+
+    fireEvent.click(screen.getByText('Allow none'));
+
+    // Withdrawal is not only "stop collecting" — Art. 17 and "as easy as granting" mean what is already on
+    // the device goes as well. The CSP closes the future; this closes the past.
+    await waitFor(() => expect(localStorage.getItem('pa')).toBeNull());
+  });
+
+  it('sweeps a key nothing declared, without needing whoever wrote it to cooperate', async () => {
+    localStorage.setItem('rogue.id', 'uuid');
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    await waitFor(() => expect(localStorage.getItem('rogue.id')).toBeNull());
+  });
+
+  it('discloses services declared necessary, which are never offered as a choice', async () => {
+    stubConsent({
+      ...PAYLOAD,
+      necessaryServices: [
+        {
+          name: 'Host Badge CDN',
+          provider: 'Badge Ltd',
+          privacyUrl: null,
+          thirdCountryTransfer: false,
+          storage: [{ name: 'badge.cache', type: 'localStorage', purpose: 'caches the badge', duration: 'a week' }],
+        },
+      ],
+    });
+    renderSettings();
+
+    // No toggle for it — that is the point of `necessary` — but §25 TDDDG asks for the disclosure whether or
+    // not there is a decision attached to it.
+    expect(await screen.findByText('Host Badge CDN')).toBeInTheDocument();
+    expect(screen.getByText('badge.cache')).toBeInTheDocument();
   });
 
   it('withdraws in one click, exactly like granting', async () => {
