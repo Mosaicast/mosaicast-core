@@ -1,0 +1,274 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/* Buttons, inputs and the small building blocks the account and admin forms are made of. */
+
+/* ---- buttons ---- */
+.mc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mc-space-2);
+  border-radius: var(--mc-radius-md);
+  padding: var(--mc-space-2) var(--mc-space-4);
+  font: inherit;
+  font-size: var(--mc-text-sm);
+  font-weight: var(--mc-weight-medium);
+  cursor: pointer;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  transition:
+    background var(--mc-motion-fast) var(--mc-ease),
+    border-color var(--mc-motion-fast) var(--mc-ease),
+    transform var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-btn:hover {
+  text-decoration: none;
+  border-color: var(--mc-border-strong);
+  background: var(--mc-surface-2);
+}
+.mc-btn:active {
+  transform: translateY(1px);
+}
+.mc-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+}
+.mc-btn--ghost:hover {
+  background: var(--mc-hover);
+  border-color: transparent;
+}
+.mc-btn--accent {
+  background: var(--mc-accent);
+  color: var(--mc-accent-contrast);
+  border-color: var(--mc-accent);
+}
+.mc-btn--accent:hover {
+  background: color-mix(in srgb, var(--mc-accent) 88%, var(--mc-text));
+  border-color: color-mix(in srgb, var(--mc-accent) 88%, var(--mc-text));
+}
+.mc-btn--danger {
+  color: var(--mc-danger);
+  border-color: color-mix(in srgb, var(--mc-danger) 40%, transparent);
+}
+.mc-btn--danger:hover {
+  background: color-mix(in srgb, var(--mc-danger) 10%, transparent);
+  border-color: var(--mc-danger);
+}
+.mc-btn--lg {
+  padding: var(--mc-space-3) var(--mc-space-5);
+  font-size: var(--mc-text-base);
+}
+/*
+ * A disabled button has to *look* unavailable, not merely refuse to work — a control that looks live and
+ * does nothing reads as a broken page rather than as a locked one.
+ */
+.mc-btn:disabled,
+.mc-btn[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+.mc-btn:disabled:hover,
+.mc-btn[aria-disabled='true']:hover {
+  background: var(--mc-surface);
+  border-color: var(--mc-border);
+}
+
+.mc-account__profile {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.mc-account__name {
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+.mc-account h2 {
+  margin: 1.75rem 0 0.75rem;
+  font-size: 1.15rem;
+}
+.mc-error {
+  color: var(--mc-danger);
+}
+
+.mc-errorpage {
+  max-width: 32rem;
+  margin: 3rem auto;
+  padding: 1.5rem;
+  text-align: center;
+}
+.mc-errorpage__actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.mc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+.mc-list__row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+}
+.mc-identity__provider {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.mc-token-secret {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-accent);
+  border-radius: 10px;
+  padding: 1rem;
+  margin: 0.75rem 0 1rem;
+}
+.mc-token-secret__value {
+  display: block;
+  word-break: break-all;
+  margin: 0.5rem 0;
+  padding: 0.5rem;
+  background: var(--mc-bg);
+  border-radius: 6px;
+}
+.mc-token-create {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.mc-input {
+  font: inherit;
+  font-size: var(--mc-text-sm);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-radius: var(--mc-radius-md);
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  transition: border-color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-input:hover {
+  border-color: var(--mc-border-strong);
+}
+.mc-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+/* Native selects in forms match the inputs beside them — an unstyled dropdown next to a styled field is
+   the detail that makes an admin screen look half-finished. */
+.mc-field select,
+.mc-form select {
+  font: inherit;
+  font-size: var(--mc-text-sm);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-radius: var(--mc-radius-md);
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  cursor: pointer;
+  transition: border-color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-field select:hover,
+.mc-form select:hover {
+  border-color: var(--mc-border-strong);
+}
+
+.mc-input--num {
+  width: 5rem;
+}
+.mc-textarea {
+  font: inherit;
+  width: 100%;
+  padding: var(--mc-space-3);
+  border-radius: var(--mc-radius-md);
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  resize: vertical;
+}
+
+.mc-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.mc-form h2 {
+  margin: 0.5rem 0 0;
+  font-size: 1.1rem;
+}
+.mc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  max-width: 420px;
+}
+.mc-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mc-field span {
+  font-size: 0.85rem;
+  color: var(--mc-text-muted);
+}
+.mc-form__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.mc-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mc-space-2);
+  font-size: var(--mc-text-sm);
+  cursor: pointer;
+}
+.mc-toggle input {
+  accent-color: var(--mc-accent);
+  width: 1rem;
+  height: 1rem;
+  cursor: pointer;
+}
+
+/* ---- M4.2: accent color picker ---- */
+.mc-colorpick {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.mc-colorpick__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+.mc-colorpick__input::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+.mc-colorpick__input::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+.mc-colorpick__input::-moz-color-swatch {
+  border: none;
+  border-radius: 6px;
+}

@@ -46,6 +46,11 @@ export function AdminLayout() {
             </NavLink>
           )}
           {isAdmin && (
+            <NavLink to="/admin/consent" className={tab}>
+              {t('admin.nav.consent')}
+            </NavLink>
+          )}
+          {isAdmin && (
             <NavLink to="/admin/logs" className={tab}>
               {t('admin.nav.logs')}
             </NavLink>

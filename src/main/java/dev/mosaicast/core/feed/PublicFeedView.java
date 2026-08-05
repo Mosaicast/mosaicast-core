@@ -11,13 +11,14 @@ import java.util.UUID;
  * URL, last-poll state, error/failure counters) is <strong>not</strong> exposed here and must not leak to
  * unauthenticated callers. The shell derives a cover client-side from the id (no cover field needed).
  *
- * @param id           the feed id (used to fetch its episodes and derive a cover)
+ * @param id           the internal feed id (still used to filter episode queries and derive a cover)
+ * @param slug         the public identifier the feed is addressed by in URLs and the plugin contract
  * @param title        the feed's display title
  * @param episodeCount how many episodes it has (includes non-published; a rough size hint)
  */
-public record PublicFeedView(UUID id, String title, long episodeCount) {
+public record PublicFeedView(UUID id, String slug, String title, long episodeCount) {
 
     static PublicFeedView of(Feed feed, long episodeCount) {
-        return new PublicFeedView(feed.getId(), feed.getTitle(), episodeCount);
+        return new PublicFeedView(feed.getId(), feed.getSlug(), feed.getTitle(), episodeCount);
     }
 }

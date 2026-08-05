@@ -1,0 +1,125 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/*
+ * Reset, document defaults, page scaffolding and the accessibility baseline every other
+ * partial assumes: one focus ring, one motion setting, one page container.
+ */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--mc-font-sans);
+  font-size: var(--mc-text-base);
+  line-height: var(--mc-leading-normal);
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--mc-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+code {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  padding: 0.1rem 0.4rem;
+  font-family: var(--mc-font-mono);
+}
+
+/*
+ * One focus ring for the whole shell, on `:focus-visible` so a mouse click does not draw it but a
+ * keyboard tab always does. Declared on the bare interactive elements rather than on a class, so it
+ * covers anything a later surface adds without that surface having to remember.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: var(--mc-focus-width) solid var(--mc-focus);
+  outline-offset: var(--mc-focus-offset);
+  border-radius: var(--mc-radius-sm);
+}
+
+/*
+ * Anything the visitor is meant to hit stays at least 32px tall. `:where()` keeps specificity at
+ * zero, so a component that needs a denser control (the log table's expander) simply says so.
+ */
+:where(button, [role='menuitem'], .mc-tab) {
+  min-height: 2rem;
+}
+
+/* ---- layout ---- */
+.mc-root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  /* Lets a full-bleed section escape the page measure without adding a horizontal scrollbar. `clip`, not
+     `hidden`: `hidden` would turn this into a scroll container and break `position: sticky` inside it. */
+  overflow-x: clip;
+}
+
+.mc-main {
+  flex: 1;
+  width: 100%;
+}
+
+.mc-page {
+  max-width: var(--mc-container-narrow);
+  margin: 0 auto;
+  padding: var(--mc-space-6) var(--mc-space-5);
+}
+
+.mc-page__title {
+  margin: 0 0 var(--mc-space-5);
+  font-size: var(--mc-text-2xl);
+  line-height: var(--mc-leading-tight);
+}
+
+.mc-muted {
+  color: var(--mc-text-muted);
+}
+
+/* ---- plugin slot regions (E5 mounts into data-slot) ---- */
+.mc-slot:empty {
+  display: none;
+}
+
+.mc-slot__error {
+  color: var(--mc-text-muted);
+  font-size: var(--mc-text-sm);
+  font-style: italic;
+}
+
+.mc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/*
+ * The tokens zero the motion durations under `prefers-reduced-motion`; this catches everything that
+ * does not read them — third-party markup, and any rule that predates the token layer.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

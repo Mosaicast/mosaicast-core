@@ -33,11 +33,16 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
   Don't guess the copyright holder from git config — use this fixed value. CI blocks PRs without a header.
 
 ## Frontend & UI (binding)
-- **Plain CSS, one file:** `frontend/src/styles.css`, flat `mc-*` class names. **No Tailwind, no shadcn, no
-  CSS-in-JS, no component library** — do not introduce one, and ignore skill guidance that assumes them.
-- **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): shell and plugin Web
-  Components read the same properties, which is what makes plugin UIs re-theme automatically. Renaming or
-  dropping one breaks every plugin. Add tokens freely; change existing names only deliberately.
+- **Plain CSS, flat `mc-*` class names. No Tailwind, no shadcn, no CSS-in-JS, no component library** — do
+  not introduce one, and ignore skill guidance that assumes them. `frontend/src/styles.css` is an `@import`
+  manifest; the rules live in `frontend/src/styles/*.css` (`tokens base chrome feed detail player forms
+  admin consent`). Import order is the cascade — put a rule in the partial that owns the surface.
+- **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): they inherit across the
+  shadow boundary, so plugin Web Components read the same tokens, which is what makes plugin UIs re-theme
+  automatically. Renaming or dropping one breaks every plugin. Add tokens freely; change existing names only
+  deliberately. Style with tokens, not literals — `styles/tokens.css` documents the full set, and the eight
+  colour tokens are the only ones also delivered as JS (`ctx.theme`), mirrored in `theme/applyTheme.ts` and
+  `public/theme-init.js`.
 - **Light and dark are both first-class** (`data-theme` on the root; `frontend/public/theme-init.js` sets it
   before first paint to avoid a flash). Check both for every visual change.
 - **i18n:** flat dotted keys in `frontend/src/locales/{en,de}.json`. **Both locales, always** — German is a

@@ -58,8 +58,10 @@ public class SitemapController {
         entries.add(new Entry("/", null));
 
         for (FeedView feed : feeds.list()) {
-            if (feed.enabled()) {
-                entries.add(new Entry("/feeds/" + feed.id(), null));
+            // The public URL is the slug; a feed still awaiting its boot backfill has none and is skipped
+            // rather than advertised under an id that is no longer its address.
+            if (feed.enabled() && feed.slug() != null) {
+                entries.add(new Entry("/feeds/" + feed.slug(), null));
             }
         }
         episodes.listSite(null, null, null, true, PageRequest.of(0, MAX_EPISODES)).getContent().stream()

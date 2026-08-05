@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { api } from '../api/client';
-import type { Meta, Role } from '../api/types';
+import { useMeta } from '../api/MetaContext';
+import type { Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { useLegalEntries } from '../hooks/useLegalEntries';
 import { availableLocales, localeName } from '../i18n';
@@ -28,14 +28,7 @@ export function TopBar() {
   const { user, refresh, logout } = useUser();
   const legal = useLegalEntries();
   const navigate = useNavigate();
-  const [devLogin, setDevLogin] = useState(false);
-
-  useEffect(() => {
-    api
-      .get<Meta>('/api/meta')
-      .then((meta) => setDevLogin(meta.devLoginEnabled))
-      .catch(() => setDevLogin(false));
-  }, []);
+  const devLogin = useMeta()?.devLoginEnabled ?? false;
 
   const logo =
     mode === 'dark' && site?.branding.darkLogo ? site.branding.darkLogo : (site?.branding.logo ?? '/branding/logo');

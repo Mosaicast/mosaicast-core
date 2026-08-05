@@ -1,0 +1,156 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/*
+ * The `--mc-*` design tokens (ARCHITECTURE §12.3).
+ *
+ * These are a **contract with plugins**, not shell-private styling. CSS custom properties inherit
+ * across a shadow boundary, so every token declared here is readable from inside a plugin's Web
+ * Component without the plugin doing anything — which is what makes a plugin UI re-theme with the
+ * site. Renaming or dropping one breaks every plugin that used it; adding is free.
+ *
+ * ## The eight colours are special
+ *
+ * `--mc-bg --mc-surface --mc-text --mc-text-muted --mc-accent --mc-accent-contrast --mc-accent-2
+ * --mc-border` are also delivered to plugins as a JS object (`ctx.theme`, the SDK's `ThemeTokens`),
+ * which `defineMosaicastElement` writes onto the component's `:host`. The values below are only the
+ * pre-paint / no-cache / API-down fallback: at runtime the seed generator supplies them through
+ * `theme/applyTheme.ts` and the no-flash script in `public/theme-init.js`, which set them as inline
+ * styles on `:root`. Keep those three lists in step.
+ *
+ * ## Everything else is derived, on purpose
+ *
+ * The generator only knows about those eight, so every other colour token here is a `color-mix()`
+ * over them rather than a literal. That way an admin dragging the accent slider moves the hover
+ * layer, the strong border and the surface elevation with it, instead of leaving them stranded at
+ * their light-theme defaults. Only values that genuinely cannot be derived — the feedback colours
+ * and the shadow alphas — are written out per theme.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* --- the eight generated colours (mirrored in applyTheme.ts + theme-init.js) --- */
+  --mc-bg: #fdf6ee;
+  --mc-surface: #ffffff;
+  --mc-text: #1c1a17;
+  --mc-text-muted: #6b6459;
+  --mc-accent: #c8553d;
+  --mc-accent-contrast: #fff8f2;
+  --mc-border: #e7ddcf;
+  --mc-accent-2: #3d7d8c;
+
+  /* --- surfaces and interaction states, derived from the eight --- */
+  /** A surface raised above `--mc-surface` (inset panels, table heads, code blocks). */
+  --mc-surface-2: color-mix(in srgb, var(--mc-surface) 95%, var(--mc-text));
+  /** A divider that has to be seen rather than merely felt (focusable rows, active fields). */
+  --mc-border-strong: color-mix(in srgb, var(--mc-border) 55%, var(--mc-text));
+  /** Hover state layer — paint it *over* whatever surface the element already has. */
+  --mc-hover: color-mix(in srgb, var(--mc-text) 6%, transparent);
+  /** Pressed/selected state layer, same rule. */
+  --mc-active: color-mix(in srgb, var(--mc-text) 12%, transparent);
+  /** A tint of the accent, for selected rows and subtle emphasis. */
+  --mc-accent-soft: color-mix(in srgb, var(--mc-accent) 12%, transparent);
+  /** Scrim behind modals and over artwork. */
+  --mc-overlay: color-mix(in srgb, #000 55%, transparent);
+  /** Focus ring colour. The seed generator clamps the accent for contrast, so this is safe on both
+      `--mc-bg` and `--mc-surface`. */
+  --mc-focus: var(--mc-accent);
+  --mc-focus-width: 2px;
+  --mc-focus-offset: 2px;
+
+  /* --- feedback: cannot be derived from an accent and still stay readable --- */
+  --mc-danger: #b3261e;
+  --mc-danger-contrast: #ffffff;
+  --mc-success: #2e6f4e;
+  --mc-warning: #8a5a00;
+
+  /* --- space scale (4px base) --- */
+  --mc-space-1: 0.25rem;
+  --mc-space-2: 0.5rem;
+  --mc-space-3: 0.75rem;
+  --mc-space-4: 1rem;
+  --mc-space-5: 1.5rem;
+  --mc-space-6: 2rem;
+  --mc-space-7: 3rem;
+  --mc-space-8: 4rem;
+
+  /* --- radii --- */
+  --mc-radius-sm: 0.375rem;
+  --mc-radius-md: 0.625rem;
+  --mc-radius-lg: 0.875rem;
+  --mc-radius-pill: 999px;
+
+  /* --- elevation --- */
+  --mc-shadow-1: 0 1px 2px rgb(0 0 0 / 6%), 0 1px 3px rgb(0 0 0 / 4%);
+  --mc-shadow-2: 0 4px 14px rgb(0 0 0 / 8%);
+  --mc-shadow-3: 0 14px 36px rgb(0 0 0 / 14%);
+
+  /* --- type --- */
+  --mc-font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --mc-font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --mc-text-xs: 0.75rem;
+  --mc-text-sm: 0.875rem;
+  --mc-text-base: 1rem;
+  --mc-text-lg: 1.125rem;
+  --mc-text-xl: 1.375rem;
+  --mc-text-2xl: 1.75rem;
+  --mc-text-3xl: 2.25rem;
+  --mc-leading-tight: 1.2;
+  --mc-leading-normal: 1.55;
+  --mc-weight-medium: 600;
+  --mc-weight-bold: 700;
+
+  /* --- motion (zeroed under `prefers-reduced-motion`, see below) --- */
+  --mc-motion-fast: 120ms;
+  --mc-motion-base: 200ms;
+  --mc-ease: cubic-bezier(0.2, 0, 0, 1);
+
+  /* --- layout --- */
+  /** Width of the chrome and the feed view. */
+  --mc-container: 1120px;
+  /** Width of prose-first pages (legal, account, admin). */
+  --mc-container-narrow: 960px;
+  /** Height of the fixed player bar — anything that must clear it reads this, including plugins
+      mounted in the `player` region. */
+  --mc-player-height: 76px;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --mc-bg: #17140f;
+  --mc-surface: #221d16;
+  --mc-text: #f3ece0;
+  --mc-text-muted: #a89e8e;
+  --mc-accent: #e07a5f;
+  --mc-accent-contrast: #1c1712;
+  --mc-border: #342d23;
+  --mc-accent-2: #6bb0c0;
+
+  /* Light text on a dark ground reads the same tint as heavier, so the state layers are lighter. */
+  --mc-hover: color-mix(in srgb, var(--mc-text) 8%, transparent);
+  --mc-active: color-mix(in srgb, var(--mc-text) 14%, transparent);
+  --mc-overlay: color-mix(in srgb, #000 65%, transparent);
+
+  --mc-danger: #f2857c;
+  --mc-danger-contrast: #17140f;
+  --mc-success: #7fd6a4;
+  --mc-warning: #e3b341;
+
+  /* Shadows carry almost no signal on a dark ground unless they are much deeper. */
+  --mc-shadow-1: 0 1px 2px rgb(0 0 0 / 40%), 0 1px 3px rgb(0 0 0 / 30%);
+  --mc-shadow-2: 0 4px 14px rgb(0 0 0 / 45%);
+  --mc-shadow-3: 0 14px 36px rgb(0 0 0 / 60%);
+}
+
+/*
+ * One switch for the whole system, plugins included: a component that animates with `--mc-motion-*`
+ * stops animating here without knowing this rule exists.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --mc-motion-fast: 0ms;
+    --mc-motion-base: 0ms;
+  }
+}

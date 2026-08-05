@@ -341,25 +341,106 @@ class PluginLoadingIntegrationTest {
 
     @Test
     void consentAggregatesWhatActivePluginsDeclared() {
-        // The core sets nothing needing consent, so the payload is empty until a plugin declares a category;
-        // the fixture declares `analytics` plus `necessary`, and `necessary` is never asked about (§12.5).
+        // The core asks nothing of its own, so the payload is empty until a plugin declares a service; the
+        // fixture declares an `analytics` one and a `necessary` one, and `necessary` is never asked about —
+        // it is not optional (§12.5).
         ResponseEntity<String> consent = rest.getForEntity("/api/consent", String.class);
         assertThat(consent.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(consent.getBody())
-                .contains("\"category\":\"analytics\"")
-                .contains("\"good\"")
-                .contains("plausible.example");
-        assertThat(consent.getBody()).doesNotContain("\"category\":\"necessary\"");
+                .contains("\"id\":\"analytics\"")
+                .contains("\"provider\"")
+                .contains("\"fingerprint\"");
+        assertThat(consent.getBody()).doesNotContain("\"id\":\"necessary\"");
+        // What core itself stores is disclosed rather than asked about, as i18n keys the shell resolves.
+        assertThat(consent.getBody())
+                .contains("\"essential\"")
+                .contains("mc.consent")
+                .contains("consent.purpose.progress");
+        // The visitor-facing payload names services and providers, never plugins: the wording rules for
+        // §12.5 are enforced by what the endpoint is able to say, not by review. It also carries no `hosts`
+        // — an origin is an operator's unit, not a visitor's, and it belongs to the audit and the CSP.
+        // (The provider's own `privacyUrl` is a different thing and is meant to be there.)
+        assertThat(consent.getBody())
+                .doesNotContain("\"pluginId\"")
+                .doesNotContain("\"good\"")
+                .doesNotContain("\"hosts\"");
+    }
+
+    @Test
+    void aVisitorWhoRefusedGetsAPolicyWithoutThatOrigin() {
+        // Without the cookie — a first visit, or a refusal — nothing optional is allowed. This is the half of
+        // consent a plugin cannot ignore: `ctx.consent.has()` is advisory, a blocked connection is not.
+        HttpHeaders refused = rest.getForEntity("/api/meta", String.class).getHeaders();
+        String refusedCsp = refused.getFirst("Content-Security-Policy");
+        assertThat(refusedCsp).doesNotContain("https://plausible.example");
+        // A `necessary` service is never asked about, so no decision can withdraw it.
+        assertThat(refusedCsp).contains("https://necessary.example");
+        // The policy now differs between visitors, so a shared cache must key on the cookie.
+        assertThat(refused.get(HttpHeaders.VARY)).anySatisfy(v -> assertThat(v).containsIgnoringCase("cookie"));
+
+        HttpHeaders granted = rest.exchange("/api/meta", HttpMethod.GET,
+                new HttpEntity<>(cookieHeader("mc_consent=analytics")), String.class).getHeaders();
+        assertThat(granted.getFirst("Content-Security-Policy")).contains("https://plausible.example");
+
+        // A forged category widens nothing: the manifest, not the cookie, decides which origins exist.
+        HttpHeaders forged = rest.exchange("/api/meta", HttpMethod.GET,
+                new HttpEntity<>(cookieHeader("mc_consent=analytics.evil")), String.class).getHeaders();
+        assertThat(forged.getFirst("Content-Security-Policy")).doesNotContain("evil");
+    }
+
+    private static HttpHeaders cookieHeader(String cookie) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, cookie);
+        return headers;
+    }
+
+    @Test
+    void theConsentAuditAttributesEveryDeclarationToItsPlugin() {
+        // The operator's view is the mirror image: it has to name the plugin, the origins and the services
+        // nobody is asked about, because "why is this host in the CSP?" is an operator question.
+        assertThat(rest.getForEntity("/api/admin/consent", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        Session admin = devLogin("admin");
+        ResponseEntity<String> audit =
+                rest.exchange("/api/admin/consent", HttpMethod.GET, admin.get(), String.class);
+        assertThat(audit.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(audit.getBody())
+                .contains("\"pluginId\":\"good\"")
+                .contains("https://plausible.example")
+                .contains("\"category\":\"necessary\"")
+                .contains("\"prompted\":false");
+    }
+
+    @Test
+    void theFingerprintChangesOnlyWhenTheDeclarationDoes() {
+        String before = rest.getForEntity("/api/consent", String.class).getBody();
+        assertThat(rest.getForEntity("/api/consent", String.class).getBody()).isEqualTo(before);
+
+        // Switching a plugin off removes its services, so the question a visitor already answered is no
+        // longer the question being asked — the shell must be able to see that.
+        Session admin = devLogin("admin");
+        setEnabled(admin, "good", false);
+        try {
+            assertThat(rest.getForEntity("/api/consent", String.class).getBody()).isNotEqualTo(before);
+        } finally {
+            setEnabled(admin, "good", true);
+        }
+        assertThat(rest.getForEntity("/api/consent", String.class).getBody()).isEqualTo(before);
     }
 
     @Test
     void declaredHostsWidenTheCspAndUndeclaredOnesDoNot() {
-        HttpHeaders headers = rest.getForEntity("/api/meta", String.class).getHeaders();
+        // With consent granted for the declared category — the refusal case is covered separately.
+        HttpHeaders headers = rest.exchange("/api/meta", HttpMethod.GET,
+                new HttpEntity<>(cookieHeader("mc_consent=analytics")), String.class).getHeaders();
         String csp = headers.getFirst("Content-Security-Policy");
         assertThat(csp).isNotNull();
-        assertThat(csp).contains("script-src 'self' https://plausible.example");
-        // The fixture also declares a host containing a separator; it is dropped, not escaped.
-        assertThat(csp).doesNotContain("bad;host");
+        assertThat(csp).contains("script-src 'self'").contains("https://plausible.example");
+        // A `necessary` service is never asked about but still loads, so its origin must be allowed too.
+        assertThat(csp).contains("https://necessary.example");
+        // Nothing else gets in: an origin no plugin declared stays blocked.
+        assertThat(csp).doesNotContain("evil.example");
     }
 
     @Test

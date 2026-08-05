@@ -1,0 +1,219 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/*
+ * The episode detail page (§6.2) and the prose surfaces that share its measure.
+ *
+ * The hero is the one full-bleed element in the shell: the episode's own artwork, blurred, behind its
+ * title. It makes each episode page look like that episode rather than like a template — for free, from
+ * data the feed already gives us.
+ */
+
+.mc-page--detail {
+  padding-top: 0;
+}
+
+/*
+ * Full-bleed: the hero breaks out of the page's measure to the viewport edge, then re-centres its own
+ * content on that measure. The escape is `margin-inline: calc(-50vw + 50%)`, which is why `.mc-root` clips
+ * horizontally — `clip` rather than `hidden`, because `hidden` would make the root a scroll container and
+ * silently kill `position: sticky` on the top bar and the sidebar.
+ */
+.mc-hero {
+  position: relative;
+  display: flex;
+  gap: var(--mc-space-6);
+  align-items: flex-end;
+  margin: 0 calc(-50vw + 50%) var(--mc-space-6);
+  padding: var(--mc-space-7) max(var(--mc-space-5), calc(50vw - var(--mc-container-narrow) / 2))
+    var(--mc-space-6);
+  isolation: isolate;
+  overflow: hidden;
+}
+
+/*
+ * Two layers: the artwork blurred and dimmed, then a gradient down to the page background so the hero
+ * dissolves into the page instead of ending at a hard edge. Both are pseudo-elements — decoration the
+ * browser can skip and assistive tech never announces, since the same image is present legibly as the
+ * cover beside it.
+ */
+.mc-hero::before {
+  content: '';
+  position: absolute;
+  inset: -10%;
+  z-index: -2;
+  background-image: var(--mc-hero-art, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(42px) saturate(1.25);
+  opacity: 0.55;
+}
+.mc-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--mc-bg) 55%, transparent),
+    color-mix(in srgb, var(--mc-bg) 88%, transparent) 55%,
+    var(--mc-bg)
+  );
+}
+
+.mc-hero__art .mc-cover {
+  border-radius: var(--mc-radius-lg);
+  box-shadow: var(--mc-shadow-3);
+}
+
+.mc-hero__body {
+  min-width: 0;
+  flex: 1;
+}
+.mc-hero__author {
+  margin: 0 0 var(--mc-space-1);
+  font-size: var(--mc-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.mc-hero__title {
+  margin: 0 0 var(--mc-space-2);
+  font-size: var(--mc-text-3xl);
+  line-height: var(--mc-leading-tight);
+  letter-spacing: -0.02em;
+}
+.mc-hero__subtitle {
+  margin: 0 0 var(--mc-space-3);
+  font-size: var(--mc-text-lg);
+}
+.mc-hero__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2);
+  align-items: center;
+  margin-bottom: var(--mc-space-4);
+}
+
+@media (max-width: 720px) {
+  .mc-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--mc-space-4);
+    padding: var(--mc-space-6) var(--mc-space-4) var(--mc-space-5);
+  }
+  .mc-hero__title {
+    font-size: var(--mc-text-2xl);
+  }
+}
+
+.mc-detail {
+  display: grid;
+  /* Single centred column until the sidebar actually has content — an empty sidebar column would skew the
+     main content left (off-centre). When a sidebar plugin mounts (E5), :has() restores the two-column split. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--mc-space-5);
+}
+.mc-detail:has(.mc-detail__side .mc-slot:not(:empty)) {
+  grid-template-columns: minmax(0, 2fr) 1fr;
+}
+/* The sidebar follows while the notes scroll — plugin content there is usually a companion to reading. */
+.mc-detail__side {
+  position: sticky;
+  top: 5rem;
+  align-self: start;
+}
+@media (max-width: 820px) {
+  .mc-detail:has(.mc-detail__side .mc-slot:not(:empty)) {
+    grid-template-columns: 1fr;
+  }
+  .mc-detail__side {
+    position: static;
+  }
+}
+
+.mc-plugin {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+  padding: var(--mc-space-5);
+}
+.mc-plugin h2 {
+  margin: 0 0 var(--mc-space-3);
+  font-size: var(--mc-text-lg);
+}
+
+.mc-shownotes {
+  line-height: var(--mc-leading-normal);
+  max-width: 68ch;
+}
+.mc-shownotes img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--mc-radius-md);
+}
+.mc-shownotes p {
+  margin: 0 0 var(--mc-space-4);
+}
+
+/* Sequential navigation: two destinations, not two links. */
+.mc-prevnext {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--mc-space-4);
+  margin-top: var(--mc-space-6);
+}
+.mc-prevnext__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-1);
+  flex: 0 1 45%;
+  padding: var(--mc-space-3) var(--mc-space-4);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  transition:
+    border-color var(--mc-motion-fast) var(--mc-ease),
+    background var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-prevnext__link:hover {
+  text-decoration: none;
+  border-color: var(--mc-border-strong);
+  background: var(--mc-surface-2);
+}
+.mc-prevnext__link--next {
+  text-align: right;
+  margin-left: auto;
+}
+.mc-prevnext__dir {
+  font-size: var(--mc-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.mc-prevnext__title {
+  font-weight: var(--mc-weight-medium);
+}
+
+/* Legal page body — readable prose from the sanitized markdown. */
+.mc-legal__body {
+  max-width: 70ch;
+  line-height: var(--mc-leading-normal);
+}
+.mc-legal__body h2 {
+  margin: var(--mc-space-6) 0 var(--mc-space-2);
+  font-size: var(--mc-text-lg);
+}
+.mc-legal__body p,
+.mc-legal__body ul,
+.mc-legal__body table {
+  margin: var(--mc-space-2) 0;
+}
+.mc-legal__body table {
+  border-collapse: collapse;
+}
+.mc-legal__body th,
+.mc-legal__body td {
+  border: 1px solid var(--mc-border);
+  padding: var(--mc-space-1) var(--mc-space-3);
+  text-align: left;
+}

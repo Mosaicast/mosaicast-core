@@ -1,80 +1,67 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
+import { CookieSettings } from './CookieSettings';
 import { useConsent } from './ConsentContext';
 
 /**
- * The consent banner (ARCHITECTURE §12.5). Rendered **only** when an active plugin declares a non-necessary
- * category — a site running the core alone, or only plugins that touch no third parties, never sees it. Each
- * category is listed with the plugins that asked for it and the third-party hosts they declared, because the
- * notice is generated from those declarations rather than written by hand.
+ * The first layer of the consent ask (ARCHITECTURE §12.5), and the container the settings open in.
+ *
+ * Rendered **only** when an active plugin declares a service under a non-necessary category: a site running
+ * the core alone, or only plugins that touch no third parties, never sees it. That is the point of the whole
+ * arrangement — the core's own storage is necessary for the service the visitor asked for, so there is
+ * nothing to ask about.
+ *
+ * Three rules shape what this says, and all three came out of the legal reading rather than taste:
+ *
+ * - **Concrete purposes on layer one.** Not "we use cookies", but which companies would be loaded and what
+ *   they store. The names come from the declarations, so they cannot drift from what actually loads.
+ * - **Refuse is as prominent as allow.** Same element, same weight, same row. A quieter reject button is a
+ *   dark pattern with a case history (DSK guidance Nov 2024; OLG Köln 2025).
+ * - **Nothing is pre-ticked**, and closing the banner grants nothing — there is no dismiss, because a
+ *   dismiss that counts as consent is not consent.
+ *
+ * It never says *plugin*: a visitor is not being asked about the site's architecture.
  */
 export function ConsentBanner() {
   const { t } = useTranslation();
-  const { categories, sources, privacySlug, decide, decided, settingsOpen } = useConsent();
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
+  const { categories, privacySlug, decide, decided, settingsOpen, openSettings, closeSettings } = useConsent();
 
-  useEffect(() => {
-    setChecked(Object.fromEntries(categories.map((c) => [c.category, false])));
-  }, [categories]);
-
-  if (categories.length === 0 || (decided && !settingsOpen)) {
+  if (categories.length === 0) {
+    return settingsOpen ? <SettingsDialog onClose={closeSettings} /> : null;
+  }
+  if (settingsOpen) {
+    return <SettingsDialog onClose={closeSettings} />;
+  }
+  if (decided) {
     return null;
   }
 
-  const label = (category: string, known: boolean) =>
-    known ? t(`consent.category.${category}`) : category;
+  const all = (on: boolean) => Object.fromEntries(categories.map((category) => [category.id, on]));
+  const providers = categories
+    .flatMap((category) => category.services.map((service) => service.provider ?? service.name))
+    .filter((provider, index, list) => list.indexOf(provider) === index);
 
   return (
-    <section className="mc-consent" role="dialog" aria-label={t('consent.title')}>
+    <section className="mc-consent mc-consent--banner" role="dialog" aria-label={t('consent.title')}>
       <h2 className="mc-consent__title">{t('consent.title')}</h2>
-      <p className="mc-muted">{t('consent.intro')}</p>
+      <p>{t('consent.intro')}</p>
+      {/* The companies, named — this is what a visitor is actually deciding about. */}
+      <p className="mc-muted">{t('consent.providers', { providers: providers.join(', ') })}</p>
 
-      <ul className="mc-consent__list">
-        {categories.map((category) => (
-          <li key={category.category}>
-            <label className="mc-toggle">
-              <input
-                type="checkbox"
-                checked={checked[category.category] ?? false}
-                onChange={(e) =>
-                  setChecked((current) => ({ ...current, [category.category]: e.target.checked }))
-                }
-              />
-              {label(category.category, category.known)}
-            </label>
-            <span className="mc-muted"> {t('consent.requestedBy', { plugins: category.pluginIds.join(', ') })}</span>
-          </li>
-        ))}
-      </ul>
-
-      {sources.length > 0 && (
-        <p className="mc-muted">
-          {t('consent.sources', { sources: [...new Set(sources.map((s) => s.source))].join(', ') })}
-        </p>
-      )}
-
-      <div className="mc-form__actions">
-        <button
-          type="button"
-          className="mc-btn mc-btn--accent"
-          onClick={() => decide(Object.fromEntries(categories.map((c) => [c.category, true])))}
-        >
+      <div className="mc-consent__actions">
+        <button type="button" className="mc-btn mc-btn--accent" onClick={() => decide(all(true))}>
           {t('consent.acceptAll')}
         </button>
-        <button
-          type="button"
-          className="mc-btn"
-          onClick={() => decide(Object.fromEntries(categories.map((c) => [c.category, false])))}
-        >
+        <button type="button" className="mc-btn mc-btn--accent" onClick={() => decide(all(false))}>
           {t('consent.rejectAll')}
         </button>
-        <button type="button" className="mc-btn" onClick={() => decide(checked)}>
-          {t('consent.saveSelection')}
+        <button type="button" className="mc-btn" onClick={openSettings}>
+          {t('consent.customise')}
         </button>
         {privacySlug && (
           <Link className="mc-consent__link" to={`/legal/${privacySlug}`}>
@@ -83,5 +70,37 @@ export function ConsentBanner() {
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * The settings, opened over the page. Also what a plugin's `ctx.consent.request(category)` surfaces — there
+ * is one consent surface host-wide, so a second request while this is open joins it rather than stacking a
+ * dialog of its own.
+ */
+function SettingsDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  const sheet = useRef<HTMLDivElement>(null);
+
+  // `aria-modal` is a claim, so it has to be true: focus moves into the sheet when it opens, and Escape
+  // closes it. Dismissing grants nothing — the host resolves any pending `request()` with the state as it
+  // stands rather than recording a decision the visitor did not make.
+  useEffect(() => {
+    sheet.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="mc-consent__overlay" role="dialog" aria-modal="true" aria-label={t('consent.settingsTitle')}>
+      <div className="mc-consent__sheet" ref={sheet} tabIndex={-1}>
+        <CookieSettings onClose={onClose} />
+      </div>
+    </div>
   );
 }

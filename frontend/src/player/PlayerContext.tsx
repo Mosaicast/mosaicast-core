@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import { api } from '../api/client';
+import { progressEnabled } from '../consent/ConsentContext';
 import type { EpisodeDetail, EpisodeSummary } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { PlayerBar } from './PlayerBar';
@@ -41,10 +42,35 @@ interface PlayerContextValue {
   currentTime: number;
   duration: number;
   volume: number;
+  /** Playback speed. Table stakes for a podcast player, and remembered across episodes and reloads. */
+  rate: number;
   play: (episode: PlayableEpisode) => void;
   toggle: () => void;
   seek: (seconds: number) => void;
+  /** Jumps relative to the current position; negative goes back. Clamped to the episode. */
+  skip: (seconds: number) => void;
   setVolume: (v: number) => void;
+  setRate: (rate: number) => void;
+}
+
+/** The speeds the bar offers, in the order it cycles through them. */
+export const PLAYBACK_RATES = [1, 1.25, 1.5, 1.75, 2] as const;
+
+const RATE_KEY = 'mc.prefs.rate';
+
+/**
+ * Playback speed is a listener preference, not an episode one — someone who listens at 1.5× listens to
+ * everything at 1.5×, and having to set it again each episode is the kind of small friction that makes a
+ * player feel unfinished. Stored under `mc.prefs.*` alongside the playback-position switch, and disclosed
+ * with it (see `CoreStorageInventory`).
+ */
+function storedRate(): number {
+  try {
+    const saved = Number(localStorage.getItem(RATE_KEY));
+    return PLAYBACK_RATES.includes(saved as (typeof PLAYBACK_RATES)[number]) ? saved : 1;
+  } catch {
+    return 1;
+  }
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -73,6 +99,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(1);
+  const [rate, setRateState] = useState(storedRate);
+  // Read through a ref inside the audio-event handlers: they are subscribed once per episode, and adding
+  // `rate` to that effect's deps would tear the listeners down and rebuild them on every speed change.
+  const rateRef = useRef(rate);
+  rateRef.current = rate;
 
   const play = useCallback(
     async (episode: PlayableEpisode) => {
@@ -96,7 +127,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (current?.id !== episode.id) {
         audio.src = url;
         // Restore the resume position: server-side for a logged-in user (§6.5), else localStorage.
-        let saved = Number(localStorage.getItem(progressKey(episode.id)) ?? 0);
+        // Nothing to restore once the visitor switched remembering off — the stored positions are gone.
+        let saved = progressEnabled() ? Number(localStorage.getItem(progressKey(episode.id)) ?? 0) : 0;
         if (userRef.current) {
           try {
             const map = await api.get<Record<string, number>>(
@@ -137,6 +169,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const audio = audioRef.current;
     if (audio) {
       audio.currentTime = Math.max(0, seconds);
+    }
+  }, []);
+
+  /** ±15/30 s, the jumps a podcast listener actually reaches for (BRIEF E4). */
+  const skip = useCallback((seconds: number) => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.currentTime = Math.min(Math.max(0, audio.currentTime + seconds), audio.duration || Infinity);
+    }
+  }, []);
+
+  const setRate = useCallback((next: number) => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.playbackRate = next;
+    }
+    setRateState(next);
+    try {
+      localStorage.setItem(RATE_KEY, String(next));
+    } catch {
+      // A visitor blocking storage still gets the speed for this session.
     }
   }, []);
 
@@ -182,6 +235,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const onPause = () => setPlaying(false);
     const onLoaded = () => {
       setDuration(audio.duration || 0);
+      // A fresh source resets `playbackRate` to 1, so the listener's speed has to be re-applied per episode
+      // rather than set once.
+      audio.playbackRate = rateRef.current;
       if (pendingSeekRef.current > 0) {
         audio.currentTime = pendingSeekRef.current;
         pendingSeekRef.current = 0;
@@ -193,6 +249,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         return;
       }
       const seconds = Math.floor(audio.currentTime);
+      // Remembering the position is a disclosed feature with an off switch rather than a consent gate
+      // (§12.5) — first-party, local, never profiled, written only after a deliberate press of play. When
+      // it is off, nothing is written here or sent to the server.
+      if (!progressEnabled()) {
+        return;
+      }
       // localStorage every tick is cheap and covers anonymous + logout; server writes are throttled.
       localStorage.setItem(progressKey(current.id), String(seconds));
       const now = Date.now();
@@ -210,6 +272,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       void advance();
     };
+    audio.playbackRate = rateRef.current;
     audio.addEventListener('play', onPlay);
     audio.addEventListener('pause', onPause);
     audio.addEventListener('loadedmetadata', onLoaded);
@@ -236,11 +299,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       });
       navigator.mediaSession.setActionHandler('play', () => toggle());
       navigator.mediaSession.setActionHandler('pause', () => toggle());
-      navigator.mediaSession.setActionHandler('seekbackward', () => seek(currentTime - 15));
-      navigator.mediaSession.setActionHandler('seekforward', () => seek(currentTime + 30));
+      navigator.mediaSession.setActionHandler('seekbackward', () => skip(-15));
+      navigator.mediaSession.setActionHandler('seekforward', () => skip(30));
       navigator.mediaSession.setActionHandler('nexttrack', () => void advance());
     }
-  }, [current, currentTime, toggle, seek, advance]);
+  }, [current, currentTime, toggle, skip, advance]);
 
   const value: PlayerContextValue = {
     current,
@@ -248,10 +311,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     currentTime,
     duration,
     volume,
+    rate,
     play,
     toggle,
     seek,
+    skip,
     setVolume,
+    setRate,
   };
 
   return (

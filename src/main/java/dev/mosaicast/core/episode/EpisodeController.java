@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.episode;
 
+import dev.mosaicast.core.feed.FeedService;
 import dev.mosaicast.core.web.PagedResponse;
 import java.util.List;
 import java.util.UUID;
@@ -23,23 +24,29 @@ import org.springframework.web.bind.annotation.RestController;
 public class EpisodeController {
 
     private final EpisodeQueryService episodes;
+    private final FeedService feeds;
 
-    public EpisodeController(EpisodeQueryService episodes) {
+    public EpisodeController(EpisodeQueryService episodes, FeedService feeds) {
         this.episodes = episodes;
+        this.feeds = feeds;
     }
 
-    /** Episodes of a feed, optionally filtered by {@code season} (filter state lives in the URL, §6.1). */
-    @GetMapping("/api/feeds/{feedId}/episodes")
+    /**
+     * Episodes of a feed, optionally filtered by {@code season} (filter state lives in the URL, §6.1). The
+     * feed is addressed by its public slug; its UUID still resolves (see {@code FeedService.resolvePublic}).
+     */
+    @GetMapping("/api/feeds/{feedRef}/episodes")
     public PagedResponse<EpisodeSummary> listByFeed(
-            @PathVariable UUID feedId,
+            @PathVariable String feedRef,
             @RequestParam(required = false) Integer season,
             @PageableDefault(size = 20) Pageable pageable) {
+        UUID feedId = feeds.resolvePublicId(feedRef);
         return PagedResponse.of(episodes.listByFeed(feedId, season, unsorted(pageable)), s -> s);
     }
 
-    @GetMapping("/api/feeds/{feedId}/seasons")
-    public List<Integer> seasons(@PathVariable UUID feedId) {
-        return episodes.seasons(feedId);
+    @GetMapping("/api/feeds/{feedRef}/seasons")
+    public List<Integer> seasons(@PathVariable String feedRef) {
+        return episodes.seasons(feeds.resolvePublicId(feedRef));
     }
 
     /**
@@ -49,19 +56,20 @@ public class EpisodeController {
      */
     @GetMapping("/api/episodes")
     public PagedResponse<EpisodeSummary> list(
-            @RequestParam(required = false) UUID feedId,
+            @RequestParam(required = false) String feedId,
             @RequestParam(required = false) Integer season,
             @RequestParam(required = false) String tag,
             @RequestParam(defaultValue = "newest") String order,
             @PageableDefault(size = 20) Pageable pageable) {
         boolean newest = !"oldest".equalsIgnoreCase(order);
-        return PagedResponse.of(episodes.listSite(feedId, season, tag, newest, unsorted(pageable)), s -> s);
+        return PagedResponse.of(
+                episodes.listSite(publicFeedId(feedId), season, tag, newest, unsorted(pageable)), s -> s);
     }
 
     /** Distinct tags (optionally scoped to a feed) — the shell's tag-filter options (§6.1). */
     @GetMapping("/api/tags")
-    public List<String> tags(@RequestParam(required = false) UUID feedId) {
-        return episodes.tags(feedId);
+    public List<String> tags(@RequestParam(required = false) String feedId) {
+        return episodes.tags(publicFeedId(feedId));
     }
 
     /** One episode's detail by its public slug (§6.2). The literal {@code /search} mapping wins over this pattern. */
@@ -89,6 +97,14 @@ public class EpisodeController {
      * or search relevance), and a client {@code ?sort=} would be spliced into the native/JPQL query and
      * reference a non-existent column — a 500. Only page/size are honored.
      */
+    /**
+     * Resolves the optional {@code feedId} filter, which the shell now passes as the feed's public slug.
+     * A UUID still works, so a link or integration built before slugs keeps filtering correctly.
+     */
+    private UUID publicFeedId(String feedRef) {
+        return feedRef == null || feedRef.isBlank() ? null : feeds.resolvePublicId(feedRef);
+    }
+
     private static Pageable unsorted(Pageable pageable) {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }

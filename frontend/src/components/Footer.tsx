@@ -1,13 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-import { api } from '../api/client';
 import { MOSAICAST_REPO_URL } from '../api/constants';
-import { useConsent } from '../consent/ConsentContext';
+import { useMeta } from '../api/MetaContext';
 import { useLegalEntries } from '../hooks/useLegalEntries';
 import { useSite } from '../theme/SiteContext';
 
@@ -20,25 +18,7 @@ export function Footer() {
   const { t } = useTranslation();
   const { site } = useSite();
   const legal = useLegalEntries();
-  const consent = useConsent();
-  const [version, setVersion] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    api
-      .get<{ version?: string }>('/api/meta')
-      .then((meta) => {
-        if (active && meta.version) {
-          setVersion(meta.version);
-        }
-      })
-      .catch(() => {
-        /* meta is non-critical */
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+  const version = useMeta()?.version ?? null;
 
   return (
     <footer className="mc-foot">
@@ -52,12 +32,14 @@ export function Footer() {
           ))}
         </nav>
       )}
-      {/* Only shown where consent is asked for at all — a banner-free site gets no dead link (§12.5). */}
-      {consent.categories.length > 0 && (
-        <button type="button" className="mc-foot__consent" onClick={consent.reopen}>
-          {t('consent.settings')}
-        </button>
-      )}
+      {/*
+        Unconditional. It used to appear only once a plugin declared something, which left a core-only
+        install with no way to reach the settings at all — even though the core stores a session cookie, a
+        language and a playback position of its own (§12.5).
+      */}
+      <Link className="mc-foot__consent" to="/cookies">
+        {t('consent.settings')}
+      </Link>
       {version && (
         <span className="mc-foot__version">
           <a href={MOSAICAST_REPO_URL} target="_blank" rel="noreferrer noopener">

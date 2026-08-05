@@ -5,13 +5,24 @@
   "name": "Incompatible Fixture",
   "backend": {
     "basePath": "/api/plugins/broken",
-    "extensions": ["dev.mosaicast.plugin.fixture.FixturePlugin"]
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin"
+    ]
   },
-  "frontend": { "entry": "fixture.js", "elements": ["fixture-card"] },
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "fixture-card"
+    ]
+  },
   "slots": [
-    { "scope": "site", "element": "fixture-card", "placement": "main", "visibleTo": "anonymous" }
+    {
+      "scope": "site",
+      "element": "fixture-card",
+      "placement": "main",
+      "visibleTo": "anonymous"
+    }
   ],
   "storage": "doc",
-  "config": {},
-  "consent": { "categories": [], "externalSources": [] }
+  "config": {}
 }

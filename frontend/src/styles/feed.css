@@ -1,0 +1,437 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/*
+ * The feed view (§6.1): tabs, filter bar, scope panel, episode cards, paging.
+ *
+ * Episodes are the centrepiece of this product, so the card is where the type scale is allowed to be loud
+ * and everything else defers to it. Feed, tabs and filters are navigation furniture and read as such.
+ */
+
+/* ---- feed catalog ---- */
+.mc-feed-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--mc-space-2);
+}
+
+.mc-feed-list__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mc-space-4);
+  padding: var(--mc-space-3) var(--mc-space-4);
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+}
+
+/* ---- filter bar ---- */
+.mc-filterbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--mc-space-3) var(--mc-space-4);
+  margin-bottom: var(--mc-space-5);
+}
+.mc-filter {
+  display: inline-flex;
+  flex-direction: column;
+  gap: var(--mc-space-1);
+  font-size: var(--mc-text-xs);
+  color: var(--mc-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mc-filter select {
+  font: inherit;
+  font-size: var(--mc-text-sm);
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--mc-text);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-radius: var(--mc-radius-pill);
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface);
+  cursor: pointer;
+  transition: border-color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-filter select:hover {
+  border-color: var(--mc-border-strong);
+}
+
+/* ---- feed tabs ---- */
+.mc-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-1);
+  margin-bottom: var(--mc-space-5);
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-tab {
+  padding: var(--mc-space-2) var(--mc-space-3);
+  color: var(--mc-text-muted);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-size: var(--mc-text-sm);
+  font-weight: var(--mc-weight-medium);
+  transition: color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-tab:hover {
+  text-decoration: none;
+  color: var(--mc-text);
+}
+.mc-tab--active {
+  color: var(--mc-accent);
+  border-bottom-color: var(--mc-accent);
+}
+
+/* ---- two-column feed layout: scope panel | list ---- */
+.mc-feedlayout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--mc-space-7);
+  align-items: start;
+}
+.mc-feedmain {
+  min-width: 0;
+}
+@media (max-width: 860px) {
+  .mc-feedlayout {
+    grid-template-columns: 1fr;
+    gap: var(--mc-space-5);
+  }
+}
+
+.mc-scope-panel {
+  position: sticky;
+  top: 5rem; /* clear the sticky top bar */
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+}
+@media (max-width: 860px) {
+  .mc-scope-panel {
+    position: static;
+  }
+}
+.mc-scope-panel .mc-cover,
+.mc-scope-panel__logo {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--mc-radius-lg);
+  box-shadow: var(--mc-shadow-2);
+}
+.mc-scope-panel__title {
+  margin: var(--mc-space-3) 0 0;
+  font-size: var(--mc-text-xl);
+  line-height: var(--mc-leading-tight);
+}
+.mc-scope-panel__author,
+.mc-scope-panel__count {
+  margin: 0;
+  font-size: var(--mc-text-sm);
+  color: var(--mc-text-muted);
+}
+.mc-scope-panel__desc {
+  font-size: var(--mc-text-sm);
+  line-height: var(--mc-leading-normal);
+  color: var(--mc-text-muted);
+}
+.mc-scope-panel__desc :is(p, ul, ol) {
+  margin: 0 0 var(--mc-space-2);
+}
+
+/* ---- infinite scroll ---- */
+.mc-feed-sentinel {
+  height: 1px;
+}
+.mc-feed-loading {
+  text-align: center;
+  padding: var(--mc-space-4) 0;
+}
+.mc-feed-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--mc-space-2) 0 var(--mc-space-4);
+}
+
+/* ---- episode cards (one-column, cover-left) ---- */
+.mc-card-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--mc-space-3);
+}
+
+/*
+ * The rail on the left is the card's state: transparent normally, accent on hover or keyboard focus. It is
+ * an inset shadow rather than a border so the card does not shift by a pixel when it lights up.
+ */
+.mc-card {
+  position: relative;
+  display: flex;
+  gap: var(--mc-space-5);
+  padding: var(--mc-space-4);
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+  box-shadow: inset 3px 0 0 transparent;
+  transition:
+    box-shadow var(--mc-motion-base) var(--mc-ease),
+    transform var(--mc-motion-base) var(--mc-ease),
+    border-color var(--mc-motion-base) var(--mc-ease);
+}
+.mc-card:hover,
+.mc-card:focus-within {
+  transform: translateY(-2px);
+  border-color: var(--mc-border-strong);
+  box-shadow:
+    inset 3px 0 0 var(--mc-accent),
+    var(--mc-shadow-2);
+}
+.mc-card--upcoming {
+  border-style: dashed;
+}
+.mc-card--locked {
+  opacity: 0.85;
+}
+
+.mc-card__cover {
+  position: relative;
+  flex: 0 0 auto;
+  width: 168px;
+  height: 168px;
+  border-radius: var(--mc-radius-md);
+  overflow: hidden;
+}
+.mc-cover {
+  display: block;
+  border-radius: var(--mc-radius-md);
+  overflow: hidden;
+}
+.mc-cover--img {
+  object-fit: cover;
+}
+.mc-card__play,
+.mc-card__cover .mc-card__play {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  border: none;
+  background: color-mix(in srgb, var(--mc-accent) 92%, transparent);
+  color: var(--mc-accent-contrast);
+  font-size: var(--mc-text-lg);
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.9);
+  box-shadow: var(--mc-shadow-2);
+  transition:
+    opacity var(--mc-motion-fast) var(--mc-ease),
+    transform var(--mc-motion-fast) var(--mc-ease);
+}
+/* Reveal on hovering anywhere on the card (bigger, more discoverable target) or keyboard focus. */
+.mc-card:hover .mc-card__play,
+.mc-card:focus-within .mc-card__play {
+  opacity: 1;
+  transform: scale(1);
+}
+/* Touch / no-hover inputs never hover — keep the play affordance visible there. */
+@media (hover: none) {
+  .mc-card__play {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * How far this device got into the episode, along the bottom of the artwork. Sits on the cover rather than
+ * under the text because that is where the eye already is when deciding whether to resume.
+ */
+.mc-card__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: color-mix(in srgb, var(--mc-overlay) 60%, transparent);
+}
+.mc-card__progress::after {
+  content: '';
+  display: block;
+  height: 100%;
+  width: var(--mc-listened, 0%);
+  background: var(--mc-accent);
+}
+
+.mc-card__body {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+}
+.mc-card__top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  font-size: var(--mc-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.mc-card__feed {
+  font-weight: var(--mc-weight-bold);
+  color: var(--mc-accent-2);
+}
+.mc-card__title {
+  margin: 0;
+  font-size: var(--mc-text-xl);
+  line-height: var(--mc-leading-tight);
+  letter-spacing: -0.01em;
+}
+.mc-card__title a {
+  color: var(--mc-text);
+}
+.mc-card__title a:hover {
+  color: var(--mc-accent);
+  text-decoration: none;
+}
+.mc-card__subtitle {
+  margin: 0;
+  font-size: var(--mc-text-base);
+}
+.mc-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2);
+  align-items: center;
+}
+.mc-card__excerpt {
+  margin: 0;
+  font-size: var(--mc-text-sm);
+  line-height: var(--mc-leading-normal);
+  color: var(--mc-text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+@media (max-width: 620px) {
+  .mc-card {
+    flex-direction: column;
+  }
+  .mc-card__cover {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+  .mc-card__cover .mc-cover {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+}
+
+/*
+ * Chips carry the metadata that used to be loose text. `--quiet` is the neutral one (season, date,
+ * runtime); the accent variants are reserved for states that mean something (upcoming, locked).
+ */
+.mc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mc-space-1);
+  padding: 0.15rem var(--mc-space-2);
+  border-radius: var(--mc-radius-pill);
+  background: var(--mc-accent-2);
+  color: var(--mc-accent-contrast);
+  font-size: var(--mc-text-xs);
+  font-weight: var(--mc-weight-medium);
+  white-space: nowrap;
+}
+.mc-chip--quiet {
+  background: var(--mc-hover);
+  color: var(--mc-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.mc-chip--lock {
+  background: var(--mc-border);
+  color: var(--mc-text-muted);
+}
+
+/* A card-shaped placeholder while the first page loads: the layout does not jump when data arrives. */
+.mc-skeleton {
+  display: flex;
+  gap: var(--mc-space-5);
+  padding: var(--mc-space-4);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+  background: var(--mc-surface);
+}
+.mc-skeleton__cover,
+.mc-skeleton__line {
+  background: var(--mc-hover);
+  border-radius: var(--mc-radius-sm);
+  animation: mc-pulse 1.4s var(--mc-ease) infinite;
+}
+.mc-skeleton__cover {
+  flex: 0 0 auto;
+  width: 168px;
+  height: 168px;
+  border-radius: var(--mc-radius-md);
+}
+.mc-skeleton__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+  padding-top: var(--mc-space-2);
+}
+.mc-skeleton__line {
+  height: 0.85rem;
+}
+.mc-skeleton__line--title {
+  height: 1.4rem;
+  width: 60%;
+}
+.mc-skeleton__line--short {
+  width: 35%;
+}
+@keyframes mc-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+/* Nothing to show is a state with something to say, not a blank area. */
+.mc-empty {
+  padding: var(--mc-space-7) var(--mc-space-5);
+  text-align: center;
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+  color: var(--mc-text-muted);
+}
+.mc-empty__title {
+  margin: 0 0 var(--mc-space-2);
+  font-size: var(--mc-text-lg);
+  color: var(--mc-text);
+}
+
+/* ---- pagination ---- */
+.mc-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mc-space-4);
+  margin-top: var(--mc-space-5);
+}
