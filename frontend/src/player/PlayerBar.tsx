@@ -17,9 +17,37 @@ import { PLAYBACK_RATES, usePlayer } from './PlayerContext';
  *
  * **Keyboard is a first-class input here** (BRIEF E4, WCAG AA): space toggles, arrows scrub, `J`/`L` jump
  * the podcast-standard 15/30 s. The handler is on `document` because a player that only responds while its
- * own button has focus is not a keyboard-operable player — and it stands down inside inputs, so typing a
- * search query does not seek the audio.
+ * own button has focus is not a keyboard-operable player — and it stands down wherever the focused element
+ * already owns the key, so typing a search query does not seek the audio and Space still presses the button
+ * a visitor tabbed to. A document-level shortcut that shadows a control is a WCAG 2.1.1 failure, not a
+ * convenience.
  */
+/**
+ * Elements that answer to Space, Enter or the arrows on their own.
+ *
+ * Split out from the handler so the rule is testable without mounting the player and its provider stack — the
+ * regression it guards against is invisible in a render test but obvious here.
+ */
+const OWNS_ITS_KEYS =
+  'input, textarea, select, button, a[href], summary, [contenteditable="true"], ' +
+  '[role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="tab"], [role="menuitem"], ' +
+  '[role="option"], [role="radio"], [role="slider"], [role="spinbutton"], [role="textbox"]';
+
+/**
+ * Whether the player's document-level shortcuts must stand down for this event target.
+ *
+ * Two reasons they must. The visitor may be typing, and a search box that seeks the audio is not a search box.
+ * And the focused element may already own the key: Space activates a focused button, which a browser implements
+ * by *watching for the default action* — Blink and Gecko both abandon the activation the moment
+ * `defaultPrevented` is set on the keydown. A blanket `preventDefault()` therefore does not add a shortcut, it
+ * takes every button in the shell away from anyone navigating by keyboard, the consent banner's Accept and
+ * Reject included. That is a WCAG 2.1.1 failure, not a convenience.
+ */
+export function ownsItsKeys(target: EventTarget | null): boolean {
+  const element = target as HTMLElement | null;
+  return Boolean(element?.closest?.(OWNS_ITS_KEYS) || element?.shadowRoot?.activeElement);
+}
+
 export function PlayerBar() {
   const { t } = useTranslation();
   const { current, playing, currentTime, duration, volume, rate, toggle, seek, skip, setVolume, setRate } =
@@ -27,13 +55,7 @@ export function PlayerBar() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      // Never steal a key from something the visitor is typing into — including a plugin's shadow DOM,
-      // where the event target is the host element rather than the field inside it.
-      if (
-        target?.closest('input, textarea, select, [contenteditable="true"]') ||
-        target?.shadowRoot?.activeElement
-      ) {
+      if (ownsItsKeys(event.target)) {
         return;
       }
       switch (event.key) {
@@ -42,9 +64,12 @@ export function PlayerBar() {
           toggle();
           break;
         case 'ArrowLeft':
+          // Seeking without this also scrolls the page — the arrow keys keep their default action otherwise.
+          event.preventDefault();
           skip(-5);
           break;
         case 'ArrowRight':
+          event.preventDefault();
           skip(5);
           break;
         case 'j':

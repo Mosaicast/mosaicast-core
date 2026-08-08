@@ -49,6 +49,9 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     /** Refs created before slugs existed, for the boot-time backfill. */
     List<EpisodeRef> findBySlugIsNull();
 
+    /** How many refs still have no slug — the backfill's post-condition check, so it cannot report a false success. */
+    long countBySlugIsNull();
+
     /** Distinct seasons present in a feed (a season is "all refs with season=N", §4.4). */
     @Query("""
             select distinct e.season from EpisodeRef e

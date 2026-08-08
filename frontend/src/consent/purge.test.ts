@@ -128,3 +128,122 @@ describe('Storage purge (§12.5)', () => {
     expect(localStorage.getItem('sneaky.id')).toBe('uuid');
   });
 });
+
+describe('Cookie sweep (§12.5)', () => {
+  const clearCookies = () => {
+    document.cookie
+      .split(';')
+      .map((pair) => pair.split('=')[0]?.trim() ?? '')
+      .filter((name) => name !== '')
+      .forEach((name) => {
+        document.cookie = `${name}=; Max-Age=0; Path=/`;
+        document.cookie = `${name}=; Max-Age=0`;
+      });
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+    clearCookies();
+  });
+
+  it('expires a declared cookie whose category the visitor refused', () => {
+    document.cookie = 'pa_visit=1; Path=/';
+
+    expect(purgeUndeclared(PAYLOAD, nothingGranted).cookies).toEqual(['pa_visit']);
+    expect(document.cookie).not.toContain('pa_visit');
+  });
+
+  it('keeps it once the category is granted', () => {
+    document.cookie = 'pa_visit=1; Path=/';
+
+    expect(purgeUndeclared(PAYLOAD, analyticsGranted).cookies).toEqual([]);
+    expect(document.cookie).toContain('pa_visit=1');
+  });
+
+  it('leaves undeclared cookies alone — they may belong to another app on the same domain', () => {
+    // The rule that applies to localStorage cannot apply here. `document.cookie` on podcasts.example.com also
+    // shows what example.com set for the whole estate: an SSO session, a load-balancer affinity cookie, an
+    // operator's own tag. Expiring those is not enforcing consent, it is breaking someone else's application.
+    document.cookie = 'AWSALB=sticky; Path=/';
+    document.cookie = 'sso_session=abc; Path=/';
+
+    const removed = purgeUndeclared(PAYLOAD, nothingGranted);
+
+    expect(removed.cookies).toEqual([]);
+    expect(document.cookie).toContain('AWSALB=sticky');
+    expect(document.cookie).toContain('sso_session=abc');
+  });
+
+  it('never writes a Domain wider than the current host', () => {
+    // A parent-domain expiry is exactly the operation that reaches sibling subdomains, and the registrable
+    // domain cannot be derived from a hostname without the public-suffix list anyway.
+    const written: string[] = [];
+    const real = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    Object.defineProperty(document, 'cookie', {
+      configurable: true,
+      get: () => 'pa_visit=1',
+      set: (value: string) => written.push(value),
+    });
+
+    try {
+      purgeUndeclared(PAYLOAD, nothingGranted);
+    } finally {
+      delete (document as unknown as Record<string, unknown>).cookie;
+      if (real) {
+        Object.defineProperty(Document.prototype, 'cookie', real);
+      }
+    }
+
+    expect(written.length).toBeGreaterThan(0);
+    written.forEach((value) => {
+      expect(value).not.toMatch(/Domain=\./);
+    });
+  });
+
+  it('never sweeps the consent decision itself', () => {
+    document.cookie = 'mc_consent=analytics; Path=/';
+
+    expect(purgeUndeclared(PAYLOAD, nothingGranted).cookies).toEqual([]);
+    expect(document.cookie).toContain('mc_consent=analytics');
+  });
+});
+
+describe('Malformed declarations (§12.5)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    sessionStorage.clear();
+  });
+
+  it('survives a storage item with no name instead of taking the sweep down with it', () => {
+    // A manifest parses into an all-optional record, so an author who wrote "key" where the schema says "name"
+    // produces a null here. Letting it reach the allow-list threw a TypeError out of an effect mounted above
+    // the router's boundary — a blank page for the visitor, and enforcement silently off.
+    const broken = structuredClone(PAYLOAD) as ConsentPayload;
+    (broken.categories[0]!.services[0]!.storage as unknown[]) = [
+      { type: 'cookie', purpose: 'x', duration: 'y' },
+      { name: 'pa_visit', type: 'cookie', purpose: 'counts a visit', duration: '24 hours' },
+    ];
+    localStorage.setItem('pa_visit', '1');
+    localStorage.setItem('sneaky.id', 'uuid');
+
+    const removed = purgeUndeclared(broken, analyticsGranted);
+
+    // The nameless item authorises nothing; the well-formed one beside it still does its job.
+    expect(removed.localStorage).toEqual(['sneaky.id']);
+    expect(localStorage.getItem('pa_visit')).toBe('1');
+  });
+
+  it('refuses a bare "*", which would otherwise switch the sweep off for the whole origin', () => {
+    // `"*"` reduces the prefix match to key.startsWith(''), true of every key on the origin — one manifest line
+    // disabling enforcement and the storage audit that shares the predicate, for core's keys as much as its own.
+    const wildcard = structuredClone(PAYLOAD) as ConsentPayload;
+    wildcard.categories[0]!.services[0]!.storage = [
+      { name: '*', type: 'localStorage', purpose: 'everything', duration: 'forever' },
+    ];
+    localStorage.setItem('sneaky.id', 'uuid');
+
+    expect(purgeUndeclared(wildcard, analyticsGranted).localStorage).toEqual(['sneaky.id']);
+    expect(localStorage.getItem('sneaky.id')).toBeNull();
+  });
+});

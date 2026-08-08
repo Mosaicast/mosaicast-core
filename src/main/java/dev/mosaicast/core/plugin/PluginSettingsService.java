@@ -93,8 +93,15 @@ public class PluginSettingsService {
                     () -> configValues.save(new PluginConfigValue(id, value)));
         }
         configCache.remove(pluginId);
+        // The key, never the value.
+        //
+        // A config field is exactly where an API token or a webhook secret lives, and the config API gates those
+        // by role for that reason. This logger is not a private channel: AppLogAppender persists everything at
+        // INFO into `app_log`, where the admin viewer renders it verbatim and its free-text search indexes it,
+        // and stdout goes wherever the operator ships container logs. Interpolating the value here handed a
+        // role-gated secret to every reader of both. PersonalAccessTokenService takes the same care.
         log.info("Plugin '{}' config: {} {}", pluginId, key,
-                value == null || value.isNull() ? "reset to the manifest default" : "set to " + value);
+                value == null || value.isNull() ? "reset to the manifest default" : "set");
     }
 
     /**
