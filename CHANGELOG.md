@@ -294,6 +294,36 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Plugin documents follow their feed and episode slugs (`0.5.17`, §4.1, §7.6).** Feed and episode scope ids
+  became public slugs, and `FeedAccessImpl` resolves either form — so a plugin still holding a UUID kept
+  getting the right episode list and looked healthy, while the doc store partitioned on the raw string and
+  sent its reads to an empty partition and its writes to a second one. Silent, and indistinguishable from
+  data loss. Two changes, because either alone leaves a hole: `PluginScopeRepartition` moves rows that already
+  exist — **including episode-scoped ones, which nothing ever moved** — and scope ids are canonicalised at the
+  boundary so nothing diverges again. The old repartition also lived inside the feed backfill's per-feed loop,
+  which returns early once every feed has a slug, so a document written under a UUID on any later boot was
+  stranded permanently; the sweep now runs every boot. Where both spellings hold the same key the slug-keyed
+  document wins and the stale one is left in place and reported, rather than overwriting current data with
+  older data.
+- **Slugs are minted before the HTTP port opens (`0.5.17`, §4.1).** Both backfills were `ApplicationRunner`s,
+  which Spring Boot invokes *after* the web server starts, so an upgrade restart served `"slug": null` for a
+  window: `Home` redirected to `/feeds/null`, `FeedTabs` rendered dead links, and `/api/feeds/null` 404'd —
+  while `api/types.ts` declares `slug: string`, so TypeScript said it could not happen. They now run from
+  `SlugBootstrap` during bean initialisation, before `finishRefresh` starts Tomcat. The public catalog also
+  filters out any feed still lacking a slug, so the shell's types cannot be made false at runtime.
+- **An unknown or disabled feed filter narrows the result instead of failing the request (`0.5.17`).**
+  `GET /api/episodes?feedId=` and `GET /api/tags?feedId=` routed an *optional filter* through
+  `resolvePublicId`, which throws `NotFoundException` — so both endpoints 404'd in their entirety the moment
+  an admin disabled a feed someone held a filtered link to, where they had returned an empty page. The shell
+  renders its load-error banner in place of the empty state, and any integration passing a `feedId` breaks
+  outright. `/api/feeds/{ref}/episodes` and `/seasons` keep the 404: there the feed *is* the resource.
+- **A privacy page can no longer claim no consent banner is required while showing one (`0.5.17`, §12.6).**
+  V16 replaced a ~900-character passage with `replace()`, which needs a byte-exact match, but guarded on a
+  single bullet line — so any operator edit elsewhere in the passage satisfied the guard while the replace
+  matched nothing, and Flyway reported success. V19 repairs the affected pages by targeting the one false
+  sentence rather than a passage, and guards on exactly the text it replaces.
+
+
 - **A decision now takes effect on the page it was made on (`0.5.16`, §12.5).** Enforcement moved onto the
   per-request response CSP, and a document's CSP cannot be changed after delivery — so *Allow all* set the
   cookie while the plugin's script stayed blocked against the narrow policy already in force, and *Allow none*

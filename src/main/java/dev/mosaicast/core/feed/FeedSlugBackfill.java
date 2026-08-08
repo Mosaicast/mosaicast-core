@@ -7,9 +7,6 @@ import jakarta.persistence.EntityManager;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Backfills the public {@link Feed#getSlug() slug} for feeds created before feed slugs existed, and moves
  * any plugin data that was partitioned under the old scope ids with it.
  *
- * <p>Runs once at startup, touching only rows whose slug is null, so it is idempotent. Ordered before the
- * plugin loader ({@code @Order(0)}) so a plugin's {@code register(ctx)} already sees the final scope ids —
- * a plugin that read {@code data/feed/<uuid>/…} during boot and wrote back afterwards would otherwise
- * re-create the partition this just migrated away from.
+ * <p>Runs once at startup, touching only rows whose slug is null, so it is idempotent. Invoked from
+ * {@link SlugBootstrap} before the HTTP port opens and before the plugin loader, so no request and no
+ * plugin's {@code register(ctx)} ever observes a null slug or a stale scope id.
  *
  * <p><strong>Why the data has to move.</strong> A plugin addresses its documents by
  * {@code scope.id}, and for a feed that id is now the slug. Leaving the rows keyed by UUID would not fail
@@ -28,10 +24,15 @@ import org.springframework.transaction.annotation.Transactional;
  * like data loss to the operator and is indistinguishable from it to the plugin. The rewrite is a plain
  * {@code UPDATE} of the key columns, in the same transaction as the minting, so either both happened or
  * neither did.
+ *
+ * <p>That per-feed rewrite is kept because it is the cheapest path on the boot that mints the slugs, but it
+ * is no longer the only one: it ran inside this method's loop, which returns early once every feed already
+ * has a slug, so a document written under a UUID on any <em>later</em> boot was stranded for good.
+ * {@link dev.mosaicast.core.plugin.PluginScopeRepartition} sweeps for those unconditionally, and also covers
+ * episode-scoped documents, which nothing here ever moved.
  */
 @Component
-@Order(-1)
-public class FeedSlugBackfill implements ApplicationRunner {
+public class FeedSlugBackfill {
 
     private static final Logger log = LoggerFactory.getLogger(FeedSlugBackfill.class);
 
@@ -43,9 +44,9 @@ public class FeedSlugBackfill implements ApplicationRunner {
         this.entityManager = entityManager;
     }
 
-    @Override
+    /** Mints slugs for feeds that have none, and moves their plugin documents with them. */
     @Transactional
-    public void run(ApplicationArguments args) {
+    public void backfill() {
         List<Feed> missing = feeds.findBySlugIsNull();
         if (missing.isEmpty()) {
             return;

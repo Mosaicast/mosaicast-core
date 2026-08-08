@@ -53,7 +53,7 @@ class EpisodeSlugBackfillIntegrationTest {
                 EpisodeRef.published(feed.getId(), "guid-legacy-1", 1, 6, null));
         assertThat(refs.findById(legacy.getId()).orElseThrow().getSlug()).isNull();
 
-        backfill.run(null);
+        backfill.backfill();
 
         // Re-read through a fresh query rather than the managed instance: the point is what reached the row.
         String persisted = refs.findAll().stream()
@@ -73,7 +73,7 @@ class EpisodeSlugBackfillIntegrationTest {
         }
         refs.flush();
 
-        backfill.run(null);
+        backfill.backfill();
 
         assertThat(refs.countBySlugIsNull()).isZero();
     }
@@ -84,8 +84,8 @@ class EpisodeSlugBackfillIntegrationTest {
         Feed feed = feeds.save(Feed.rss("https://example.test/stable.xml", "Stable Cast"));
         refs.saveAndFlush(EpisodeRef.published(feed.getId(), "guid-stable", 2, 3, "already-minted-slug"));
 
-        backfill.run(null);
-        backfill.run(null);
+        backfill.backfill();
+        backfill.backfill();
 
         assertThat(refs.findVisibleBySlug("already-minted-slug")).isPresent();
     }

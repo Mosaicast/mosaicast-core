@@ -8,21 +8,17 @@ import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Backfills the public {@link EpisodeRef#getSlug() slug} for episodes created before slugs existed
- * (ARCHITECTURE §4.1). Runs once at startup and only touches rows whose slug is null, so it is idempotent.
- * Ordered before the plugin loader ({@code @Order(0)}) so a plugin's {@code register(ctx)} already sees
- * slugs when it resolves episodes in scope.
+ * (ARCHITECTURE §4.1). Invoked from {@link dev.mosaicast.core.feed.SlugBootstrap} before the HTTP port
+ * opens and before the plugin loader, so neither a request nor a plugin's {@code register(ctx)} can observe
+ * an episode without a slug. Only rows whose slug is null are touched, so it is idempotent.
  */
 @Component
-@Order(-1)
-public class EpisodeSlugBackfill implements ApplicationRunner {
+public class EpisodeSlugBackfill {
 
     private static final Logger log = LoggerFactory.getLogger(EpisodeSlugBackfill.class);
 
@@ -36,9 +32,9 @@ public class EpisodeSlugBackfill implements ApplicationRunner {
         this.feeds = feeds;
     }
 
-    @Override
+    /** Mints slugs for episodes that have none. Idempotent: only rows with a null slug are touched. */
     @Transactional
-    public void run(ApplicationArguments args) {
+    public void backfill() {
         List<EpisodeRef> missing = refs.findBySlugIsNull();
         if (missing.isEmpty()) {
             return;

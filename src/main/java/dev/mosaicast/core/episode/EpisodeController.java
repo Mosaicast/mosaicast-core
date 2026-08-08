@@ -6,7 +6,9 @@ package dev.mosaicast.core.episode;
 import dev.mosaicast.core.feed.FeedService;
 import dev.mosaicast.core.web.PagedResponse;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -62,14 +64,30 @@ public class EpisodeController {
             @RequestParam(defaultValue = "newest") String order,
             @PageableDefault(size = 20) Pageable pageable) {
         boolean newest = !"oldest".equalsIgnoreCase(order);
+        Optional<UUID> filter = publicFeedFilter(feedId);
+        if (filterMatchesNothing(feedId, filter)) {
+            return PagedResponse.of(Page.<EpisodeSummary>empty(unsorted(pageable)), s -> s);
+        }
         return PagedResponse.of(
-                episodes.listSite(publicFeedId(feedId), season, tag, newest, unsorted(pageable)), s -> s);
+                episodes.listSite(filter.orElse(null), season, tag, newest, unsorted(pageable)), s -> s);
     }
 
     /** Distinct tags (optionally scoped to a feed) — the shell's tag-filter options (§6.1). */
     @GetMapping("/api/tags")
     public List<String> tags(@RequestParam(required = false) String feedId) {
-        return episodes.tags(publicFeedId(feedId));
+        Optional<UUID> filter = publicFeedFilter(feedId);
+        return filterMatchesNothing(feedId, filter) ? List.of() : episodes.tags(filter.orElse(null));
+    }
+
+    /**
+     * Whether a filter was asked for and names nothing visible.
+     *
+     * <p>Needed because "no filter" and "a filter that matches nothing" both arrive as an empty
+     * {@link Optional} but mean opposite things downstream: passing {@code null} for the second would widen
+     * the result to every feed, which is worse than the 404 this replaces.
+     */
+    private static boolean filterMatchesNothing(String feedRef, Optional<UUID> resolved) {
+        return feedRef != null && !feedRef.isBlank() && resolved.isEmpty();
     }
 
     /** One episode's detail by its public slug (§6.2). The literal {@code /search} mapping wins over this pattern. */
@@ -100,9 +118,24 @@ public class EpisodeController {
     /**
      * Resolves the optional {@code feedId} filter, which the shell now passes as the feed's public slug.
      * A UUID still works, so a link or integration built before slugs keeps filtering correctly.
+     *
+     * <p>An unresolvable or disabled feed narrows the result to nothing rather than failing the request.
+     * This is a <em>filter</em>, not the resource being addressed: routing it through
+     * {@code resolvePublicId} made {@code /api/episodes} and {@code /api/tags} 404 in their entirety the
+     * moment an admin disabled a feed someone had a filtered link to, where they used to return an empty
+     * page. The shell shows the "could not load episodes" banner in place of the empty state, and any
+     * integration passing a {@code feedId} breaks outright. {@code EpisodeRefRepository} already excludes
+     * disabled feeds' episodes, so filtering by one correctly yields nothing.
+     *
+     * <p>{@link #listByFeed} and {@link #seasons} keep the 404, because there the feed <em>is</em> the
+     * resource: {@code /api/feeds/gone/episodes} names something that does not exist, and answering 200 with
+     * an empty page would say it does.
      */
-    private UUID publicFeedId(String feedRef) {
-        return feedRef == null || feedRef.isBlank() ? null : feeds.resolvePublicId(feedRef);
+    private Optional<UUID> publicFeedFilter(String feedRef) {
+        if (feedRef == null || feedRef.isBlank()) {
+            return Optional.empty();
+        }
+        return feeds.findPublicId(feedRef);
     }
 
     private static Pageable unsorted(Pageable pageable) {
