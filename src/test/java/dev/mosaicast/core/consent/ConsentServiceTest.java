@@ -4,6 +4,7 @@
 package dev.mosaicast.core.consent;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,9 @@ class ConsentServiceTest {
     @Mock
     private SiteConfigService siteConfig;
 
+    @Mock
+    private NecessaryApprovalService approvals;
+
     private ConsentService service;
 
     @BeforeEach
@@ -50,11 +54,54 @@ class ConsentServiceTest {
         lenient().when(config.getDefaultLocale()).thenReturn("en");
         lenient().when(siteConfig.get()).thenReturn(config);
         lenient().when(legal.footer("en")).thenReturn(List.of());
-        service = new ConsentService(plugins, legal, siteConfig);
+        // Unapproved by default — a plugin's `necessary` claim is a proposal until an admin rules on it.
+        lenient().when(approvals.isApproved(any(), any())).thenReturn(false);
+        service = new ConsentService(plugins, legal, siteConfig, approvals);
+    }
+
+    /** Approves every `necessary` claim, for the tests about what an approved one does. */
+    private void approveEverything() {
+        lenient().when(approvals.isApproved(any(), any())).thenReturn(true);
+    }
+
+    @Test
+    void anUnapprovedNecessaryClaimIsAskedAboutLikeAnythingElse() {
+        // The premise the whole consent system rests on. `necessary` is the one category that skips the
+        // visitor entirely, and the only check was that the string was non-blank — so a tracker declaring
+        // itself necessary loaded for everyone, was never prompted, and could not be refused. Whether a
+        // service is strictly necessary is a legal judgement about a specific deployment; the plugin author
+        // proposes, the operator decides.
+        when(plugins.allActive()).thenReturn(List.of(
+                plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
+
+        ConsentView view = service.current();
+
+        // Offered as a decision, under a name that does not repeat the plugin's own claim back at the visitor.
+        assertThat(view.categories()).singleElement().satisfies(category -> {
+            assertThat(category.id()).isEqualTo(ConsentService.CATEGORY_NECESSARY_UNAPPROVED);
+            assertThat(category.services()).extracting(ConsentService.ServiceView::name)
+                    .containsExactly("Session Keeper");
+        });
+        assertThat(view.necessaryServices()).isEmpty();
+
+        // And refusable at the network layer, which is the part a plugin cannot talk its way past.
+        assertThat(service.allowedSources(Set.of())).isEmpty();
+        assertThat(service.allowedSources(Set.of(ConsentService.CATEGORY_NECESSARY_UNAPPROVED)))
+                .containsExactly("https://necessary.example");
+
+        // The operator sees the claim as a claim, rather than discovering it by noticing an unexpected origin.
+        assertThat(service.audit().services()).singleElement().satisfies(declared -> {
+            assertThat(declared.category()).isEqualTo("necessary");
+            assertThat(declared.claimsNecessary()).isTrue();
+            assertThat(declared.necessaryApproved()).isFalse();
+            assertThat(declared.prompted()).isTrue();
+        });
+        assertThat(service.hasPendingNecessaryClaims()).isTrue();
     }
 
     @Test
     void necessaryServicesAreAllowedAndDisclosedButNeverAskedAbout() {
+        approveEverything();
         when(plugins.allActive()).thenReturn(List.of(
                 plugin("stats", service("Fixture Analytics", "analytics", "https://plausible.example")),
                 plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
@@ -119,6 +166,7 @@ class ConsentServiceTest {
 
     @Test
     void aRefusedCategoryLosesItsOriginsFromThePolicy() {
+        approveEverything();
         when(plugins.allActive()).thenReturn(List.of(
                 plugin("stats", service("Fixture Analytics", "analytics", "https://plausible.example")),
                 plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
@@ -138,6 +186,7 @@ class ConsentServiceTest {
 
     @Test
     void aSiteWithNothingOptionalNeedsNoPerVisitorPolicy() {
+        approveEverything();
         when(plugins.allActive()).thenReturn(List.of(
                 plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
 

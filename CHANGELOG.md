@@ -14,6 +14,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Security
 
+- **A plugin can no longer declare itself exempt from consent (`0.5.16`, §12.5).** A service declaring
+  `"category": "necessary"` was kept out of the visitor's toggle list and had its origins added to every
+  visitor's CSP unconditionally — on the strength of a string in a file the plugin author wrote, checked
+  only for being non-blank. A tracker declaring itself necessary loaded for everyone, was never prompted and
+  could not be refused, which is the premise of the consent system rather than an edge of it. The claim is now
+  a **proposal**: until an admin approves it in Admin → Consent, the service is offered as an ordinary
+  prompted category (`unreviewed`) and a refusal keeps its origins out of the policy. Approval is bound to a
+  digest of the origins and storage that were on screen, so a plugin update that adds either drops back to
+  prompted rather than inheriting the old decision.
+- **Turning off "remember where I stopped" now applies to signed-in listeners (`0.5.16`, §6.5).** The local
+  read was gated and the server read was not, so someone signed in still resumed exactly where they left off;
+  `onEnded` wrote a position with no gate at all; and withdrawal cleared `mc.progress.*` locally while no
+  endpoint existed to clear the server rows — which the settings page nonetheless said were deleted. All
+  three paths are gated, and `DELETE /api/me/progress` erases the caller's stored positions.
+
+
 - **A plugin doc-store scope must now name something that exists (`0.5.15`, §7.6).** `scopeId` went straight
   from the request path into the store's primary key, so any string at all opened a fresh partition —
   invisible to every admin surface, unbounded in number, and corresponding to no feed, season or episode.
@@ -69,54 +85,6 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   surface and accepts `page`/`size`. The in-process `FeedAccess.episodesIn` contract is unchanged — a plugin
   resolving a scope still gets all of it.
 
-### Fixed
-
-Six defects found by an independent security audit and code review of the `0.5.13` stack. The first two are
-the reason this is a hotfix rather than a scheduled release: both are actively harmful on any instance
-running `0.5.13`.
-
-- **The cookie sweep no longer deletes cookies Mosaicast does not own (`0.5.14`, §12.5).** `sweepCookies`
-  expired every script-visible cookie missing from core's own inventory, on every page load, and one of its
-  three deletion scopes was the parent domain. On `podcasts.example.com` that reached `.example.com` — an
-  SSO cookie set by `www.example.com`, a load-balancer affinity cookie, an operator's own tag, all destroyed
-  by an unrelated application. The rule that works for `localStorage` (delete what nobody declared) cannot
-  work for cookies, because `document.cookie` also shows what the rest of the domain set. Cookies are now
-  swept by the inverse rule — **only names some manifest declared, removed exactly when their category is
-  refused** — and no expiry is ever written for a `Domain` wider than the current host. Withdrawal still
-  reaches everything consent governs, because governing it required declaring it.
-- **Space activates buttons again while an episode is playing (`0.5.14`, WCAG 2.1.1).** The player's
-  document-level shortcut called `preventDefault()` on Space without excluding controls that own the key.
-  Browsers implement button activation by watching for that default action, so from the moment audio
-  loaded, no button in the shell could be pressed by keyboard — including the consent banner's *Accept all*
-  and *Reject all*. The handler now stands down wherever the focused element already answers to the key.
-  The arrow-key seeks additionally stop scrolling the page.
-- **A malformed manifest can no longer switch the purge off or blank the page (`0.5.14`, §12.5).** Two
-  storage declarations did that. A `storage[]` entry with no `name` — an author writing `"key"` where the
-  schema says `"name"` produces one — put a null in the allow-list, where `name.endsWith` threw: inside the
-  storage sweep the throw was swallowed and enforcement silently stopped, and from the cookie sweep it
-  escaped into an effect mounted above the router's error boundary and unmounted the shell to a blank page.
-  And a declared name of `"*"` reduced the wildcard match to `startsWith('')`, true of every key on the
-  origin, so one manifest line disabled both the sweep and the storage audit that shares the predicate — for
-  core's keys as much as the plugin's own. Names that are not usable strings now authorise nothing, a
-  wildcard needs a prefix, and the sweep cannot throw into its caller.
-- **Episode slugs are actually persisted (`0.5.14`, §4.1).** `EpisodeRef.slug` was mapped
-  `updatable = false`, which removes the column from every `UPDATE` Hibernate emits — including the one the
-  boot-time backfill depends on. Instances upgraded from a pre-V13 schema kept `slug = NULL` on every boot
-  while the log announced a successful backfill: no public URL, no `GET /api/episodes/{slug}`, no sitemap
-  entry, and invisible to plugins resolving an episode scope. Immutability is enforced by
-  `assignSlugIfAbsent` where it always was. The backfill now verifies its own post-condition and logs an
-  error if any row is left without a slug, instead of only being able to report success.
-- **Plugin config values are no longer written to the log (`0.5.14`).** `PluginSettingsService` interpolated
-  the value into an `INFO` line, which `AppLogAppender` persists into `app_log` — rendered verbatim in the
-  admin log viewer and indexed by its free-text search — as well as to stdout. A field the config API gates
-  by role was readable from any log aggregator. The key is logged; the value never is.
-- **A podcaster can no longer read back admin-only config values (`0.5.14`, §7.2).** `/config` is open to
-  PODCASTER so per-field delegation works, and *writing* an `editableBy: admin` field was correctly refused
-  — but the response was built from every declared field with its current value, so submitting one owned
-  field (or an empty body, which validates vacuously) returned every admin secret alongside it. The response
-  now carries values only for fields the caller may edit; an ADMIN sees everything, as before.
-
-### Changed
 
 - **A refusal is now enforced, not just promised (`0.5.13`, ARCHITECTURE §12.5, §13)** — `ctx.consent.has()`
   is advisory and always will be: a plugin bundle is imported into the page's own JavaScript realm, shadow
@@ -316,6 +284,110 @@ running `0.5.13`.
     "schema"` still rejected) and the manifest `consent.services[]` shape. Until that lands, a plugin
     declaring the new consent form loads but contributes **no** consent categories and no CSP origins.
 
+
+- **Consume plugin SDK `0.3.0`** (`0.4.7`): bumped `dev.mosaicast:plugin-api` / `plugin-testkit` and
+  `@mosaicast/plugin-sdk` from `0.2.0` to `0.3.0` (the SDK's symmetric doc-store cut — `DocStore.delete`,
+  keyed `query`, `DocStore.KEY_PATTERN`, `Scope.SITE_ID`/`Scope.site()`). The advertised `platformApi`
+  version (footer "Powered by Mosaicast", `/api/meta`, player) therefore moves 0.2.0 → 0.3.0. No core
+  behaviour change: core does not yet implement the plugin doc-store contracts, so the SDK's breaking
+  backend changes have no effect here — M5 implements them.
+
+### Fixed
+
+- **A decision now takes effect on the page it was made on (`0.5.16`, §12.5).** Enforcement moved onto the
+  per-request response CSP, and a document's CSP cannot be changed after delivery — so *Allow all* set the
+  cookie while the plugin's script stayed blocked against the narrow policy already in force, and *Allow none*
+  left the wide policy running for the rest of the session, contradicting the guarantee `ConsentCookie`'s own
+  javadoc makes. Routing is client-side, so nothing would have re-requested the document. A decision that
+  changes the policy now reloads; one that does not (re-saving the same answer, or toggling a category no
+  service declares an origin for) does not, so nobody loses their place in an episode for nothing. The public
+  payload gained `affectsPolicy` per category to make that distinction possible without exposing host lists.
+- **The consent fingerprint no longer invalidates itself over something invisible (`0.5.16`).** `fingerprint()`
+  hashed services that `current()` skips, appending the literal `"null"` for a blank category — so a change no
+  visitor could see moved the digest, every stored answer stopped matching, granted categories fell out of the
+  CSP, allowed storage was purged, and the banner re-asked a question already answered.
+- **A plugin fronting a wildcard origin can be installed again (`0.5.16`).** `URI.getHost()` is null for
+  `https://*.plausible.io` — `*` is not legal in a hostname — so validation rejected a legal CSP source, and
+  because it runs before the backend starts, rejected the **entire plugin** while telling the author their
+  valid origin was invalid.
+- **A category that could never be granted is refused at load (`0.5.16`).** Nothing checked a declared
+  category against the consent cookie's grammar, so `analytics.plausible` (or anything over 40 characters)
+  rendered a toggle, was granted, made `has()` return true so the plugin proceeded — and never reached the
+  cookie, leaving the origins permanently blocked while the UI insisted consent had been given.
+- **Unusable storage declarations are refused at load (`0.5.16`).** A missing `name` and a bare `"*"` both
+  disabled the purge sweep from the manifest side; `0.5.14` made the client survive them, this stops them
+  reaching it.
+- `ConsentCookie` has tests — absent cookie, empty and null values, case folding, the exact 40-character
+  boundary, illegal tokens, hundreds of categories, and duplicate cookies. It had none, and it is what turns a
+  visitor's decision into a security policy.
+
+
+
+Six defects found by an independent security audit and code review of the `0.5.13` stack. The first two are
+the reason this is a hotfix rather than a scheduled release: both are actively harmful on any instance
+running `0.5.13`.
+
+- **The cookie sweep no longer deletes cookies Mosaicast does not own (`0.5.14`, §12.5).** `sweepCookies`
+  expired every script-visible cookie missing from core's own inventory, on every page load, and one of its
+  three deletion scopes was the parent domain. On `podcasts.example.com` that reached `.example.com` — an
+  SSO cookie set by `www.example.com`, a load-balancer affinity cookie, an operator's own tag, all destroyed
+  by an unrelated application. The rule that works for `localStorage` (delete what nobody declared) cannot
+  work for cookies, because `document.cookie` also shows what the rest of the domain set. Cookies are now
+  swept by the inverse rule — **only names some manifest declared, removed exactly when their category is
+  refused** — and no expiry is ever written for a `Domain` wider than the current host. Withdrawal still
+  reaches everything consent governs, because governing it required declaring it.
+- **Space activates buttons again while an episode is playing (`0.5.14`, WCAG 2.1.1).** The player's
+  document-level shortcut called `preventDefault()` on Space without excluding controls that own the key.
+  Browsers implement button activation by watching for that default action, so from the moment audio
+  loaded, no button in the shell could be pressed by keyboard — including the consent banner's *Accept all*
+  and *Reject all*. The handler now stands down wherever the focused element already answers to the key.
+  The arrow-key seeks additionally stop scrolling the page.
+- **A malformed manifest can no longer switch the purge off or blank the page (`0.5.14`, §12.5).** Two
+  storage declarations did that. A `storage[]` entry with no `name` — an author writing `"key"` where the
+  schema says `"name"` produces one — put a null in the allow-list, where `name.endsWith` threw: inside the
+  storage sweep the throw was swallowed and enforcement silently stopped, and from the cookie sweep it
+  escaped into an effect mounted above the router's error boundary and unmounted the shell to a blank page.
+  And a declared name of `"*"` reduced the wildcard match to `startsWith('')`, true of every key on the
+  origin, so one manifest line disabled both the sweep and the storage audit that shares the predicate — for
+  core's keys as much as the plugin's own. Names that are not usable strings now authorise nothing, a
+  wildcard needs a prefix, and the sweep cannot throw into its caller.
+- **Episode slugs are actually persisted (`0.5.14`, §4.1).** `EpisodeRef.slug` was mapped
+  `updatable = false`, which removes the column from every `UPDATE` Hibernate emits — including the one the
+  boot-time backfill depends on. Instances upgraded from a pre-V13 schema kept `slug = NULL` on every boot
+  while the log announced a successful backfill: no public URL, no `GET /api/episodes/{slug}`, no sitemap
+  entry, and invisible to plugins resolving an episode scope. Immutability is enforced by
+  `assignSlugIfAbsent` where it always was. The backfill now verifies its own post-condition and logs an
+  error if any row is left without a slug, instead of only being able to report success.
+- **Plugin config values are no longer written to the log (`0.5.14`).** `PluginSettingsService` interpolated
+  the value into an `INFO` line, which `AppLogAppender` persists into `app_log` — rendered verbatim in the
+  admin log viewer and indexed by its free-text search — as well as to stdout. A field the config API gates
+  by role was readable from any log aggregator. The key is logged; the value never is.
+- **A podcaster can no longer read back admin-only config values (`0.5.14`, §7.2).** `/config` is open to
+  PODCASTER so per-field delegation works, and *writing* an `editableBy: admin` field was correctly refused
+  — but the response was built from every declared field with its current value, so submitting one owned
+  field (or an empty body, which validates vacuously) returned every admin secret alongside it. The response
+  now carries values only for fields the caller may edit; an ADMIN sees everything, as before.
+
+
+- **A failing feed now shows *why*** in Admin → Feeds. `lastError` was persisted, serialised into `FeedView`
+  and sent to the browser, and the page rendered only the status word — so a broken feed showed `ERROR` with
+  no way to find out what went wrong.
+
+
+- **Previous/next navigation follows release order** (ARCHITECTURE §6.2, spec updated to match): the detail
+  page and the player's auto-advance walk the feed's `publishedAt` order — the same sequence the browsable
+  list shows — instead of season/episode number. Real feeds routinely omit `itunes:episode` (e.g. Acast), so
+  a numberless trailer or bonus episode used to be coerced to "episode 0" and jump to the front of the
+  sequence; it is now placed by its date. An episode without a `pubDate` still counts as the series start.
+- **Upcoming episodes are no longer navigation neighbours** (§6.2): `PLANNED` episodes lead the *listing* but
+  have no audio, and the nav sequence reused the listing order — so the oldest release had an unreleased
+  episode as its "previous", and auto-advance could land on an unplayable one. The sequence now contains only
+  released episodes; a planned episode's own page links back to the latest release.
+- **Disabling a feed now hides it from the public site**, not just from polling (ARCHITECTURE §5.4/§6.1). A
+  disabled feed and its episodes are excluded from the feed tabs (`GET /api/feeds`), the unified episode feed,
+  per-feed listings, seasons/tags, and search, and its feed/episode detail pages 404. Nothing is deleted —
+  re-enabling restores everything.
+
 ### Added
 
 - **Admin log & health viewer (`0.5.7`, ARCHITECTURE §13):** everything the host knew about its own failures
@@ -363,13 +435,6 @@ running `0.5.13`.
   - Retention prunes daily under ShedLock by age (30 days) and row cap (100 000); both configurable under
     `mosaicast.log.*`, as is `capture-level`.
 
-### Fixed
-
-- **A failing feed now shows *why*** in Admin → Feeds. `lastError` was persisted, serialised into `FeedView`
-  and sent to the browser, and the page rendered only the status word — so a broken feed showed `ERROR` with
-  no way to find out what went wrong.
-
-### Added
 
 - **Consent service (M5 E5d, `0.5.6`, ARCHITECTURE §12.5):** the platform consent mechanism, driven entirely
   by what plugins declare.
@@ -488,32 +553,6 @@ running `0.5.13`.
   - **Not yet:** frontend mounting of plugin Web Components, config admin form and activation UI (E5b);
     SEO/deep-links (E5c); consent (E5d); relational schema provider (E5e).
 
-### Changed
-
-- **Consume plugin SDK `0.3.0`** (`0.4.7`): bumped `dev.mosaicast:plugin-api` / `plugin-testkit` and
-  `@mosaicast/plugin-sdk` from `0.2.0` to `0.3.0` (the SDK's symmetric doc-store cut — `DocStore.delete`,
-  keyed `query`, `DocStore.KEY_PATTERN`, `Scope.SITE_ID`/`Scope.site()`). The advertised `platformApi`
-  version (footer "Powered by Mosaicast", `/api/meta`, player) therefore moves 0.2.0 → 0.3.0. No core
-  behaviour change: core does not yet implement the plugin doc-store contracts, so the SDK's breaking
-  backend changes have no effect here — M5 implements them.
-
-### Fixed
-
-- **Previous/next navigation follows release order** (ARCHITECTURE §6.2, spec updated to match): the detail
-  page and the player's auto-advance walk the feed's `publishedAt` order — the same sequence the browsable
-  list shows — instead of season/episode number. Real feeds routinely omit `itunes:episode` (e.g. Acast), so
-  a numberless trailer or bonus episode used to be coerced to "episode 0" and jump to the front of the
-  sequence; it is now placed by its date. An episode without a `pubDate` still counts as the series start.
-- **Upcoming episodes are no longer navigation neighbours** (§6.2): `PLANNED` episodes lead the *listing* but
-  have no audio, and the nav sequence reused the listing order — so the oldest release had an unreleased
-  episode as its "previous", and auto-advance could land on an unplayable one. The sequence now contains only
-  released episodes; a planned episode's own page links back to the latest release.
-- **Disabling a feed now hides it from the public site**, not just from polling (ARCHITECTURE §5.4/§6.1). A
-  disabled feed and its episodes are excluded from the feed tabs (`GET /api/feeds`), the unified episode feed,
-  per-feed listings, seasons/tags, and search, and its feed/episode detail pages 404. Nothing is deleted —
-  re-enabling restores everything.
-
-### Added
 
 - **i18n scaling, legal editor & shell polish (M4.2, `0.4.6`):**
   - **Site default language** on `SiteConfig` (Flyway `V11`, ARCHITECTURE §12.7), set in Site & branding:

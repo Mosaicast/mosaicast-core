@@ -13,6 +13,7 @@ import java.util.stream.Collectors;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -48,6 +49,25 @@ public class ProgressController {
         }
         return progress.findByIdUserIdAndIdEpisodeRefIdIn(userId, episodeIds).stream()
                 .collect(Collectors.toMap(ListeningProgress::getEpisodeRefId, ListeningProgress::getPositionSeconds));
+    }
+
+    /**
+     * Erases every stored position for the calling user.
+     *
+     * <p>This is what "remember where I stopped" being switched off has to mean. The shell cleared its own
+     * {@code mc.progress.*} keys and stopped there, because there was nothing to call — so a signed-in
+     * listener who turned the setting off kept a server-side history of what they had listened to and how far,
+     * indefinitely, while the settings page told them the positions were deleted. Local-only erasure is not
+     * erasure when the data was also sent somewhere.
+     *
+     * <p>Idempotent, and scoped to the session's own user id like every other method here — never to an id
+     * from the request.
+     */
+    @DeleteMapping
+    @Transactional
+    public ResponseEntity<Void> deleteAll(Authentication authentication) {
+        progress.deleteByIdUserId(currentUserId(authentication));
+        return ResponseEntity.noContent().build();
     }
 
     /** Upserts the resume position for one episode. */

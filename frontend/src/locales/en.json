@@ -111,9 +111,11 @@
   "consent.category.necessary": "Needed to run the site",
   "consent.category.functional": "Extra content and features",
   "consent.category.analytics": "Visit statistics",
+  "consent.category.unreviewed": "Not yet reviewed",
   "consent.categoryHint.necessary": "Loaded whatever you choose, because the site cannot work without it.",
   "consent.categoryHint.functional": "Content embedded from other companies, such as players, maps or widgets.",
   "consent.categoryHint.analytics": "Counting visits so the people running this site can see what gets read.",
+  "consent.categoryHint.unreviewed": "An add-on says the site needs this to work, and the people running the site have not confirmed that yet. Until they do, it is your choice.",
   "consent.provider": "run by {{provider}}",
   "consent.privacyOf": "Privacy policy of {{name}}",
   "consent.thirdCountry": "Data may be transferred outside the EU/EEA",
@@ -243,5 +245,9 @@
   "admin.consent.cspIntro": "The Content-Security-Policy is widened by exactly these. An origin that is not declared stays blocked even after a visitor consents.",
   "admin.consent.cspNone": "None — nothing third-party can load.",
   "admin.consent.fingerprint": "Declaration fingerprint:",
-  "admin.consent.failed": "Could not load the consent audit."
+  "admin.consent.failed": "Could not load the consent audit.",
+  "admin.consent.necessaryPending": "This add-on says visitors need not be asked about this service. Not yet confirmed by you, so visitors are still asked.",
+  "admin.consent.necessaryApproved": "You confirmed that visitors need not be asked about this service, so it loads for everyone.",
+  "admin.consent.approveNecessary": "Confirm as needed to run the site",
+  "admin.consent.revokeNecessary": "Withdraw confirmation"
 }

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
-import type { AdminConsentView } from '../../api/types';
+import type { AdminConsentService, AdminConsentView } from '../../api/types';
 
 /**
  * Admin → Consent: the audit half of §12.5.
@@ -36,6 +36,21 @@ export function AdminConsent() {
     };
   }, [t]);
 
+  /**
+   * Accepts or withdraws a plugin's claim that a service is strictly necessary.
+   *
+   * <p>The response is the refreshed audit, so the row reflects the new state without a second round trip —
+   * and so an approval invalidated by a concurrent plugin update shows up immediately rather than looking
+   * applied.
+   */
+  const decideNecessary = (service: AdminConsentService, approve: boolean) => {
+    const path = `/api/admin/consent/necessary/${encodeURIComponent(service.pluginId)}/${encodeURIComponent(
+      service.serviceId ?? '',
+    )}`;
+    const call = approve ? api.post<AdminConsentView>(path) : api.del<AdminConsentView>(path);
+    call.then(setView).catch(() => setError(t('admin.consent.failed')));
+  };
+
   if (error) {
     return <p className="mc-error">{error}</p>;
   }
@@ -62,6 +77,29 @@ export function AdminConsent() {
                   {!service.prompted && ` · ${t('admin.consent.notPrompted')}`}
                   {service.thirdCountryTransfer && ` · ${t('consent.thirdCountry')}`}
                 </div>
+                {/*
+                  A `necessary` claim skips the visitor entirely, so it is the operator's to accept — the
+                  plugin author cannot know this deployment's jurisdiction. Until it is accepted the service
+                  is prompted like any other, which is why this row is an action and not a warning.
+                */}
+                {service.claimsNecessary && (
+                  <div className="mc-consentaudit__claim">
+                    <span className="mc-muted">
+                      {service.necessaryApproved
+                        ? t('admin.consent.necessaryApproved')
+                        : t('admin.consent.necessaryPending')}
+                    </span>{' '}
+                    <button
+                      type="button"
+                      className={service.necessaryApproved ? 'mc-btn mc-btn--ghost' : 'mc-btn mc-btn--accent'}
+                      onClick={() => decideNecessary(service, !service.necessaryApproved)}
+                    >
+                      {service.necessaryApproved
+                        ? t('admin.consent.revokeNecessary')
+                        : t('admin.consent.approveNecessary')}
+                    </button>
+                  </div>
+                )}
                 {service.hosts.length > 0 && (
                   <div className="mc-consentaudit__hosts">
                     {service.hosts.map((host) => (

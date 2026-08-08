@@ -12,4 +12,7 @@ public interface ListeningProgressRepository extends JpaRepository<ListeningProg
 
     /** A user's progress for a set of episodes (the shell asks for the episodes currently on screen). */
     List<ListeningProgress> findByIdUserIdAndIdEpisodeRefIdIn(UUID userId, List<UUID> episodeRefIds);
+
+    /** Erases everything stored for one user — what switching "remember where I stopped" off has to do. */
+    void deleteByIdUserId(UUID userId);
 }

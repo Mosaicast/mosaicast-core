@@ -9,6 +9,7 @@ import dev.mosaicast.core.legal.LegalViews.FooterEntry;
 import dev.mosaicast.core.plugin.PluginLoaderService;
 import dev.mosaicast.core.plugin.PluginManifest;
 import dev.mosaicast.core.plugin.PluginRegistration;
+import dev.mosaicast.core.web.NotFoundException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -47,17 +48,32 @@ public class ConsentService {
     public static final String CATEGORY_NECESSARY = "necessary";
     public static final String CATEGORY_FUNCTIONAL = "functional";
     public static final String CATEGORY_ANALYTICS = "analytics";
+
+    /**
+     * Where a plugin's <em>unapproved</em> {@code necessary} claim lands until an admin rules on it.
+     *
+     * <p>A distinct id rather than reusing {@code necessary}, because the two are different questions. One
+     * says "this loads whatever you choose, because the site cannot work without it"; the other says "a
+     * plugin asserts that, and nobody has checked". Presenting the second under the first's label would put
+     * the plugin's own words in the operator's mouth on the one surface that exists to be truthful.
+     */
+    public static final String CATEGORY_NECESSARY_UNAPPROVED = "unreviewed";
+
     public static final Set<String> KNOWN_CATEGORIES =
-            Set.of(CATEGORY_NECESSARY, CATEGORY_FUNCTIONAL, CATEGORY_ANALYTICS);
+            Set.of(CATEGORY_NECESSARY, CATEGORY_FUNCTIONAL, CATEGORY_ANALYTICS,
+                    CATEGORY_NECESSARY_UNAPPROVED);
 
     private final PluginLoaderService plugins;
     private final LegalService legal;
     private final SiteConfigService siteConfig;
+    private final NecessaryApprovalService approvals;
 
-    public ConsentService(PluginLoaderService plugins, LegalService legal, SiteConfigService siteConfig) {
+    public ConsentService(PluginLoaderService plugins, LegalService legal, SiteConfigService siteConfig,
+                          NecessaryApprovalService approvals) {
         this.plugins = plugins;
         this.legal = legal;
         this.siteConfig = siteConfig;
+        this.approvals = approvals;
     }
 
     /**
@@ -88,9 +104,16 @@ public class ConsentService {
      *
      * @param id       the category name, as declared
      * @param known    whether the shell has a translated label for it
+     * @param affectsPolicy whether granting or refusing this changes the CSP the server sends — i.e. whether
+     *                 any service under it declares an origin at all. The shell needs it because enforcement
+     *                 lives in a response header that cannot be changed after delivery, so a decision that
+     *                 moves the policy has to be applied by reloading, and one that does not must not be:
+     *                 reloading on a no-op would throw away the visitor's place in an episode for nothing.
+     *                 A boolean, not the hosts themselves — a visitor decides about services and providers,
+     *                 and the origin list stays in the admin audit where the class note says it belongs
      * @param services the services this decision covers
      */
-    public record CategoryView(String id, boolean known, List<ServiceView> services) {
+    public record CategoryView(String id, boolean known, boolean affectsPolicy, List<ServiceView> services) {
     }
 
     /**
@@ -128,22 +151,30 @@ public class ConsentService {
     /**
      * One declared service with the plugin that declared it.
      *
-     * @param prompted whether a visitor is actually asked about it — {@code false} for {@code necessary},
-     *                 which loads unconditionally and is the answer to "why does this origin appear in the
-     *                 CSP when nobody was asked about it?"
+     * @param prompted whether a visitor is actually asked about it — {@code false} only for an
+     *                 <em>approved</em> {@code necessary} claim, which loads unconditionally and is the answer
+     *                 to "why does this origin appear in the CSP when nobody was asked about it?"
+     * @param claimsNecessary whether the plugin declared {@code "category": "necessary"} for it at all. Kept
+     *                 separate from {@code category} so the admin surface can show a pending claim as a claim,
+     *                 rather than the operator discovering it by noticing an origin they never approved
+     * @param necessaryApproved whether an admin has approved that claim <em>as it currently stands</em>. A
+     *                 plugin update that adds a host or a cookie drops this back to {@code false} and the
+     *                 service is prompted again until someone looks — an approval covers a claim, not a plugin
      */
     public record AuditService(String pluginId, String serviceId, String name, String provider, String category,
                                String privacyUrl, List<String> hosts, boolean thirdCountryTransfer,
-                               List<StorageView> storage, boolean prompted) {
+                               List<StorageView> storage, boolean prompted,
+                               boolean claimsNecessary, boolean necessaryApproved) {
     }
 
     /** The public consent payload. */
     public ConsentView current() {
         Map<String, List<ServiceView>> byCategory = new LinkedHashMap<>();
+        Set<String> withHosts = new LinkedHashSet<>();
         List<ServiceView> necessary = new ArrayList<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
-                String category = normalize(service.category());
+                String category = effectiveCategory(registration.id(), service);
                 if (category == null) {
                     continue;
                 }
@@ -151,16 +182,22 @@ public class ConsentService {
                     // Never a question: it loads either way. It is still a disclosure, though, and the shell
                     // needs the list for a second reason — what it stores is legitimately on the device, so a
                     // sweep of everything unaccounted for must not mistake it for a stray.
+                    //
+                    // Only an *approved* claim reaches here; an unapproved one came back as a prompted
+                    // category and falls through to the toggle list below.
                     necessary.add(view(service));
                     continue;
                 }
                 byCategory.computeIfAbsent(category, key -> new ArrayList<>()).add(view(service));
+                if (service.hostsOrEmpty().stream().anyMatch(host -> host != null && !host.isBlank())) {
+                    withHosts.add(category);
+                }
             }
         }
 
         List<CategoryView> categories = byCategory.entrySet().stream()
                 .map(entry -> new CategoryView(entry.getKey(), KNOWN_CATEGORIES.contains(entry.getKey()),
-                        List.copyOf(entry.getValue())))
+                        withHosts.contains(entry.getKey()), List.copyOf(entry.getValue())))
                 .toList();
 
         return new ConsentView(fingerprint(), categories,
@@ -172,11 +209,16 @@ public class ConsentService {
         List<AuditService> services = new ArrayList<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
-                String category = normalize(service.category());
-                services.add(new AuditService(registration.id(), service.id(), service.name(),
-                        service.provider(), category, service.privacyUrl(), service.hostsOrEmpty(),
+                String declared = normalize(service.category());
+                String effective = effectiveCategory(registration.id(), service);
+                boolean claimsNecessary = CATEGORY_NECESSARY.equals(declared);
+                services.add(new AuditService(registration.id(),
+                        NecessaryApprovalService.serviceKey(service), service.name(),
+                        service.provider(), declared, service.privacyUrl(), service.hostsOrEmpty(),
                         service.transfersToThirdCountry(), storageViews(service),
-                        category != null && !CATEGORY_NECESSARY.equals(category)));
+                        effective != null && !CATEGORY_NECESSARY.equals(effective),
+                        claimsNecessary,
+                        claimsNecessary && CATEGORY_NECESSARY.equals(effective)));
             }
         }
         return new AuditView(fingerprint(), services, List.copyOf(declaredExternalSources()));
@@ -209,6 +251,44 @@ public class ConsentService {
         return hosts(category -> CATEGORY_NECESSARY.equals(category) || grantedCategories.contains(category));
     }
 
+    /**
+     * Whether any plugin is claiming {@code necessary} without an admin having ruled on it.
+     *
+     * <p>Drives the admin nudge: an unapproved claim means visitors are being asked about something the
+     * plugin believes needs no asking, which the operator should settle one way or the other.
+     */
+    public boolean hasPendingNecessaryClaims() {
+        for (PluginRegistration registration : plugins.allActive()) {
+            for (PluginManifest.Service service : declaredServices(registration)) {
+                if (CATEGORY_NECESSARY.equals(normalize(service.category()))
+                        && !approvals.isApproved(registration.id(), service)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Approves a plugin's {@code necessary} claim as it currently reads. 404 if there is no such service. */
+    public void approveNecessary(String pluginId, String serviceKey) {
+        approvals.approve(pluginId, serviceOf(pluginId, serviceKey));
+    }
+
+    /** Withdraws that approval. Idempotent, and does not require the service to still exist. */
+    public void revokeNecessary(String pluginId, String serviceKey) {
+        approvals.revoke(pluginId, serviceKey);
+    }
+
+    private PluginManifest.Service serviceOf(String pluginId, String serviceKey) {
+        return plugins.allActive().stream()
+                .filter(registration -> registration.id().equals(pluginId))
+                .flatMap(registration -> declaredServices(registration).stream())
+                .filter(service -> NecessaryApprovalService.serviceKey(service).equals(serviceKey))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException(
+                        "No declared service '%s' on plugin '%s'".formatted(serviceKey, pluginId)));
+    }
+
     /** Whether any declared service is gated at all — i.e. whether the policy varies between visitors. */
     public boolean hasOptionalSources() {
         return !declaredExternalSources().equals(allowedSources(Set.of()));
@@ -218,7 +298,9 @@ public class ConsentService {
         Set<String> hosts = new LinkedHashSet<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
-                String category = normalize(service.category());
+                // The effective category, so an unapproved `necessary` claim is subject to the visitor's
+                // decision like anything else rather than being waved through by the predicate above.
+                String category = effectiveCategory(registration.id(), service);
                 if (category == null || !categoryAllowed.test(category)) {
                     continue;
                 }
@@ -246,8 +328,21 @@ public class ConsentService {
         List<String> lines = new ArrayList<>();
         for (PluginRegistration registration : plugins.allActive()) {
             for (PluginManifest.Service service : declaredServices(registration)) {
+                // Skip exactly what current() skips.
+                //
+                // These two used to disagree: current() drops a service whose category is absent or blank,
+                // while this appended the literal "null" for it. So a change no visitor could possibly see
+                // moved the digest — every stored answer stopped matching, granted categories fell out of the
+                // CSP, allowed storage was purged, and the banner re-asked a question already answered. What
+                // is hashed has to be what is shown, which is also why the *effective* category goes in:
+                // approving a necessary claim moves a service out of the toggle list, and a visitor looking at
+                // a different set of questions is being asked something new.
+                String category = effectiveCategory(registration.id(), service);
+                if (category == null) {
+                    continue;
+                }
                 StringBuilder line = new StringBuilder()
-                        .append(normalize(service.category())).append('')
+                        .append(category).append('')
                         .append(service.name()).append('')
                         .append(service.provider()).append('')
                         .append(service.privacyUrl()).append('')
@@ -262,6 +357,39 @@ public class ConsentService {
         }
         lines.sort(null);
         return digest(String.join("", lines));
+    }
+
+    /**
+     * The category a service is actually treated as, which is not always the one it declared.
+     *
+     * <p>{@code necessary} is the only category that skips the visitor entirely — it is never offered, never
+     * refusable, and its origins go into every visitor's CSP. That made it the one string worth lying about,
+     * and nothing checked: {@code validateConsent} only requires a category to be non-blank, so a tracker
+     * declaring itself necessary loaded for everyone and could not be refused.
+     *
+     * <p>So the claim is a proposal. Approved by an admin, it behaves as before. Unapproved, it is handled as
+     * an ordinary prompted category under the same name — the visitor gets a toggle and a real choice, and
+     * the site's default is "ask" rather than "take the plugin's word for it". Nothing is hidden either way:
+     * the admin audit lists the claim, approved or not.
+     *
+     * @return the effective category, or {@code null} for a service whose declaration is unusable
+     */
+    private String effectiveCategory(String pluginId, PluginManifest.Service service) {
+        String category = normalize(service.category());
+        if (category == null || !CATEGORY_NECESSARY.equals(category)) {
+            return category;
+        }
+        return approvals.isApproved(pluginId, service) ? CATEGORY_NECESSARY : CATEGORY_NECESSARY_UNAPPROVED;
+    }
+
+    /**
+     * Whether a service's origins belong in every visitor's policy regardless of what they chose.
+     *
+     * <p>True only for an <em>approved</em> necessary claim. An unapproved one is prompted, so it is subject
+     * to {@code grantedCategories} like anything else.
+     */
+    private boolean isUnconditional(String pluginId, PluginManifest.Service service) {
+        return CATEGORY_NECESSARY.equals(effectiveCategory(pluginId, service));
     }
 
     private static List<PluginManifest.Service> declaredServices(PluginRegistration registration) {

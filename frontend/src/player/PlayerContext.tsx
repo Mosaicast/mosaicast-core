@@ -128,17 +128,27 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         audio.src = url;
         // Restore the resume position: server-side for a logged-in user (§6.5), else localStorage.
         // Nothing to restore once the visitor switched remembering off — the stored positions are gone.
-        let saved = progressEnabled() ? Number(localStorage.getItem(progressKey(episode.id)) ?? 0) : 0;
-        if (userRef.current) {
-          try {
-            const map = await api.get<Record<string, number>>(
-              `/api/me/progress?episodeIds=${episode.id}`,
-            );
-            if (map[episode.id] != null) {
-              saved = map[episode.id];
+        // The switch has to gate the server read too, not only the local one.
+        //
+        // It used to zero `saved` behind progressEnabled() and then overwrite it unconditionally from
+        // /api/me/progress, so a signed-in listener who switched remembering off still resumed exactly where
+        // they left off — the setting appeared to do nothing, and the rows it claimed to have deleted were
+        // still there. For an anonymous visitor it worked, which is the worst version: the promise held for
+        // the people with the least at stake.
+        let saved = 0;
+        if (progressEnabled()) {
+          saved = Number(localStorage.getItem(progressKey(episode.id)) ?? 0);
+          if (userRef.current) {
+            try {
+              const map = await api.get<Record<string, number>>(
+                `/api/me/progress?episodeIds=${episode.id}`,
+              );
+              if (map[episode.id] != null) {
+                saved = map[episode.id];
+              }
+            } catch {
+              /* fall back to the localStorage value */
             }
-          } catch {
-            /* fall back to the localStorage value */
           }
         }
         pendingSeekRef.current = saved;
@@ -266,7 +276,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const onEnded = () => {
       if (current) {
         localStorage.removeItem(progressKey(current.id));
-        if (userRef.current) {
+        // Only when remembering is on. Writing a zero is still writing a row about what this person listened
+        // to, on the say-so of a setting they turned off — and it was the one progress write with no gate.
+        if (userRef.current && progressEnabled()) {
           void api.put(`/api/me/progress/${current.id}`, { positionSeconds: 0 }).catch(() => {});
         }
       }

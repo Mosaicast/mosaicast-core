@@ -223,6 +223,14 @@ public record PluginManifest(
      * <p>A plugin that declares nothing passes: no consent block means no third parties, which is the
      * banner-free default.
      */
+    /**
+     * The grammar a consent category must fit, which is the consent cookie's grammar
+     * ({@code ConsentCookie}, {@code writeConsentCookie}). Kept here so a manifest that could never be
+     * granted is refused at load rather than at the network layer, silently, on a visitor's machine.
+     */
+    private static final java.util.regex.Pattern CATEGORY_TOKEN =
+            java.util.regex.Pattern.compile("[a-z0-9_-]{1,40}", java.util.regex.Pattern.CASE_INSENSITIVE);
+
     private void validateConsent() {
         if (consent == null) {
             return;
@@ -241,9 +249,67 @@ public record PluginManifest(
                 throw new PluginValidationException(
                         "consent service '%s' declares no category".formatted(service.name()));
             }
+            requireUsableCategory(service);
             for (String host : service.hostsOrEmpty()) {
                 requireAbsoluteOrigin(service, host);
             }
+            for (StorageItem item : service.storageOrEmpty()) {
+                requireUsableStorageItem(service, item);
+            }
+        }
+    }
+
+    /**
+     * A category has to survive the round trip through the visitor's consent cookie, which is what carries the
+     * decision to the server and therefore into the CSP.
+     *
+     * <p>That cookie is a dot-separated list of tokens matching {@code [a-z0-9_-]{1,40}}, and nothing checked
+     * a declared category against it. So {@code analytics.plausible} — or anything over 40 characters, or with
+     * an accent in it — produced a normal toggle, was granted by the visitor, made {@code has()} return true
+     * so the plugin proceeded, and then never reached the cookie: the server saw no grant, the origins stayed
+     * out of the policy, and every request failed at the network layer while the UI insisted consent had been
+     * given. Failing closed is right; failing closed <em>silently</em>, on a valid-looking manifest, is not.
+     * Rejecting at load turns an invisible runtime contradiction into a message the author can act on.
+     */
+    private static void requireUsableCategory(Service service) {
+        String category = service.category().trim();
+        if (!CATEGORY_TOKEN.matcher(category).matches()) {
+            throw new PluginValidationException(
+                    ("consent service '%s' category '%s' is not usable: it must be 1-40 characters of "
+                            + "a-z, 0-9, '_' or '-' (no dots — the consent cookie separates categories with "
+                            + "them, so a dotted id could never be granted)")
+                            .formatted(service.name(), category));
+        }
+    }
+
+    /**
+     * A storage item's {@code name} is what the shell's purge sweep matches keys against, so an unusable one
+     * disables enforcement rather than merely looking untidy.
+     *
+     * <p>{@link StorageItem} is an all-optional record under {@code @JsonIgnoreProperties}, so an author who
+     * wrote {@code "key"} where the schema says {@code "name"} yields a null that reached the browser and threw
+     * inside the sweep. And a bare {@code "*"} matched every key on the origin, switching the sweep and the
+     * storage audit off for core's keys as much as the plugin's own. Both are caught here now, so the client
+     * never sees them.
+     */
+    private static void requireUsableStorageItem(Service service, StorageItem item) {
+        if (item == null || item.name() == null || item.name().isBlank()) {
+            throw new PluginValidationException(
+                    ("consent service '%s' declares a storage item with no name — the shell matches device "
+                            + "keys against it, so it cannot be blank (did you write \"key\" instead of "
+                            + "\"name\"?)").formatted(service.name()));
+        }
+        String name = item.name().trim();
+        if (name.equals("*")) {
+            throw new PluginValidationException(
+                    ("consent service '%s' declares the storage name '*', which matches every key on the "
+                            + "site — including core's. A wildcard needs a prefix, e.g. 'myplugin.*'")
+                            .formatted(service.name()));
+        }
+        if (name.indexOf('*') >= 0 && !name.endsWith("*")) {
+            throw new PluginValidationException(
+                    ("consent service '%s' storage name '%s' uses '*' in the middle; the wildcard is a "
+                            + "trailing prefix match, not a glob").formatted(service.name(), name));
         }
     }
 
@@ -251,6 +317,13 @@ public record PluginManifest(
      * A host doubles as a CSP origin, which needs a scheme to mean anything — {@code plausible.example} is
      * not an origin and would silently never match. Rejecting it here beats a plugin whose embeds fail to
      * load with consent granted and no explanation.
+     *
+     * <p>A leading {@code *.} subdomain wildcard is legal in a CSP {@code host-source} and is the normal way
+     * to front Plausible, Matomo or a CDN. {@code URI.getHost()} returns null for it — {@code *} is not legal
+     * in a hostname, so the authority parses as registry-based — which meant validation rejected a valid
+     * policy source, and, because this runs before the backend starts, rejected the <em>entire plugin</em>
+     * while telling the author their correct origin was invalid. The wildcard label is stripped before the
+     * check and the host is validated as the rest of the name.
      */
     private static void requireAbsoluteOrigin(Service service, String host) {
         if (host == null || host.isBlank()) {
@@ -262,8 +335,16 @@ public record PluginManifest(
                     "consent service '%s' host '%s' needs a scheme (https://%s)"
                             .formatted(service.name(), host, host));
         }
+        // Only as the leading label, and only followed by something: `*` alone would widen the policy to every
+        // origin, which is not a declaration of anything.
+        String candidate = host.replaceFirst("^(https?://)\\*\\.", "$1");
+        if (candidate.equals(host) && host.indexOf('*') >= 0) {
+            throw new PluginValidationException(
+                    ("consent service '%s' host '%s': a CSP wildcard is only valid as a leading subdomain "
+                            + "label, e.g. https://*.plausible.io").formatted(service.name(), host));
+        }
         try {
-            URI uri = URI.create(host);
+            URI uri = URI.create(candidate);
             if (uri.getHost() == null) {
                 throw new PluginValidationException(
                         "consent service '%s' host '%s' is not a valid origin".formatted(service.name(), host));

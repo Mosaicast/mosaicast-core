@@ -12,6 +12,7 @@ const PAYLOAD: ConsentPayload = {
     {
       id: 'analytics',
       known: true,
+      affectsPolicy: true,
       services: [
         {
           name: 'Plausible Analytics',

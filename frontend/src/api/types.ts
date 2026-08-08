@@ -321,6 +321,14 @@ export interface ConsentServiceView {
 export interface ConsentCategory {
   id: string;
   known: boolean;
+  /**
+   * Whether granting or refusing this changes the CSP the server sends — i.e. whether any service under it
+   * declares an origin at all. Enforcement lives in a response header, which cannot be changed after the
+   * document is delivered, so a decision that moves the policy is applied by reloading and one that does not
+   * must not be. A boolean rather than the origins themselves: a visitor decides about services and
+   * providers, and the host list stays in the admin audit.
+   */
+  affectsPolicy: boolean;
   services: ConsentServiceView[];
 }
 
@@ -363,8 +371,21 @@ export interface AdminConsentService {
   hosts: string[];
   thirdCountryTransfer: boolean;
   storage: ConsentStorage[];
-  /** False for `necessary`: declared, allowed by the CSP, disclosed — but never asked about. */
+  /** False only for an *approved* `necessary` claim: allowed by the CSP, disclosed, never asked about. */
   prompted: boolean;
+  /**
+   * Whether the plugin declared `"category": "necessary"` for this service at all.
+   *
+   * Separate from `category` so a pending claim reads as a claim. `necessary` is the one category that skips
+   * the visitor entirely, which makes it the one worth asserting falsely — so the host treats it as a
+   * proposal and the operator rules on it.
+   */
+  claimsNecessary: boolean;
+  /**
+   * Whether an admin approved that claim *as it currently stands*. A plugin update adding an origin or a
+   * cookie drops this to false and the service is prompted again — an approval covers a claim, not a plugin.
+   */
+  necessaryApproved: boolean;
 }
 
 /** The consent audit, `GET /api/admin/consent`. */
