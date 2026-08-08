@@ -40,16 +40,24 @@ public class PatController {
     public record CreateToken(@NotBlank String name) {
     }
 
-    /** Token metadata (never the secret). */
-    public record TokenView(UUID id, String name, String prefix, Instant createdAt, Instant lastUsedAt) {
+    /**
+     * One token as its owner sees it. Never the secret — that exists in plaintext once, in
+     * {@link CreatedToken}.
+     *
+     * @param expiresAt when it stops working, or {@code null} for a token issued before expiry existed. Shown
+     *                  so someone whose automation stopped can see why, rather than finding the row gone
+     */
+    public record TokenView(UUID id, String name, String prefix, Instant createdAt, Instant lastUsedAt,
+                            Instant expiresAt) {
         static TokenView of(PersonalAccessToken token) {
             return new TokenView(token.getId(), token.getName(), token.getPrefix(),
-                    token.getCreatedAt(), token.getLastUsedAt());
+                    token.getCreatedAt(), token.getLastUsedAt(), token.getExpiresAt());
         }
     }
 
     /** Creation response — includes the plaintext secret, shown this one time only. */
-    public record CreatedToken(UUID id, String name, String prefix, String secret, Instant createdAt) {
+    public record CreatedToken(UUID id, String name, String prefix, String secret, Instant createdAt,
+                               Instant expiresAt) {
     }
 
     @GetMapping
@@ -66,7 +74,7 @@ public class PatController {
         var issued = tokens.create(currentUserId(authentication), request.name());
         return new CreatedToken(
                 issued.token().getId(), issued.token().getName(), issued.token().getPrefix(),
-                issued.secret(), issued.token().getCreatedAt());
+                issued.secret(), issued.token().getCreatedAt(), issued.token().getExpiresAt());
     }
 
     @DeleteMapping("/{id}")

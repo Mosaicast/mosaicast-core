@@ -4,6 +4,7 @@
 package dev.mosaicast.core.plugin;
 
 import tools.jackson.databind.JsonNode;
+import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.web.PagedResponse;
 import dev.mosaicast.plugin.api.DocEntry;
@@ -103,7 +104,7 @@ public class PluginDataController {
     /** Resolves the plugin and checks read access, or throws 404 / 403. */
     private PluginManifest readable(String id, Authentication authentication) {
         PluginManifest manifest = manifestOf(id);
-        if (!PluginAccessPolicy.canRead(manifest, dev.mosaicast.core.auth.CurrentUser.role(authentication))) {
+        if (!PluginAccessPolicy.canRead(manifest, CurrentUser.role(authentication))) {
             throw new AccessDeniedException("Not allowed to read plugin data: " + id);
         }
         return manifest;
@@ -112,7 +113,7 @@ public class PluginDataController {
     /** Resolves the plugin and checks write access, or throws 404 / 403. */
     private PluginManifest writable(String id, Authentication authentication) {
         PluginManifest manifest = manifestOf(id);
-        if (!PluginAccessPolicy.canWrite(manifest, dev.mosaicast.core.auth.CurrentUser.role(authentication))) {
+        if (!PluginAccessPolicy.canWrite(manifest, CurrentUser.role(authentication))) {
             throw new AccessDeniedException("Not allowed to write plugin data: " + id);
         }
         return manifest;

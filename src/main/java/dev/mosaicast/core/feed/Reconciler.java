@@ -9,6 +9,8 @@ import dev.mosaicast.core.episode.EpisodeRef;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
 import dev.mosaicast.core.episode.EpisodeSlug;
 import dev.mosaicast.core.episode.EpisodeStatus;
+import dev.mosaicast.core.episode.EpisodeTagRepository;
+import dev.mosaicast.core.episode.EpisodeTag;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,10 +41,10 @@ public class Reconciler {
 
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
-    private final dev.mosaicast.core.episode.EpisodeTagRepository tags;
+    private final EpisodeTagRepository tags;
 
     public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
-                      dev.mosaicast.core.episode.EpisodeTagRepository tags) {
+                      EpisodeTagRepository tags) {
         this.refs = refs;
         this.displays = displays;
         this.tags = tags;
@@ -171,7 +173,7 @@ public class Reconciler {
     private void upsertTags(UUID refId, List<String> tagValues) {
         tags.deleteByEpisodeRefId(refId);
         for (String tag : tagValues) {
-            tags.save(new dev.mosaicast.core.episode.EpisodeTag(refId, tag));
+            tags.save(new EpisodeTag(refId, tag));
         }
     }
 }

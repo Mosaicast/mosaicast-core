@@ -21,8 +21,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Feed administration and the manual/planned surface (ARCHITECTURE §5, §4.3): add/refresh/enable RSS
- * feeds and create planned episodes. Access control (PODCASTER/ADMIN) is layered on in M2; the endpoints
- * exist now so the pipeline is exercisable end-to-end.
+ * feeds and create planned episodes. Access control is enforced at the filter chain — PODCASTER or ADMIN
+ * on {@code /api/admin/feeds/**} (§8.5) — not here.
  */
 @Service
 public class FeedService {

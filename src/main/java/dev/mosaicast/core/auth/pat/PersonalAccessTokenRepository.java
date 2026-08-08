@@ -13,6 +13,9 @@ public interface PersonalAccessTokenRepository extends JpaRepository<PersonalAcc
 
     Optional<PersonalAccessToken> findByTokenHash(String tokenHash);
 
+    /** How many tokens a user currently holds — the per-user cap. */
+    long countByUserId(UUID userId);
+
     List<PersonalAccessToken> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     Optional<PersonalAccessToken> findByIdAndUserId(UUID id, UUID userId);

@@ -87,6 +87,27 @@ public class SecurityConfig {
         this.cspHeaderWriter = cspHeaderWriter;
     }
 
+    /**
+     * The CSRF token cookie, with the flags {@code withHttpOnlyFalse()} does not set for you.
+     *
+     * <p>{@code HttpOnly=false} is the design — this is a double-submit token and the SPA has to read it —
+     * but Spring's defaults leave {@code SameSite} and {@code Secure} unset, which the audit flagged. Neither
+     * is what stops CSRF here (the header echo is), so this is depth rather than the load-bearing control:
+     * {@code SameSite=Lax} keeps the token out of cross-site requests in the first place, and {@code Secure}
+     * keeps a readable token off a plaintext hop. Both match the session cookie, so the two travel together
+     * rather than under different rules.
+     *
+     * <p>{@code Secure} follows the same {@code mosaicast.security.secure-cookie} switch as the session
+     * cookie ({@code SessionConfig}) — on by default, off only for plain-http local runs, where a
+     * {@code Secure} cookie would simply never be sent and the SPA could not read its own token.
+     */
+    private CookieCsrfTokenRepository csrfTokenRepository() {
+        CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        boolean secure = environment.getProperty("mosaicast.security.secure-cookie", Boolean.class, true);
+        repository.setCookieCustomizer(cookie -> cookie.sameSite("Lax").secure(secure));
+        return repository;
+    }
+
     /** Shared with the dev-login controller so both persist the SecurityContext the same way. */
     @Bean
     SecurityContextRepository securityContextRepository() {
@@ -105,7 +126,7 @@ public class SecurityConfig {
                 // header (Spring Security "Integrating with SPAs"). The CsrfCookieFilter forces the token
                 // to load per request so the cookie is always set.
                 .csrf(csrf -> {
-                    csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    csrf.csrfTokenRepository(csrfTokenRepository())
                             .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                             // Bearer-token automation carries no cookies, so CSRF does not apply.
                             .ignoringRequestMatchers(PatAuthenticationFilter::hasBearer);

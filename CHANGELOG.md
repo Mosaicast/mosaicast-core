@@ -14,6 +14,55 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Security
 
+- **Branding uploads are identified by their bytes, not by a header the client wrote (`0.5.18`, §12.2).**
+  This class promised "only raster is stored" and checked only `getContentType()`, so an SVG labelled
+  `image/png` was accepted, stored, and served back with that same attacker-chosen type — containment resting
+  entirely on a `nosniff` header set in a different file. Magic numbers now decide, and the sniffed type is
+  what gets stored, so what is served is what was actually uploaded.
+- **`sitemap.xml` is built from `mosaicast.base-url`, not from the request (`0.5.18`, §6.6).** It used
+  `fromCurrentContextPath()`, and with `forward-headers-strategy: framework` that makes `X-Forwarded-Host`
+  authoritative — so `curl -H 'X-Forwarded-Host: evil.example' /sitemap.xml` returned a sitemap whose every
+  `<loc>` pointed at the attacker's host. Handed to a crawler, that reassigns the site's canonical URLs. The
+  shipped compose file exposes the app port directly, with no proxy to strip the header. `mosaicast.base-url`
+  was already configured and read nowhere.
+- **Plugin assets no longer follow a symlink out of the plugin (`0.5.18`, §7.4).** The traversal check was
+  lexical while `isRegularFile` and `readAllBytes` follow links, so a package containing
+  `assets/logo.png -> /etc/passwd` was served. Containment is now checked against `toRealPath()`. A link
+  within `assets/` still works.
+- **A plugin cannot take over another plugin's identity (`0.5.18`, §7.2).** The registry is keyed on the id
+  a plugin declares about itself and `put` silently overwrote, so a package installed as `zz-analytics/`
+  declaring `"id": "bingo"` served its bundle from `/plugins/bingo/assets/**`, gated `bingo`'s data surface
+  with its own `visibleTo` floors, and shared `bingo`'s `plugin_data` namespace. The manifest id must now
+  match the folder the operator installed it into.
+- **Feed HTML is sanitized against an explicit allow-list (`0.5.18`).** DOMPurify's defaults stop script
+  execution and permit `<style>` and `style`; with `style-src 'unsafe-inline'` in the policy, show notes from
+  a podcast host were a working stylesheet — attribute-selector exfiltration of rendered values, and
+  full-page click-jacking overlays, with `img-src https:` permitting the outbound request that carries the
+  stolen data. `'unsafe-inline'` stays, because plugin Web Components style their shadow roots and dropping it
+  breaks the plugin UI contract; the sanitizer closes the path instead. The reasoning is now written down in
+  `PluginCspHeaderWriter` rather than left as an unexplained relaxation.
+- **Personal access tokens expire and are capped (`0.5.18`, §8.5).** A token was valid until someone
+  remembered to revoke it, and a user could mint any number. Since a token carries whatever role its owner
+  holds *now*, promoting a podcaster to admin retroactively upgraded every token they had ever created. New
+  tokens get a lifetime (`mosaicast.security.pat-lifetime-days`, default 365) and there is a per-user cap
+  (`pat-max-per-user`, default 20). Existing tokens keep no expiry — retrofitting one would break running
+  automation on a date nobody chose.
+- **The `XSRF-TOKEN` cookie gets `SameSite=Lax` and `Secure` (`0.5.18`).** `HttpOnly=false` is the design —
+  the SPA reads it — but Spring's defaults left the other two unset. Depth rather than the load-bearing
+  control, and it now matches the session cookie instead of travelling under different rules.
+
+### Changed
+
+- **The plugin log rate limiter decides atomically (`0.5.18`).** A `compute` followed by a separate `put` is
+  two atomic operations and therefore not one: concurrent callers could each emit the "being throttled"
+  notice, and a thread caught between the two while the window rolled over wrote its stale start time and
+  inflated count over the fresh window, silencing the plugin for an extra minute.
+- **CI checks SPDX headers on CSS, SQL, shell, YAML and properties files, and checks the copyright line
+  (`0.5.18`).** The glob covered Java/Kotlin/JS/TS only, which is why a release adding nine CSS partials and
+  two SQL migrations passed unchecked, and only `SPDX-License-Identifier` was ever verified — so a file could
+  satisfy CI with half the convention.
+
+
 - **A plugin can no longer declare itself exempt from consent (`0.5.16`, §12.5).** A service declaring
   `"category": "necessary"` was kept out of the visitor's toggle list and had its origins added to every
   visitor's CSP unconditionally — on the strength of a string in a file the plugin author wrote, checked
@@ -70,7 +119,6 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   *response*, which a host that answers promptly and then dribbles one `<item>` per second satisfies forever
   (the audit held a thread past 75 seconds that way).
 
-### Changed
 
 - **A feed poll no longer holds a database connection across the network call (`0.5.15`, §5.4).** `poll` ran
   as one transaction: lock the `feed` row, then fetch, then reconcile — pinning a pooled connection and the
