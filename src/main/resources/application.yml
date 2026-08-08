@@ -41,6 +41,15 @@ mosaicast:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
     bootstrap-external-id: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:}
+  feed:
+    # Whether a feed URL may point at a private address (loopback, link-local, RFC-1918, ...).
+    #
+    # OFF by default, and it should stay off anywhere reachable from a network you do not control: a feed URL
+    # is fetched server-side, and the preview endpoint returns what came back, so an internal address here is
+    # SSRF with the response handed to the caller. The endpoint is open to PODCASTER, not only ADMIN.
+    #
+    # Turn it on only for a self-hosted install that genuinely pulls a feed from another host on its own LAN.
+    allow-private-targets: ${MOSAICAST_FEED_ALLOW_PRIVATE_TARGETS:false}
 
 management:
   endpoints:

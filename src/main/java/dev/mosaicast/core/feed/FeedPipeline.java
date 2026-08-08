@@ -21,16 +21,11 @@ public class FeedPipeline {
     private static final Logger log = LoggerFactory.getLogger(FeedPipeline.class);
 
     private final FeedSourceRegistry registry;
-    private final Reconciler reconciler;
-    private final FeedRepository feeds;
-    private final BindingSuggestionRepository suggestions;
+    private final FeedPollStore store;
 
-    public FeedPipeline(FeedSourceRegistry registry, Reconciler reconciler, FeedRepository feeds,
-                        BindingSuggestionRepository suggestions) {
+    public FeedPipeline(FeedSourceRegistry registry, FeedPollStore store) {
         this.registry = registry;
-        this.reconciler = reconciler;
-        this.feeds = feeds;
-        this.suggestions = suggestions;
+        this.store = store;
     }
 
     /** Elapsed milliseconds since a {@code System.nanoTime()} mark — poll timings are worth having. */
@@ -44,73 +39,57 @@ public class FeedPipeline {
      * @param feed the feed to poll; a {@code manual} feed (no registered source) is skipped
      * @return the outcome (not-modified, reconciled, skipped, or failed) — never throws for a fetch error
      */
-    @Transactional
+    /**
+     * Deliberately <strong>not</strong> {@code @Transactional}.
+     *
+     * <p>The fetch happens between two short transactions rather than inside one — see {@link FeedPollStore}
+     * for why, and for what that trades away. Anything that calls this must not wrap it in a transaction of
+     * its own either, or the store's transactions join that one and the network call is back inside the lock.
+     */
     public PollOutcome poll(Feed feed) {
         // Tag everything logged during this poll with the feed it concerns, so the admin log can filter by
         // feed instead of parsing ids out of message text.
         try (MDC.MDCCloseable ignored = MDC.putCloseable("feedId", String.valueOf(feed.getId()))) {
-            return pollTagged(feed);
+            return pollTagged(feed.getId());
         }
     }
 
-    private PollOutcome pollTagged(Feed feed) {
+    private PollOutcome pollTagged(java.util.UUID feedId) {
         long startedAt = System.nanoTime();
-        // Take a pessimistic lock on the feed row so a scheduler tick and a "refresh now" (or two clicks)
-        // can't reconcile the same feed at once and both insert the same GUID (§5.4).
-        Feed locked = feeds.lockById(feed.getId())
-                .orElseThrow(() -> new IllegalStateException("Feed no longer exists: " + feed.getId()));
-
-        Optional<FeedSource> source = registry.forType(locked.getType());
-        if (source.isEmpty() || locked.getUrl() == null) {
+        Optional<FeedPollStore.PollTarget> target = store.target(feedId);
+        if (target.isEmpty()) {
+            return PollOutcome.skipped();
+        }
+        FeedPollStore.PollTarget poll = target.get();
+        Optional<FeedSource> source = registry.forType(poll.type());
+        if (source.isEmpty() || poll.config().url() == null) {
             return PollOutcome.skipped();
         }
 
-        SourceConfig cfg = new SourceConfig(locked.getUrl(), locked.getEtag(), locked.getLastModified());
         try {
-            FetchResult result = source.get().fetch(cfg);
+            // No transaction, no connection, no row lock is held across this.
+            FetchResult result = source.get().fetch(poll.config());
             if (result.unchanged()) {
-                locked.recordSuccess(locked.getEtag(), locked.getLastModified(), "NOT_MODIFIED");
-                feeds.save(locked);
-                log.info("Polled feed '{}': unchanged (304) in {} ms", locked.getTitle(), millisSince(startedAt));
+                store.applyNotModified(feedId);
+                log.info("Polled feed '{}': unchanged (304) in {} ms", poll.title(), millisSince(startedAt));
                 return PollOutcome.notModified();
             }
-            ReconcileResult reconciled = reconciler.reconcile(locked.getId(), locked.getTitle(), result.episodes());
-            persistSuggestions(locked.getId(), reconciled.suggestions());
-            locked.updateChannelMeta(result.feedImageUrl(), result.feedAuthor(), result.feedDescription());
-            locked.recordSuccess(result.etag(), result.lastModified(), "OK");
-            feeds.save(locked);
+            ReconcileResult reconciled = store.applyChanged(feedId, result);
             log.info("Polled feed '{}': {} item(s) fetched in {} ms — {} new, {} updated, {} withdrawn, "
                             + "{} bound to planned, {} suggestion(s)",
-                    locked.getTitle(), result.episodes().size(), millisSince(startedAt),
+                    poll.title(), result.episodes().size(), millisSince(startedAt),
                     reconciled.created(), reconciled.updated(), reconciled.withdrawn(), reconciled.bound(),
                     reconciled.suggestions().size());
             return PollOutcome.reconciled(reconciled);
         } catch (FetchException e) {
             // A fetch error (thrown before any reconcile write) backs off; the last good state stays visible.
-            locked.recordFailure(e.getMessage());
-            feeds.save(locked);
+            int failures = store.applyFailure(feedId, e.getMessage());
             log.warn("Feed poll failed for '{}' after {} ms ({} consecutive failure(s), next attempt backs "
                             + "off): {}",
-                    locked.getTitle(), millisSince(startedAt), locked.getConsecutiveFailures(), e.getMessage());
+                    poll.title(), millisSince(startedAt), failures, e.getMessage());
             return PollOutcome.failed(e.getMessage());
         }
         // Any other RuntimeException (a bug, or a DB error the pessimistic lock did not prevent) propagates;
         // FeedScheduler.pollDueFeeds catches it per-feed so it cannot starve the rest of the tick.
-    }
-
-    /**
-     * Records the run's fuzzy-title binding proposals for the podcaster to confirm (§5.3) — never applied
-     * automatically. Deduped on {@code (feed, planned ref, feed item)} so a suggestion that persists across
-     * polls isn't inserted again (and doesn't violate {@code uq_binding_suggestion}).
-     */
-    private void persistSuggestions(java.util.UUID feedId, java.util.List<ReconcileResult.Suggestion> proposals) {
-        for (ReconcileResult.Suggestion proposal : proposals) {
-            boolean exists = suggestions
-                    .findByFeedIdAndPlannedRefIdAndRawGuid(feedId, proposal.plannedRefId(), proposal.rawGuid())
-                    .isPresent();
-            if (!exists) {
-                suggestions.save(new BindingSuggestion(feedId, proposal));
-            }
-        }
     }
 }

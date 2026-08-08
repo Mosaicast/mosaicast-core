@@ -35,16 +35,18 @@ public class FeedService {
     private final BindingSuggestionRepository suggestions;
     private final FeedPipeline pipeline;
     private final FeedSourceRegistry registry;
+    private final OutboundTargetPolicy targets;
 
     public FeedService(FeedRepository feeds, EpisodeRefRepository refs, EpisodeDisplayRepository displays,
                        BindingSuggestionRepository suggestions, FeedPipeline pipeline,
-                       FeedSourceRegistry registry) {
+                       FeedSourceRegistry registry, OutboundTargetPolicy targets) {
         this.feeds = feeds;
         this.refs = refs;
         this.displays = displays;
         this.suggestions = suggestions;
         this.pipeline = pipeline;
         this.registry = registry;
+        this.targets = targets;
     }
 
     @Transactional(readOnly = true)
@@ -123,8 +125,14 @@ public class FeedService {
         return new FeedPreview(title, result.episodes().size(), sample);
     }
 
-    /** Adds an RSS feed and polls it immediately so its episodes appear right away. */
-    @Transactional
+    /**
+     * Adds an RSS feed and polls it immediately so its episodes appear right away.
+     *
+     * <p>Not {@code @Transactional}: {@link FeedPipeline#poll} performs an outbound HTTP request, and a
+     * transaction open around it would hold a pooled connection and the feed's row lock for the whole
+     * round-trip. The save below is its own transaction (Spring Data gives every repository call one), which
+     * is all this method needs.
+     */
     public FeedView createRss(String url, String title) {
         validateHttpUrl(url);
         String resolvedTitle = (title == null || title.isBlank()) ? deriveTitle(url) : title;
@@ -138,8 +146,12 @@ public class FeedService {
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
     }
 
-    /** "Refresh now" (§5.4): polls a feed on demand and returns what changed. */
-    @Transactional
+    /**
+     * "Refresh now" (§5.4): polls a feed on demand and returns what changed.
+     *
+     * <p>Not {@code @Transactional}, for the same reason as {@link #createRss}: this is the endpoint an
+     * impatient podcaster clicks repeatedly, and it was the fastest way to exhaust the connection pool.
+     */
     public PollOutcome refreshNow(UUID id) {
         Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("Feed not found: " + id));
         log.info("Manual refresh requested for feed '{}'", feed.getTitle());
@@ -273,14 +285,19 @@ public class FeedService {
         try {
             return source.fetch(SourceConfig.initial(url));
         } catch (FetchException e) {
-            throw new IllegalArgumentException("Could not read feed at " + url + ": " + e.getMessage());
+            // The operator gets the detail in the log; the caller gets one message for every failure.
+            //
+            // This is the preview endpoint's response body, and it used to carry the underlying reason
+            // through verbatim. "Failed to parse feed body", "Feed fetch I/O error" and "failed with HTTP 403"
+            // are three different answers to "is something listening on this internal address", which turns a
+            // feed form into a network scanner for anyone holding a podcaster account.
+            log.warn("Feed fetch rejected for '{}': {}", url, e.getMessage());
+            throw new IllegalArgumentException(OutboundTargetPolicy.BLOCKED_MESSAGE);
         }
     }
 
-    private static void validateHttpUrl(String url) {
-        if (url == null || !(url.startsWith("http://") || url.startsWith("https://"))) {
-            throw new IllegalArgumentException("Feed URL must be an http(s) URL");
-        }
+    private void validateHttpUrl(String url) {
+        targets.validate(url);
     }
 
     private static String deriveTitle(String url) {
