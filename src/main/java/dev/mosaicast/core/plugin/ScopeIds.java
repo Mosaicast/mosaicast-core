@@ -45,7 +45,10 @@ public class ScopeIds {
     public String canonical(Scope scope) {
         String id = scope.id();
         return switch (scope.type()) {
-            case SITE -> id;
+            // Both singletons: `Scope`'s canonical constructor already pinned the id, and for USER the id
+            // reaching the store is the resolved user UUID the controller substituted — never the sentinel,
+            // and never anything a client typed.
+            case SITE, USER -> id;
             case FEED -> feedSlug(id).orElse(id);
             case SEASON -> canonicalSeason(id);
             case EPISODE -> episodeSlug(id).orElse(id);

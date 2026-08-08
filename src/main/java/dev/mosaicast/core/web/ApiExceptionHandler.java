@@ -34,6 +34,24 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * A controller that needs a caller and has none — 401, matching what the filter chain's entry point
+     * returns for the same condition.
+     *
+     * <p>Without this the catch-all below turns it into a 500: {@code ExceptionTranslationFilter} converts
+     * an {@code AuthenticationException} into a 401, but only if it escapes the dispatcher, and
+     * {@code @ControllerAdvice} runs first. So "you are not signed in" was reported as "the server broke",
+     * which is both wrong and unhelpfully alarming.
+     */
+    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    public ProblemDetail handleUnauthenticated(
+            org.springframework.security.core.AuthenticationException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+        problem.setTitle("Unauthorized");
+        problem.setType(URI.create("https://mosaicast.dev/problems/unauthorized"));
+        return problem;
+    }
+
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(
             org.springframework.security.access.AccessDeniedException ex, WebRequest request) {

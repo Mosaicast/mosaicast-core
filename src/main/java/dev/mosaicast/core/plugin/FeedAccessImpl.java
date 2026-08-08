@@ -68,6 +68,8 @@ public class FeedAccessImpl implements FeedAccess {
             case EPISODE -> refs.findVisibleBySlug(scope.id())
                     .map(ref -> List.of(EpisodeSummary.from(ref, query.displayForSlug(scope.id()))))
                     .orElseGet(List::of);
+            // A user partition holds no episodes — it is a storage scope, not a level of the site (§7.5).
+            case USER -> List.of();
         };
     }
 
@@ -84,11 +86,6 @@ public class FeedAccessImpl implements FeedAccess {
     }
 
     /**
-     * Resolves a feed scope id. It is the feed's **public slug** — the same value that appears in the URL
-     * and partitions the plugin's doc store, matching how the episode scope has worked since slugs landed.
-     * A UUID still resolves, because a plugin that stored one before this release must keep working.
-     */
-    /**
      * Whether a scope addresses an entity that actually exists.
      *
      * <p>The doc store partitions on {@code (pluginId, scopeType, scopeId)} and took {@code scopeId} straight
@@ -102,13 +99,20 @@ public class FeedAccessImpl implements FeedAccess {
      */
     public boolean exists(Scope scope) {
         return switch (scope.type()) {
-            case SITE -> true;
+            // Both singletons the host owns rather than the client naming: SITE is the one site, and USER
+            // resolves to whoever is calling — an id that got this far was already substituted server-side.
+            case SITE, USER -> true;
             case FEED -> resolveFeed(scope.id()).isPresent();
             case SEASON -> parseSeason(scope.id()).isPresent();
             case EPISODE -> refs.findVisibleBySlug(scope.id()).isPresent();
         };
     }
 
+    /**
+     * Resolves a feed scope id. It is the feed's **public slug** — the same value that appears in the URL
+     * and partitions the plugin's doc store, matching how the episode scope has worked since slugs landed.
+     * A UUID still resolves, because a plugin that stored one before this release must keep working.
+     */
     private Optional<UUID> resolveFeed(String id) {
         return feeds.findBySlug(id).map(Feed::getId).or(() -> parseUuid(id));
     }
