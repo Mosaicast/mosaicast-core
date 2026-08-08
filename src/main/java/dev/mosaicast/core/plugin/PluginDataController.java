@@ -26,8 +26,22 @@ import org.springframework.web.bind.annotation.RestController;
  * The generic, per-plugin doc-store HTTP surface the frontend {@code ctx.api} targets (ARCHITECTURE §7.6).
  * Mirrors {@link dev.mosaicast.plugin.api.DocStore} one-to-one — get one, list, put, delete — over the
  * plugin's own hard-scoped {@code plugin_data}. Reads are gated by the plugin's {@code visibleTo} floor and
- * writes by the mapped role ({@link PluginAccessPolicy}); an unknown/rejected plugin or scope type is a 404.
- * There are no plugin-authored routes — this is the whole surface.
+ * writes by the mapped role ({@link PluginAccessPolicy}); an unknown/rejected plugin, an unknown scope type
+ * or a scope naming something that does not exist is a 404. There are no plugin-authored routes — this is the
+ * whole surface.
+ *
+ * <p><strong>What this does not protect, stated so nobody reads the paragraph above as more than it is.</strong>
+ * Authorization here is per <em>plugin</em>, not per <em>document</em>. Nothing binds a document to the user
+ * who wrote it, so any caller who clears the plugin's role floor can read, overwrite or delete any key in any
+ * scope — including keys another user's session created. The SDK's own guidance makes that concrete: with no
+ * user-level scope available, {@code DocStore}'s javadoc tells plugin authors to model per-user data inside
+ * the key (<code>mark:&lt;userId&gt;:cell</code>), and the host has never checked that {@code userId} against
+ * the caller. Scope ids are public slugs, and listing takes a prefix, so nothing has to be guessed either.
+ *
+ * <p>Closing it properly needs a partition the client cannot address — a host-owned user scope, which is a
+ * plugin-contract change rather than something this controller can do alone (§7.3 fixes the scope tuple at
+ * site/feed/season/episode). Until then: a plugin storing anything one user should not be able to reach for
+ * another is relying on a guarantee the host does not make.
  */
 @RestController
 public class PluginDataController {
@@ -36,17 +50,19 @@ public class PluginDataController {
 
     private final PluginLoaderService plugins;
     private final PluginDataService data;
+    private final FeedAccessImpl scopes;
 
-    public PluginDataController(PluginLoaderService plugins, PluginDataService data) {
+    public PluginDataController(PluginLoaderService plugins, PluginDataService data, FeedAccessImpl scopes) {
         this.plugins = plugins;
         this.data = data;
+        this.scopes = scopes;
     }
 
     /** One document, or 404 when absent (the frontend relies on the 404). */
     @GetMapping("/api/plugins/{id}/data/{scopeType}/{scopeId}/{key}")
     public JsonNode get(@PathVariable String id, @PathVariable String scopeType,
                         @PathVariable String scopeId, @PathVariable String key, Authentication authentication) {
-        PluginManifest manifest = readable(id, authentication);
+        readable(id, authentication);
         return data.getRaw(id, scope(scopeType, scopeId), key)
                 .orElseThrow(() -> new NotFoundException("No document: " + key));
     }
@@ -113,11 +129,24 @@ public class PluginDataController {
                 .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id));
     }
 
-    private static Scope scope(String scopeType, String scopeId) {
+    /**
+     * Parses and validates a scope from the request path.
+     *
+     * <p>A scope naming nothing real is a 404, not a fresh partition. Same status as an unknown scope type,
+     * deliberately: "this address does not exist" is one answer, and splitting it would tell a caller which
+     * feed slugs and episode slugs are real — which the public API already tells them anyway, so the value is
+     * in the consistency rather than in the secrecy.
+     */
+    private Scope scope(String scopeType, String scopeId) {
+        Scope scope;
         try {
-            return new Scope(ScopeType.valueOf(scopeType.toUpperCase()), scopeId);
+            scope = new Scope(ScopeType.valueOf(scopeType.toUpperCase()), scopeId);
         } catch (IllegalArgumentException e) {
             throw new NotFoundException("Unknown scope type: " + scopeType);
         }
+        if (!scopes.exists(scope)) {
+            throw new NotFoundException("Unknown scope: " + scopeType + "/" + scopeId);
+        }
+        return scope;
     }
 }

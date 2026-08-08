@@ -21,6 +21,13 @@ import java.util.Optional;
  *
  * <p>This is the v1 rule for a generic, non-slot-specific data surface; a finer per-key policy can arrive
  * with a later contract version.
+ *
+ * <p><strong>Two consequences worth being explicit about.</strong> The read floor is the <em>minimum</em>
+ * across slots, so a plugin with one anonymous display slot and one admin-only slot exposes its whole doc
+ * store anonymously — the floor mirrors the plugin's most public surface, not the sensitivity of what it
+ * stored. And this decides access per plugin, never per document: clearing the floor grants every key in
+ * every scope, including keys another user wrote. See {@link PluginDataController} for why that is not
+ * closable here.
  */
 final class PluginAccessPolicy {
 
