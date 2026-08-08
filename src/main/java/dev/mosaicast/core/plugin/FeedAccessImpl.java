@@ -43,15 +43,27 @@ public class FeedAccessImpl implements FeedAccess {
         this.feeds = feeds;
     }
 
-    /** The visible episode summaries in a scope, in canonical order — the source for ids and labels. */
+    /**
+     * The visible episode summaries in a scope, in canonical order — the source for ids and labels.
+     *
+     * <p>Unpaged, because {@link #episodesIn} is the SDK contract and a plugin resolving a scope needs all of
+     * it. That is affordable in-process, where the caller is a plugin the operator installed. It is
+     * <em>not</em> affordable over an anonymous HTTP endpoint, so {@link ScopeEpisodesController} uses
+     * {@link #summariesIn(Scope, Pageable)} instead.
+     */
     public List<EpisodeSummary> summariesIn(Scope scope) {
+        return summariesIn(scope, Pageable.unpaged());
+    }
+
+    /** As {@link #summariesIn(Scope)}, bounded — the form anything reachable from the network should use. */
+    public List<EpisodeSummary> summariesIn(Scope scope, Pageable pageable) {
         return switch (scope.type()) {
-            case SITE -> query.listSite(null, null, null, true, Pageable.unpaged()).getContent();
+            case SITE -> query.listSite(null, null, null, true, pageable).getContent();
             case FEED -> resolveFeed(scope.id())
-                    .map(feedId -> query.listByFeed(feedId, null, Pageable.unpaged()).getContent())
+                    .map(feedId -> query.listByFeed(feedId, null, pageable).getContent())
                     .orElseGet(List::of);
             case SEASON -> parseSeason(scope.id())
-                    .map(fs -> query.listByFeed(fs.feedId(), fs.season(), Pageable.unpaged()).getContent())
+                    .map(fs -> query.listByFeed(fs.feedId(), fs.season(), pageable).getContent())
                     .orElseGet(List::of);
             case EPISODE -> refs.findVisibleBySlug(scope.id())
                     .map(ref -> List.of(EpisodeSummary.from(ref, query.displayForSlug(scope.id()))))

@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -37,6 +38,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
  */
 @SpringBootTest
 @Testcontainers
+// The fixtures are served from a loopback HTTP server, which OutboundTargetPolicy refuses by default.
+// Turning the check off here rather than special-casing loopback in the policy: the tests should exercise the
+// same code path an operator gets, and the escape hatch is the supported way to reach a private target.
+@TestPropertySource(properties = "mosaicast.feed.allow-private-targets=true")
 class FeedPipelineIntegrationTest {
 
     @Container

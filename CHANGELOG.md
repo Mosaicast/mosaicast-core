@@ -12,6 +12,48 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Security
+
+- **A feed URL can no longer point the server at its own network (`0.5.15`, §5.1).** `validateHttpUrl`
+  checked the scheme prefix and nothing else, so `POST /api/admin/feeds/preview` fetched
+  `http://169.254.169.254/latest/meta-data/`, `http://127.0.0.1:<port>/` or any RFC-1918 address and — because
+  preview returns the channel title and first ten item titles — **read the response back to the caller**. The
+  endpoint is open to PODCASTER, not only ADMIN. The new `OutboundTargetPolicy` resolves the host and requires
+  every address it answers with to be publicly routable: loopback, link-local, RFC-1918, carrier-grade NAT,
+  IPv6 unique-local, multicast, reserved ranges and IPv4-mapped disguises of all of them are refused before a
+  connection is opened. `mosaicast.feed.allow-private-targets` turns the check off for a self-hosted install
+  that legitimately fetches from its own LAN; it defaults to off.
+  - **Redirects are followed by hand and re-checked on every hop.** `HttpClient.Redirect.NORMAL` refuses only
+    an HTTPS→HTTP downgrade, so a chain starting on `http://` was followed anywhere at all — an
+    attacker-controlled public host 302ing into `127.0.0.1` bypassed any front-door check by construction.
+  - **Every rejection reads the same.** The distinct messages for "not RSS", "connection refused" and
+    "HTTP 403" composed into a working internal port scanner; the detail now goes to the log, not the caller.
+  - Not closed: resolution and connection are separate lookups, so DNS rebinding remains possible. Pinning the
+    connection to the checked address is not something the JDK's `HttpClient` exposes — an install that needs
+    that guarantee wants an egress proxy.
+- **A feed can no longer exhaust heap or hold a request thread indefinitely (`0.5.15`).** The body was read
+  with `BodyHandlers.ofByteArray()` — no cap — and then parsed into a JDOM tree several times its size again;
+  the audit pushed 200 MB through and had all of it parsed. Bodies are now capped at 16 MB, refused up front
+  on an oversized `Content-Length` and cancelled mid-stream when a chunked response passes the cap. A
+  wall-clock budget covers the whole exchange, including the body: `HttpRequest.timeout` bounds the wait for a
+  *response*, which a host that answers promptly and then dribbles one `<item>` per second satisfies forever
+  (the audit held a thread past 75 seconds that way).
+
+### Changed
+
+- **A feed poll no longer holds a database connection across the network call (`0.5.15`, §5.4).** `poll` ran
+  as one transaction: lock the `feed` row, then fetch, then reconcile — pinning a pooled connection and the
+  row lock for the whole round-trip. Eight "Refresh now" clicks against a slow host exhausted HikariCP's
+  default pool of ten and the next public page load returned a 500. The fetch now happens between two short
+  transactions (`FeedPollStore`). Two concurrent polls of the same feed can both fetch as a result; they still
+  serialise on the reconcile and the reconciler keys on the item GUID, so the second updates what the first
+  inserted.
+- **`GET /api/plugins/scope-episodes` is paginated (`0.5.15`, §7.5).** It is anonymous and was
+  `Pageable.unpaged()`, so `?type=site&id=main` materialised every visible episode plus its `episode_display`
+  JSONB on every request, with no auth and no cost to the caller. It now caps at 200 like every other list
+  surface and accepts `page`/`size`. The in-process `FeedAccess.episodesIn` contract is unchanged — a plugin
+  resolving a scope still gets all of it.
+
 ### Fixed
 
 Six defects found by an independent security audit and code review of the `0.5.13` stack. The first two are
