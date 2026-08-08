@@ -238,6 +238,37 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void podcasterNeverReadsBackAnAdminOnlyConfigValue() {
+        // Writing was always gated; reading was not. `/config` is open to PODCASTER so per-field delegation
+        // works, and the PUT response was built from *every* declared field with its current value — so a
+        // podcaster who submitted a field they owned (or an empty body, which validates vacuously) received
+        // every admin-only secret in the 200 alongside it.
+        Session admin = devLogin("admin");
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"apiToken\":\"super-secret-token\"}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        Session podcaster = devLogin("podcaster");
+        for (String body : new String[] {"{}", "{\"refreshIntervalMinutes\":20}"}) {
+            ResponseEntity<String> response = rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                    podcaster.write(body, true), String.class);
+
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(response.getBody()).doesNotContain("super-secret-token");
+            // The field itself still appears, so the form can render a row and say who owns it.
+            assertThat(response.getBody()).contains("apiToken").contains("refreshIntervalMinutes");
+        }
+
+        // The role that already sees everything loses nothing.
+        assertThat(rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{}", true), String.class).getBody())
+                .contains("super-secret-token");
+
+        rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"apiToken\":null,\"refreshIntervalMinutes\":null}", true), String.class);
+    }
+
+    @Test
     void purgeRemovesDocsButKeepsHostSettings() {
         Session admin = devLogin("admin");
         Session podcaster = devLogin("podcaster");

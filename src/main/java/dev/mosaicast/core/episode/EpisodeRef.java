@@ -37,9 +37,16 @@ public class EpisodeRef {
 
     /**
      * The stable, human-readable public identifier (§4.1) — used in URLs, the episode API and the plugin
-     * contract. Minted once at creation and never updated, so it never orphans links or plugin data.
+     * contract. Minted once and never changed afterwards, so it never orphans links or plugin data.
+     *
+     * <p>Stability is enforced by {@link #assignSlugIfAbsent}, which refuses to overwrite a slug that is
+     * already set — <em>not</em> by {@code updatable = false} on the mapping. That looks like the stronger
+     * guarantee and is in fact a weaker one: it removes the column from every {@code UPDATE} Hibernate emits,
+     * including the one that first fills it in on a row created before this column existed. Rows upgraded from
+     * a pre-V13 schema kept {@code slug = NULL} while the backfill reported success, which cost every legacy
+     * episode its URL, its API lookup, its sitemap entry and its visibility to plugins.
      */
-    @Column(unique = true, updatable = false)
+    @Column(unique = true)
     private String slug;
 
     @Column(name = "external_guid")

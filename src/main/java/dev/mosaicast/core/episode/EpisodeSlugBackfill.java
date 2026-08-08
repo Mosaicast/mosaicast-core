@@ -50,7 +50,23 @@ public class EpisodeSlugBackfill implements ApplicationRunner {
             ref.assignSlugIfAbsent(slug);
             refs.save(ref);
         }
-        log.info("Backfilled slugs for {} episode(s)", missing.size());
+        // Report what landed, not what was attempted.
+        //
+        // This line used to count the rows it had *selected*, which is how the mapping bug below it went unseen
+        // for a whole release: `slug` was mapped `updatable = false`, Hibernate dropped the column from every
+        // UPDATE, and the log cheerfully announced a backfill that had written nothing on every single boot.
+        // A startup task that can only report success is a task nobody can tell is broken.
+        refs.flush();
+        long remaining = refs.countBySlugIsNull();
+        if (remaining > 0) {
+            log.error(
+                    "Slug backfill incomplete: {} of {} episode(s) still have no slug. Those episodes have no "
+                            + "public URL, are absent from the sitemap and are invisible to plugins.",
+                    remaining,
+                    missing.size());
+        } else {
+            log.info("Backfilled slugs for {} episode(s)", missing.size());
+        }
     }
 
     /** The best available title for a legacy ref: its provisional display, else the feed snapshot, else blank. */

@@ -48,8 +48,9 @@ public class AdminPluginController {
     }
 
     @GetMapping("/api/admin/plugins")
-    public List<AdminPlugin> list() {
-        return plugins.all().stream().map(this::toAdminPlugin).toList();
+    public List<AdminPlugin> list(Authentication authentication) {
+        Optional<Role> role = CurrentUser.role(authentication);
+        return plugins.all().stream().map(r -> toAdminPlugin(r, role)).toList();
     }
 
     /**
@@ -58,10 +59,11 @@ public class AdminPluginController {
      * process until the next restart, where the loader skips it entirely (§7.8).
      */
     @PutMapping("/api/admin/plugins/{id}/enabled")
-    public AdminPlugin setEnabled(@PathVariable String id, @RequestParam boolean value) {
+    public AdminPlugin setEnabled(@PathVariable String id, @RequestParam boolean value,
+                                  Authentication authentication) {
         PluginRegistration registration = registrationOf(id);
         settings.setEnabled(id, value);
-        return toAdminPlugin(registration);
+        return toAdminPlugin(registration, CurrentUser.role(authentication));
     }
 
     /**
@@ -92,7 +94,7 @@ public class AdminPluginController {
             }
         });
         values.forEach((key, value) -> settings.putConfig(id, key, value));
-        return toAdminPlugin(registration);
+        return toAdminPlugin(registration, role);
     }
 
     /**
@@ -106,16 +108,30 @@ public class AdminPluginController {
         return ResponseEntity.ok(new PurgeResult(settings.purgeData(id)));
     }
 
-    private AdminPlugin toAdminPlugin(PluginRegistration r) {
+    /**
+     * Builds the admin view of a plugin, showing only the config values the caller may actually edit.
+     *
+     * <p>The redaction lives here rather than at a call site because this is the one place the values are
+     * assembled, and {@code /config} is open to PODCASTER so that per-field delegation works ({@code editableBy},
+     * §7.2). Writing was always gated correctly; <em>reading back</em> was not, so a podcaster who submitted a
+     * field they owned — or an empty body, which validates vacuously — received every admin-only value in the
+     * response, API tokens included. A field the caller may not edit keeps its shape (the UI still renders the
+     * row and can say who owns it) and loses both its current value and its manifest default. For an ADMIN
+     * {@code mayEdit} is always true, so nothing is withheld from the role that already sees everything.
+     */
+    private AdminPlugin toAdminPlugin(PluginRegistration r, Optional<Role> role) {
         PluginManifest manifest = r.manifest();
         Map<String, JsonNode> overrides = settings.config(r.id());
         Map<String, AdminConfigField> config = new LinkedHashMap<>();
-        declaredConfig(r).forEach((key, field) -> config.put(key, new AdminConfigField(
-                field.type(),
-                field.editableByOrDefault(),
-                field.defaultValue(),
-                overrides.getOrDefault(key, field.defaultValue()),
-                overrides.containsKey(key))));
+        declaredConfig(r).forEach((key, field) -> {
+            boolean visible = mayEdit(field, role);
+            config.put(key, new AdminConfigField(
+                    field.type(),
+                    field.editableByOrDefault(),
+                    visible ? field.defaultValue() : null,
+                    visible ? overrides.getOrDefault(key, field.defaultValue()) : null,
+                    overrides.containsKey(key)));
+        });
         return new AdminPlugin(
                 r.id(),
                 r.status().name(),

@@ -22,14 +22,29 @@ import type { ConsentPayload } from '../api/types';
  * - what services in a *granted* category declared;
  * - what services declared as `necessary` declared — never offered as a choice, so no decision removes them.
  *
- * Everything else goes, including keys no manifest ever mentioned. That is deliberate: an undeclared key is
- * one the privacy settings are actively lying about, and leaving it in place to be polite to a plugin means
- * preferring the plugin's convenience to the visitor's disclosure. Declaring it costs a manifest entry.
+ * In **`localStorage` and `sessionStorage`, everything else goes**, including keys no manifest ever mentioned.
+ * That is deliberate: an undeclared key is one the privacy settings are actively lying about, and leaving it
+ * in place to be polite to a plugin means preferring the plugin's convenience to the visitor's disclosure.
+ * Declaring it costs a manifest entry. The shell can afford that rule there because those two buckets belong
+ * to this origin and nothing but the shell and its plugins writes into them.
+ *
+ * **Cookies are swept by a narrower rule: only names some manifest declared.** The same-origin argument does
+ * not hold for them. A cookie is scoped by host *and* by domain, so `document.cookie` on
+ * `podcasts.example.com` also shows what `example.com` set for the whole estate — an SSO session, a
+ * load-balancer affinity cookie, an operator's own tag. None of those are Mosaicast's to delete, and expiring
+ * them is not privacy enforcement, it is breaking someone else's application. So an undeclared cookie is left
+ * alone and a declared one is removed exactly when its category is refused. Withdrawal still reaches
+ * everything consent actually governs, because governing it required declaring it in the first place.
+ *
+ * For the same reason the sweep never writes a `Domain=` wider than the current host. A parent-domain expiry
+ * is precisely the operation that reaches other people's applications, and the registrable domain cannot be
+ * derived from a hostname anyway without the public-suffix list — `example.co.uk` yields `.co.uk`, which
+ * browsers reject outright.
  *
  * **Limits, stated plainly.** Only what JavaScript can see. `HttpOnly` cookies never appear in
  * `document.cookie` at all, so one set by a plugin's *backend* is neither swept nor noticed here — that is the
- * server's business. Cookies scoped to a path or a parent domain the shell cannot guess survive; the common
- * cases (`/`, the current path, the host and its registrable parent) are attempted. IndexedDB, the Cache API
+ * server's business. A declared cookie the plugin scoped to a path or a domain the shell does not attempt
+ * survives; the plausible cases (`/`, the current path, the exact host) are tried. IndexedDB, the Cache API
  * and OPFS are not swept; a plugin using those is out of reach of this and of the audit both.
  */
 
@@ -56,6 +71,23 @@ export interface PurgeResult {
 }
 
 /**
+ * Collects declared storage names into a set, skipping anything that is not a usable name.
+ *
+ * A manifest reaches this function having been parsed into an all-optional record, so `name` can be null — a
+ * plugin author who wrote `"key"` where the schema says `"name"` produces exactly that, and the server has no
+ * reason to reject the rest of an otherwise valid service over it. Letting the null through would put it in the
+ * allow-list, where `name.endsWith` throws and takes the whole sweep down with it. Dropping it here means the
+ * item simply does not authorise anything, which is the safe reading of "we could not tell what you declared".
+ */
+function collect(into: Set<string>, items: readonly { name: string }[] | undefined): void {
+  items?.forEach((item) => {
+    if (typeof item?.name === 'string' && item.name !== '') {
+      into.add(item.name);
+    }
+  });
+}
+
+/**
  * Builds the allow-list from the payload and the decision.
  *
  * A wildcard in a declared name (`mc.progress.*`) covers a family of keys — the only form used, and matched as
@@ -63,23 +95,45 @@ export interface PurgeResult {
  */
 export function allowedKeys(payload: ConsentPayload, isGranted: (category: string) => boolean): Set<string> {
   const allowed = new Set<string>();
-  payload.essential.storage.forEach((item) => allowed.add(item.name));
-  payload.necessaryServices.forEach((service) => service.storage.forEach((item) => allowed.add(item.name)));
+  collect(allowed, payload.essential?.storage);
+  payload.necessaryServices?.forEach((service) => collect(allowed, service.storage));
   payload.categories
-    .filter((category) => isGranted(category.id))
-    .forEach((category) =>
-      category.services.forEach((service) => service.storage.forEach((item) => allowed.add(item.name))),
-    );
+    ?.filter((category) => isGranted(category.id))
+    .forEach((category) => category.services?.forEach((service) => collect(allowed, service.storage)));
   return allowed;
 }
 
-/** Whether a key is covered by the allow-list, wildcards included. */
+/**
+ * Every storage name any manifest declared, granted or not.
+ *
+ * The cookie sweep needs this because its rule is the inverse of the storage sweep's: it removes what was
+ * declared and refused rather than what was never declared at all (see the module comment). A name appearing
+ * here is a name the shell has a mandate over.
+ */
+export function declaredNames(payload: ConsentPayload): Set<string> {
+  const declared = new Set<string>();
+  collect(declared, payload.essential?.storage);
+  payload.necessaryServices?.forEach((service) => collect(declared, service.storage));
+  payload.categories?.forEach((category) =>
+    category.services?.forEach((service) => collect(declared, service.storage)),
+  );
+  return declared;
+}
+
+/**
+ * Whether a key is covered by the allow-list, wildcards included.
+ *
+ * A wildcard needs a prefix to match against. A declared name of `"*"` would otherwise reduce to
+ * `key.startsWith('')`, which is true of every key on the origin — one manifest line silently switching off
+ * both this sweep and the storage audit that shares the predicate, for core's keys as much as the plugin's own.
+ * The form the shell itself uses (`mc.progress.*`) is unaffected.
+ */
 export function isAllowed(key: string, allowed: Set<string>): boolean {
   if (allowed.has(key) || SHELL_OWNED.includes(key)) {
     return true;
   }
   for (const name of allowed) {
-    if (name.endsWith('*') && key.startsWith(name.slice(0, -1))) {
+    if (name.length > 1 && name.endsWith('*') && key.startsWith(name.slice(0, -1))) {
       return true;
     }
   }
@@ -96,37 +150,42 @@ function sweepStorage(storage: Storage, allowed: Set<string>): string[] {
         doomed.push(key);
       }
     }
+  } catch {
+    // Storage disabled entirely — then there is nothing to enumerate either.
+  }
+  // Deliberately outside the catch above: a sweep that identified keys and then skipped deleting them is
+  // withdrawal silently not being enforced, which is the one failure mode this module must not have.
+  try {
     doomed.forEach((key) => storage.removeItem(key));
   } catch {
-    // Storage disabled entirely — then there is nothing to purge either.
+    // Nothing more to do — the caller reports what was identified, not what the browser allowed.
   }
   return doomed;
 }
 
-function sweepCookies(allowed: Set<string>): string[] {
+function sweepCookies(allowed: Set<string>, declared: Set<string>): string[] {
   const removed: string[] = [];
   const host = window.location.hostname;
   // A cookie's Path and Domain are not readable from script, only its name and value, so expiry has to be
   // attempted against the scopes a cookie plausibly has. A miss is silent by nature: an expiry for the wrong
-  // scope does nothing at all rather than reporting failure.
-  const scopes = [
-    '',
-    '; Path=/',
-    `; Path=${window.location.pathname}`,
-    `; Path=/; Domain=${host}`,
-    `; Path=/; Domain=.${host.split('.').slice(-2).join('.')}`,
-  ];
+  // scope does nothing at all rather than reporting failure. Nothing here goes wider than the current host —
+  // see the module comment for why a parent-domain expiry is not the shell's to attempt.
+  const scopes = ['', '; Path=/', `; Path=${window.location.pathname}`, `; Path=/; Domain=${host}`];
 
-  document.cookie
-    .split(';')
-    .map((pair) => pair.split('=')[0]?.trim() ?? '')
-    .filter((name) => name !== '' && !isAllowed(name, allowed))
-    .forEach((name) => {
-      removed.push(name);
-      scopes.forEach((scope) => {
-        document.cookie = `${name}=; Max-Age=0${scope}`;
+  try {
+    document.cookie
+      .split(';')
+      .map((pair) => pair.split('=')[0]?.trim() ?? '')
+      .filter((name) => name !== '' && isAllowed(name, declared) && !isAllowed(name, allowed))
+      .forEach((name) => {
+        removed.push(name);
+        scopes.forEach((scope) => {
+          document.cookie = `${name}=; Max-Age=0${scope}`;
+        });
       });
-    });
+  } catch {
+    // Cookies disabled entirely — then there is nothing to purge either.
+  }
   return removed;
 }
 
@@ -148,10 +207,18 @@ export function purgeUndeclared(
   if (!payload.fingerprint) {
     return { localStorage: [], sessionStorage: [], cookies: [] };
   }
-  const allowed = allowedKeys(payload, isGranted);
-  return {
-    localStorage: sweepStorage(window.localStorage, allowed),
-    sessionStorage: sweepStorage(window.sessionStorage, allowed),
-    cookies: sweepCookies(allowed),
-  };
+  // The sweep runs from an effect mounted above the router's error boundary, so anything thrown here unmounts
+  // the entire shell to a blank page rather than one route. A malformed manifest must cost the visitor a
+  // missing purge, never the site.
+  try {
+    const allowed = allowedKeys(payload, isGranted);
+    const declared = declaredNames(payload);
+    return {
+      localStorage: sweepStorage(window.localStorage, allowed),
+      sessionStorage: sweepStorage(window.sessionStorage, allowed),
+      cookies: sweepCookies(allowed, declared),
+    };
+  } catch {
+    return { localStorage: [], sessionStorage: [], cookies: [] };
+  }
 }
