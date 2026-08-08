@@ -10,10 +10,12 @@ import dev.mosaicast.core.web.PagedResponse;
 import dev.mosaicast.plugin.api.DocEntry;
 import dev.mosaicast.plugin.api.Scope;
 import dev.mosaicast.plugin.api.ScopeType;
+import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,8 +65,12 @@ public class PluginDataController {
     @GetMapping("/api/plugins/{id}/data/{scopeType}/{scopeId}/{key}")
     public JsonNode get(@PathVariable String id, @PathVariable String scopeType,
                         @PathVariable String scopeId, @PathVariable String key, Authentication authentication) {
-        readable(id, authentication);
-        return data.getRaw(id, scope(scopeType, scopeId), key)
+        // The plugin first: an unknown or switched-off plugin has no data surface at all, and should
+        // not have scope errors answered on its behalf.
+        PluginManifest manifest = manifestOf(id);
+        DataScope scope = scope(scopeType, scopeId, authentication);
+        requireReadable(manifest, scope, authentication);
+        return data.getRaw(id, scope, key)
                 .orElseThrow(() -> new NotFoundException("No document: " + key));
     }
 
@@ -76,9 +82,13 @@ public class PluginDataController {
                                         @RequestParam(defaultValue = "0") int page,
                                         @RequestParam(defaultValue = "50") int size,
                                         Authentication authentication) {
-        readable(id, authentication);
+        // The plugin first: an unknown or switched-off plugin has no data surface at all, and should
+        // not have scope errors answered on its behalf.
+        PluginManifest manifest = manifestOf(id);
+        DataScope scope = scope(scopeType, scopeId, authentication);
+        requireReadable(manifest, scope, authentication);
         Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), MAX_PAGE_SIZE));
-        return PagedResponse.of(data.queryPage(id, scope(scopeType, scopeId), prefix, pageable), e -> e);
+        return PagedResponse.of(data.queryPage(id, scope, prefix, pageable), e -> e);
     }
 
     /** Upserts a document (last-write-wins). Body is the raw JSON value. */
@@ -86,8 +96,12 @@ public class PluginDataController {
     public ResponseEntity<Void> put(@PathVariable String id, @PathVariable String scopeType,
                                     @PathVariable String scopeId, @PathVariable String key,
                                     @RequestBody JsonNode body, Authentication authentication) {
-        writable(id, authentication);
-        data.putRaw(id, scope(scopeType, scopeId), key, body);
+        // The plugin first: an unknown or switched-off plugin has no data surface at all, and should
+        // not have scope errors answered on its behalf.
+        PluginManifest manifest = manifestOf(id);
+        DataScope scope = scope(scopeType, scopeId, authentication);
+        requireWritable(manifest, scope, authentication);
+        data.putRaw(id, scope, key, body);
         return ResponseEntity.noContent().build();
     }
 
@@ -96,27 +110,48 @@ public class PluginDataController {
     public ResponseEntity<Void> delete(@PathVariable String id, @PathVariable String scopeType,
                                        @PathVariable String scopeId, @PathVariable String key,
                                        Authentication authentication) {
-        writable(id, authentication);
-        data.delete(id, scope(scopeType, scopeId), key);
+        // The plugin first: an unknown or switched-off plugin has no data surface at all, and should
+        // not have scope errors answered on its behalf.
+        PluginManifest manifest = manifestOf(id);
+        DataScope scope = scope(scopeType, scopeId, authentication);
+        requireWritable(manifest, scope, authentication);
+        data.delete(id, scope, key);
         return ResponseEntity.noContent().build();
     }
 
-    /** Resolves the plugin and checks read access, or throws 404 / 403. */
-    private PluginManifest readable(String id, Authentication authentication) {
-        PluginManifest manifest = manifestOf(id);
-        if (!PluginAccessPolicy.canRead(manifest, CurrentUser.role(authentication))) {
-            throw new AccessDeniedException("Not allowed to read plugin data: " + id);
+    /**
+     * Checks the plugin's declared read floor, or throws 404 / 403.
+     *
+     * <p>{@code USER} is exempt (§7.6). A floor describes who may reach the <em>shared</em> scopes, where one
+     * caller's data is visible to others; a user partition has exactly one reader by construction, and no
+     * floor either opens someone else's or should stand between a caller and their own. Applying it here
+     * would mean a plugin declaring {@code readableBy: "podcaster"} hid a fan's own saved state from them.
+     */
+    private void requireReadable(PluginManifest manifest, DataScope scope, Authentication authentication) {
+        if (scope.type() == ScopeType.USER) {
+            return;
         }
-        return manifest;
+        if (!PluginAccessPolicy.canRead(manifest, CurrentUser.role(authentication))) {
+            throw new AccessDeniedException("Not allowed to read plugin data: " + manifest.id());
+        }
     }
 
-    /** Resolves the plugin and checks write access, or throws 404 / 403. */
-    private PluginManifest writable(String id, Authentication authentication) {
-        PluginManifest manifest = manifestOf(id);
-        if (!PluginAccessPolicy.canWrite(manifest, CurrentUser.role(authentication))) {
-            throw new AccessDeniedException("Not allowed to write plugin data: " + id);
+    /**
+     * Checks the plugin's declared write floor, or throws 404 / 403.
+     *
+     * <p>{@code USER} is exempt for the same reason as reads, and the consequence is the one the scope exists
+     * for: a fan marks their own bingo card under a plugin that declares {@code writableBy: "podcaster"} for
+     * its shared scopes. Gating it would force such a plugin to declare {@code writableBy: "fan"} — opening
+     * its shared scopes to fan writes to make its own per-user feature work, which is exactly the coupling
+     * the declared floors removed on the read side.
+     */
+    private void requireWritable(PluginManifest manifest, DataScope scope, Authentication authentication) {
+        if (scope.type() == ScopeType.USER) {
+            return;
         }
-        return manifest;
+        if (!PluginAccessPolicy.canWrite(manifest, CurrentUser.role(authentication))) {
+            throw new AccessDeniedException("Not allowed to write plugin data: " + manifest.id());
+        }
     }
 
     /**
@@ -131,23 +166,57 @@ public class PluginDataController {
     }
 
     /**
-     * Parses and validates a scope from the request path.
+     * Parses and validates a scope from the request path, resolving {@code user/me} to the caller.
      *
      * <p>A scope naming nothing real is a 404, not a fresh partition. Same status as an unknown scope type,
      * deliberately: "this address does not exist" is one answer, and splitting it would tell a caller which
      * feed slugs and episode slugs are real — which the public API already tells them anyway, so the value is
      * in the consistency rather than in the secrecy.
+     *
+     * <p><strong>{@code USER} is the one scope whose id the client does not get to choose.</strong> The path
+     * says {@code me} and the id that reaches the store is the session's user, substituted here. That is what
+     * makes another user's partition unaddressable rather than merely forbidden: there is no request that
+     * names it.
      */
-    private Scope scope(String scopeType, String scopeId) {
-        Scope scope;
+    private DataScope scope(String scopeType, String scopeId, Authentication authentication) {
+        ScopeType type;
         try {
-            scope = new Scope(ScopeType.valueOf(scopeType.toUpperCase()), scopeId);
+            type = ScopeType.valueOf(scopeType.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new NotFoundException("Unknown scope type: " + scopeType);
         }
+        if (type == ScopeType.USER) {
+            return DataScope.ofUser(userPartition(scopeId, authentication));
+        }
+        Scope scope = new Scope(type, scopeId);
         if (!scopes.exists(scope)) {
             throw new NotFoundException("Unknown scope: " + scopeType + "/" + scopeId);
         }
-        return scope;
+        return DataScope.of(scope);
+    }
+
+    /**
+     * Resolves the caller's own partition.
+     *
+     * <p>Anything but the literal sentinel is a <strong>400</strong>, never a silent substitution. Quietly
+     * treating {@code user/<someone-else>} as {@code user/me} would let a plugin ship code that reads as
+     * though it addresses a specific person and behaves as though it does not — the kind of bug that surfaces
+     * years later as "why is everyone seeing the same board". Refusing it says so at the first request.
+     *
+     * <p>Anonymous is a <strong>401</strong> regardless of the plugin's declared floors: there is no session,
+     * so there is no partition to resolve. And neither floor applies here in either direction (§7.6) — a
+     * {@code readableBy} cannot make somebody else's partition readable, and neither floor stands between a
+     * caller and their own, so a fan marking their own card works under a plugin declaring
+     * {@code writableBy: "podcaster"} for its shared scopes.
+     */
+    private UUID userPartition(String scopeId, Authentication authentication) {
+        if (!Scope.SELF_ID.equals(scopeId)) {
+            throw new IllegalArgumentException(
+                    "USER scope is addressed as '" + Scope.SELF_ID
+                            + "'; the server resolves it to the calling user.");
+        }
+        return CurrentUser.id(authentication)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException(
+                        "The user scope needs a signed-in caller."));
     }
 }

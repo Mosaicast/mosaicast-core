@@ -36,6 +36,26 @@ public interface PluginDataRepository extends JpaRepository<PluginData, PluginDa
             @Param("prefix") String prefix);
 
     /**
+     * Every document of one plugin in one scope <em>type</em>, across all scope ids — the aggregate behind
+     * {@code DocStore.queryAcrossUsers} (§7.4).
+     *
+     * <p>Deliberately narrow in what it is used for: this is the only query in the doc store that spans owner
+     * partitions, so it is reachable only from a plugin's own backend and never from the HTTP surface. Ordered
+     * by scope id then key so a rollup is stable between runs.
+     */
+    @Query("""
+            select d from PluginData d
+            where d.id.pluginId = :pluginId
+              and d.id.scopeType = :scopeType
+              and d.id.key like concat(:prefix, '%')
+            order by d.id.scopeId asc, d.id.key asc
+            """)
+    List<PluginData> findInScopeType(
+            @Param("pluginId") String pluginId,
+            @Param("scopeType") String scopeType,
+            @Param("prefix") String prefix);
+
+    /**
      * Deletes every document of one plugin, across all scopes — the primitive behind the admin's
      * "purge plugin data" action (ARCHITECTURE §7.8). Returns the number of documents removed.
      */

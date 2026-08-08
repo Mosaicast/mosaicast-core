@@ -1,7 +1,7 @@
 {
   "id": "good",
   "version": "1.0.0",
-  "platformApi": "0.4.0",
+  "platformApi": "0.5.0",
   "name": "Good Fixture",
   "backend": {
     "basePath": "/api/plugins/good",
@@ -13,17 +13,48 @@
   },
   "frontend": {
     "entry": "fixture.js",
-    "elements": ["fixture-card", "fixture-page"]
+    "elements": [
+      "fixture-card",
+      "fixture-page"
+    ]
   },
   "slots": [
-    { "scope": "episode", "element": "fixture-card", "placement": "main", "visibleTo": "anonymous", "order": 100 },
-    { "scope": "site", "element": "fixture-admin", "placement": "sidebar", "visibleTo": "podcaster" },
-    { "scope": "site", "element": "fixture-page", "placement": "page", "visibleTo": "anonymous" }
+    {
+      "scope": "episode",
+      "element": "fixture-card",
+      "placement": "main",
+      "visibleTo": "anonymous",
+      "order": 100
+    },
+    {
+      "scope": "site",
+      "element": "fixture-admin",
+      "placement": "sidebar",
+      "visibleTo": "podcaster"
+    },
+    {
+      "scope": "site",
+      "element": "fixture-page",
+      "placement": "page",
+      "visibleTo": "anonymous"
+    }
   ],
   "storage": "doc",
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster"
+  },
   "config": {
-    "refreshIntervalMinutes": { "type": "number", "default": 30, "editableBy": "podcaster" },
-    "apiToken": { "type": "string", "default": "", "editableBy": "admin" }
+    "refreshIntervalMinutes": {
+      "type": "number",
+      "default": 30,
+      "editableBy": "podcaster"
+    },
+    "apiToken": {
+      "type": "string",
+      "default": "",
+      "editableBy": "admin"
+    }
   },
   "consent": {
     "services": [
@@ -33,10 +64,17 @@
         "provider": "Fixture Analytics Ltd.",
         "category": "analytics",
         "privacyUrl": "https://plausible.example/privacy",
-        "hosts": ["https://plausible.example"],
+        "hosts": [
+          "https://plausible.example"
+        ],
         "thirdCountryTransfer": false,
         "storage": [
-          { "name": "fixture_id", "type": "cookie", "purpose": "counts a visit once", "duration": "24 hours" }
+          {
+            "name": "fixture_id",
+            "type": "cookie",
+            "purpose": "counts a visit once",
+            "duration": "24 hours"
+          }
         ]
       },
       {
@@ -45,7 +83,9 @@
         "provider": "The Mosaicast Authors",
         "category": "necessary",
         "privacyUrl": "https://necessary.example/privacy",
-        "hosts": ["https://necessary.example"],
+        "hosts": [
+          "https://necessary.example"
+        ],
         "thirdCountryTransfer": false,
         "storage": []
       }

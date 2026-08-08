@@ -7,27 +7,23 @@ import dev.mosaicast.plugin.api.Role;
 import java.util.Optional;
 
 /**
- * Decides who may read from and write to a plugin's generic doc-store surface (ARCHITECTURE §7.5/§7.6),
- * derived from the plugin's declared slot {@code visibleTo} floors:
+ * Decides who may read from and write to a plugin's generic doc-store surface (ARCHITECTURE §7.2/§7.6),
+ * from the floors the manifest <strong>declares</strong> in its {@code data} block.
  *
- * <ul>
- *   <li><strong>Read floor</strong> = the least-privileged {@code visibleTo} across all slots. The data API
- *       mirrors the plugin's most-public surface — if any slot is anonymous, reads are anonymous.</li>
- *   <li><strong>Write floor</strong> = the least-privileged <em>non-anonymous</em> {@code visibleTo} across
- *       slots (writes always need a signed-in user), defaulting to {@code PODCASTER} when a plugin declares
- *       no authenticated slot. So a fan-facing plugin admits fan writes; the sample's podcaster admin slot
- *       admits podcaster (and admin) writes.</li>
- * </ul>
+ * <p>It used to derive them from slot {@code visibleTo}, taking the <em>minimum</em> across all slots as the
+ * read floor. That coupled two unrelated decisions: a plugin with one anonymous display slot and one
+ * admin-only slot served its whole doc store anonymously, including whatever the admin surface had written.
+ * Which UI regions a plugin mounts into says nothing about who should read its data, and a plugin could not
+ * separate the two without giving up one of them.
  *
- * <p>This is the v1 rule for a generic, non-slot-specific data surface; a finer per-key policy can arrive
- * with a later contract version.
+ * <p>Absent declaration means the <em>closed</em> answer — reads default to the write floor, and the write
+ * floor to {@code podcaster} — so a manifest that says nothing is not thereby public. Slot {@code visibleTo}
+ * now governs rendering only.
  *
- * <p><strong>Two consequences worth being explicit about.</strong> The read floor is the <em>minimum</em>
- * across slots, so a plugin with one anonymous display slot and one admin-only slot exposes its whole doc
- * store anonymously — the floor mirrors the plugin's most public surface, not the sensitivity of what it
- * stored. And this decides access per plugin, never per document: clearing the floor grants every key in
- * every scope, including keys another user wrote. See {@link PluginDataController} for why that is not
- * closable here.
+ * <p><strong>Still true, and worth stating:</strong> this decides access per plugin, not per document.
+ * Clearing the floor grants every key in every <em>shared</em> scope. What it no longer grants is another
+ * user's data — that lives in the {@code USER} scope, which no floor opens and no request can name
+ * ({@link PluginDataController}).
  */
 final class PluginAccessPolicy {
 
@@ -51,19 +47,11 @@ final class PluginAccessPolicy {
     }
 
     private static int readFloor(PluginManifest manifest) {
-        return manifest.slots() == null ? PODCASTER
-                : manifest.slots().stream().mapToInt(s -> rank(s.visibleTo())).min().orElse(PODCASTER);
+        return rank(manifest.dataOrDefault().readableByOrDefault());
     }
 
     private static int writeFloor(PluginManifest manifest) {
-        if (manifest.slots() == null) {
-            return PODCASTER;
-        }
-        return manifest.slots().stream()
-                .mapToInt(s -> rank(s.visibleTo()))
-                .filter(r -> r > ANONYMOUS)
-                .min()
-                .orElse(PODCASTER);
+        return rank(manifest.dataOrDefault().writableByOrDefault());
     }
 
     private static int rank(Optional<Role> role) {

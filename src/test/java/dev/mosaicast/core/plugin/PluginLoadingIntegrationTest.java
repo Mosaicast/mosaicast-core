@@ -6,6 +6,7 @@ package dev.mosaicast.core.plugin;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -192,6 +193,62 @@ class PluginLoadingIntegrationTest {
                 .contains("\"id\":\"good\"");
         assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void oneUserCannotReachAnotherUsersPartition() {
+        // The white-box audit's strongest finding, closed. scopeType/scopeId/key were all client input and
+        // the only gate was a per-plugin role floor, so any caller above that floor could read, overwrite or
+        // delete another user's key — and with no user-level scope, the SDK told authors to put the user id
+        // *in the key*, where the host could not check it.
+        Session fan = devLogin("fan");
+        Session podcaster = devLogin("podcaster");
+        String path = "/api/plugins/good/data/user/me/mark";
+
+        assertThat(rest.exchange(path, HttpMethod.PUT, fan.write("{\"cell\":\"c3\"}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+
+        // The same URL, a different session — and therefore a different partition. Not forbidden: absent.
+        // There is no request either of them can make that names the other's data.
+        assertThat(rest.exchange(path, HttpMethod.GET, fan.get(), String.class).getBody())
+                .contains("c3");
+        assertThat(rest.exchange(path, HttpMethod.GET, podcaster.get(), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+
+        // Listing is the other half: the audit noted `?prefix=` meant nothing had to be guessed.
+        assertThat(rest.exchange("/api/plugins/good/data/user/me?prefix=", HttpMethod.GET,
+                podcaster.get(), String.class).getBody()).doesNotContain("c3");
+    }
+
+    @Test
+    void namingAUserOtherThanMeIsRefusedRatherThanQuietlyRedirected() {
+        // A silent substitution would let a plugin ship code that reads as though it addresses a specific
+        // person and behaves as though it does not — surfacing years later as "why is everyone seeing the
+        // same board".
+        Session fan = devLogin("fan");
+        for (String id : new String[] {UUID.randomUUID().toString(), "someone-else", "ME", ""}) {
+            String path = "/api/plugins/good/data/user/" + (id.isEmpty() ? "%20" : id) + "/mark";
+            assertThat(rest.exchange(path, HttpMethod.GET, fan.get(), String.class).getStatusCode())
+                    .isEqualTo(HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Test
+    void theUserScopeNeedsASessionAndIgnoresTheDeclaredFloors() {
+        // Anonymous: no session, so no partition to resolve — 401 whatever the plugin declared.
+        assertThat(rest.getForEntity("/api/plugins/good/data/user/me/mark", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        // And neither floor applies (§7.6). The fixture declares writableBy: podcaster for its shared
+        // scopes, yet a fan writes their own partition — which is the case the scope exists for. Gating it
+        // would force the plugin to open its shared scopes to fan writes to make its own feature work.
+        Session fan = devLogin("fan");
+        assertThat(rest.exchange("/api/plugins/good/data/site/main/shared", HttpMethod.PUT,
+                fan.write("{\"x\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(rest.exchange("/api/plugins/good/data/user/me/own", HttpMethod.PUT,
+                fan.write("{\"x\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
     @Test

@@ -30,6 +30,7 @@ import java.util.Set;
  * @param slots       where the plugin mounts its elements in the shell
  * @param storage     {@code "doc"} (generic doc store, the v1 default) or {@code "schema"} (deferred)
  * @param config      declared config fields, keyed by field name
+ * @param data        the doc-store access floors (§7.2); absent means the closed default
  * @param consent     declared consent categories / external sources
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -43,6 +44,7 @@ public record PluginManifest(
         List<Slot> slots,
         String storage,
         Map<String, ConfigField> config,
+        DataAccess data,
         Consent consent) {
 
     /** Storage kinds a manifest may declare. */
@@ -71,6 +73,49 @@ public record PluginManifest(
     public static final String EDITABLE_BY_ADMIN = "admin";
     public static final String EDITABLE_BY_PODCASTER = "podcaster";
     public static final Set<String> KNOWN_EDITABLE_BY = Set.of(EDITABLE_BY_ADMIN, EDITABLE_BY_PODCASTER);
+
+    /**
+     * The access floors of the plugin's generic data surface (ARCHITECTURE §7.2/§7.6).
+     *
+     * <p><strong>Declared, never derived.</strong> The host used to infer these from slot {@code visibleTo},
+     * taking the <em>minimum</em> across all slots as the read floor — so a plugin with one anonymous display
+     * slot served its entire doc store anonymously, including whatever an admin-only slot had written. Access
+     * to a data surface has nothing to do with which UI regions a plugin happens to mount into, and inferring
+     * one from the other coupled two unrelated decisions.
+     *
+     * @param readableBy who may read; absent means the write floor, not anonymous — a plugin that says
+     *                   nothing gets the closed answer rather than the open one
+     * @param writableBy who may write; absent means {@code podcaster}, and {@code anonymous} is not allowed
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record DataAccess(String readableBy, String writableBy) {
+
+        /** The declared write floor, or the conservative default. */
+        public String writableByOrDefault() {
+            return writableBy == null || writableBy.isBlank()
+                    ? EDITABLE_BY_PODCASTER : writableBy.trim().toLowerCase();
+        }
+
+        /** The declared read floor, or — deliberately — the write floor. */
+        public String readableByOrDefault() {
+            return readableBy == null || readableBy.isBlank()
+                    ? writableByOrDefault() : readableBy.trim().toLowerCase();
+        }
+    }
+
+    /** Roles the data floors accept. Unlike {@code editableBy}, a read floor may be anonymous. */
+    public static final String ACCESS_ANONYMOUS = "anonymous";
+    public static final String ACCESS_FAN = "fan";
+    public static final Set<String> KNOWN_DATA_ACCESS =
+            Set.of(ACCESS_ANONYMOUS, ACCESS_FAN, EDITABLE_BY_PODCASTER, EDITABLE_BY_ADMIN);
+
+    /** The floors applied when a manifest declares no {@code data} block: closed, and never anonymous. */
+    public static final DataAccess DEFAULT_DATA_ACCESS = new DataAccess(null, null);
+
+    /** The effective floors, whether or not the manifest declared them. */
+    public DataAccess dataOrDefault() {
+        return data == null ? DEFAULT_DATA_ACCESS : data;
+    }
 
     /** Backend entry points. */
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -213,6 +258,7 @@ public record PluginManifest(
             }
         }
         validateConfig();
+        validateData();
         validateConsent();
     }
 
@@ -230,6 +276,30 @@ public record PluginManifest(
      */
     private static final java.util.regex.Pattern CATEGORY_TOKEN =
             java.util.regex.Pattern.compile("[a-z0-9_-]{1,40}", java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Validates the declared data floors.
+     *
+     * <p>{@code writableBy: "anonymous"} is refused outright: an unauthenticated write has no owner, nothing
+     * to rate-limit against and nobody to hold responsible, and a plugin that wants public participation
+     * wants {@code fan} plus a login.
+     */
+    private void validateData() {
+        if (data == null) {
+            return;
+        }
+        for (String floor : new String[] {data.readableBy(), data.writableBy()}) {
+            if (floor != null && !floor.isBlank()
+                    && !KNOWN_DATA_ACCESS.contains(floor.trim().toLowerCase())) {
+                throw new PluginValidationException(
+                        "data floor '%s' is not one of %s".formatted(floor, KNOWN_DATA_ACCESS));
+            }
+        }
+        if (ACCESS_ANONYMOUS.equals(data.writableByOrDefault())) {
+            throw new PluginValidationException(
+                    "data.writableBy may not be 'anonymous' — a write needs a signed-in user to belong to");
+        }
+    }
 
     private void validateConsent() {
         if (consent == null) {

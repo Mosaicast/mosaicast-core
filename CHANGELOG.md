@@ -14,6 +14,40 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Security
 
+- **Per-user plugin data is no longer reachable by anyone but its owner (`0.6.0`, §7.4/§7.6).** The doc store
+  had no notion of *whose* a document was: `scopeType`, `scopeId` and `key` were all client input, the only
+  gate was a per-plugin role floor, and scope ids are public slugs — so any caller above that floor could
+  read, overwrite or delete another user's key, with nothing to guess. The SDK made it concrete by telling
+  authors to put the user id *in the key* (`mark:<userId>:cell`), which is an access-control decision placed
+  exactly where the host cannot check it.
+  - **`USER` scope, host-owned.** Addressed as `user/me`; the server substitutes the session's user. Another
+    person's partition is not forbidden, it is **unnameable** — no request expresses it. Any other `user` id
+    is a **400**, never a silent substitution, and an anonymous one a **401**.
+  - **Neither access floor applies to it** (§7.6). A floor governs the shared scopes, where one caller's write
+    overwrites another's; a user partition has nobody to protect. So a fan marks their own card under a plugin
+    declaring `writableBy: "podcaster"` for its shared scopes — gating that would force the plugin to open its
+    shared scopes to fan writes to make its own feature work.
+  - **A backend cannot use it.** No calling user exists on a scheduled task or in `register(ctx)`, so all four
+    `DocStore` methods throw `UnsupportedOperationException` — reads included, since resolving "me" without a
+    caller means picking someone. Aggregates go through the new backend-only `queryAcrossUsers`, which names
+    each owner and has no HTTP surface.
+  - **Requires SDK 0.5.0** (`platformApi` 0.5.x). Existing per-user data stays in whatever keys hold it —
+    the host cannot know a plugin's key convention — so plugins migrate it themselves.
+- **A plugin's data surface declares its own access floors (`0.6.0`, §7.2).** They were derived from slot
+  `visibleTo`, taking the *minimum* across all slots as the read floor, so a plugin with one anonymous display
+  slot served its entire doc store anonymously — including whatever an admin-only slot had written. Which UI
+  regions a plugin mounts into says nothing about who may read its data. The manifest now declares
+  `"data": { "readableBy", "writableBy" }`; slot `visibleTo` governs rendering only.
+  - **Breaking for existing plugins.** An absent block defaults `readableBy` to the **write** floor, not to
+    anonymous, so a plugin that relied on an anonymous slot making its data public must now say
+    `"readableBy": "anonymous"`. Saying nothing gets the closed answer.
+  - `writableBy: "anonymous"` is refused at load: a write with no owner has nothing to attribute or
+    rate-limit.
+- **An unauthenticated controller path returns 401 instead of 500 (`0.6.0`).** `ExceptionTranslationFilter`
+  turns an `AuthenticationException` into a 401 only once it escapes the dispatcher, and `@ControllerAdvice`
+  runs first — so the catch-all handler reported "you are not signed in" as "the server broke".
+
+
 - **Branding uploads are identified by their bytes, not by a header the client wrote (`0.5.18`, §12.2).**
   This class promised "only raster is stored" and checked only `getContentType()`, so an SVG labelled
   `image/png` was accepted, stored, and served back with that same attacker-chosen type — containment resting
