@@ -111,9 +111,11 @@
   "consent.category.necessary": "Für den Betrieb nötig",
   "consent.category.functional": "Zusätzliche Inhalte und Funktionen",
   "consent.category.analytics": "Besuchsstatistik",
+  "consent.category.unreviewed": "Noch nicht geprüft",
   "consent.categoryHint.necessary": "Wird unabhängig von Ihrer Entscheidung geladen, weil die Seite ohne das nicht funktioniert.",
   "consent.categoryHint.functional": "Inhalte anderer Unternehmen, die hier eingebettet werden — etwa Player, Karten oder Widgets.",
   "consent.categoryHint.analytics": "Zählt Besuche, damit die Betreiber dieser Seite sehen, was gelesen wird.",
+  "consent.categoryHint.unreviewed": "Eine Erweiterung gibt an, dass die Seite dies zum Betrieb braucht. Die Betreiber haben das noch nicht bestätigt — bis dahin entscheiden Sie.",
   "consent.provider": "betrieben von {{provider}}",
   "consent.privacyOf": "Datenschutzerklärung von {{name}}",
   "consent.thirdCountry": "Daten können außerhalb der EU/des EWR verarbeitet werden",
@@ -243,5 +245,9 @@
   "admin.consent.cspIntro": "Genau um diese wird die Content-Security-Policy erweitert. Eine nicht deklarierte Origin bleibt blockiert, auch nach einer Einwilligung.",
   "admin.consent.cspNone": "Keine — nichts von Dritten kann geladen werden.",
   "admin.consent.fingerprint": "Fingerprint der Deklaration:",
-  "admin.consent.failed": "Die Einwilligungs-Übersicht konnte nicht geladen werden."
+  "admin.consent.failed": "Die Einwilligungs-Übersicht konnte nicht geladen werden.",
+  "admin.consent.necessaryPending": "Diese Erweiterung gibt an, dass Besucher hierzu nicht gefragt werden müssen. Von Ihnen noch nicht bestätigt — Besucher werden weiterhin gefragt.",
+  "admin.consent.necessaryApproved": "Sie haben bestätigt, dass Besucher hierzu nicht gefragt werden müssen; der Dienst lädt für alle.",
+  "admin.consent.approveNecessary": "Als betriebsnotwendig bestätigen",
+  "admin.consent.revokeNecessary": "Bestätigung zurückziehen"
 }

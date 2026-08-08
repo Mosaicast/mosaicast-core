@@ -70,6 +70,25 @@ function writeConsentCookie(categories: Record<string, boolean>): void {
 }
 
 /** Drops the mirror, so the server falls back to allowing nothing optional. */
+/**
+ * A comparable summary of the decision *as the server's CSP will read it*.
+ *
+ * <p>Two answers that produce the same policy are the same answer for reload purposes, however differently
+ * the visitor arrived at them. Only categories some service declared an origin for can move the policy
+ * (`affectsPolicy`), so toggling a purely storage-based category — or re-saving an unchanged form — changes
+ * this string not at all and costs nobody their place in an episode.
+ */
+function cspRelevantGrants(
+  categories: Record<string, boolean>,
+  payload: ConsentPayload,
+): string {
+  return (payload.categories ?? [])
+    .filter((category) => category.affectsPolicy && categories[category.id] === true)
+    .map((category) => category.id)
+    .sort()
+    .join('.');
+}
+
 function clearConsentCookie(): void {
   document.cookie = `${CONSENT_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
 }
@@ -311,6 +330,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
 
   const decide = useCallback(
     (next: Record<string, boolean>) => {
+      const before = cspRelevantGrants(effective, payload);
       const receipt: ConsentRecord = {
         version: RECORD_VERSION,
         decidedAt: new Date().toISOString(),
@@ -331,8 +351,24 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       // the moment the visitor withdraws, not at the next navigation.
       listeners.current.forEach((listener) => listener());
       pending.current.splice(0).forEach(({ category, resolve }) => resolve(next[category] === true));
+
+      // Then make the decision true of *this* page, not only the next one.
+      //
+      // Enforcement lives in the response CSP, which the server built from the cookie as it was when this
+      // document was requested. A document's CSP cannot be changed after delivery — no meta tag, no header
+      // rewrite, nothing. So clicking "Accept all" set the cookie, fired the listeners, and the plugin's
+      // script was still blocked against the narrow policy already in force; clicking "Reject all" left the
+      // wide policy in place for the rest of the session, contradicting what `ConsentCookie` documents it
+      // guarantees. Routing is client-side, so without this the contradiction survives every navigation
+      // until a hard reload the visitor has no reason to perform.
+      //
+      // Only when the policy actually changes. A visitor who reopens the settings and saves the same answer,
+      // or toggles a category no service declares hosts for, should not lose their place in an episode.
+      if (cspRelevantGrants(next, payload) !== before) {
+        window.location.reload();
+      }
     },
-    [payload.fingerprint],
+    [effective, payload],
   );
 
   const withdraw = useCallback(() => {
@@ -385,6 +421,16 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       // Same as above: the choice still holds for this page view.
+    }
+    if (!on) {
+      // And on the server, for a signed-in listener.
+      //
+      // This used to clear the local keys only, so someone signed in kept a server-side record of what they
+      // had listened to and how far — indefinitely, and restored on the next play — while the settings page
+      // said the positions were deleted. Erasure that stops at the device is not erasure when the data was
+      // also sent somewhere. Fire-and-forget: an anonymous visitor has nothing to delete and a 401 here is
+      // not something to show them.
+      void api.del('/api/me/progress').catch(() => {});
     }
   }, []);
 

@@ -16,6 +16,7 @@ const PAYLOAD: ConsentPayload = {
     {
       id: 'analytics',
       known: true,
+      affectsPolicy: true,
       services: [
         {
           name: 'Plausible Analytics',
@@ -60,7 +61,12 @@ function renderSettings() {
 }
 
 describe('Cookie settings (§12.5)', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    // A decision that moves the CSP reloads, which jsdom cannot do. The two tests that assert *whether* it
+    // reloads stub their own; this keeps the rest from logging a navigation error they are not about.
+    vi.stubGlobal('location', { ...window.location, reload: vi.fn() });
+  });
   afterEach(() => vi.unstubAllGlobals());
 
   it('discloses what each service stores, and who runs it', async () => {
@@ -97,6 +103,48 @@ describe('Cookie settings (§12.5)', () => {
     // exactly what the visitor just asked not to have stored.
     await waitFor(() => expect(localStorage.getItem('mc.progress.abc')).toBeNull());
     expect(localStorage.getItem('mc.prefs.progress')).toBe('off');
+
+    // And on the server too, for a signed-in listener. Clearing the local keys only meant someone signed in
+    // kept a server-side history of what they had listened to and how far, restored on the next play, while
+    // this page told them the positions were deleted.
+    await waitFor(() =>
+      expect(fetch).toHaveBeenCalledWith(
+        '/api/me/progress',
+        expect.objectContaining({ method: 'DELETE' }),
+      ),
+    );
+  });
+
+  it('applies a decision to the page it was made on, not only to the next one', async () => {
+    // Enforcement is the response CSP, and a document's CSP cannot be changed after it is delivered. Setting
+    // the cookie and firing the listeners left the plugin's script blocked against the policy already in
+    // force — and left a refusal unenforced for the rest of the session, contradicting what ConsentCookie
+    // documents it guarantees. Routing is client-side, so nothing else would ever re-request the document.
+    const reload = vi.fn();
+    vi.stubGlobal('location', { ...window.location, reload });
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow all' }));
+
+    await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it('does not reload when the answer changes nothing the browser would enforce', async () => {
+    // A visitor who reopens the settings and saves the same answer, or toggles a category no service declares
+    // an origin for, must not lose their place in an episode for a policy that did not move.
+    const reload = vi.fn();
+    vi.stubGlobal('location', { ...window.location, reload });
+    stubConsent({
+      ...PAYLOAD,
+      categories: [{ ...PAYLOAD.categories[0]!, affectsPolicy: false }],
+    });
+    renderSettings();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow all' }));
+
+    await waitFor(() => expect(localStorage.getItem('mc.consent')).toContain('analytics'));
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it('leaves the playback position off when the browser objected, until the visitor says otherwise', async () => {

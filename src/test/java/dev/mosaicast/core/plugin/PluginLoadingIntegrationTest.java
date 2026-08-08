@@ -452,8 +452,9 @@ class PluginLoadingIntegrationTest {
         HttpHeaders refused = rest.getForEntity("/api/meta", String.class).getHeaders();
         String refusedCsp = refused.getFirst("Content-Security-Policy");
         assertThat(refusedCsp).doesNotContain("https://plausible.example");
-        // A `necessary` service is never asked about, so no decision can withdraw it.
-        assertThat(refusedCsp).contains("https://necessary.example");
+        // The fixture also declares a service as `necessary`, and no admin has approved that claim — so it is
+        // prompted like anything else and a refusal keeps its origin out too. Approving is covered below.
+        assertThat(refusedCsp).doesNotContain("https://necessary.example");
         // The policy now differs between visitors, so a shared cache must key on the cookie.
         assertThat(refused.get(HttpHeaders.VARY)).anySatisfy(v -> assertThat(v).containsIgnoringCase("cookie"));
 
@@ -488,7 +489,47 @@ class PluginLoadingIntegrationTest {
                 .contains("\"pluginId\":\"good\"")
                 .contains("https://plausible.example")
                 .contains("\"category\":\"necessary\"")
-                .contains("\"prompted\":false");
+                // Declared, not yet ruled on — so a visitor is still asked, and the operator can see why.
+                .contains("\"claimsNecessary\":true")
+                .contains("\"necessaryApproved\":false");
+    }
+
+    @Test
+    void anAdminApprovingANecessaryClaimIsWhatMakesItUnconditional() {
+        // The whole point of the gate: until an admin rules on it, a plugin asserting `necessary` gets no more
+        // than any other category. Approving is the operator accepting that this loads for every visitor
+        // without being asked — a judgement about their jurisdiction, not the plugin author's to make.
+        Session admin = devLogin("admin");
+        String path = "/api/admin/consent/necessary/good/session-keeper";
+
+        try {
+            assertThat(rest.exchange(path, HttpMethod.POST, admin.write("", true), String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.OK);
+
+            // Now it is out of the toggle list and in every policy, cookie or no cookie.
+            assertThat(rest.getForEntity("/api/consent", String.class).getBody())
+                    .contains("\"necessaryServices\"").contains("Fixture Session Keeper");
+            assertThat(rest.getForEntity("/api/meta", String.class)
+                    .getHeaders().getFirst("Content-Security-Policy"))
+                    .contains("https://necessary.example");
+
+            // Only an admin may do it.
+            assertThat(rest.exchange(path, HttpMethod.POST, devLogin("podcaster").write("", true), String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            assertThat(rest.exchange(path, HttpMethod.POST, json(""), String.class)
+                    .getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+
+            // A claim on a service that does not exist is a 404, not a stored approval for nothing.
+            assertThat(rest.exchange("/api/admin/consent/necessary/good/no-such-service", HttpMethod.POST,
+                    admin.write("", true), String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        } finally {
+            rest.exchange(path, HttpMethod.DELETE, admin.delete(true), String.class);
+        }
+
+        // Revoked: prompted again from the next request.
+        assertThat(rest.getForEntity("/api/meta", String.class)
+                .getHeaders().getFirst("Content-Security-Policy"))
+                .doesNotContain("https://necessary.example");
     }
 
     @Test
@@ -516,8 +557,8 @@ class PluginLoadingIntegrationTest {
         String csp = headers.getFirst("Content-Security-Policy");
         assertThat(csp).isNotNull();
         assertThat(csp).contains("script-src 'self'").contains("https://plausible.example");
-        // A `necessary` service is never asked about but still loads, so its origin must be allowed too.
-        assertThat(csp).contains("https://necessary.example");
+        // The fixture's unapproved `necessary` claim is prompted, and this cookie granted only `analytics`.
+        assertThat(csp).doesNotContain("https://necessary.example");
         // Nothing else gets in: an origin no plugin declared stays blocked.
         assertThat(csp).doesNotContain("evil.example");
     }

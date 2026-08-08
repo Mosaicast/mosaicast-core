@@ -518,3 +518,21 @@
   padding: 0;
   font-size: var(--mc-text-xs);
 }
+
+/*
+ * A plugin's claim that a service needs no consent, and the operator's answer to it. Given a surface of its
+ * own rather than another line of muted meta text: it is the one row on this page that is a decision to make
+ * rather than a fact to read.
+ */
+.mc-consentaudit__claim {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-2);
+  margin-top: var(--mc-space-2);
+  padding: var(--mc-space-2);
+  border-radius: var(--mc-radius-sm);
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface-2);
+  font-size: var(--mc-text-sm);
+}

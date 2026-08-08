@@ -29,6 +29,7 @@ const WITH_CATEGORY: ConsentPayload = {
     {
       id: 'analytics',
       known: true,
+      affectsPolicy: true,
       services: [
         {
           name: 'Plausible Analytics',
