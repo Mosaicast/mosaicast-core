@@ -1,5 +1,7 @@
-# Copy to: .github/workflows/license-header.yml  (in EVERY repo)
-# Checks that source files CHANGED IN THIS PR carry an SPDX-License-Identifier at the top.
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Checks that source files CHANGED IN THIS PR carry both SPDX lines at the top.
 # (Changed-files-only, so a legacy violation elsewhere never blocks an unrelated PR.)
 # Merge blocker like DCO: set the "License Headers" check as required in branch protection.
 # Self-contained (only actions/checkout) — no external action pin needed.
@@ -19,15 +21,21 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Check SPDX-License-Identifier in changed source files
+      - name: Check SPDX headers in changed source files
         run: |
           set -euo pipefail
           base="${{ github.event.pull_request.base.sha }}"
           head="${{ github.event.pull_request.head.sha }}"
           # Added/copied/modified/renamed source files in this PR only.
+          #
+          # The glob used to cover Java/Kotlin/JS/TS alone, which is why a release adding nine CSS partials
+          # and two SQL migrations passed unchecked — the convention applies to those too, and CI simply was
+          # not looking. Every type below is one this repo actually puts a header in.
           mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base".."$head" -- \
             '*.java' '*.kt' '*.ts' '*.tsx' '*.js' '*.jsx' \
-            | grep -vE '(^|/)(node_modules|build|dist|out|target|\.gradle)/' || true)
+            '*.css' '*.sql' '*.sh' '*.yml' '*.yaml' '*.properties' \
+            | grep -vE '(^|/)(node_modules|build|dist|out|target|\.gradle)/' \
+            | grep -vE '(^|/)(package-lock\.json|gradle/wrapper/)' || true)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "No source files changed. ✅"; exit 0
           fi
@@ -35,17 +43,25 @@ jobs:
           for f in "${files[@]}"; do
             [ -z "$f" ] && continue
             [ -f "$f" ] || continue
-            if ! head -n 15 "$f" | grep -q 'SPDX-License-Identifier:'; then
+            head_lines="$(head -n 15 "$f")"
+            # Both lines, not just the licence. The copyright line is half the SPDX convention CLAUDE.md
+            # mandates and was never verified, so a file could satisfy CI with one of the two.
+            if ! printf '%s' "$head_lines" | grep -q 'SPDX-License-Identifier:'; then
               echo "::error file=$f::Missing SPDX-License-Identifier header"
+              missing=1
+            elif ! printf '%s' "$head_lines" | grep -q 'SPDX-FileCopyrightText:'; then
+              echo "::error file=$f::Missing SPDX-FileCopyrightText header"
               missing=1
             fi
           done
           if [ "$missing" -ne 0 ]; then
             echo ""
-            echo "Every changed source file needs an SPDX header at the top, e.g.:"
+            echo "Every changed source file needs both SPDX lines at the top, e.g.:"
             echo "  // SPDX-License-Identifier: AGPL-3.0-or-later   (core, bingo, stats, wiki)"
             echo "  // SPDX-License-Identifier: Apache-2.0          (sdk, sample)"
+            echo "  // SPDX-FileCopyrightText: 2026 The Mosaicast Authors"
+            echo "Use the comment syntax of the file type (--, #, /* */)."
             echo "Auto-insert: pipx install reuse && reuse annotate --license <ID> --copyright \"<HOLDER>\" <file>"
             exit 1
           fi
-          echo "All changed source files have an SPDX header. ✅"
+          echo "All changed source files have both SPDX headers. ✅"

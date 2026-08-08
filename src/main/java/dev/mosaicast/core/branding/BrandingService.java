@@ -91,17 +91,78 @@ public class BrandingService {
         if (file.getSize() > MAX_UPLOAD_BYTES) {
             throw new IllegalArgumentException("Branding upload exceeds 2 MB");
         }
-        String mime = file.getContentType();
-        if (mime == null || !ALLOWED_UPLOAD_MIMES.contains(mime.toLowerCase())) {
+        // The declared type only decides *which* raster format to expect; the bytes decide whether it is one.
+        //
+        // This used to trust `getContentType()` alone, which is a header the client writes — so an SVG (or
+        // anything else) labelled `image/png` was accepted, stored, and later served back with that same
+        // attacker-chosen type. The stated guarantee, "only raster is stored", was not what the code enforced.
+        // Containment rested entirely on `X-Content-Type-Options: nosniff` being set somewhere else, which is
+        // a guarantee held by a different file.
+        String declared = file.getContentType();
+        if (declared == null || !ALLOWED_UPLOAD_MIMES.contains(declared.toLowerCase())) {
             throw new IllegalArgumentException(
                     "Only raster images (PNG, ICO, JPEG, WEBP) may be uploaded; SVG is not allowed");
         }
+        String mime = sniff(file);
+        if (mime == null) {
+            throw new IllegalArgumentException(
+                    "That file is not a PNG, ICO, JPEG or WEBP image; SVG is not allowed");
+        }
         try (InputStream in = file.getInputStream()) {
-            BlobRef ref = blobStore.put(NAMESPACE, asset.key(), in, mime.toLowerCase());
+            // Stored as the sniffed type, not the declared one, so what is served back is what was actually
+            // uploaded.
+            BlobRef ref = blobStore.put(NAMESPACE, asset.key(), in, mime);
             site.setAsset(asset, ref.id());
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read upload", e);
         }
+    }
+
+    /**
+     * Identifies the format from its leading bytes, or {@code null} when it is none of the four allowed.
+     *
+     * <p>Magic numbers rather than a decode: it is enough to establish that the file is the raster format it
+     * claims, and decoding attacker-supplied images to find out is a larger attack surface than the one being
+     * closed.
+     */
+    private static String sniff(MultipartFile file) {
+        byte[] head = new byte[16];
+        try (InputStream in = file.getInputStream()) {
+            int read = in.readNBytes(head, 0, head.length);
+            if (read < 12) {
+                return null;
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read upload", e);
+        }
+        if (startsWith(head, 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A)) {
+            return "image/png";
+        }
+        if (startsWith(head, 0xFF, 0xD8, 0xFF)) {
+            return "image/jpeg";
+        }
+        // ICO: a 2-byte zero reserved field, then image type 1 (icon) or 2 (cursor).
+        if (startsWith(head, 0x00, 0x00, 0x01, 0x00) || startsWith(head, 0x00, 0x00, 0x02, 0x00)) {
+            return "image/x-icon";
+        }
+        // WEBP: "RIFF" ....(size).... "WEBP".
+        if (startsWith(head, 'R', 'I', 'F', 'F')
+                && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P') {
+            return "image/webp";
+        }
+        return null;
+    }
+
+    private static boolean startsWith(byte[] bytes, int... prefix) {
+        if (bytes.length < prefix.length) {
+            return false;
+        }
+        for (int i = 0; i < prefix.length; i++) {
+            if ((bytes[i] & 0xFF) != (prefix[i] & 0xFF)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Clears a custom asset, reverting to the bundled default. */

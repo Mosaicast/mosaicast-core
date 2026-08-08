@@ -73,6 +73,22 @@ public class PluginCspHeaderWriter implements HeaderWriter {
                 .collect(Collectors.joining(" "));
         String suffix = extra.isBlank() ? "" : " " + extra;
 
+        // `style-src 'unsafe-inline'` is deliberate, and it is the weakest line in this policy — so it gets
+        // an explicit reason rather than an inherited one.
+        //
+        // Plugin UIs are Web Components that style themselves with a `<style>` block inside their shadow
+        // root, which is the encapsulation model §12.3 is built on (the `--mc-*` tokens inherit across the
+        // boundary so a plugin re-themes with the site). Shadow-DOM styles are governed by the *document's*
+        // CSP, so dropping this breaks every plugin that styles itself — the whole plugin UI contract, not an
+        // edge of it. Nonces do not rescue it either: a plugin's bundle constructs its shadow root at runtime
+        // and has no way to carry a per-response nonce.
+        //
+        // What it costs, stated plainly: inline CSS can be injected wherever attacker-influenced HTML is
+        // rendered. That is show notes and feed descriptions, whose author is whoever runs the podcast host.
+        // The attack this enables — attribute-selector exfiltration of rendered values, a full-page
+        // click-jacking overlay — is closed on the *sanitizer* side instead: the shell strips `<style>` and
+        // `style` from feed HTML before it is ever inserted (see `sanitize.ts`), so there is no path from
+        // feed content to a stylesheet. Script execution was never available here; `script-src` stays strict.
         StringBuilder policy = new StringBuilder("default-src 'self'; ")
                 .append("img-src 'self' data: https:; ")
                 .append("media-src 'self' https:; ")

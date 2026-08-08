@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import DOMPurify from 'dompurify';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,6 +8,7 @@ import { api } from '../api/client';
 import type { FeedDetail } from '../api/types';
 import { Cover } from './Cover';
 import { SlotRegion } from './SlotRegion';
+import { sanitizeFeedHtml } from '../util/sanitize';
 
 /**
  * The feed-scope panel (ARCHITECTURE §6.1, mockup left column): the show cover, title, author, description
@@ -30,7 +30,7 @@ export function FeedPanel({ feedSlug }: { feedSlug: string }) {
     };
   }, [feedSlug]);
 
-  const description = feed?.description ? DOMPurify.sanitize(feed.description) : '';
+  const description = sanitizeFeedHtml(feed?.description);
 
   return (
     <aside className="mc-scope-panel">

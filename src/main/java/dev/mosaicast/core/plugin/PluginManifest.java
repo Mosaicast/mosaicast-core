@@ -49,7 +49,6 @@ public record PluginManifest(
     public static final String STORAGE_DOC = "doc";
     public static final String STORAGE_SCHEMA = "schema";
 
-    /** The slot placements the shell defines (ARCHITECTURE §7.3); a slot targeting anything else is rejected. */
     /**
      * The full-page region behind a plugin deep link {@code /p/{pluginId}/…} (§6.4). A plugin opts in by
      * declaring a slot here; the host reserves the route either way and hands the subpath to the element as
@@ -57,6 +56,7 @@ public record PluginManifest(
      */
     public static final String PLACEMENT_PAGE = "page";
 
+    /** The slot placements the shell defines (ARCHITECTURE §7.3); a slot targeting anything else is rejected. */
     public static final Set<String> KNOWN_PLACEMENTS =
             Set.of("top", "card", "main", "sidebar", "player", "feed", "site", "admin", PLACEMENT_PAGE);
 

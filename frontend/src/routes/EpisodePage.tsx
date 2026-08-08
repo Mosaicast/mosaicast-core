@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import DOMPurify from 'dompurify';
 import type { CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
@@ -14,6 +13,7 @@ import { useResource } from '../hooks/useResource';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePlayer } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
+import { sanitizeFeedHtml } from '../util/sanitize';
 import { NotFound } from './Placeholder';
 
 /**
@@ -49,7 +49,7 @@ export function EpisodePage() {
   const seasonEp =
     episode.season != null && episode.episodeNo != null ? `S${episode.season} · E${episode.episodeNo}` : null;
   // Show notes are feed HTML → sanitize before rendering (no scripts/handlers).
-  const safeNotes = episode.description ? DOMPurify.sanitize(episode.description) : '';
+  const safeNotes = sanitizeFeedHtml(episode.description);
 
   return (
     <section className="mc-page mc-page--detail">

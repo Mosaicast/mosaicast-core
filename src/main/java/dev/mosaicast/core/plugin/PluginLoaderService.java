@@ -105,6 +105,7 @@ public class PluginLoaderService implements ApplicationRunner {
             }
             manifest = objectMapper.readValue(manifestFile.toFile(), PluginManifest.class);
             manifest.validate();
+            requireIdMatchesFolder(manifest, fallbackId);
 
             if (!settings.enabled(manifest.id())) {
                 // Switched off by an admin: never start the backend at all. This is the half of activation
@@ -138,6 +139,31 @@ public class PluginLoaderService implements ApplicationRunner {
         PluginConfigImpl config =
                 new PluginConfigImpl(manifest.id(), manifest.config(), settings, objectMapper);
         return new PluginContextImpl(manifest.id(), store, config, feedAccess, scheduler);
+    }
+
+    /**
+     * Requires a plugin's declared id to match the folder it was found in.
+     *
+     * <p>The registry is keyed on {@code manifest.id()} — the plugin's own claim about who it is — and
+     * {@code registrations.put} silently overwrites. Folders load in alphabetical order, so a package
+     * installed as {@code zz-analytics/} declaring {@code "id": "bingo"} took over the real {@code bingo}
+     * plugin's entry: its bundle was served from {@code /plugins/bingo/assets/**}, its {@code visibleTo}
+     * floors gated {@code /api/plugins/bingo/data/**}, and both backends kept writing to the same
+     * {@code plugin_data} rows under {@code plugin_id = 'bingo'}. One plugin wearing another's identity, with
+     * a shared data namespace, and nothing said so.
+     *
+     * <p>The folder name is the one thing about a plugin the operator chose rather than the author, so it is
+     * the right tiebreaker. This needs filesystem access to the plugins directory — defence in depth, like
+     * the asset symlink check — but a mismatch is also just a mistake worth naming: an author who renames
+     * their plugin and forgets the folder currently gets silence.
+     */
+    private static void requireIdMatchesFolder(PluginManifest manifest, String folderName) {
+        if (!manifest.id().equals(folderName)) {
+            throw new PluginValidationException(
+                    ("manifest id '%s' does not match its folder '%s' — a plugin is identified by the folder "
+                            + "it was installed into, so the two must agree (rename the folder, or fix the "
+                            + "manifest id)").formatted(manifest.id(), folderName));
+        }
     }
 
     private void register(PluginRegistration registration) {

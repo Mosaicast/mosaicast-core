@@ -6,8 +6,10 @@ package dev.mosaicast.core.episode;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 import java.util.function.Function;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -115,13 +117,13 @@ public class EpisodeQueryService {
             nextId = index < ordered.size() - 1 ? ordered.get(index + 1) : null;
         }
         List<EpisodeRef> neighbours = refs.findAllById(
-                java.util.stream.Stream.of(prevId, nextId).filter(java.util.Objects::nonNull).toList());
+                Stream.of(prevId, nextId).filter(Objects::nonNull).toList());
         Map<UUID, EpisodeRef> byId = neighbours.stream()
                 .collect(java.util.stream.Collectors.toMap(EpisodeRef::getId, Function.identity()));
         EpisodeRef prev = prevId == null ? null : byId.get(prevId);
         EpisodeRef next = nextId == null ? null : byId.get(nextId);
         Map<UUID, DisplaySnapshot> snapshots =
-                snapshotsFor(java.util.stream.Stream.of(prev, next).filter(java.util.Objects::nonNull).toList());
+                snapshotsFor(Stream.of(prev, next).filter(Objects::nonNull).toList());
         return new AdjacentEpisodes(summaryOrNull(prev, snapshots), summaryOrNull(next, snapshots));
     }
 
@@ -137,7 +139,7 @@ public class EpisodeQueryService {
         Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
         return ids.stream()
                 .map(byId::get)
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .map(ref -> EpisodeSummary.from(ref, resolveDisplay(ref, snapshots)))
                 .toList();
     }
@@ -176,7 +178,7 @@ public class EpisodeQueryService {
         Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
         List<EpisodeSummary> ordered = ids.getContent().stream()
                 .map(byId::get)
-                .filter(java.util.Objects::nonNull)
+                .filter(Objects::nonNull)
                 .map(ref -> EpisodeSummary.from(ref, resolveDisplay(ref, snapshots)))
                 .toList();
         return new PageImpl<>(ordered, pageable, ids.getTotalElements());

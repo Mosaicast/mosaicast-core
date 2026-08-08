@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Admin/podcaster feed management and planned-episode creation (ARCHITECTURE §5, §4.3, §5.4). These
- * endpoints are open in M1; RBAC (PODCASTER/ADMIN) is enforced in M2 (§8.5).
+ * Admin/podcaster feed management and planned-episode creation (ARCHITECTURE §5, §4.3, §5.4). RBAC is
+ * enforced in {@code SecurityConfig}: {@code /api/admin/feeds/**} requires PODCASTER or ADMIN (§8.5).
  */
 @RestController
 @RequestMapping("/api/admin/feeds")
