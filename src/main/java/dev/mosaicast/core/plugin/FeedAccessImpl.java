@@ -88,6 +88,27 @@ public class FeedAccessImpl implements FeedAccess {
      * and partitions the plugin's doc store, matching how the episode scope has worked since slugs landed.
      * A UUID still resolves, because a plugin that stored one before this release must keep working.
      */
+    /**
+     * Whether a scope addresses an entity that actually exists.
+     *
+     * <p>The doc store partitions on {@code (pluginId, scopeType, scopeId)} and took {@code scopeId} straight
+     * from the request path, so any string at all opened a fresh partition. That let a caller write into
+     * partitions no episode, feed or season will ever correspond to — invisible to every admin surface,
+     * uncounted by "purge plugin data" until the plugin itself is purged, and unbounded in number. Addressing
+     * something is now at least a claim that it exists.
+     *
+     * <p>The SITE scope is a singleton and always resolves; {@code Scope}'s canonical constructor normalizes
+     * its id, so there is nothing to check.
+     */
+    public boolean exists(Scope scope) {
+        return switch (scope.type()) {
+            case SITE -> true;
+            case FEED -> resolveFeed(scope.id()).isPresent();
+            case SEASON -> parseSeason(scope.id()).isPresent();
+            case EPISODE -> refs.findVisibleBySlug(scope.id()).isPresent();
+        };
+    }
+
     private Optional<UUID> resolveFeed(String id) {
         return feeds.findBySlug(id).map(Feed::getId).or(() -> parseUuid(id));
     }

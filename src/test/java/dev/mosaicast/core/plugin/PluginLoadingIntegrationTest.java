@@ -50,6 +50,28 @@ class PluginLoadingIntegrationTest {
     @Autowired
     private TestRestTemplate rest;
 
+    @Autowired
+    private dev.mosaicast.core.feed.FeedRepository feeds;
+
+    @Autowired
+    private dev.mosaicast.core.episode.EpisodeRefRepository refs;
+
+    /**
+     * A real episode to scope doc-store calls against.
+     *
+     * <p>The doc store refuses a scope that names nothing, so these tests can no longer invent a slug. That is
+     * the point of the check: a plugin's UI is always mounted on a scope the host itself resolved, so only a
+     * test or an attacker addresses an episode that does not exist.
+     */
+    private String realEpisodeSlug() {
+        return refs.findAll().stream().findFirst().map(ref -> ref.getSlug()).orElseGet(() -> {
+            var feed = feeds.save(dev.mosaicast.core.feed.Feed.rss("https://example.test/plugins.xml", "Plugin Cast"));
+            var ref = refs.save(dev.mosaicast.core.episode.EpisodeRef.published(
+                    feed.getId(), "guid-plugin-1", 1, 1, "plugin-cast-s01e01"));
+            return ref.getSlug();
+        });
+    }
+
     @Test
     void goodPluginIsInPublicManifestAndBrokenOnesAreNot() {
         ResponseEntity<String> manifest = rest.getForEntity("/api/plugins/manifest", String.class);
@@ -119,7 +141,7 @@ class PluginLoadingIntegrationTest {
 
     @Test
     void writeRequiresAuthAndRole() {
-        String path = "/api/plugins/good/data/episode/ep-1/note";
+        String path = "/api/plugins/good/data/episode/" + realEpisodeSlug() + "/note";
         String body = "{\"text\":\"a highlight\"}";
 
         // Anonymous write is refused: a cookie-less, non-bearer PUT fails CSRF (403) before it could reach
@@ -170,6 +192,32 @@ class PluginLoadingIntegrationTest {
                 .contains("\"id\":\"good\"");
         assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void aScopeThatNamesNothingIsNotAFreshPartition() {
+        // scopeId came straight off the request path into the doc store's primary key, so any string at all
+        // opened a partition: invisible to every admin surface, unbounded in number, and never corresponding
+        // to a feed, season or episode that exists.
+        Session podcaster = devLogin("podcaster");
+        for (String scope : new String[] {
+            "episode/no-such-episode",
+            "feed/no-such-feed",
+            "season/no-such-feed:3",
+            "episode/" + "x".repeat(300),
+        }) {
+            String path = "/api/plugins/good/data/" + scope + "/probe";
+            assertThat(rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class)
+                    .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+            assertThat(rest.getForEntity(path, String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        }
+
+        // The site scope is a singleton and always resolves, and a real episode still works.
+        assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(rest.exchange("/api/plugins/good/data/episode/" + realEpisodeSlug() + "/ok",
+                HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
     @Test

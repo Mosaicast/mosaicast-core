@@ -14,6 +14,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Security
 
+- **A plugin doc-store scope must now name something that exists (`0.5.15`, §7.6).** `scopeId` went straight
+  from the request path into the store's primary key, so any string at all opened a fresh partition —
+  invisible to every admin surface, unbounded in number, and corresponding to no feed, season or episode.
+  Addressing a scope is now at least a claim that it exists; anything else is a 404. Legitimate traffic is
+  unaffected, because a plugin UI is always mounted on a scope the host itself resolved.
+  - **This does not close the doc store's authorization gap, and the code now says so.** Access is decided per
+    *plugin*, never per *document*: any caller clearing the plugin's role floor can read, overwrite or delete
+    any key in any scope, including keys another user's session wrote. With no user-level scope in the
+    contract, the SDK tells plugin authors to model per-user data inside the key
+    (`mark:<userId>:cell`) — and the host has never checked that `userId` against the caller. Closing it needs
+    a partition the client cannot address, which is a plugin-contract change (§7.3 fixes the scope tuple at
+    site/feed/season/episode) and is tracked separately. The javadoc on `PluginDataController` and
+    `PluginAccessPolicy` previously implied a stronger guarantee than either delivers; it now states the
+    limit plainly.
+
 - **A feed URL can no longer point the server at its own network (`0.5.15`, §5.1).** `validateHttpUrl`
   checked the scheme prefix and nothing else, so `POST /api/admin/feeds/preview` fetched
   `http://169.254.169.254/latest/meta-data/`, `http://127.0.0.1:<port>/` or any RFC-1918 address and — because
