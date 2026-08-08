@@ -66,6 +66,11 @@ public class FeedService {
         // Disabled feeds are hidden from the public site (tabs/browse) — enabled gates public visibility, not
         // just polling. Their episodes are likewise excluded from the public episode reads.
         return feeds.findByEnabledTrue().stream()
+                // A feed with no slug has no address, so publishing it produces links to /feeds/null and a
+                // 404 behind each one. SlugBootstrap mints slugs before the port opens, so this should never
+                // fire — it is here because the shell's types declare `slug: string` and a null would make
+                // TypeScript's assurance false at runtime, which is the worst kind of wrong.
+                .filter(feed -> feed.getSlug() != null && !feed.getSlug().isBlank())
                 .map(feed -> PublicFeedView.of(feed, refs.countByFeedId(feed.getId())))
                 .sorted(java.util.Comparator.comparing(
                         PublicFeedView::title, String.CASE_INSENSITIVE_ORDER))
@@ -98,6 +103,22 @@ public class FeedService {
     @Transactional(readOnly = true)
     public UUID resolvePublicId(String slugOrId) {
         return resolvePublic(slugOrId).getId();
+    }
+
+    /**
+     * Resolves a public feed reference without throwing — the form a <em>filter</em> needs.
+     *
+     * <p>{@link #resolvePublicId} throws {@link NotFoundException}, which is right when the feed is the
+     * resource being addressed and wrong when it is one optional query parameter among several: an admin
+     * disabling a feed should not turn {@code /api/episodes} and {@code /api/tags} into 404s for everyone
+     * holding a filtered link.
+     */
+    @Transactional(readOnly = true)
+    public java.util.Optional<UUID> findPublicId(String slugOrId) {
+        return feeds.findBySlug(slugOrId)
+                .or(() -> asUuid(slugOrId).flatMap(feeds::findById))
+                .filter(Feed::isEnabled)
+                .map(Feed::getId);
     }
 
     private static java.util.Optional<UUID> asUuid(String value) {

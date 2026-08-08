@@ -560,4 +560,27 @@ class FeedPipelineIntegrationTest {
         feedService.setEnabled(id, true);
         assertThat(episodes.listSite(null, null, null, true, PageRequest.of(0, 20)).getTotalElements()).isEqualTo(2);
     }
+
+    @Test
+    void aFeedFilterThatResolvesToNothingNarrowsTheResultInsteadOfFailingTheRequest() {
+        // `feedId` on /api/episodes and /api/tags is an optional *filter*, not the resource being addressed.
+        // Routing it through resolvePublicId — which throws NotFoundException — made both endpoints 404 in
+        // their entirety the moment an admin disabled a feed somebody held a filtered link to, where they had
+        // returned an empty page. The shell then renders its load-error banner in place of the empty state,
+        // and any integration passing a feedId breaks outright.
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        assertThat(feedService.findPublicId(feed.slug())).contains(feed.id());
+
+        feedService.setEnabled(feed.id(), false);
+
+        // The filter now names nothing visible, and says so without throwing.
+        assertThat(feedService.findPublicId(feed.slug())).isEmpty();
+        assertThat(feedService.findPublicId("never-existed")).isEmpty();
+        assertThat(feedService.findPublicId(UUID.randomUUID().toString())).isEmpty();
+
+        // Addressing the feed itself is still a 404 — there the feed *is* the resource, and answering 200
+        // with an empty page would claim it exists.
+        assertThatThrownBy(() -> feedService.resolvePublicId(feed.slug()))
+                .isInstanceOf(NotFoundException.class);
+    }
 }

@@ -31,12 +31,14 @@ public class PluginDataService {
     private final PluginDataRepository repository;
     private final PluginSettingsService settings;
     private final ObjectMapper objectMapper;
+    private final ScopeIds scopeIds;
 
     public PluginDataService(PluginDataRepository repository, PluginSettingsService settings,
-                             ObjectMapper objectMapper) {
+                             ObjectMapper objectMapper, ScopeIds scopeIds) {
         this.repository = repository;
         this.settings = settings;
         this.objectMapper = objectMapper;
+        this.scopeIds = scopeIds;
     }
 
     /** Reads the raw JSON document at {@code (scope, key)}, or empty when absent. */
@@ -84,7 +86,7 @@ public class PluginDataService {
     @Transactional(readOnly = true)
     public List<DocEntry> query(String pluginId, Scope scope, String keyPrefix) {
         return repository
-                .findInScope(pluginId, scope.type().name().toLowerCase(), scope.id(), keyPrefix)
+                .findInScope(pluginId, scope.type().name().toLowerCase(), scopeIds.canonical(scope), keyPrefix)
                 .stream()
                 .map(d -> new DocEntry(d.getId().getKey(), d.getValue()))
                 .toList();
@@ -94,7 +96,7 @@ public class PluginDataService {
     @Transactional(readOnly = true)
     public Page<DocEntry> queryPage(String pluginId, Scope scope, String keyPrefix, Pageable pageable) {
         return repository
-                .pageInScope(pluginId, scope.type().name().toLowerCase(), scope.id(), keyPrefix, pageable)
+                .pageInScope(pluginId, scope.type().name().toLowerCase(), scopeIds.canonical(scope), keyPrefix, pageable)
                 .map(d -> new DocEntry(d.getId().getKey(), d.getValue()));
     }
 
@@ -121,7 +123,19 @@ public class PluginDataService {
         }
     }
 
-    private static PluginDataKey keyOf(String pluginId, Scope scope, String key) {
-        return new PluginDataKey(pluginId, scope.type().name().toLowerCase(), scope.id(), key);
+    /**
+     * Builds the primary key, canonicalising the scope id first.
+     *
+     * <p>Feed and episode scope ids became public slugs, and {@code FeedAccessImpl} resolves either form —
+     * so a plugin holding an old UUID still gets the right episode list and nothing looks broken, while this
+     * partitioned on the raw string and sent its reads to an empty partition and its writes to a second one.
+     * Silent, and indistinguishable from data loss.
+     *
+     * <p>{@link PluginScopeRepartition} moves the rows that already exist; this stops new ones diverging.
+     * Both are needed: the sweep cannot fix a document written after it ran, and canonicalising cannot
+     * relocate a document written before.
+     */
+    private PluginDataKey keyOf(String pluginId, Scope scope, String key) {
+        return new PluginDataKey(pluginId, scope.type().name().toLowerCase(), scopeIds.canonical(scope), key);
     }
 }
