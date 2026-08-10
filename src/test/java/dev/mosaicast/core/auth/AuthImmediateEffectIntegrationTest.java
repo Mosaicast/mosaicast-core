@@ -5,6 +5,7 @@ package dev.mosaicast.core.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.mosaicast.core.support.DevLogin;
 import dev.mosaicast.plugin.api.Role;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -84,10 +85,7 @@ class AuthImmediateEffectIntegrationTest {
 
     /** Logs in via the dev bypass and returns the session cookie to reuse. */
     private String devLogin(String role) {
-        ResponseEntity<String> response =
-                rest.postForEntity("/api/auth/dev-login?role=" + role, null, String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        return sessionCookie(response.getHeaders());
+        return DevLogin.login(rest, role).session();
     }
 
     private ResponseEntity<String> getAdminFeeds(String session) {

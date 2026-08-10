@@ -14,7 +14,6 @@ import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -119,22 +118,19 @@ public class SecurityConfig {
             HttpSecurity http, ObjectProvider<ClientRegistrationRepository> clientRegistrations)
             throws Exception {
 
-        boolean devProfile = environment.acceptsProfiles(Profiles.of("dev"));
-
         http
                 // SPA CSRF: token in a JS-readable XSRF-TOKEN cookie, echoed back as the X-XSRF-TOKEN
                 // header (Spring Security "Integrating with SPAs"). The CsrfCookieFilter forces the token
                 // to load per request so the cookie is always set.
-                .csrf(csrf -> {
-                    csrf.csrfTokenRepository(csrfTokenRepository())
-                            .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
-                            // Bearer-token automation carries no cookies, so CSRF does not apply.
-                            .ignoringRequestMatchers(PatAuthenticationFilter::hasBearer);
-                    // The dev-login bypass is exempt ONLY under the dev profile — where it exists.
-                    if (devProfile) {
-                        csrf.ignoringRequestMatchers("/api/auth/dev-login");
-                    }
-                })
+                // dev-login is NOT exempt, though it once was. It is a state-changing POST that mints a
+                // session, so without the token a cross-site page could silently drop a developer's browser
+                // into a Dev ADMIN session on their own machine — login CSRF, on the one instance where the
+                // console is wide open. The SPA sends the header on every unsafe method anyway, so the
+                // exemption bought nothing but the hole.
+                .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository())
+                        .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
+                        // Bearer-token automation carries no cookies, so CSRF does not apply.
+                        .ignoringRequestMatchers(PatAuthenticationFilter::hasBearer))
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 // Bearer auth (sets a bare principal), then the per-request user reload (fills the role and
                 // makes role changes / deletion take effect immediately), both before authorization.

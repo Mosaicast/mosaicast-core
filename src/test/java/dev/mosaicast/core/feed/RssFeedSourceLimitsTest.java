@@ -112,7 +112,7 @@ class RssFeedSourceLimitsTest {
     }
 
     private RssFeedSource permissiveSource() {
-        return new RssFeedSource(new OutboundTargetPolicy(true));
+        return new RssFeedSource(new OutboundTargetPolicy(true, true));
     }
 
     @Test
@@ -154,7 +154,7 @@ class RssFeedSourceLimitsTest {
         //
         // Modelled with a policy that accepts the first target and refuses the second, because the real shape
         // (public → private) cannot be built from a loopback fixture server.
-        OutboundTargetPolicy firstHopOnly = new OutboundTargetPolicy(true) {
+        OutboundTargetPolicy firstHopOnly = new OutboundTargetPolicy(true, true) {
             private int calls;
 
             @Override
@@ -176,7 +176,7 @@ class RssFeedSourceLimitsTest {
     void reportsARefusedUrlAsAFetchFailureRatherThanThrowingRuntime() {
         // FeedPipeline only catches FetchException. A stored feed whose host starts resolving somewhere
         // private should back off like any other failing feed, not escape to the scheduler's catch-all.
-        RssFeedSource strict = new RssFeedSource(new OutboundTargetPolicy(false));
+        RssFeedSource strict = new RssFeedSource(new OutboundTargetPolicy(false, false));
         assertThatThrownBy(() -> strict.fetch(SourceConfig.initial(base + "/small.xml")))
                 .isInstanceOf(FetchException.class)
                 .hasMessage(OutboundTargetPolicy.BLOCKED_MESSAGE);

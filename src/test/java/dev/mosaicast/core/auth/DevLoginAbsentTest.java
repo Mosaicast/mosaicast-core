@@ -23,8 +23,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * Security guard (dev-login conditions, §13.5): the dev-login bypass must be <strong>structurally absent
  * when the {@code dev} profile is not active</strong>. This test runs with the default profile, so the
- * bean is never registered. The request is sent with a valid CSRF token (outside the dev profile the path
- * is CSRF-protected, unlike in dev) so it reaches dispatch and proves the handler is missing → 404.
+ * bean is never registered. The request is sent with a valid CSRF token so it reaches dispatch and proves
+ * the handler is missing → 404, rather than being turned away at the front for the wrong reason.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate

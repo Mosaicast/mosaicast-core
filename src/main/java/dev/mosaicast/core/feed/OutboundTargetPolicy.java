@@ -38,6 +38,14 @@ import org.springframework.stereotype.Component;
  * self-hosted install legitimately may pull a feed from another host on its own LAN, and because the
  * integration tests serve fixtures from loopback. It defaults to {@code false} and should stay there on
  * anything reachable from a network you do not control.
+ *
+ * <p>Because it disables the whole control, it needs a <strong>second</strong> flag,
+ * {@code mosaicast.feed.allow-private-targets-confirmed}, and the app refuses to start without it. A single
+ * environment variable is too easy to set while chasing something else — copied from a colleague's compose
+ * file, left over from a debugging session — and the failure is silent: everything keeps working, and the
+ * only difference is that the SSRF filter is gone. A boot failure is loud, happens once, and cannot be
+ * mistaken for normal operation. There is deliberately no profile exemption: "it is fine in dev" is exactly
+ * the reasoning that ends with a dev instance on a network somebody can reach.
  */
 @Component
 public class OutboundTargetPolicy {
@@ -47,7 +55,18 @@ public class OutboundTargetPolicy {
     private final boolean allowPrivateTargets;
 
     public OutboundTargetPolicy(
-            @Value("${mosaicast.feed.allow-private-targets:false}") boolean allowPrivateTargets) {
+            @Value("${mosaicast.feed.allow-private-targets:false}") boolean allowPrivateTargets,
+            @Value("${mosaicast.feed.allow-private-targets-confirmed:false}") boolean confirmed) {
+        if (allowPrivateTargets && !confirmed) {
+            throw new IllegalStateException(
+                    "mosaicast.feed.allow-private-targets is ON, which disables the SSRF egress filter "
+                            + "entirely: any feed URL may then point at loopback, link-local (including the "
+                            + "cloud metadata service) or private addresses, and /api/admin/feeds/preview "
+                            + "reads the response back to the caller. If that is genuinely what this "
+                            + "install needs — a feed on its own LAN — also set "
+                            + "mosaicast.feed.allow-private-targets-confirmed=true. Refusing to start "
+                            + "rather than run unprotected on a switch somebody may have set by accident.");
+        }
         this.allowPrivateTargets = allowPrivateTargets;
         if (allowPrivateTargets) {
             log.warn("mosaicast.feed.allow-private-targets is ON — feed URLs may point at loopback, "

@@ -50,6 +50,10 @@ mosaicast:
     #
     # Turn it on only for a self-hosted install that genuinely pulls a feed from another host on its own LAN.
     allow-private-targets: ${MOSAICAST_FEED_ALLOW_PRIVATE_TARGETS:false}
+    # The second key for the same lock: with allow-private-targets on and this off, the app refuses to
+    # start. One variable is too easy to set while chasing something else and leave behind, and the failure
+    # mode is silent — everything keeps working, only the SSRF filter is gone. Two say you meant it.
+    allow-private-targets-confirmed: ${MOSAICAST_FEED_ALLOW_PRIVATE_TARGETS_CONFIRMED:false}
 
 management:
   endpoints:

@@ -5,6 +5,7 @@ package dev.mosaicast.core.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import dev.mosaicast.core.support.DevLogin;
 import dev.mosaicast.plugin.api.Role;
 import java.util.List;
 import java.util.UUID;
@@ -91,19 +92,8 @@ class UserAdminIntegrationTest {
     }
 
     private Session devLogin(String role) {
-        ResponseEntity<String> response = rest.postForEntity("/api/auth/dev-login?role=" + role, null, String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        List<String> setCookies = response.getHeaders().get(HttpHeaders.SET_COOKIE);
-        assertThat(setCookies).isNotNull();
-        return new Session(cookieValue(setCookies, "MOSAICAST_SESSION"), cookieValue(setCookies, "XSRF-TOKEN"));
-    }
-
-    private static String cookieValue(List<String> setCookies, String name) {
-        return setCookies.stream()
-                .filter(c -> c.startsWith(name + "="))
-                .map(c -> c.substring(0, c.indexOf(';')))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No " + name + " cookie set"));
+        DevLogin.Cookies cookies = DevLogin.login(rest, role);
+        return new Session(cookies.session(), cookies.xsrf());
     }
 
     private record Session(String sessionCookie, String xsrfCookie) {

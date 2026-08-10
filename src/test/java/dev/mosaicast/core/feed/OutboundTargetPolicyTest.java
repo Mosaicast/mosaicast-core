@@ -23,7 +23,7 @@ import org.junit.jupiter.params.provider.ValueSource;
  */
 class OutboundTargetPolicyTest {
 
-    private final OutboundTargetPolicy policy = new OutboundTargetPolicy(false);
+    private final OutboundTargetPolicy policy = new OutboundTargetPolicy(false, false);
 
     @ParameterizedTest
     @ValueSource(strings = {
@@ -99,9 +99,24 @@ class OutboundTargetPolicyTest {
     }
 
     @Test
+    void theEscapeHatchNeedsBothKeys() {
+        // One environment variable is too easy to set while chasing something else and leave behind, and the
+        // failure is silent: everything keeps working, only the SSRF filter is gone. Refusing to start is
+        // loud, happens once, and cannot be mistaken for normal operation.
+        assertThatThrownBy(() -> new OutboundTargetPolicy(true, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("allow-private-targets-confirmed");
+
+        // The confirmation on its own is inert — it confirms a switch, it does not flip one.
+        assertThatCode(() -> new OutboundTargetPolicy(false, true)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> new OutboundTargetPolicy(false, true).validate("http://127.0.0.1/f.xml"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void theEscapeHatchReallyOpensIt() {
         // A self-hosted install may legitimately pull a feed from another host on its own LAN.
-        OutboundTargetPolicy permissive = new OutboundTargetPolicy(true);
+        OutboundTargetPolicy permissive = new OutboundTargetPolicy(true, true);
         assertThatCode(() -> permissive.validate("http://127.0.0.1:8077/feed.xml")).doesNotThrowAnyException();
         // The scheme check is not part of the hatch.
         assertThatThrownBy(() -> permissive.validate("file:///etc/passwd"))
