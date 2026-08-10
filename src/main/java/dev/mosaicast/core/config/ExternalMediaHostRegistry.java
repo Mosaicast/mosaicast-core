@@ -33,10 +33,13 @@ import org.springframework.transaction.annotation.Transactional;
  * policy allows. That is the only version an operator will leave switched on, because a hand-written
  * allow-list goes stale the first time a podcaster changes CDN and the failure is a blank page.
  *
- * <p><strong>Still opt-in</strong> ({@code mosaicast.security.strict-media-sources}). A derivation cannot
- * see a host nothing references yet — an image URL inside show-note HTML, a feed added seconds ago — so
- * turning it on by default would break pages nobody could have predicted. Operators who want it get
- * {@code mosaicast.security.extra-media-sources} for the remainder.
+ * <p><strong>Still opt-in</strong> ({@code mosaicast.security.strict-media-sources}), and the reason is worth
+ * stating precisely: this sees the URL a feed <em>publishes</em>, while the browser enforces against the URL
+ * the request <em>ends at</em>. Most media CDNs redirect, so the redirect target is a host this cannot know.
+ * Nor can it see an image inside show-note HTML, or a feed added a minute ago. Following redirects to find
+ * out would mean the host fetching every artwork URL on a schedule, which is a worse trade than a setting.
+ * {@code mosaicast.security.extra-media-sources} covers the remainder, and an operator switching this on
+ * should expect to use it.
  *
  * <p>Refreshed on startup and every fifteen minutes. Deliberately not on every feed poll: the CSP is written
  * per request, so this must be a set read and never a query, and a snapshot that lags a new feed by a few

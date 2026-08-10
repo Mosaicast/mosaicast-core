@@ -31,6 +31,12 @@ references, plus the plugin hosts the visitor consented to, with
 `mosaicast.security.extra-media-sources` for anything the derivation cannot see. Recommended for any install
 whose feed set is stable.
 
+**Expect to need `extra-media-sources`, and check the console after enabling it.** The derivation sees the
+URL a feed publishes; the browser enforces against the URL it ends up at. A CDN that redirects
+(`picsum.photos` → `fastly.picsum.photos`, and most podcast media hosts do something similar) needs the
+redirect target listed too. Images inside show-note HTML are not derived either. The failure is a blank
+artwork tile with a CSP violation in the console — visible, but only if you look.
+
 ### DNS rebinding against outbound feed fetches (TOCTOU)
 
 `OutboundTargetPolicy` resolves a feed's host and requires every returned address to be publicly routable,

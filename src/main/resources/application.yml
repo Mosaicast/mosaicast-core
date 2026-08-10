@@ -65,6 +65,10 @@ mosaicast:
     strict-media-sources: ${MOSAICAST_STRICT_MEDIA_SOURCES:false}
     # Origins to allow on top of the derived set, comma-separated (e.g. https://cdn.example.com). Only
     # consulted in strict mode; this is where a host the derivation cannot see goes.
+    #
+    # Expect to need it. The derivation sees the URL a feed publishes, the browser enforces against the URL
+    # it ends up at, and most media CDNs redirect — so the redirect target belongs here too. Check the
+    # browser console after switching strict mode on: a missing origin is a blank artwork tile.
     extra-media-sources: ${MOSAICAST_EXTRA_MEDIA_SOURCES:}
 
 management:
