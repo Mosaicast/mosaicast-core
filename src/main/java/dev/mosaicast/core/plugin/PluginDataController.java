@@ -5,6 +5,7 @@ package dev.mosaicast.core.plugin;
 
 import tools.jackson.databind.JsonNode;
 import dev.mosaicast.core.auth.CurrentUser;
+import dev.mosaicast.core.web.BackendOwnedKeyException;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.web.PagedResponse;
 import dev.mosaicast.plugin.api.DocEntry;
@@ -28,23 +29,23 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * The generic, per-plugin doc-store HTTP surface the frontend {@code ctx.api} targets (ARCHITECTURE §7.6).
  * Mirrors {@link dev.mosaicast.plugin.api.DocStore} one-to-one — get one, list, put, delete — over the
- * plugin's own hard-scoped {@code plugin_data}. Reads are gated by the plugin's {@code visibleTo} floor and
- * writes by the mapped role ({@link PluginAccessPolicy}); an unknown/rejected plugin, an unknown scope type
- * or a scope naming something that does not exist is a 404. There are no plugin-authored routes — this is the
- * whole surface.
+ * plugin's own hard-scoped {@code plugin_data}. Access is what the manifest's {@code data} block
+ * <strong>declares</strong> ({@link PluginAccessPolicy}) — slot {@code visibleTo} governs rendering only; an
+ * unknown/rejected plugin, an unknown scope type or a scope naming something that does not exist is a 404.
+ * There are no plugin-authored routes — this is the whole surface.
  *
- * <p><strong>What this does not protect, stated so nobody reads the paragraph above as more than it is.</strong>
- * Authorization here is per <em>plugin</em>, not per <em>document</em>. Nothing binds a document to the user
- * who wrote it, so any caller who clears the plugin's role floor can read, overwrite or delete any key in any
- * scope — including keys another user's session created. The SDK's own guidance makes that concrete: with no
- * user-level scope available, {@code DocStore}'s javadoc tells plugin authors to model per-user data inside
- * the key (<code>mark:&lt;userId&gt;:cell</code>), and the host has never checked that {@code userId} against
- * the caller. Scope ids are public slugs, and listing takes a prefix, so nothing has to be guessed either.
+ * <p><strong>Authorization here is per plugin, not per document</strong>, and two rules narrow what that
+ * would otherwise mean. Per-user data lives in the {@code USER} scope, addressed as {@code user/me} and
+ * resolved server-side, so another person's partition is not forbidden but <em>unnameable</em> (§7.6). And a
+ * manifest may reserve the keys its backend authors ({@code data.backendOwned}), so a computed value is still
+ * that value when a visitor reads it — before that, a caller above the write floor could forge a plugin's
+ * site-wide aggregate and have it served to everyone.
  *
- * <p>Closing it properly needs a partition the client cannot address — a host-owned user scope, which is a
- * plugin-contract change rather than something this controller can do alone (§7.3 fixes the scope tuple at
- * site/feed/season/episode). Until then: a plugin storing anything one user should not be able to reach for
- * another is relying on a guarantee the host does not make.
+ * <p><strong>What is still not protected.</strong> Everything else in a shared scope has no owner: any caller
+ * above the write floor can overwrite or delete any unreserved key there, including one another session
+ * wrote. On a multi-podcaster install that is one tenant able to tamper with the others' plugin data. Binding
+ * a shared document to its author needs an ownership concept the domain model does not have yet; until then a
+ * plugin that needs it should reserve the key or keep the data in {@code USER} scope.
  */
 @RestController
 public class PluginDataController {
@@ -101,6 +102,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireWritable(manifest, scope, authentication);
+        requireNotBackendOwned(manifest, scope, key);
         data.putRaw(id, scope, key, body);
         return ResponseEntity.noContent().build();
     }
@@ -115,6 +117,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireWritable(manifest, scope, authentication);
+        requireNotBackendOwned(manifest, scope, key);
         data.delete(id, scope, key);
         return ResponseEntity.noContent().build();
     }
@@ -152,6 +155,31 @@ public class PluginDataController {
         if (!PluginAccessPolicy.canWrite(manifest, CurrentUser.role(authentication))) {
             throw new AccessDeniedException("Not allowed to write plugin data: " + manifest.id());
         }
+    }
+
+    /**
+     * Refuses a client write to a key the manifest reserves for the plugin's own backend (§7.2/§7.6).
+     *
+     * <p>This is the one <em>per-key</em> rule on this surface. The floors above say who may write; without
+     * this, everyone they admit could overwrite or delete a value the plugin computed, because the host
+     * cannot tell a scheduled write from a {@code curl} — which is how a podcaster came to forge a
+     * site-wide aggregate that was then served to every visitor. Only writes: a reserved key is still read
+     * under {@code readableBy}, since the point is to publish a value, not to hide it.
+     *
+     * <p><strong>After the role floor, deliberately.</strong> The {@code data} block is not part of the
+     * public manifest, and telling a caller who is below the floor that {@code agg:*} is reserved would hand
+     * the declaration to somebody with no business in this plugin's data at all. A plugin author debugging
+     * their own write is above the floor by definition, so they still get the specific answer — which is who
+     * the distinct 403 exists for.
+     *
+     * <p>The store itself is untouched: {@code DocStoreImpl} holds no manifest and cannot reach this, so a
+     * backend keeps writing its own keys, which is the whole point of the declaration.
+     */
+    private void requireNotBackendOwned(PluginManifest manifest, DataScope scope, String key) {
+        PluginAccessPolicy.backendOwnedBy(manifest, scope.type(), key)
+                .ifPresent(pattern -> {
+                    throw new BackendOwnedKeyException(manifest.id(), key, pattern);
+                });
     }
 
     /**

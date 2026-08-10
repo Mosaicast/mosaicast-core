@@ -42,7 +42,8 @@
   "storage": "doc",
   "data": {
     "readableBy": "anonymous",
-    "writableBy": "podcaster"
+    "writableBy": "podcaster",
+    "backendOwned": ["episode-count", "agg:*"]
   },
   "config": {
     "refreshIntervalMinutes": {

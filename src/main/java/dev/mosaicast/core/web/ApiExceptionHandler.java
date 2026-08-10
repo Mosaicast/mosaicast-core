@@ -52,6 +52,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * The doc-store refusal that is <em>not</em> about the caller's role — a key the plugin's manifest
+     * reserves for its own backend. Its own {@code type} so a plugin author (and their tests) can tell the
+     * two 403s apart without matching on English; see {@link BackendOwnedKeyException}.
+     */
+    @ExceptionHandler(BackendOwnedKeyException.class)
+    public ProblemDetail handleBackendOwnedKey(BackendOwnedKeyException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problem.setTitle("Forbidden");
+        problem.setType(URI.create("https://mosaicast.dev/problems/backend-owned-key"));
+        return problem;
+    }
+
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(
             org.springframework.security.access.AccessDeniedException ex, WebRequest request) {

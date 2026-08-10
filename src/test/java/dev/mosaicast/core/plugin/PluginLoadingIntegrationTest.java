@@ -57,6 +57,10 @@ class PluginLoadingIntegrationTest {
     @Autowired
     private dev.mosaicast.core.episode.EpisodeRefRepository refs;
 
+    /** The plugin's own store, for restoring what {@code register(ctx)} seeded — see the purge test. */
+    @Autowired
+    private PluginDataService pluginData;
+
     /**
      * A real episode to scope doc-store calls against.
      *
@@ -78,7 +82,8 @@ class PluginLoadingIntegrationTest {
         ResponseEntity<String> manifest = rest.getForEntity("/api/plugins/manifest", String.class);
         assertThat(manifest.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(manifest.getBody()).contains("\"id\":\"good\"");
-        assertThat(manifest.getBody()).doesNotContain("\"broken\"").doesNotContain("\"schema\"");
+        assertThat(manifest.getBody()).doesNotContain("\"broken\"").doesNotContain("\"schema\"")
+                .doesNotContain("\"ownedbad\"");
     }
 
     @Test
@@ -90,14 +95,29 @@ class PluginLoadingIntegrationTest {
         String body = response.getBody();
         assertThat(body).contains("\"id\":\"good\"").contains("LOADED");
         assertThat(body).contains("REJECTED");
-        // The two rejections carry a reason each (platformApi mismatch / schema storage).
+        // Each rejection carries a reason (platformApi mismatch / schema storage / malformed backendOwned).
         assertThat(body).containsIgnoringCase("platformApi");
         assertThat(body).containsIgnoringCase("schema");
+        assertThat(body).containsIgnoringCase("backendOwned");
+    }
+
+    @Test
+    void aMalformedBackendOwnedDeclarationRejectsThePluginWithAReason() {
+        // `backendOwned: ["a*b"]` — a star in the middle, which the grammar does not admit. Dropping the
+        // entry would be worse than any of the alternatives: the plugin would load, its manifest would say a
+        // key belongs to its backend, and the host would enforce nothing. So the whole plugin is refused,
+        // like any other bad manifest, and the reason names the field so the author can find it.
+        Session admin = devLogin("admin");
+        assertThat(adminPlugins(admin)).contains("\"id\":\"ownedbad\"").containsIgnoringCase("backendOwned");
+        assertThat(rest.getForEntity("/api/plugins/ownedbad/data/site/main/x", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test
     void registerRanAndSeededDocStore() {
         // FixturePlugin.register put a site-scoped greeting + episode-count; both read back publicly.
+        // `episode-count` is also declared `backendOwned`, so this doubles as the evidence that a
+        // declaration leaves the backend's own writes and every client read exactly as they were.
         ResponseEntity<String> greeting =
                 rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class);
         assertThat(greeting.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -251,6 +271,87 @@ class PluginLoadingIntegrationTest {
                 .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
     }
 
+    // --- data.backendOwned: the keys a plugin's backend authors (§7.2/§7.6) ---
+
+    @Test
+    void aBackendOwnedKeyIsReadableByAClientButWritableOnlyByTheBackend() {
+        // The audit's demonstration, in the host's own test: a podcaster PUT a forged site-wide aggregate
+        // over the value the plugin had computed, it was served to every visitor, and then they deleted it.
+        // The floors were not misconfigured — there was simply no way to say "this key is the backend's".
+        Session podcaster = devLogin("podcaster");
+        String path = "/api/plugins/good/data/site/main/episode-count";
+
+        assertThat(rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"forged\":9999}", true),
+                String.class).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(rest.exchange(path, HttpMethod.DELETE, podcaster.delete(true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        // Both refusals changed nothing: the backend's value is still there and still world-readable.
+        ResponseEntity<String> read = rest.getForEntity(path, String.class);
+        assertThat(read.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(read.getBody().trim()).isEqualTo("0");
+    }
+
+    @Test
+    void theTwoWriteRefusalsSayWhichRuleRefused() {
+        // The plugin contract promises these are distinguishable: the fixes are opposite (raise the floor,
+        // or stop writing the key from the client), so an author who cannot tell them apart is stuck.
+        Session fan = devLogin("fan");
+        Session podcaster = devLogin("podcaster");
+
+        ResponseEntity<String> belowFloor = rest.exchange("/api/plugins/good/data/site/main/shared",
+                HttpMethod.PUT, fan.write("{\"x\":1}", true), String.class);
+        ResponseEntity<String> reserved = rest.exchange("/api/plugins/good/data/site/main/episode-count",
+                HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class);
+
+        assertThat(belowFloor.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(reserved.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        // The stable machine-readable half — what a plugin's test should key on.
+        assertThat(belowFloor.getBody()).contains("problems/forbidden");
+        assertThat(reserved.getBody()).contains("problems/backend-owned-key");
+        // And the English half, which names the manifest field that refused.
+        assertThat(reserved.getBody()).contains("backendOwned").contains("episode-count");
+    }
+
+    @Test
+    void aBackendOwnedPrefixCoversTheKeysUnderItAndNoOthers() {
+        Session podcaster = devLogin("podcaster");
+        String prefix = "/api/plugins/good/data/site/main/agg:total";
+        String neighbour = "/api/plugins/good/data/site/main/aggregate";
+
+        assertThat(rest.exchange(prefix, HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        // `agg:*` reserves the keys under `agg:`, not every key that happens to start with those letters.
+        assertThat(rest.exchange(neighbour, HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+    }
+
+    @Test
+    void aBackendOwnedKeyIsStillTheOwnersInTheirOwnPartition() {
+        // Same key name, reserved at shared scope, exempt in a USER partition — a backend cannot write one
+        // at all, so reserving it would reserve it for nobody and lock its owner out of their own data.
+        Session fan = devLogin("fan");
+        String path = "/api/plugins/good/data/user/me/episode-count";
+
+        assertThat(rest.exchange(path, HttpMethod.PUT, fan.write("{\"mine\":true}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(rest.exchange(path, HttpMethod.GET, fan.get(), String.class).getBody())
+                .contains("mine");
+    }
+
+    @Test
+    void aRolefloorRefusalStillWinsOverABackendOwnedOne() {
+        // Ordering, and it is a disclosure decision rather than a stylistic one: `data.backendOwned` is not
+        // in the public manifest, so a caller below the floor has no business learning which keys it names.
+        Session fan = devLogin("fan");
+        ResponseEntity<String> response = rest.exchange("/api/plugins/good/data/site/main/episode-count",
+                HttpMethod.PUT, fan.write("{\"x\":1}", true), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(response.getBody()).contains("problems/forbidden")
+                .doesNotContain("backend-owned-key").doesNotContain("backendOwned");
+    }
+
     @Test
     void aScopeThatNamesNothingIsNotAFreshPartition() {
         // scopeId came straight off the request path into the doc store's primary key, so any string at all
@@ -399,11 +500,13 @@ class PluginLoadingIntegrationTest {
         rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
                 admin.write("{\"refreshIntervalMinutes\":null}", true), String.class);
         // Restore what register(ctx) seeded at boot: this context is shared with the other tests, and only a
-        // restart would re-run register().
-        rest.exchange("/api/plugins/good/data/site/main/greeting", HttpMethod.PUT,
-                podcaster.write("\"hello from fixture\"", true), String.class);
-        rest.exchange("/api/plugins/good/data/site/main/episode-count", HttpMethod.PUT,
-                podcaster.write("0", true), String.class);
+        // restart would re-run register(). Through the plugin's own store, not over HTTP — `episode-count`
+        // is declared backendOwned, so a client PUT of it is now a 403 (which is the point, and is asserted
+        // in aBackendOwnedKeyIsReadableByAClientButWritableOnlyByTheBackend). This is what the SDK means when
+        // it says to write your computed keys in register() as well as on a schedule.
+        dev.mosaicast.plugin.api.DocStore store = new DocStoreImpl("good", pluginData);
+        store.put(dev.mosaicast.plugin.api.Scope.site(), "greeting", "hello from fixture");
+        store.put(dev.mosaicast.plugin.api.Scope.site(), "episode-count", 0);
     }
 
     @Test

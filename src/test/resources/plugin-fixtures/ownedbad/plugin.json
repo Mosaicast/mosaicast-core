@@ -1,0 +1,34 @@
+{
+  "id": "ownedbad",
+  "version": "1.0.0",
+  "platformApi": "0.6.0",
+  "name": "Malformed Backend-Owned Fixture",
+  "backend": {
+    "basePath": "/api/plugins/ownedbad",
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin"
+    ]
+  },
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "fixture-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "episode",
+      "element": "fixture-card",
+      "placement": "main",
+      "visibleTo": "anonymous",
+      "order": 100
+    }
+  ],
+  "storage": "doc",
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster",
+    "backendOwned": ["a*b"]
+  },
+  "config": {}
+}

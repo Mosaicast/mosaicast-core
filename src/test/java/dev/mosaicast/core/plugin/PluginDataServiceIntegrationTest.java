@@ -131,4 +131,20 @@ class PluginDataServiceIntegrationTest {
         assertThat(marks).extracting(DocEntry::key).containsExactlyInAnyOrder("mark:a", "mark:b");
         assertThat(data.query("p4", Scope.site(), "")).hasSize(3);
     }
+
+    @Test
+    void theBackendStoreIsUnaffectedByABackendOwnedDeclaration() {
+        // `good` declares `episode-count` and `agg:*` backendOwned, and its backend writes both. Enforcement
+        // is HTTP-side by construction — this store holds no manifest and cannot reach the check — but that
+        // is exactly the kind of invariant someone later "helpfully" moves into the service, at which point
+        // the declaration would refuse the writes it exists to protect. This fails loudly if that happens.
+        DocStore store = new DocStoreImpl("good", data);
+
+        store.put(Scope.site(), "episode-count", 7);
+        store.put(Scope.feed("f1"), "agg:total", 42);
+
+        assertThat(store.get(Scope.site(), "episode-count", Integer.class)).contains(7);
+        assertThat(store.delete(Scope.site(), "episode-count")).isTrue();
+        assertThat(store.delete(Scope.feed("f1"), "agg:total")).isTrue();
+    }
 }
