@@ -54,6 +54,18 @@ mosaicast:
     # start. One variable is too easy to set while chasing something else and leave behind, and the failure
     # mode is silent — everything keeps working, only the SSRF filter is gone. Two say you meant it.
     allow-private-targets-confirmed: ${MOSAICAST_FEED_ALLOW_PRIVATE_TARGETS_CONFIRMED:false}
+  security:
+    # Narrow CSP img-src/media-src from the blanket `https:` to the origins this site's content actually
+    # uses (derived from feed and episode artwork/audio) plus the plugin hosts the visitor consented to.
+    #
+    # OFF by default. The blanket exists because artwork comes from whatever host a feed points at, and the
+    # derivation cannot see a host nothing references yet — an image inside show-note HTML, a feed added a
+    # minute ago. Turning it on closes a real gap (any https image is otherwise a working one-way beacon
+    # that side-steps connect-src and consent) at the cost of a blank artwork tile when it guesses short.
+    strict-media-sources: ${MOSAICAST_STRICT_MEDIA_SOURCES:false}
+    # Origins to allow on top of the derived set, comma-separated (e.g. https://cdn.example.com). Only
+    # consulted in strict mode; this is where a host the derivation cannot see goes.
+    extra-media-sources: ${MOSAICAST_EXTRA_MEDIA_SOURCES:}
 
 management:
   endpoints:
