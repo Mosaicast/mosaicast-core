@@ -22,7 +22,7 @@ class PluginManifestValidationTest {
     @Test
     void compatibleManifestValidates() throws Exception {
         PluginManifest manifest = parse("""
-                {"id":"sample","version":"1.0.0","platformApi":"0.5.0","name":"Sample",
+                {"id":"sample","version":"1.0.0","platformApi":"0.6.0","name":"Sample",
                  "backend":{"basePath":"/api/plugins/sample","extensions":["X"]},
                  "frontend":{"entry":"s.js","elements":["s-card"]},
                  "slots":[{"scope":"site","element":"s-card","placement":"sidebar","visibleTo":"anonymous"}],
@@ -34,8 +34,8 @@ class PluginManifestValidationTest {
 
     @Test
     void patchDifferenceIsCompatible() throws Exception {
-        // Same major.minor as the host (0.5.x), different patch — accepted.
-        assertThatCode(parse(base("0.5.7", "doc", "sidebar"))::validate).doesNotThrowAnyException();
+        // Same major.minor as the host (0.6.x), different patch — accepted.
+        assertThatCode(parse(base("0.6.7", "doc", "sidebar"))::validate).doesNotThrowAnyException();
     }
 
     @Test
@@ -47,14 +47,14 @@ class PluginManifestValidationTest {
 
     @Test
     void declaredSchemaStorageIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.5.0", "schema", "sidebar"))::validate)
+        assertThatThrownBy(parse(base("0.6.0", "schema", "sidebar"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("schema");
     }
 
     @Test
     void unknownSlotPlacementIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.5.0", "doc", "nowhere"))::validate)
+        assertThatThrownBy(parse(base("0.6.0", "doc", "nowhere"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("placement");
     }
@@ -162,7 +162,7 @@ class PluginManifestValidationTest {
     void declaringNoConsentAtAllIsFine() throws Exception {
         // The banner-free default: a plugin that contacts no third party says nothing.
         assertThatCode(parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.5.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.6.0","name":"P",
                  "slots":[],"storage":"doc","config":{}}
                 """)::validate).doesNotThrowAnyException();
     }
@@ -182,7 +182,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code config} block, to isolate config validation. */
     private static String withConfig(String config) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.5.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.6.0","name":"P",
                  "slots":[{"scope":"site","element":"e","placement":"sidebar","visibleTo":"anonymous"}],
                  "storage":"doc","config":%s,"consent":{"services":[]}}
                 """.formatted(config);
@@ -191,7 +191,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code consent} block, to isolate consent validation. */
     private static String withConsent(String consent) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.5.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.6.0","name":"P",
                  "slots":[],"storage":"doc","config":{},"consent":%s}
                 """.formatted(consent);
     }

@@ -245,7 +245,7 @@ class ConsentServiceTest {
     }
 
     private static PluginRegistration plugin(String id, PluginManifest.Service... services) {
-        PluginManifest manifest = new PluginManifest(id, "1.0.0", "0.5.0", id, null, null, List.of(),
+        PluginManifest manifest = new PluginManifest(id, "1.0.0", "0.6.0", id, null, null, List.of(),
                 PluginManifest.STORAGE_DOC, null, null, new PluginManifest.Consent(List.of(services)));
         return PluginRegistration.loaded(manifest, Path.of("/tmp/" + id));
     }
