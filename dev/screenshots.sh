@@ -37,9 +37,16 @@ up() {
   echo $! > "$RUN_DIR/feed.pid"
 
   echo "▶ booting the app (dev profile) against the fleeting DB"
+  # The sample feed is served from loopback, which the outbound filter refuses by default — and it takes
+  # both keys, so that the switch cannot be left on by accident anywhere it matters. This stack is
+  # disposable, offline and bound to localhost, which is the case the escape hatch exists for.
+  # As --args, not as environment: bootRun's JVM inherits the long-lived Gradle daemon's environment, not
+  # this shell's, so an env var set here reaches the app only if the daemon happened to start with it.
   MOSAICAST_DB_URL="jdbc:postgresql://localhost:$PG_PORT/mosaicast" \
   MOSAICAST_DB_USER=mosaicast MOSAICAST_DB_PASSWORD=mosaicast \
-    ./gradlew bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT" \
+    ./gradlew bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT \
+      --mosaicast.feed.allow-private-targets=true \
+      --mosaicast.feed.allow-private-targets-confirmed=true" \
       > "$RUN_DIR/app.log" 2>&1 &
   echo $! > "$RUN_DIR/app.pid"
   echo "  waiting for health…"
@@ -47,7 +54,12 @@ up() {
 
   echo "▶ seeding the sample feed"
   local jar="$RUN_DIR/cookies.txt" xsrf
-  curl -s -c "$jar" -X POST "$APP_URL/api/auth/dev-login?role=podcaster" >/dev/null
+  # dev-login is CSRF-protected like every other mutation, so prime a token first and echo it back — the
+  # same two steps the SPA takes. Re-read the token afterwards: the login response may re-set the cookie.
+  curl -s -c "$jar" "$APP_URL/api/meta" >/dev/null
+  xsrf=$(awk '/XSRF-TOKEN/{print $7}' "$jar")
+  curl -s -b "$jar" -c "$jar" -H "X-XSRF-TOKEN: $xsrf" \
+    -X POST "$APP_URL/api/auth/dev-login?role=podcaster" >/dev/null
   xsrf=$(awk '/XSRF-TOKEN/{print $7}' "$jar")
   curl -s -o /dev/null -w '  add feed: %{http_code}\n' -b "$jar" -H "X-XSRF-TOKEN: $xsrf" \
     -H 'Content-Type: application/json' \

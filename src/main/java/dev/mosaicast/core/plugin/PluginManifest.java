@@ -6,6 +6,7 @@ package dev.mosaicast.core.plugin;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
+import dev.mosaicast.plugin.api.DocStore;
 import dev.mosaicast.plugin.api.PlatformApi;
 import java.net.URI;
 import java.util.List;
@@ -30,7 +31,8 @@ import java.util.Set;
  * @param slots       where the plugin mounts its elements in the shell
  * @param storage     {@code "doc"} (generic doc store, the v1 default) or {@code "schema"} (deferred)
  * @param config      declared config fields, keyed by field name
- * @param data        the doc-store access floors (§7.2); absent means the closed default
+ * @param data        the doc-store access floors and backend-owned keys (§7.2); absent means the closed
+ *                    default and nothing reserved
  * @param consent     declared consent categories / external sources
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -83,12 +85,22 @@ public record PluginManifest(
      * to a data surface has nothing to do with which UI regions a plugin happens to mount into, and inferring
      * one from the other coupled two unrelated decisions.
      *
-     * @param readableBy who may read; absent means the write floor, not anonymous — a plugin that says
-     *                   nothing gets the closed answer rather than the open one
-     * @param writableBy who may write; absent means {@code podcaster}, and {@code anonymous} is not allowed
+     * <p><strong>A floor says who, not which key.</strong> Authorization on the data surface is per plugin,
+     * not per document, so every caller above {@code writableBy} may overwrite or delete <em>any</em>
+     * shared-scope key — including one the plugin's own backend computed, because the host cannot tell a
+     * scheduled write from a {@code curl}. {@code backendOwned} is the exception a plugin can declare, and
+     * the only per-key rule on this surface.
+     *
+     * @param readableBy   who may read; absent means the write floor, not anonymous — a plugin that says
+     *                     nothing gets the closed answer rather than the open one
+     * @param writableBy   who may write; absent means {@code podcaster}, and {@code anonymous} is not allowed
+     * @param backendOwned keys only the plugin's backend may write: an exact key, a {@code *}-terminated
+     *                     prefix, or the bare {@code *} ({@link DocStore#BACKEND_OWNED_PATTERN}). Clients may
+     *                     still read them; a client {@code PUT}/{@code DELETE} is a 403. Absent means nothing
+     *                     is reserved.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record DataAccess(String readableBy, String writableBy) {
+    public record DataAccess(String readableBy, String writableBy, List<String> backendOwned) {
 
         /** The declared write floor, or the conservative default. */
         public String writableByOrDefault() {
@@ -101,6 +113,11 @@ public record PluginManifest(
             return readableBy == null || readableBy.isBlank()
                     ? writableByOrDefault() : readableBy.trim().toLowerCase();
         }
+
+        /** The declared backend-owned key patterns; empty when the manifest reserves nothing. */
+        public List<String> backendOwnedOrEmpty() {
+            return backendOwned == null ? List.of() : backendOwned;
+        }
     }
 
     /** Roles the data floors accept. Unlike {@code editableBy}, a read floor may be anonymous. */
@@ -110,7 +127,7 @@ public record PluginManifest(
             Set.of(ACCESS_ANONYMOUS, ACCESS_FAN, EDITABLE_BY_PODCASTER, EDITABLE_BY_ADMIN);
 
     /** The floors applied when a manifest declares no {@code data} block: closed, and never anonymous. */
-    public static final DataAccess DEFAULT_DATA_ACCESS = new DataAccess(null, null);
+    public static final DataAccess DEFAULT_DATA_ACCESS = new DataAccess(null, null, null);
 
     /** The effective floors, whether or not the manifest declared them. */
     public DataAccess dataOrDefault() {
@@ -278,11 +295,22 @@ public record PluginManifest(
             java.util.regex.Pattern.compile("[a-z0-9_-]{1,40}", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     /**
-     * Validates the declared data floors.
+     * The grammar of one {@code data.backendOwned} entry, taken from the SDK so the two cannot drift: an
+     * exact key, a key-legal prefix with a single trailing {@code *}, or the bare {@code *}.
+     */
+    private static final java.util.regex.Pattern BACKEND_OWNED =
+            java.util.regex.Pattern.compile(DocStore.BACKEND_OWNED_PATTERN);
+
+    /**
+     * Validates the declared data floors and the backend-owned key patterns.
      *
      * <p>{@code writableBy: "anonymous"} is refused outright: an unauthenticated write has no owner, nothing
      * to rate-limit against and nobody to hold responsible, and a plugin that wants public participation
      * wants {@code fan} plus a login.
+     *
+     * <p>A malformed {@code backendOwned} entry is refused rather than dropped, because dropping it is the
+     * worst outcome available: the plugin would load, the manifest would claim a key is the backend's, and
+     * the host would enforce nothing. A security declaration that fails has to fail loudly.
      */
     private void validateData() {
         if (data == null) {
@@ -298,6 +326,16 @@ public record PluginManifest(
         if (ACCESS_ANONYMOUS.equals(data.writableByOrDefault())) {
             throw new PluginValidationException(
                     "data.writableBy may not be 'anonymous' — a write needs a signed-in user to belong to");
+        }
+        for (String pattern : data.backendOwnedOrEmpty()) {
+            // Not trimmed before matching, deliberately: the floors are a closed vocabulary of role names,
+            // but this is a key pattern, and a key may not contain whitespace either. Accepting " stats"
+            // would accept a manifest that does not say what it means.
+            if (pattern == null || !BACKEND_OWNED.matcher(pattern).matches()) {
+                throw new PluginValidationException(
+                        ("data.backendOwned entry '%s' is not usable: it must be an exact key, a prefix "
+                                + "ending in a single '*', or the bare '*'").formatted(pattern));
+            }
         }
     }
 

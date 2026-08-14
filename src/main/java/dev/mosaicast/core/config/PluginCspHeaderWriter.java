@@ -30,6 +30,14 @@ import org.springframework.stereotype.Component;
  * fails at the network layer instead of relying on plugin manners. Before a decision exists, nothing
  * optional is allowed, matching the client's default-deny.
  *
+ * <p><strong>Images and media are the exception</strong>, and knowingly so: {@code img-src}/{@code media-src}
+ * carry a blanket {@code https:} because feed artwork and audio come from whatever host the podcaster's feed
+ * points at. That leaves an {@code <img>} to any origin working as a one-way beacon, past
+ * {@code connect-src 'self'} and past consent. {@code mosaicast.security.strict-media-sources} replaces the
+ * blanket with the origins the site's own content actually references
+ * ({@link ExternalMediaHostRegistry}) plus the consented plugin hosts. Off by default, because a derivation
+ * cannot see a host nothing references yet.
+ *
  * <p>Recomputed per request from {@link ConsentService}, so switching a plugin off — or withdrawing consent —
  * narrows the policy again without a restart. The cost is a cheap manifest scan. The cookie value is
  * visitor-controlled, which is not a hole: it can only widen that visitor's own policy, and CSP protects
@@ -45,9 +53,15 @@ public class PluginCspHeaderWriter implements HeaderWriter {
     private static final String[] WIDENED = {"script-src", "frame-src", "connect-src"};
 
     private final ConsentService consent;
+    private final ExternalMediaHostRegistry mediaHosts;
+    private final boolean strictMediaSources;
 
-    public PluginCspHeaderWriter(ConsentService consent) {
+    public PluginCspHeaderWriter(ConsentService consent, ExternalMediaHostRegistry mediaHosts,
+            @org.springframework.beans.factory.annotation.Value(
+                    "${mosaicast.security.strict-media-sources:false}") boolean strictMediaSources) {
         this.consent = consent;
+        this.mediaHosts = mediaHosts;
+        this.strictMediaSources = strictMediaSources;
     }
 
     @Override
@@ -55,7 +69,8 @@ public class PluginCspHeaderWriter implements HeaderWriter {
         if (response.containsHeader(HEADER)) {
             return;
         }
-        response.setHeader(HEADER, policy(consent.allowedSources(ConsentCookie.grantedIn(request))));
+        Set<String> declared = consent.allowedSources(ConsentCookie.grantedIn(request));
+        response.setHeader(HEADER, policy(declared, strictMediaSources ? mediaHosts.origins() : null));
         if (consent.hasOptionalSources()) {
             // The policy now differs between visitors, so any shared cache has to key on the cookie or it
             // will hand one visitor's allow-list to another. Only added when something is actually gated:
@@ -65,8 +80,14 @@ public class PluginCspHeaderWriter implements HeaderWriter {
         }
     }
 
-    /** The policy string for a set of declared hosts (package-visible so it can be asserted directly). */
-    static String policy(Set<String> declaredSources) {
+    /**
+     * The policy string for a set of declared hosts (package-visible so it can be asserted directly).
+     *
+     * @param declaredSources the plugin-declared third-party hosts this visitor has consented to
+     * @param mediaSources    the origins to narrow {@code img-src}/{@code media-src} to, or {@code null} to
+     *                        keep the blanket {@code https:} — see {@link ExternalMediaHostRegistry}
+     */
+    static String policy(Set<String> declaredSources, Set<String> mediaSources) {
         String extra = declaredSources.stream()
                 .map(PluginCspHeaderWriter::sanitize)
                 .filter(source -> !source.isBlank())
@@ -89,9 +110,21 @@ public class PluginCspHeaderWriter implements HeaderWriter {
         // click-jacking overlay — is closed on the *sanitizer* side instead: the shell strips `<style>` and
         // `style` from feed HTML before it is ever inserted (see `sanitize.ts`), so there is no path from
         // feed content to a stylesheet. Script execution was never available here; `script-src` stays strict.
+        // `img-src`/`media-src`: blanket `https:` by default, because artwork and audio come from whatever
+        // host the podcaster's feed points at. That makes any https image a working one-way beacon, past
+        // `connect-src 'self'` and past consent — so strict mode replaces the blanket with the origins the
+        // site's own content actually uses, plus whatever this visitor consented to. `data:` stays on
+        // `img-src` either way: the shell inlines small assets, and a data URI reaches nobody.
+        // The consented plugin hosts join these only in strict mode; under the blanket they are already
+        // covered, and listing them would suggest the directive means more than it does.
+        String media = mediaSources == null ? " https:" : mediaSources.stream()
+                .map(PluginCspHeaderWriter::sanitize)
+                .filter(source -> !source.isBlank())
+                .map(source -> " " + source)
+                .collect(Collectors.joining()) + suffix;
         StringBuilder policy = new StringBuilder("default-src 'self'; ")
-                .append("img-src 'self' data: https:; ")
-                .append("media-src 'self' https:; ")
+                .append("img-src 'self' data:").append(media).append("; ")
+                .append("media-src 'self'").append(media).append("; ")
                 .append("style-src 'self' 'unsafe-inline'; ");
         for (String directive : WIDENED) {
             policy.append(directive).append(" 'self'").append(suffix).append("; ");

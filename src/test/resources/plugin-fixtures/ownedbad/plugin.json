@@ -1,10 +1,10 @@
 {
-  "id": "nopage",
+  "id": "ownedbad",
   "version": "1.0.0",
   "platformApi": "0.6.0",
-  "name": "No Page Fixture",
+  "name": "Malformed Backend-Owned Fixture",
   "backend": {
-    "basePath": "/api/plugins/nopage",
+    "basePath": "/api/plugins/ownedbad",
     "extensions": [
       "dev.mosaicast.plugin.fixture.FixturePlugin"
     ]
@@ -27,7 +27,8 @@
   "storage": "doc",
   "data": {
     "readableBy": "anonymous",
-    "writableBy": "podcaster"
+    "writableBy": "podcaster",
+    "backendOwned": ["a*b"]
   },
   "config": {}
 }

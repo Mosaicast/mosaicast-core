@@ -61,7 +61,7 @@ from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 
 Core builds against the published **`@mosaicast/plugin-sdk`** — the TypeScript package on **npm** (public)
 and the Java artifacts (`dev.mosaicast:plugin-api` / `plugin-testkit`) in **GitHub Packages**. Pin the
-version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.1.1`).
+version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.6.0`).
 
 - **Frontend:** resolves from public npm — nothing extra, just `npm install`.
 - **Backend:** GitHub Packages requires authentication even for reads. Either
@@ -146,7 +146,7 @@ plugins/sample/
   assets/sample.es.js # the frontend Web Component bundle
 ```
 
-At boot the host validates each manifest (the declared `platformApi` must match the host's `0.4.x`; config
+At boot the host validates each manifest (the declared `platformApi` must match the host's `0.6.x`; config
 fields must be renderable), loads the JAR, and calls `register(ctx)`. A bad manifest, an incompatible
 `platformApi`, a declared relational `schema` (the SDK has the surface since `0.4.0`; the host side is not built yet), or a thrown exception
 **disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
@@ -171,10 +171,14 @@ PUT    /api/admin/plugins/{id}/config                          # ADMIN + PODCAST
 POST   /api/admin/plugins/{id}/purge                           # ADMIN: delete the plugin's stored documents
 ```
 
-Reads are gated by the plugin's least-privileged slot `visibleTo`; writes require a signed-in user at the
-plugin's write floor (its least-privileged non-anonymous slot). Data is hard-scoped by plugin id — a plugin can
-never see another's. To try a plugin: build it and drop its `dist/` into `MOSAICAST_PLUGINS_DIR/<id>/`, then
-restart the host (the `mosaicast-plugin-sample` repo's `./build.sh` + `./install.sh` do this).
+Access is what the manifest **declares** — `"data": { "readableBy", "writableBy" }` — not what the slots
+imply; `visibleTo` governs rendering only. Saying nothing gets the closed answer (reads default to the write
+floor, writes to `podcaster`). Two things narrow the floors further: the `user/me` scope is resolved
+server-side, so another person's partition is unnameable rather than merely forbidden; and
+`"data": { "backendOwned": ["stats", "agg:*"] }` reserves the keys a plugin's backend authors — clients read
+them, a client `PUT`/`DELETE` is a 403 with its own problem type. Data is hard-scoped by plugin id — a plugin
+can never see another's. To try a plugin: build it and drop its `dist/` into `MOSAICAST_PLUGINS_DIR/<id>/`,
+then restart the host (the `mosaicast-plugin-sample` repo's `./build.sh` + `./install.sh` do this).
 
 **Frontend (E5b):** the shell fetches the manifest, injects each plugin's bundle once, and mounts its Web
 Components into the slot regions — matched by `placement` + scope, gated by `visibleTo`, stacked by `order`,
@@ -316,10 +320,10 @@ extension. What core guarantees:
 
 | | |
 |---|---|
-| Enforced (server) | doc-store access hard-scoped by plugin id, role floors, activation gating, asset routes, log rate limits |
+| Enforced (server) | doc-store access hard-scoped by plugin id, declared role floors, backend-owned keys, activation gating, asset routes, log rate limits |
 | Enforced (browser) | connections to origins that are undeclared **or** declared under a category the visitor refused |
 | Enforced (after the fact) | device storage: undeclared or withdrawn keys are swept from `localStorage`, `sessionStorage` and script-visible cookies |
-| Not enforced | the moment of the write itself; `HttpOnly` cookies set by a plugin backend; IndexedDB; and image/media requests (`img-src … https:` stays open because episode artwork comes from arbitrary feed hosts) |
+| Not enforced | the moment of the write itself; `HttpOnly` cookies set by a plugin backend; IndexedDB; and, by default, image/media requests — `img-src … https:` stays open because episode artwork comes from arbitrary feed hosts. `mosaicast.security.strict-media-sources` narrows both to the origins the site's content actually references plus the consented plugin hosts |
 
 Under the `dev` profile the shell also warns in the console when anything writes a storage key that no
 manifest declared, naming the plugin where the stack allows — detection while developing a plugin, so an

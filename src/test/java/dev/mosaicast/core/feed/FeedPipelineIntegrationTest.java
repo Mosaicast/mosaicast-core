@@ -41,7 +41,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 // The fixtures are served from a loopback HTTP server, which OutboundTargetPolicy refuses by default.
 // Turning the check off here rather than special-casing loopback in the policy: the tests should exercise the
 // same code path an operator gets, and the escape hatch is the supported way to reach a private target.
-@TestPropertySource(properties = "mosaicast.feed.allow-private-targets=true")
+// Fixtures are served from loopback, so the egress filter has to be off — and it now takes both keys.
+@TestPropertySource(properties = {
+    "mosaicast.feed.allow-private-targets=true",
+    "mosaicast.feed.allow-private-targets-confirmed=true"})
 class FeedPipelineIntegrationTest {
 
     @Container
