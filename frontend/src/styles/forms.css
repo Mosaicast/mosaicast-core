@@ -60,6 +60,10 @@
   padding: var(--mc-space-3) var(--mc-space-5);
   font-size: var(--mc-text-base);
 }
+.mc-btn--sm {
+  padding: var(--mc-space-1) var(--mc-space-3);
+  font-size: var(--mc-text-xs);
+}
 /*
  * A disabled button has to *look* unavailable, not merely refuse to work — a control that looks live and
  * does nothing reads as a broken page rather than as a locked one.

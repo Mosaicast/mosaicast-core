@@ -33,4 +33,22 @@ public interface EpisodeTagRepository extends JpaRepository<EpisodeTag, EpisodeT
             """,
             nativeQuery = true)
     List<String> distinctTags(@Param("feedId") UUID feedId);
+
+    /** An episode's own tags — one side of the shared-tag signal in {@link DefaultRelatedProvider}. */
+    @Query("select t.id.tag from EpisodeTag t where t.id.episodeRefId = :refId")
+    List<String> findTags(@Param("refId") UUID refId);
+
+    /**
+     * Episode ids carrying any of the given tags, excluding one episode — the other side of that signal.
+     *
+     * <p>Pushed into the database rather than loading every tag row and intersecting in memory: the index on
+     * {@code tag} makes this the narrow query it looks like, and the alternative grows with the catalogue
+     * instead of with the answer. Repeated ids are the point — an episode sharing three tags appears three
+     * times, and the caller counts them.
+     */
+    @Query("""
+            select t.id.episodeRefId from EpisodeTag t
+            where t.id.tag in :tags and t.id.episodeRefId <> :excludeRefId
+            """)
+    List<UUID> findRefIdsByTags(@Param("tags") List<String> tags, @Param("excludeRefId") UUID excludeRefId);
 }

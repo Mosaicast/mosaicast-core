@@ -6,10 +6,12 @@ import { useTranslation } from 'react-i18next';
 import { Link, useParams } from 'react-router-dom';
 
 import { ApiError } from '../api/client';
-import type { AdjacentEpisodes, EpisodeDetail } from '../api/types';
+import type { AdjacentEpisodes, EpisodeDetail, EpisodeSummary } from '../api/types';
 import { Cover } from '../components/Cover';
 import { useFeeds } from '../components/FeedsContext';
 import { useResource } from '../hooks/useResource';
+import { RelatedEpisodes } from '../components/RelatedEpisodes';
+import { RelatedPins } from '../components/RelatedPins';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePlayer } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
@@ -18,7 +20,8 @@ import { NotFound } from './Placeholder';
 
 /**
  * The episode detail page (§6.2): hero with play, sanitized show notes, the fixed **previous/next**
- * navigation (core, separate from related), and the empty `main`/`sidebar` plugin slot regions for E5.
+ * navigation (core, and deliberately separate from the related list in the sidebar, §6.3), and the
+ * `main`/`sidebar` plugin slot regions.
  * A missing/withdrawn episode renders the 404 landmark (real 404 — §6.6).
  */
 export function EpisodePage() {
@@ -29,6 +32,10 @@ export function EpisodePage() {
 
   const { data: episode, error } = useResource<EpisodeDetail>(`/api/episodes/${slug}`);
   const { data: adjacent } = useResource<AdjacentEpisodes>(`/api/episodes/${slug}/adjacent`);
+  // Fetched here, not in the widget: pinning changes this list, so the curator and the reader have to
+  // share one source of truth about when to re-read it.
+  const { data: related, error: relatedError, reload: reloadRelated } =
+    useResource<EpisodeSummary[]>(`/api/episodes/${slug}/related`);
 
   // A withdrawn or mistyped episode is a real 404, not an empty page (§6.6).
   if (error instanceof ApiError && error.status === 404) {
@@ -121,6 +128,10 @@ export function EpisodePage() {
           <SlotRegion name="main" scope={{ type: 'episode', id: episode.slug }} />
         </div>
         <aside className="mc-detail__side">
+          {/* Related is core and swappable (§6.3), not a plugin — it renders above the plugin region so a
+              site with no plugins still has something in its sidebar. */}
+          <RelatedEpisodes episodes={related} error={relatedError} />
+          <RelatedPins slug={episode.slug} onChange={reloadRelated} />
           <SlotRegion name="sidebar" scope={{ type: 'episode', id: episode.slug }} />
         </aside>
       </div>

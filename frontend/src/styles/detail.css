@@ -109,21 +109,35 @@
 .mc-detail {
   display: grid;
   /* Single centred column until the sidebar actually has content — an empty sidebar column would skew the
-     main content left (off-centre). When a sidebar plugin mounts (E5), :has() restores the two-column split. */
+     main content left (off-centre). */
   grid-template-columns: minmax(0, 1fr);
   gap: var(--mc-space-5);
 }
-.mc-detail:has(.mc-detail__side .mc-slot:not(:empty)) {
+/* Two columns as soon as the sidebar has anything in it. Both cases are listed because they arrive from
+   different places: a plugin mounting into the slot (§7.3), or core's own related list (§6.3). This used
+   to test the plugin slot alone, which quietly kept the sidebar stacked underneath the notes on every
+   install with no sidebar plugin — which is every install by default. */
+.mc-detail:has(.mc-detail__side .mc-slot:not(:empty)),
+.mc-detail:has(.mc-detail__side .mc-related),
+.mc-detail:has(.mc-detail__side .mc-pins) {
   grid-template-columns: minmax(0, 2fr) 1fr;
 }
-/* The sidebar follows while the notes scroll — plugin content there is usually a companion to reading. */
+/* The sidebar follows while the notes scroll — its content is a companion to reading. */
 .mc-detail__side {
   position: sticky;
   top: 5rem;
   align-self: start;
+  /* Related, the pin editor and any plugin slot stack here and must not touch. */
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-4);
 }
 @media (max-width: 820px) {
-  .mc-detail:has(.mc-detail__side .mc-slot:not(:empty)) {
+  /* Every selector that opens the second column has to close it again here, or a narrow screen keeps a
+     two-column split it has no room for. */
+  .mc-detail:has(.mc-detail__side .mc-slot:not(:empty)),
+  .mc-detail:has(.mc-detail__side .mc-related),
+  .mc-detail:has(.mc-detail__side .mc-pins) {
     grid-template-columns: 1fr;
   }
   .mc-detail__side {
@@ -216,4 +230,136 @@
   border: 1px solid var(--mc-border);
   padding: var(--mc-space-1) var(--mc-space-3);
   text-align: left;
+}
+
+/* ---- M6: related episodes (§6.3) — sidebar, deliberately not the prev/next block ---- */
+.mc-related {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+  padding: var(--mc-space-4);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+  background: var(--mc-surface);
+}
+.mc-related__heading {
+  margin: 0;
+  font-size: var(--mc-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mc-text-muted);
+}
+.mc-related__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mc-related__link {
+  display: flex;
+  gap: var(--mc-space-3);
+  align-items: center;
+  padding: var(--mc-space-2);
+  border-radius: var(--mc-radius-md);
+  color: inherit;
+  text-decoration: none;
+}
+.mc-related__link:hover,
+.mc-related__link:focus-visible {
+  background: color-mix(in srgb, var(--mc-accent) 10%, transparent);
+}
+.mc-related__link .mc-cover {
+  flex: none;
+  border-radius: var(--mc-radius-sm);
+}
+.mc-related__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+/* Two lines, then clamp: a sidebar entry is a pointer, not a place to read a title in full. */
+.mc-related__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: var(--mc-text-sm);
+  line-height: 1.3;
+}
+.mc-related__meta {
+  font-size: var(--mc-text-xs);
+}
+
+/* ---- M6: pinned-related curation (§6.3), podcaster/admin only ---- */
+.mc-pins {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--mc-space-2);
+  padding: var(--mc-space-4);
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+}
+.mc-pins__heading {
+  margin: 0;
+  font-size: var(--mc-text-sm);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--mc-text-muted);
+}
+.mc-pins__hint,
+.mc-pins__list,
+.mc-pins__search {
+  width: 100%;
+}
+.mc-pins__hint {
+  margin: 0;
+  font-size: var(--mc-text-xs);
+}
+.mc-pins__list,
+.mc-pins__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mc-pins__item {
+  display: flex;
+  gap: var(--mc-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+.mc-pins__title {
+  font-size: var(--mc-text-sm);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.mc-pins__search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+  align-items: flex-start;
+}
+.mc-pins__result {
+  width: 100%;
+  padding: var(--mc-space-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-sm);
+  background: var(--mc-bg);
+  color: inherit;
+  font-size: var(--mc-text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.mc-pins__result:hover,
+.mc-pins__result:focus-visible {
+  border-color: var(--mc-accent);
 }

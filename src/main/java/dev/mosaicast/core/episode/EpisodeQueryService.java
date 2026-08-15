@@ -185,6 +185,26 @@ public class EpisodeQueryService {
     }
 
     /**
+     * Summaries for a set of ref ids, in whatever order the database returns them.
+     *
+     * <p>For callers that have already decided <em>which</em> episodes they want and in what order — related
+     * episodes (§6.3), pinned lists — and only need them rendered. Ordering is the caller's business,
+     * because the reason they picked these ids is usually also the reason they are in that sequence.
+     * Batched like every other read here: two queries, not an N+1.
+     */
+    @Transactional(readOnly = true)
+    public List<EpisodeSummary> summariesByIds(List<UUID> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        List<EpisodeRef> found = refs.findAllById(ids);
+        Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
+        return found.stream()
+                .map(ref -> EpisodeSummary.from(ref, resolveDisplay(ref, snapshots)))
+                .toList();
+    }
+
+    /**
      * Resolves the presentation for a ref from a pre-fetched snapshot map (§4.2): the feed snapshot for a
      * PUBLISHED episode, or the provisional display while PLANNED (§4.3), else an empty snapshot. Batching
      * the snapshot load keeps a page of episodes to two queries instead of an N+1.

@@ -11,6 +11,7 @@ import dev.mosaicast.core.episode.EpisodeSlug;
 import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeTagRepository;
 import dev.mosaicast.core.episode.EpisodeTag;
+import dev.mosaicast.core.episode.RelatedProvider;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,12 +43,14 @@ public class Reconciler {
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
     private final EpisodeTagRepository tags;
+    private final RelatedProvider related;
 
     public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
-                      EpisodeTagRepository tags) {
+                      EpisodeTagRepository tags, RelatedProvider related) {
         this.refs = refs;
         this.displays = displays;
         this.tags = tags;
+        this.related = related;
     }
 
     @Transactional
@@ -121,6 +124,12 @@ public class Reconciler {
                 withdrawn++;
             }
         }
+
+        // A poll that reaches here found a changed feed (an unchanged one is a 304 and never gets this far,
+        // §5.4). Any of it can change what "related" means: a new episode is a new candidate for every
+        // episode that shares a tag with it, a withdrawal removes one, and re-written tags or titles move
+        // the scores. Working out *which* cached answers moved costs more than dropping them (§6.3).
+        related.invalidate();
 
         return new ReconcileResult(created, updated, withdrawn, bound, suggestions);
     }

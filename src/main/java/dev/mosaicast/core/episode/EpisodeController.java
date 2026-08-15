@@ -25,12 +25,23 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class EpisodeController {
 
+    /** How many related episodes a sidebar asks for when it does not say. */
+    private static final int RELATED_DEFAULT = 5;
+
+    /** Upper bound on {@code limit}, so the endpoint cannot be asked to score and render the catalogue. */
+    private static final int RELATED_MAX = 20;
+
     private final EpisodeQueryService episodes;
     private final FeedService feeds;
+    private final RelatedProvider related;
+    private final EpisodePinService pins;
 
-    public EpisodeController(EpisodeQueryService episodes, FeedService feeds) {
+    public EpisodeController(EpisodeQueryService episodes, FeedService feeds, RelatedProvider related,
+                             EpisodePinService pins) {
         this.episodes = episodes;
         this.feeds = feeds;
+        this.related = related;
+        this.pins = pins;
     }
 
     /**
@@ -100,6 +111,24 @@ public class EpisodeController {
     @GetMapping("/api/episodes/{slug}/adjacent")
     public AdjacentEpisodes adjacent(@PathVariable String slug) {
         return episodes.adjacentBySlug(slug);
+    }
+
+    /**
+     * Related episodes (§6.3) — pinned first, then the computed blend.
+     *
+     * <p>Deliberately separate from {@code /adjacent}: that is sequential navigation, core and always shown
+     * (§6.2). This is "what else is like this", and an empty list is a perfectly good answer — a site with
+     * one episode has no related episodes, and saying so beats padding it.
+     *
+     * <p>Unpaginated by design, unlike the list endpoints §13 governs: this is a bounded, ranked sidebar,
+     * and page two of a relevance ranking is not a thing anyone wants.
+     */
+    @GetMapping("/api/episodes/{slug}/related")
+    public List<EpisodeSummary> related(@PathVariable String slug,
+                                        @RequestParam(required = false) Integer limit) {
+        UUID refId = episodes.detailBySlug(slug).id();
+        int capped = Math.clamp(limit == null ? RELATED_DEFAULT : limit, 1, RELATED_MAX);
+        return pins.summaries(related.related(refId, capped));
     }
 
     /** Full-text episode search over display snapshots (§E1), ranked and paginated. */

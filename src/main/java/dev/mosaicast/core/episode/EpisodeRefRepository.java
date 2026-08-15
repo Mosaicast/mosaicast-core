@@ -46,6 +46,14 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     /** Whether a slug is already taken (uniqueness guard when minting a new slug). */
     boolean existsBySlug(String slug);
 
+    /**
+     * A ref by slug regardless of visibility — the admin counterpart of {@link #findVisibleBySlug}.
+     *
+     * <p>Curating pins (§6.3) has to reach a withdrawn or disabled-feed episode, if only to unpin it.
+     * Public reads keep using the visible variant; this one must never back a public endpoint.
+     */
+    Optional<EpisodeRef> findBySlug(String slug);
+
     /** Refs created before slugs existed, for the boot-time backfill. */
     List<EpisodeRef> findBySlugIsNull();
 
