@@ -10,7 +10,11 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Site branding + theme (ARCHITECTURE §12.1). A single row (id pinned to {@code 1}), editable by ADMIN,
@@ -52,6 +56,16 @@ public class SiteConfig {
      */
     @Column(name = "default_locale", nullable = false)
     private String defaultLocale = "en";
+
+    /** What {@code robots.txt} says to AI crawlers (ARCHITECTURE §6.6) — the operator's call, not ours. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ai_crawler_policy", nullable = false)
+    private AiCrawlerPolicy aiCrawlerPolicy = AiCrawlerPolicy.ALLOW;
+
+    /** The user-agent tokens disallowed under {@link AiCrawlerPolicy#CUSTOM}; ignored otherwise. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "ai_crawler_blocked", nullable = false)
+    private List<String> aiCrawlerBlocked = new ArrayList<>();
 
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
@@ -99,6 +113,17 @@ public class SiteConfig {
         touch();
     }
 
+    public void setAiCrawlerPolicy(AiCrawlerPolicy aiCrawlerPolicy) {
+        this.aiCrawlerPolicy = aiCrawlerPolicy;
+        touch();
+    }
+
+    /** Replaces the block list wholesale — it is edited as one form field, not entry by entry. */
+    public void setAiCrawlerBlocked(List<String> aiCrawlerBlocked) {
+        this.aiCrawlerBlocked = aiCrawlerBlocked == null ? new ArrayList<>() : new ArrayList<>(aiCrawlerBlocked);
+        touch();
+    }
+
     public String getSiteName() {
         return siteName;
     }
@@ -125,6 +150,14 @@ public class SiteConfig {
 
     public String getDefaultLocale() {
         return defaultLocale;
+    }
+
+    public AiCrawlerPolicy getAiCrawlerPolicy() {
+        return aiCrawlerPolicy;
+    }
+
+    public List<String> getAiCrawlerBlocked() {
+        return aiCrawlerBlocked == null ? List.of() : aiCrawlerBlocked;
     }
 
     public Instant getUpdatedAt() {

@@ -81,6 +81,46 @@ public class SiteConfigService {
         return saved;
     }
 
+    /**
+     * Updates the AI-crawler policy served in {@code robots.txt} (ARCHITECTURE §6.6).
+     *
+     * <p>Deliberately its own method rather than two more parameters on {@link #update}: that one is the
+     * branding/theme editor, and what a site says to crawlers is neither. Keeping them apart also keeps the
+     * change log readable — "someone edited the site config" is already the thing that method's own comment
+     * complains about.
+     *
+     * @param policy  the new policy, or {@code null} to leave it unchanged
+     * @param blocked the explicit block list for {@link AiCrawlerPolicy#CUSTOM}, or {@code null} to leave it
+     * @return the saved config
+     */
+    @Transactional
+    public SiteConfig updateCrawlerPolicy(AiCrawlerPolicy policy, List<String> blocked) {
+        SiteConfig config = get();
+        List<String> changes = new ArrayList<>();
+        if (policy != null && policy != config.getAiCrawlerPolicy()) {
+            changes.add("AI crawler policy %s → %s".formatted(config.getAiCrawlerPolicy(), policy));
+            config.setAiCrawlerPolicy(policy);
+        }
+        if (blocked != null) {
+            // Normalized here rather than at the edge: these strings are compared against nothing and
+            // written straight into robots.txt, so blank entries would emit a `User-agent:` with no agent.
+            List<String> cleaned = blocked.stream()
+                    .filter(agent -> agent != null && !agent.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
+            if (!cleaned.equals(config.getAiCrawlerBlocked())) {
+                changes.add("AI crawler block list %s → %s".formatted(config.getAiCrawlerBlocked(), cleaned));
+                config.setAiCrawlerBlocked(cleaned);
+            }
+        }
+        SiteConfig saved = configs.save(config);
+        if (!changes.isEmpty()) {
+            log.info("Site settings changed: {}", String.join(", ", changes));
+        }
+        return saved;
+    }
+
     /** Points a branding slot at a stored blob (or {@code null} to fall back to the bundled default). */
     @Transactional
     public void setAsset(BrandingAsset asset, UUID blobId) {

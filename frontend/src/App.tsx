@@ -23,6 +23,7 @@ import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLegal } from './routes/admin/AdminLegal';
 import { AdminLogs } from './routes/admin/AdminLogs';
 import { AdminPlugins } from './routes/admin/AdminPlugins';
+import { AdminSeo } from './routes/admin/AdminSeo';
 import { AdminSite } from './routes/admin/AdminSite';
 import { AdminUsers } from './routes/admin/AdminUsers';
 import { EpisodePage } from './routes/EpisodePage';
@@ -127,6 +128,14 @@ export default function App() {
                       element={
                         <RequireRole roles={['admin']}>
                           <AdminPlugins />
+                        </RequireRole>
+                      }
+                    />
+                    <Route
+                      path="seo"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminSeo />
                         </RequireRole>
                       }
                     />

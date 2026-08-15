@@ -275,12 +275,21 @@ content linkable; its tags come from the optional `ShareMetadataProvider`, falli
 an unknown or switched-off plugin gets a real 404 too.
 
 `GET /sitemap.xml` lists episodes, feed views and legal pages plus each active plugin's `SitemapProvider`
-entries, validated to sit under that plugin's own `/p/{id}/` namespace. Every absolute URL the host states
-about itself — sitemap `<loc>`, canonical, `og:url` — comes from `mosaicast.base-url`, never from the
+entries, validated to sit under that plugin's own `/p/{id}/` namespace. `GET /robots.txt` disallows the
+admin/API/actuator paths and points at it. Every absolute URL the host states about itself — sitemap
+`<loc>`, canonical, `og:url`, the robots sitemap reference — comes from `mosaicast.base-url`, never from the
 request, so `X-Forwarded-Host` cannot reassign the site's identity to somebody else.
 
-Still open from §6.6: `robots.txt` with the admin-configurable AI-crawler policy, and the `hreflang` /
-RSS-discovery tags (see the CHANGELOG for why the latter two are decisions rather than work).
+**AI crawlers are the operator's decision, and Mosaicast ships the mechanism rather than an opinion.**
+**Admin → SEO & crawlers** offers three policies: *allow* (the default — say nothing, treat them like any
+other crawler), *block* (disallow every agent in core's catalog), or *custom* (tick them individually).
+The catalog names the agents by operator and purpose — training, search, and user-triggered retrieval are
+separate crawlers and separate decisions — and `custom` accepts any name, so an agent that did not exist at
+release can still be blocked. Worth being clear about: a `robots.txt` rule is a request. Well-behaved
+crawlers honour it; enforcement against one that does not is a network-layer problem, not a setting.
+
+Still open from §6.6: the `hreflang` and RSS-discovery tags — see the CHANGELOG for why both are decisions
+rather than work.
 
 ### Consent (E5d)
 

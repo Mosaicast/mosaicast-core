@@ -272,3 +272,29 @@
   border: none;
   border-radius: 6px;
 }
+
+/* ---- M6: option lists (radio/checkbox groups, e.g. the AI-crawler policy) ---- */
+.mc-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+  max-width: 44rem;
+  margin: 0;
+  padding: var(--mc-space-3) var(--mc-space-4);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+}
+.mc-options legend {
+  padding: 0 var(--mc-space-2);
+  font-size: var(--mc-text-sm);
+  color: var(--mc-text-muted);
+}
+/* Options wrap onto several lines (agent + operator + purpose), so the control aligns to the first line
+   rather than to the centre of a block that may be two lines tall. */
+.mc-options .mc-toggle {
+  align-items: flex-start;
+}
+.mc-options .mc-toggle input {
+  flex: none;
+  margin-top: 0.15rem;
+}
