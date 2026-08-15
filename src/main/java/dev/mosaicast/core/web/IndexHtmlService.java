@@ -29,6 +29,12 @@ public class IndexHtmlService {
     private static final Resource INDEX = new ClassPathResource("/static/index.html");
     private static final String HEAD_END = "</head>";
 
+    /**
+     * The <em>opening</em> tag of the SPA's mount point. The block is inserted after this, so it ends up
+     * <strong>inside</strong> {@code #root} rather than beside it — see {@link #injectContent}.
+     */
+    private static final String ROOT_OPEN = "<div id=\"root\">";
+
     /** Stand-in for a build without the frontend bundle: enough of a document to carry meta tags. */
     private static final String MINIMAL_SHELL =
             "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n"
@@ -61,15 +67,65 @@ public class IndexHtmlService {
 
     /** The shell with {@code meta} injected into its {@code <head>}. */
     public String render(Meta meta) {
+        return render(PageView.metaOnly(meta));
+    }
+
+    /**
+     * The shell with everything the server knows about this URL injected: meta tags, canonical link, RSS
+     * discovery, JSON-LD, and the no-JS content block (ARCHITECTURE §6.6).
+     *
+     * <p>Head content goes before {@code </head>}; the content block goes inside {@code #root}, which is the
+     * element React mounts into — so the shell replaces it on mount with no extra hand-off, and a crawler
+     * that never mounts anything reads it as the page.
+     */
+    public String render(PageView view) {
         String html = index();
-        String tags = ogTags(meta);
         int headEnd = html.indexOf(HEAD_END);
         if (headEnd < 0) {
             // No head to inject into (a stripped or unexpected build) — serve the shell unchanged rather
             // than corrupting it; the page still works, only the preview is generic.
             return html;
         }
-        return html.substring(0, headEnd) + tags + html.substring(headEnd);
+        String withHead = html.substring(0, headEnd) + headTags(view) + html.substring(headEnd);
+        return injectContent(withHead, view.noJsHtml());
+    }
+
+    /**
+     * Puts the no-JS block inside the SPA's mount point.
+     *
+     * <p>React's {@code createRoot(...).render(...)} replaces the container's children, so the block is gone
+     * the moment the shell mounts and there is nothing to clean up by hand — and a crawler that runs no JS
+     * keeps it. Injecting it as a sibling instead would have needed the shell to remove it, and any path
+     * where that failed (an error before mount, a slow chunk) would show a visitor the page twice.
+     */
+    private static String injectContent(String html, String content) {
+        if (content == null || content.isBlank()) {
+            return html;
+        }
+        int rootAt = html.indexOf(ROOT_OPEN);
+        if (rootAt < 0) {
+            // An unexpected shell with no mount point: serve it unchanged rather than putting the block
+            // somewhere React will not clear, which would show every visitor the page twice.
+            return html;
+        }
+        int insertAt = rootAt + ROOT_OPEN.length();
+        return html.substring(0, insertAt) + "\n" + content + html.substring(insertAt);
+    }
+
+    /** Everything this view contributes to {@code <head>}. */
+    private String headTags(PageView view) {
+        StringBuilder tags = new StringBuilder(ogTags(view.meta()));
+        if (view.canonicalUrl() != null && !view.canonicalUrl().isBlank()) {
+            tags.append("    <link rel=\"canonical\" href=\"")
+                    .append(escape(view.canonicalUrl())).append("\" />\n");
+            tags.append(meta("og:url", view.canonicalUrl()));
+        }
+        if (view.jsonLd() != null && !view.jsonLd().isBlank()) {
+            tags.append("    <script type=\"application/ld+json\">")
+                    .append(escapeInScript(view.jsonLd()))
+                    .append("</script>\n");
+        }
+        return tags.toString();
     }
 
     /** The shell exactly as built, no injection. */
@@ -99,12 +155,27 @@ public class IndexHtmlService {
         return "    <meta property=\"%s\" content=\"%s\" />\n".formatted(property, escape(content));
     }
 
-    private static String escape(String value) {
+    /** HTML-escapes a value for an attribute or text node. Public so resolvers build content the same way. */
+    public static String escape(String value) {
         return value == null ? ""
                 : value.replace("&", "&amp;")
                         .replace("<", "&lt;")
                         .replace(">", "&gt;")
                         .replace("\"", "&quot;");
+    }
+
+    /**
+     * Makes a JSON string safe to sit inside a {@code <script>} element.
+     *
+     * <p>Ordinary HTML escaping is wrong here — the contents of a {@code script} element are not parsed as
+     * HTML, so {@code &quot;} would land in the JSON literally and break it. What actually has to be
+     * neutralized is the one sequence that can end the element early: an episode title or show-note
+     * containing {@code </script>} would otherwise close the block and leave the rest of a podcaster's feed
+     * content being parsed as markup. Escaping the {@code /} of every {@code </} keeps the JSON valid (JSON
+     * reads {@code \/} as {@code /}) and leaves no way out of the element.
+     */
+    private static String escapeInScript(String json) {
+        return json == null ? "" : json.replace("</", "<\\/");
     }
 
     private String index() {

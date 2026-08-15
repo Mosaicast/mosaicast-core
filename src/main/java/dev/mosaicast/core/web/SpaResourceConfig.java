@@ -19,7 +19,13 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
  * <p>Real static files (the JS/CSS bundle, brand assets, favicon) are served as-is; any other
  * navigation path falls back to {@code index.html} so the SPA router can take over. Backend paths
  * ({@code /api}, {@code /actuator}, {@code /branding}, {@code /plugins}) are never rewritten — they keep
- * their own handlers and 404s. Real HTTP 404s for unknown episode/route deep links are tightened in M6.
+ * their own handlers and 404s.
+ *
+ * <p>This is the <em>fallback</em>, not the whole story: the host's own public routes are mapped by
+ * {@link ShellController} and plugin deep links by {@code PluginPageController}, both of which take
+ * precedence and answer with per-URL metadata and a real 404 for an unknown slug (§6.6). What reaches here
+ * is a path no controller claims — the shell's remaining client-side routes — and it is still served 200,
+ * because the alternative is the router losing routes nobody told this class about.
  */
 @Component
 public class SpaResourceConfig implements WebMvcConfigurer {

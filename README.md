@@ -256,14 +256,31 @@ was rejected**, each feed's poll state **with its last error**, and error/warnin
 Plugins report their own trouble via `POST /api/plugins/{id}/log` (signed-in user at the plugin's write floor,
 size-capped and rate-limited). Tune retention and capture with `mosaicast.log.*` — see `application.yml`.
 
-### Deep links, sharing and the sitemap (E5c)
+### Deep links, sharing and SEO
 
-The host reserves **`/p/{pluginId}/*`**. A plugin that declares a slot at the `page` placement renders there
-at site scope and receives the subpath as `ctx.route`, which is what makes plugin content linkable. Because
-link scrapers run no JS, the server answers those URLs itself with OpenGraph/Twitter tags from the plugin's
-optional `ShareMetadataProvider`, falling back to site metadata; an unknown or switched-off plugin gets a real
-404. `GET /sitemap.xml` lists episodes, feed views and legal pages plus each active plugin's `SitemapProvider`
-entries, validated to sit under that plugin's own `/p/{id}/` namespace.
+The shell is an SPA, but link scrapers and most AI crawlers run no JS, so the server answers navigation URLs
+itself rather than handing out the bare bundle.
+
+**The host's own routes** — `/`, `/feeds/{slug}`, `/episodes/{slug}`, `/legal/{slug}` — are served by
+`ShellController` with OpenGraph/Twitter tags, JSON-LD (`PodcastSeries` on site and feed pages,
+`PodcastEpisode` on an episode), a `rel=canonical`, and a plain-HTML content block for crawlers that render
+nothing. The content block sits inside `#root`, so React replaces it on mount. Filters are part of a view's
+identity (`?season=2&tag=…`), so a shared filtered link previews as that view and canonicalizes to a
+normalized form of the same filters — parameter order and the default `order=newest` do not mint extra URLs.
+An unknown slug is a **real 404**, not a 200 carrying site metadata.
+
+**Plugin deep links** — the host reserves **`/p/{pluginId}/*`**. A plugin that declares a slot at the `page`
+placement renders there at site scope and receives the subpath as `ctx.route`, which is what makes plugin
+content linkable; its tags come from the optional `ShareMetadataProvider`, falling back to site metadata, and
+an unknown or switched-off plugin gets a real 404 too.
+
+`GET /sitemap.xml` lists episodes, feed views and legal pages plus each active plugin's `SitemapProvider`
+entries, validated to sit under that plugin's own `/p/{id}/` namespace. Every absolute URL the host states
+about itself — sitemap `<loc>`, canonical, `og:url` — comes from `mosaicast.base-url`, never from the
+request, so `X-Forwarded-Host` cannot reassign the site's identity to somebody else.
+
+Still open from §6.6: `robots.txt` with the admin-configurable AI-crawler policy, and the `hreflang` /
+RSS-discovery tags (see the CHANGELOG for why the latter two are decisions rather than work).
 
 ### Consent (E5d)
 
