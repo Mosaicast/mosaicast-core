@@ -28,7 +28,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 /**
  * End-to-end plugin loading (ARCHITECTURE §7). Boots the host against a real staged plugins dir holding a
- * good fixture plugin plus two deliberately-broken ones (incompatible {@code platformApi}; declared schema).
+ * good fixture plugin, a schema-declaring one, and deliberately-broken ones (incompatible
+ * {@code platformApi}; a {@code schema} declaring no entities; malformed {@code backendOwned}).
  * Asserts the good plugin loads and its {@code register(ctx)} ran (its seeded doc round-trips through the
  * HTTP surface, an asset serves), the broken ones are rejected-with-reason while the host still booted
  * (failure isolation, §7.8), and the doc surface enforces read/write access.
@@ -95,7 +96,8 @@ class PluginLoadingIntegrationTest {
         String body = response.getBody();
         assertThat(body).contains("\"id\":\"good\"").contains("LOADED");
         assertThat(body).contains("REJECTED");
-        // Each rejection carries a reason (platformApi mismatch / schema storage / malformed backendOwned).
+        // Each rejection carries a reason (platformApi mismatch / an empty schema declaration /
+        // malformed backendOwned).
         assertThat(body).containsIgnoringCase("platformApi");
         assertThat(body).containsIgnoringCase("schema");
         assertThat(body).containsIgnoringCase("backendOwned");

@@ -5,8 +5,12 @@ package dev.mosaicast.plugin.fixture;
 
 import dev.mosaicast.plugin.api.PluginBackend;
 import dev.mosaicast.plugin.api.PluginContext;
+import dev.mosaicast.plugin.api.Criteria;
+import dev.mosaicast.plugin.api.SchemaStore;
 import dev.mosaicast.plugin.api.Scope;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.Map;
 import org.pf4j.Extension;
 
 /**
@@ -31,5 +35,31 @@ public class FixturePlugin implements PluginBackend {
         ctx.onSchedule(Duration.ofMinutes(Math.max(1, refresh)), () -> {
             // Nothing to do on tick in the fixture; registering it proves onSchedule accepts the task.
         });
+        seedSchema(ctx);
+    }
+
+    /**
+     * Writes one row through {@link SchemaStore} when the manifest declared a schema.
+     *
+     * <p>Seeding inside {@code register} is what a real plugin does, and it is the part worth exercising:
+     * the tables have to exist by the time the host hands over the context, not merely by the time the
+     * plugin's first request arrives.
+     */
+    private static void seedSchema(PluginContext ctx) {
+        SchemaStore schema = ctx.schema();
+        if (schema == null) {
+            return;
+        }
+        if (schema.count("page", Criteria.where("slug", Criteria.Op.EQ, "seeded")) > 0) {
+            return;
+        }
+        schema.insert("page", Map.of(
+                "slug", "seeded",
+                "title", "Seeded page",
+                "markdown", "A lighthouse keeper writes about fog.",
+                "views", 7L,
+                "rating", 4.5,
+                "published", true,
+                "updatedAt", Instant.parse("2026-03-04T10:00:00Z")));
     }
 }

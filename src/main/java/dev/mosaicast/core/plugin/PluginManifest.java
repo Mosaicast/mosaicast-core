@@ -44,14 +44,14 @@ public record PluginManifest(
         Backend backend,
         Frontend frontend,
         List<Slot> slots,
-        String storage,
+        PluginStorage storage,
         Map<String, ConfigField> config,
         DataAccess data,
         Consent consent) {
 
-    /** Storage kinds a manifest may declare. */
-    public static final String STORAGE_DOC = "doc";
-    public static final String STORAGE_SCHEMA = "schema";
+    /** Storage kinds a manifest may declare; see {@link PluginStorage} for the two shapes it takes. */
+    public static final String STORAGE_DOC = PluginStorage.DOC;
+    public static final String STORAGE_SCHEMA = PluginStorage.SCHEMA;
 
     /**
      * The full-page region behind a plugin deep link {@code /p/{pluginId}/…} (§6.4). A plugin opts in by
@@ -118,6 +118,21 @@ public record PluginManifest(
         public List<String> backendOwnedOrEmpty() {
             return backendOwned == null ? List.of() : backendOwned;
         }
+    }
+
+    /**
+     * The storage declaration, defaulting to the doc store.
+     *
+     * <p>Absent means {@code doc}: the generic store is what a plugin gets by saying nothing, and §7.6 makes
+     * it the default rather than something to opt into.
+     */
+    public PluginStorage storageOrDefault() {
+        return storage == null ? PluginStorage.doc() : storage;
+    }
+
+    /** The resolved schema entities, or empty for a doc-only plugin. Validated at load. */
+    public Map<String, PluginSchemaValidator.Entity> schemaEntities() {
+        return PluginSchemaValidator.resolve(id, storageOrDefault());
     }
 
     /** Roles the data floors accept. Unlike {@code editableBy}, a read floor may be anonymous. */
@@ -263,10 +278,9 @@ public record PluginManifest(
             throw new PluginValidationException(
                     "platformApi %s is incompatible with host %s".formatted(platformApi, PlatformApi.VERSION));
         }
-        if (STORAGE_SCHEMA.equalsIgnoreCase(storage)) {
-            throw new PluginValidationException(
-                    "schema storage is not available in this version (ARCHITECTURE §7.6)");
-        }
+        // Resolving the schema is the validation: it refuses any entity, field name or type spec that
+        // could not become safe DDL, and the result is what the migration runner provisions from.
+        PluginSchemaValidator.resolve(id, storageOrDefault());
         if (slots != null) {
             for (Slot slot : slots) {
                 if (slot.placement() == null || !KNOWN_PLACEMENTS.contains(slot.placement())) {

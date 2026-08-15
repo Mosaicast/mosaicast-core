@@ -97,7 +97,7 @@ class PluginAccessPolicyTest {
 
     @Test
     void aPluginWithNoSlotsAtAllStillHasFloors() {
-        PluginManifest headless = new PluginManifest("p", "1.0.0", "0.6.0", "P", null, null, null, "doc",
+        PluginManifest headless = new PluginManifest("p", "1.0.0", "0.6.0", "P", null, null, null, PluginStorage.doc(),
                 null, new DataAccess("fan", "admin", null), null);
 
         assertThat(PluginAccessPolicy.canRead(headless, Optional.of(Role.FAN))).isTrue();
@@ -186,7 +186,7 @@ class PluginAccessPolicyTest {
     }
 
     private static PluginManifest manifest(DataAccess data, Slot... slots) {
-        return new PluginManifest("p", "1.0.0", "0.6.0", "P", null, null, List.of(slots), "doc", null,
+        return new PluginManifest("p", "1.0.0", "0.6.0", "P", null, null, List.of(slots), PluginStorage.doc(), null,
                 data, null);
     }
 }
