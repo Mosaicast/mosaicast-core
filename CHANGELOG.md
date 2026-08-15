@@ -14,6 +14,30 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **`robots.txt`, with the AI-crawler policy as an admin setting (M6, `0.6.3`, ARCHITECTURE §6.6).** The
+  sitemap has been served since `0.5.5` with nothing pointing at it, and §6.6's other half — what the site
+  asks crawlers to skip — did not exist. `GET /robots.txt` now disallows the admin/API/actuator paths,
+  references the sitemap absolutely, and renders whatever the operator decided about AI crawlers.
+  - **Three policies:** `allow` (say nothing — the default), `block` (disallow core's whole catalog), and
+    `custom` (disallow exactly the agents the admin ticked). **`allow` is the default deliberately**: an
+    install upgrading into this release has never expressed a policy, and silently starting to disallow
+    crawlers it was already serving would be the migration making the decision the setting exists to leave
+    open.
+  - **Core ships a catalog, not an opinion.** `AiCrawlerCatalog` names 19 agents grouped by operator and
+    purpose (training, search, user-triggered retrieval) — several companies run separate crawlers for
+    each, and blocking a training crawler is a different decision from blocking a search one. §6.6 is
+    explicit that this is the operator's call; the catalog is a convenience so nobody has to research
+    user-agent tokens, and `custom` takes any string, including an agent that appeared after this release.
+  - **New Admin → SEO & crawlers panel** (`GET`/`PUT /api/admin/seo`, ADMIN only), in English and German.
+    It states plainly that **a robots.txt rule is a request, not a barrier** — a setting that reads like a
+    lock and is not one is worse than no setting, and a test pins that sentence rather than leaving it to
+    survive a copy edit.
+  - Stored agent names are stripped of newlines on the way in *and* on the way out: `robots.txt` is
+    line-oriented, so a newline in a stored value is the one character that could turn admin-supplied text
+    into its own directive.
+  - The base URL for the sitemap reference comes from configuration via `SiteUrls`, never the request —
+    pinned by a test that sends `X-Forwarded-Host`, same as the sitemap and canonical.
+
 - **The host's own pages are served with their metadata, structured data and readable content (M6, `0.6.2`,
   ARCHITECTURE §6.4/§6.6).** `IndexHtmlService` existed but `PluginPageController` was its only caller, so a
   shared *plugin* deep link previewed correctly while a shared **episode** link — the one the BRIEF's

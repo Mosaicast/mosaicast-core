@@ -47,6 +47,27 @@ export interface SiteView {
   branding: Branding;
 }
 
+/** What `robots.txt` says to AI crawlers (ARCHITECTURE §6.6) — the operator's decision, not core's. */
+export type AiCrawlerPolicy = 'allow' | 'block' | 'custom';
+
+/** One AI crawler core knows how to name (`branding/AiCrawlerCatalog.java`). */
+export interface AiCrawler {
+  agent: string;
+  operator: string;
+  purpose: string;
+}
+
+/**
+ * The AI-crawler policy and the catalog it is chosen from (`web/SeoAdminController.java`),
+ * `GET/PUT /api/admin/seo`. The catalog ships with the response rather than being duplicated here —
+ * a second copy of the list is a copy that goes stale.
+ */
+export interface SeoView {
+  policy: AiCrawlerPolicy;
+  blocked: string[];
+  known: AiCrawler[];
+}
+
 /** A feed in the public catalog (`feed/PublicFeedView.java`), `GET /api/feeds`. */
 export interface PublicFeed {
   id: string;
