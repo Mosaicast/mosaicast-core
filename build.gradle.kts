@@ -137,6 +137,11 @@ tasks.withType<Test>().configureEach {
             layout.buildDirectory.dir("test-plugins").get().asFile.absolutePath)
     }
     useJUnitPlatform()
+    // Rate limiting (ARCHITECTURE §13) buckets by client address, and every test in the suite is the same
+    // client — 127.0.0.1 — so a class that logs in as a dozen different users spends one budget and starts
+    // getting 429s that have nothing to do with what it is testing. Off by default here; RateLimitIntegrationTest
+    // turns it back on with @TestPropertySource, which outranks a system property.
+    systemProperty("mosaicast.rate-limit.enabled", "false")
     // Docker Engine 29+ dropped support for API < 1.44. Setting DOCKER_HOST makes Testcontainers use
     // its environment-based client strategy, which honors DOCKER_API_VERSION (the unix-socket strategy
     // otherwise pins API 1.32 and the daemon rejects it: "client version 1.32 is too old").

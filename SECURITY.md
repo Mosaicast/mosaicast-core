@@ -75,3 +75,20 @@ install that is one tenant able to tamper with the others' plugin data.
 
 Binding a shared document to its author needs an ownership concept the domain model does not have (feeds
 have no owner column). Until then: reserve the key with `backendOwned`, or keep the data in `USER` scope.
+
+### The rate limiter counts a client the deployment can be lied to about
+
+Rate limiting on auth endpoints and uploads (`RateLimitFilter`, ARCHITECTURE §13) buckets callers by
+`getRemoteAddr()`, which resolves through `server.forward-headers-strategy: framework`. Behind a proxy that
+overwrites `X-Forwarded-For` that is the real client. On a **directly exposed port — what the shipped compose
+file gives you** — the header is caller-supplied, so rotating it evades the limit.
+
+The alternative is worse. Counting the socket address means everyone behind a proxy shares one budget, and a
+single abusive client locks out every real user — an evadable limit beats a limit an attacker can turn into
+an outage for everybody.
+
+So this is a cost control, not a DoS control: it makes credential stuffing and upload floods expensive and
+stops an accidental client loop, and it does not pretend to bound traffic. Two further limits worth knowing:
+the counters live in one instance's memory, so N instances mean N budgets until Redis arrives at v3 (§13);
+and an install that needs a real bound should put it in front of the app, where the client address is a fact
+rather than a header. Run behind a proxy that overwrites `X-Forwarded-For` and the first problem disappears.

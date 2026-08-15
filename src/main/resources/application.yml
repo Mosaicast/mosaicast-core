@@ -37,6 +37,15 @@ spring:
 mosaicast:
   base-url: ${MOSAICAST_BASE_URL:http://localhost:8080}
   plugins-dir: ${MOSAICAST_PLUGINS_DIR:./plugins}
+  # Basic rate limiting on auth endpoints and uploads (ARCHITECTURE §13). Two buckets, because a flood of
+  # logins is credential stuffing and a flood of uploads is a disk problem. Set far above human use and far
+  # below automated use. In-memory per instance until Redis arrives at v3.
+  rate-limit:
+    enabled: ${MOSAICAST_RATE_LIMIT_ENABLED:true}
+    auth-limit: ${MOSAICAST_RATE_LIMIT_AUTH:20}
+    auth-window: 1m
+    upload-limit: ${MOSAICAST_RATE_LIMIT_UPLOAD:10}
+    upload-window: 1m
   auth:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
