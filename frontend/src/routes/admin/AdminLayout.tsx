@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useUser } from '../../auth/UserContext';
 
@@ -14,6 +15,17 @@ export function AdminLayout() {
   const { t } = useTranslation();
   const { user } = useUser();
   const isAdmin = user?.role === 'admin';
+  const nav = useRef<HTMLElement>(null);
+  const { pathname } = useLocation();
+
+  // On a phone the nav is a horizontal strip (admin.css), and the active section can start off-screen —
+  // arriving on a page whose own tab is not visible reads as the wrong page. Scroll it into view, without
+  // touching the vertical position: `block: 'nearest'` leaves the page where the router put it.
+  useEffect(() => {
+    nav.current
+      ?.querySelector('.mc-adminnav__link--active')
+      ?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, [pathname]);
 
   const tab = ({ isActive }: { isActive: boolean }) => `mc-adminnav__link${isActive ? ' mc-adminnav__link--active' : ''}`;
 
@@ -21,7 +33,7 @@ export function AdminLayout() {
     <section className="mc-page mc-admin">
       <h1 className="mc-page__title">{t('admin.title')}</h1>
       <div className="mc-admin__body">
-        <nav className="mc-adminnav" aria-label={t('admin.title')}>
+        <nav className="mc-adminnav" aria-label={t('admin.title')} ref={nav}>
           {isAdmin && (
             <NavLink to="/admin/site" className={tab}>
               {t('admin.nav.site')}

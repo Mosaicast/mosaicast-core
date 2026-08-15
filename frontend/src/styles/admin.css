@@ -54,11 +54,6 @@
   gap: 1.5rem;
   align-items: start;
 }
-@media (max-width: 720px) {
-  .mc-admin__body {
-    grid-template-columns: 1fr;
-  }
-}
 .mc-adminnav {
   display: flex;
   flex-direction: column;
@@ -81,6 +76,58 @@
 .mc-admin__main {
   min-width: 0;
 }
+
+/*
+ * On a phone the side nav becomes a horizontal tab strip rather than a stacked list.
+ *
+ * Stacked, eight sections cost ~350px before any setting is visible — over 40% of a phone screen spent on
+ * navigation, with the panel you came for below the fold. As a strip it costs one row, it matches the
+ * per-feed tabs the shell already uses (§6.1), and it stays put while the panel scrolls, so switching
+ * sections never means scrolling back up.
+ */
+@media (max-width: 720px) {
+  .mc-admin__body {
+    grid-template-columns: 1fr;
+    gap: var(--mc-space-4);
+  }
+  .mc-adminnav {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: var(--mc-space-1);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    /* Full-bleed so the strip scrolls edge to edge instead of ending in the page gutter. */
+    margin-inline: calc(-1 * var(--mc-space-4));
+    padding-inline: var(--mc-space-4);
+    padding-bottom: var(--mc-space-1);
+    border-bottom: 1px solid var(--mc-border);
+    position: sticky;
+    /* Below the top bar, which is sticky too. */
+    top: 3.25rem;
+    z-index: 2;
+    background: var(--mc-bg);
+    /* The strip is the scroll affordance; a visible bar on top of it is noise on a touch device. */
+    scrollbar-width: none;
+  }
+  .mc-adminnav::-webkit-scrollbar {
+    display: none;
+  }
+  .mc-adminnav__link {
+    flex: none;
+    white-space: nowrap;
+    scroll-snap-align: start;
+    border-radius: 0;
+    padding: var(--mc-space-2) var(--mc-space-3);
+    border-bottom: 2px solid transparent;
+    color: var(--mc-text-muted);
+  }
+  .mc-adminnav__link--active {
+    background: none;
+    border-bottom-color: var(--mc-accent);
+  }
+}
+
 
 .mc-branding {
   display: grid;

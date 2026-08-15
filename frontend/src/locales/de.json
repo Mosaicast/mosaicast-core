@@ -1,8 +1,6 @@
 {
   "app.title": "Mosaicast",
   "app.tagline": "Ein erweiterbares Zuhause für Podcasts",
-  "nav.primary": "Hauptnavigation",
-  "nav.home": "Start",
   "nav.login": "Anmelden",
   "nav.switchLanguage": "Sprache wechseln",
   "nav.info": "Rechtliches & Informationen",

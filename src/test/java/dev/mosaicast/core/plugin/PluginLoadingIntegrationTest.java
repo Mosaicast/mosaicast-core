@@ -567,6 +567,19 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void anExtensionPointRunsOnTheSameInstanceThatWasRegistered() {
+        // FixturePlugin implements both PluginBackend and SitemapProvider and stores its context in a plain
+        // instance field, contributing this URL only if register(ctx) ran on the same object.
+        //
+        // PF4J's default ExtensionFactory builds a fresh instance per extension-point lookup, so the field
+        // was null here and the entry vanished with no error anywhere — a plugin's sitemap URLs and its OG
+        // tags silently missing. The host now installs SingletonExtensionFactory
+        // (MosaicastPluginManager.createExtensionFactory); this is the regression test for it.
+        assertThat(rest.getForEntity("/sitemap.xml", String.class).getBody())
+                .contains("/p/good/ctx-seen");
+    }
+
+    @Test
     void disablingAPluginRemovesItsDeepLinksAndSitemapEntries() {
         Session admin = devLogin("admin");
         try {

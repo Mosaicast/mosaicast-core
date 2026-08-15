@@ -12,6 +12,48 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **A plugin's extension points ran on a different object than `register(ctx)` (`0.6.7`, §7.4).** PF4J's
+  default `ExtensionFactory` constructs a **fresh instance per extension-point lookup**. A plugin class
+  implementing `PluginBackend` alongside `ShareMetadataProvider` and/or `SitemapProvider` — which §7.4
+  invites, and the bundled sample does — therefore became two or three unrelated objects: the host called
+  `register(ctx)` on one and asked the others for sitemap entries and OG tags, with their context field
+  never set.
+  - The symptom was **silence**: a `sitemap.xml` missing every plugin URL, and `/p/<id>/…` falling back to
+    site-level OpenGraph. A plugin that dereferenced the field instead of null-checking it got a
+    `NullPointerException` from a call it never made.
+  - The sample plugin had worked around it by making its context `static` and documenting the trap at
+    length — a workaround every plugin author would have had to rediscover the same way, by shipping
+    something that quietly did nothing. Nothing in the SDK contract says an extension point runs on a
+    different object than `register`.
+  - Fixed in the host with PF4J's own `SingletonExtensionFactory`, so the object the host registered is the
+    object it later asks. The fixture plugin now stores its context in a **plain instance field** and
+    contributes a URL only if `register` ran on that same object, which is the regression test — it fails
+    against the old factory.
+
+- **The header overflowed its own width on a phone (`0.6.7`).** Brand, language, info and account were all
+  rigid, so below ~430px the account menu was pushed off the right edge and clipped. The elastic parts now
+  give way in order: the language label shortens to its code, the wordmark steps aside (the logo is the
+  link home and is already tappable), then a long display name truncates. The controls themselves never
+  shrink, so they stay tappable. Verified from 320px to 1280px across home, detail, account and admin.
+
+- **The admin area on a phone was a wall of navigation (`0.6.7`).** The side nav simply stacked above the
+  panel, so eight sections cost ~350px — over 40% of a phone screen — before a single setting was visible.
+  It is now a horizontally scrollable tab strip, matching the per-feed tabs the shell already uses (§6.1),
+  sticky under the top bar so switching sections never means scrolling back up, and it scrolls the active
+  section into view on arrival. Nav height 354px → 48px.
+
+- **The dev screenshot stack advertised the wrong host (`0.6.7`).** It serves on `:8081` while
+  `mosaicast.base-url` defaulted to `:8080`, so every `<loc>` in its `sitemap.xml`, its `robots.txt` sitemap
+  reference and every canonical pointed at a port nothing was listening on. It now passes its own URL.
+
+### Changed
+
+- **The wordmark is the link home; the separate nav item is gone (`0.6.7`).** The brand was already a link
+  to `/`, so the one-item nav beside it was a second link to the same place — and it cost a whole row of
+  header on a phone to say it twice.
+
 ### Added
 
 - **The schema provider: plugins can declare relational tables (M6, `0.6.6`, ARCHITECTURE §7.6).** The SDK
