@@ -14,6 +14,31 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Basic rate limiting on auth endpoints and uploads (M6, `0.6.4`, ARCHITECTURE §13).** §13 has asked for
+  this since the start and only `PluginLogRateLimiter` existed, which throttles plugin logs. Nothing stood
+  between a script and `/api/auth/dev-login`, the OAuth2 endpoints, token minting or branding upload.
+  - **Two buckets, because the two abuses look nothing alike.** A flood of logins is credential stuffing
+    (20/minute per client by default); a flood of uploads is a disk and bandwidth problem (10/minute). One
+    shared number would have been wrong for at least one of them. Both configurable under
+    `mosaicast.rate-limit`, and the whole thing switchable off for an operator who front-ends the app with
+    their own limiter.
+  - **A servlet filter at `HIGHEST_PRECEDENCE`, not a check in the controllers**, because half the endpoints
+    that need it are not controllers: `/oauth2/authorization/**` and `/login/oauth2/code/**` live inside
+    Spring Security's chain, where a thrown exception never reaches `ApiExceptionHandler`. Running first
+    also means a flood is refused before it costs a session lookup.
+  - Refusals are RFC 7807 `problems/too-many-requests` with `Retry-After`, matching what the exception
+    handler produces elsewhere — written by the filter itself, since `@ControllerAdvice` does not apply out
+    there. **Only state-changing requests are counted**; a GET is never throttled, so the site cannot
+    throttle itself.
+  - `FixedWindowRateLimiter` decides inside **one** `compute`. `PluginLogRateLimiter` shipped as a `compute`
+    plus a separate `put` and had to be fixed in `0.5.18` when a thread caught between them wrote a stale
+    count over a fresh window, silencing a plugin for an extra minute. Built that way from the start here,
+    with a concurrency test that asserts exactly the limit gets through, and an eviction sweep so the map
+    does not grow one entry per address seen forever.
+  - **What it is not:** a DoS control. The client key is whatever the deployment resolves the caller to, and
+    with a directly exposed port that is caller-supplied — recorded as a known residual in `SECURITY.md`,
+    along with why counting the socket address instead would be worse. Counters are per instance until Redis
+    arrives at v3 (§13).
 - **`robots.txt`, with the AI-crawler policy as an admin setting (M6, `0.6.3`, ARCHITECTURE §6.6).** The
   sitemap has been served since `0.5.5` with nothing pointing at it, and §6.6's other half — what the site
   asks crawlers to skip — did not exist. `GET /robots.txt` now disallows the admin/API/actuator paths,

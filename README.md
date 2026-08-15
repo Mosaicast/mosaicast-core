@@ -256,6 +256,22 @@ was rejected**, each feed's poll state **with its last error**, and error/warnin
 Plugins report their own trouble via `POST /api/plugins/{id}/log` (signed-in user at the plugin's write floor,
 size-capped and rate-limited). Tune retention and capture with `mosaicast.log.*` — see `application.yml`.
 
+### Rate limiting
+
+Login attempts, token minting and branding uploads are rate-limited per client (ARCHITECTURE §13). Two
+budgets, because the two abuses differ: **auth** defaults to 20 per minute (a flood is credential stuffing),
+**uploads** to 10 per minute (a flood is a disk problem). Only state-changing requests count — a `GET` is
+never throttled — and a refusal is an RFC 7807 `429` carrying `Retry-After`. Tune or disable with
+`mosaicast.rate-limit.*` in `application.yml`.
+
+It runs as the first filter in the chain, so the OAuth2 endpoints (which Spring Security handles, not a
+controller) are covered and a flood is refused before it costs a session lookup.
+
+**Know what it is.** This is a cost control, not a DoS control. Callers are bucketed by the address the
+deployment resolves them to, which on a directly exposed port is caller-supplied — see *Known residuals* in
+[`SECURITY.md`](SECURITY.md) for why that trade beats the alternative, and run behind a proxy that overwrites
+`X-Forwarded-For` if you need a real bound. Counters are per instance until Redis lands in v3.
+
 ### Deep links, sharing and SEO
 
 The shell is an SPA, but link scrapers and most AI crawlers run no JS, so the server answers navigation URLs
