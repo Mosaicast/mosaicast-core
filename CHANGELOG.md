@@ -12,6 +12,46 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **The host's own pages are served with their metadata, structured data and readable content (M6, `0.6.2`,
+  ARCHITECTURE §6.4/§6.6).** `IndexHtmlService` existed but `PluginPageController` was its only caller, so a
+  shared *plugin* deep link previewed correctly while a shared **episode** link — the one the BRIEF's
+  Definition of Done actually names — fell through to the static resource handler and got the bare bundle
+  with a generic `<title>`. The new `ShellController` maps `/`, `/feeds/{slug}`, `/episodes/{slug}` and
+  `/legal/{slug}`, and `OgResolver` answers each from the data the host already has.
+  - **OpenGraph/Twitter per scope**, filters included: season and tag live in the query string (§6.1), so a
+    shared filtered view previews as that view (`Feed – Season 2`) rather than as the site.
+  - **JSON-LD**: `PodcastSeries` on the site and feed pages, `PodcastEpisode` on an episode — with its
+    season, episode number, publication date and audio. Written by Jackson, never concatenated, and any
+    `</` escaped on the way into the `<script>`: episode titles are third-party text, and one containing
+    `</script>` would otherwise end the data block and have the rest of the document parsed as content.
+  - **A no-JS content block** for crawlers that render nothing (most AI crawlers do not). It is injected
+    *inside* `#root`, so React clears it when it mounts — there is no hand-off code to get wrong, and no
+    path where a visitor sees the page twice. Show notes are sanitized with a Jsoup safelist that keeps text
+    structure and drops `<img>`, which would otherwise be an arbitrary-origin request past §12.5's
+    `img-src` narrowing.
+  - **`rel=canonical` with normalized filters**, so `?tag=x&season=2`, `?season=2&tag=x` and
+    `?season=2&tag=x&order=newest` are one URL rather than three — `order=newest` is what the shell assumes
+    when the parameter is absent, so carrying it would canonicalize one view two ways.
+  - **Real HTTP 404s** for an unknown episode, feed or legal-page slug (§6.6 — no soft-404). The body is
+    still the shell, so a human lands on the app's not-found view; the *status* is what a crawler reads, and
+    a 200 there is how a site gets its own not-found pages indexed.
+  - **`SiteUrls`** now owns "the base URL comes from configuration, never from the request", extracted from
+    `SitemapController` because the identical header-spoofing hole is worth exactly as much in a
+    `rel=canonical` as it was in a `<loc>`. Pinned by a test that sends `X-Forwarded-Host`.
+  - **Not yet, and deliberately** — the two remaining §6.6 hygiene items are each blocked on a decision, not
+    on work, and both are flagged to ARCHITECTURE's owner rather than resolved here:
+    - **`hreflang`** presumes a distinct URL per language version. Locale resolution is client-side (§12.7:
+      an explicit choice in `localStorage`, then the browser, then the site default) and *one* URL serves
+      both `en` and `de`, so the tags could only be emitted pointing every language at the same href —
+      which search engines treat as an error rather than as an answer. Implementing it honestly means
+      per-locale URLs, which is a routing change well outside a hygiene bullet.
+    - **`<link rel="alternate" type="application/rss+xml">`** would publish a feed's source URL, which
+      `PublicFeedView`/`FeedDetailView` deliberately withhold from unauthenticated callers ("must not leak").
+      For a free RSS show that URL is already public and the tag is free discovery; for the tier-gated feeds
+      §9 brings in v2 it is not. Reversing a deliberate exclusion is not a call to make in passing.
+
 ### Security
 
 - **A plugin's backend can reserve the keys it authors (`0.6.1`, §7.2/§7.6).** Authorization on the doc store

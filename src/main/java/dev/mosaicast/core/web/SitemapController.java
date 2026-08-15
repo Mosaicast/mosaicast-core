@@ -16,7 +16,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,10 +25,8 @@ import org.springframework.web.bind.annotation.RestController;
  * views, legal pages — plus the entries active plugins contribute through the optional
  * {@code SitemapProvider} (§7.4), which is what makes plugin deep links discoverable.
  *
- * <p>Locations are absolute and built from {@code mosaicast.base-url}, not from the request. A sitemap
- * states where a site canonically lives, so a request header must not be able to answer that question — see
- * {@link #baseUrl()}. {@code robots.txt}, the admin-configurable AI-crawler policy and JSON-LD are the rest
- * of §6.6 and land with M6.
+ * <p>Locations are absolute and built from {@code mosaicast.base-url}, not from the request — see
+ * {@link SiteUrls}, which owns that rule and the reason for it.
  */
 @RestController
 public class SitemapController {
@@ -43,22 +40,21 @@ public class SitemapController {
     private final SiteConfigService siteConfig;
     private final PluginExtensions extensions;
 
-    private final String baseUrl;
+    private final SiteUrls urls;
 
     public SitemapController(EpisodeQueryService episodes, FeedService feeds, LegalService legal,
-                             SiteConfigService siteConfig, PluginExtensions extensions,
-                             @Value("${mosaicast.base-url:http://localhost:8080}") String baseUrl) {
+                             SiteConfigService siteConfig, PluginExtensions extensions, SiteUrls urls) {
         this.episodes = episodes;
         this.feeds = feeds;
         this.legal = legal;
         this.siteConfig = siteConfig;
         this.extensions = extensions;
-        this.baseUrl = baseUrl;
+        this.urls = urls;
     }
 
     @GetMapping(path = "/sitemap.xml", produces = MediaType.APPLICATION_XML_VALUE)
     public String sitemap() {
-        String base = baseUrl();
+        String base = urls.base();
         List<Entry> entries = new ArrayList<>();
         entries.add(new Entry("/", null));
 
@@ -96,25 +92,6 @@ public class SitemapController {
 
     /** One sitemap entry: a root-relative path plus an optional last-modified stamp. */
     private record Entry(String path, Instant lastModified) {
-    }
-
-    /**
-     * The site's own absolute base URL, from configuration — never from the request.
-     *
-     * <p>This used to be {@code ServletUriComponentsBuilder.fromCurrentContextPath()}, which derives the host
-     * from the request; with {@code server.forward-headers-strategy: framework} (application.yml) that makes
-     * {@code X-Forwarded-Host} authoritative, and nothing checked the result was one of the site's own names.
-     * A single {@code curl -H 'X-Forwarded-Host: evil.example' https://site/sitemap.xml} therefore returned a
-     * sitemap whose every {@code <loc>} pointed at the attacker's host — handed to a crawler, that is the
-     * site's own canonical URLs reassigned to somebody else. The shipped compose file exposes the app port
-     * directly with no proxy in front to strip the header.
-     *
-     * <p>{@code mosaicast.base-url} was already configured and read nowhere. A sitemap is a statement about
-     * where this site lives, so it should come from where the operator said it lives.
-     */
-    private String baseUrl() {
-        String base = baseUrl.trim();
-        return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }
 
     private static String escape(String value) {
