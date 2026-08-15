@@ -14,6 +14,37 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **The schema provider: plugins can declare relational tables (M6, `0.6.6`, ARCHITECTURE §7.6).** The SDK
+  has shipped `SchemaStore`, `Criteria` and `FakeSchemaStore` since `0.4.0`, and the host answered
+  `ctx.schema()` with `null` and rejected any manifest that declared one. A plugin could write and test the
+  code but never run it — which is what blocked the wiki.
+  - **The manifest's `storage` now takes both shapes** the spec gives it: the string `"doc"`, or
+    `{ "schema": { "page": { "slug": "string:indexed:unique", … } } }`. Types are `string` `text` `integer`
+    `number` `boolean` `timestamp`; modifiers are `:indexed` `:unique` `:fulltext` (the last only on text).
+  - **A closed grammar, because it is the whole boundary between a manifest and DDL.** Entity and field
+    names must match a pattern with no quote, space or hyphen in it, every generated identifier is emitted
+    double-quoted, and anything outside the known types and modifiers **rejects the plugin at load** rather
+    than being coerced into something that runs. Quoting is also what keeps `updatedAt` from being folded to
+    `updatedat` and silently breaking the record mapping.
+  - **A platform migration runner, not Flyway** — Flyway applies a fixed set of scripts shipped with the
+    release, and a plugin's tables are neither. DDL is applied programmatically with the host's own
+    bookkeeping table (`plugin_schema_table`, Flyway `V23`), which is also how purge knows what to drop:
+    choosing tables to `drop` by name prefix is one naming accident away from taking something else.
+  - **Additive only.** A new field is added on the next boot; a field dropped from the manifest leaves its
+    column alone; a field whose declared type changed **refuses the plugin** rather than retyping a column
+    that already holds data. That is not a decision a runner should make on an admin's behalf because a
+    manifest changed between two boots.
+  - **The scoping story is that a plugin cannot express the question.** `SchemaStoreImpl` resolves every
+    entity and field name against that plugin's own declaration and builds the statement itself; values are
+    always bound as JDBC parameters. Reaching another plugin's tables, or core's, is not blocked so much as
+    unsayable — pinned by tests that pass `plugin_data` as an entity and a `'; drop table …` string as both
+    a field name and a value.
+  - Full-text search runs on the provisioned GIN index via `websearch_to_tsquery`, which takes what a person
+    would type and never throws on syntax — a plugin passes its users' words straight through, and a parse
+    error from a stray operator would surface as a 500 inside that plugin's UI.
+  - **Purge now removes both storage kinds** (§7.8): documents *and* the provisioned tables. A half-purge is
+    the worse outcome either way round — documents left behind reappear under a reinstalled plugin, and
+    tables left behind make a re-provision fail on a type that has since changed.
 - **Related episodes, with podcaster-curated pins (M6, `0.6.5`, ARCHITECTURE §6.3).** §6.3 has specified a
   `RelatedProvider` since the start and nothing implemented it; the detail sidebar was empty on any install
   without a sidebar plugin, which is every install by default.

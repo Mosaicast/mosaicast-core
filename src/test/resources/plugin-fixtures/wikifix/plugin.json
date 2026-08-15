@@ -1,0 +1,44 @@
+{
+  "id": "wikifix",
+  "version": "1.0.0",
+  "platformApi": "0.6.0",
+  "name": "Schema Fixture (valid)",
+  "backend": {
+    "basePath": "/api/plugins/wikifix",
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin"
+    ]
+  },
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "fixture-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "fixture-card",
+      "placement": "main",
+      "visibleTo": "anonymous"
+    }
+  ],
+  "storage": {
+    "schema": {
+      "page": {
+        "slug": "string:indexed:unique",
+        "title": "string",
+        "markdown": "text:fulltext",
+        "views": "integer",
+        "rating": "number",
+        "published": "boolean",
+        "updatedAt": "timestamp:indexed"
+      }
+    }
+  },
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster"
+  },
+  "config": {}
+}

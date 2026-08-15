@@ -32,6 +32,7 @@ public class PluginSettingsService {
     private final PluginActivationRepository activations;
     private final PluginConfigValueRepository configValues;
     private final PluginDataRepository data;
+    private final PluginSchemaMigrator schemaMigrator;
 
     /** pluginId → explicit admin decision. Absent = never toggled = enabled. */
     private final Map<String, Boolean> enabledCache = new ConcurrentHashMap<>();
@@ -41,10 +42,12 @@ public class PluginSettingsService {
 
     public PluginSettingsService(PluginActivationRepository activations,
                                  PluginConfigValueRepository configValues,
-                                 PluginDataRepository data) {
+                                 PluginDataRepository data,
+                                 PluginSchemaMigrator schemaMigrator) {
         this.activations = activations;
         this.configValues = configValues;
         this.data = data;
+        this.schemaMigrator = schemaMigrator;
     }
 
     /**
@@ -105,17 +108,25 @@ public class PluginSettingsService {
     }
 
     /**
-     * Deletes every document a plugin stored in the generic doc store (ARCHITECTURE §7.8). Activation and
-     * config survive on purpose: purging data must not silently re-enable a plugin or reset its settings.
+     * Deletes everything a plugin stored — <strong>both</strong> storage kinds (ARCHITECTURE §7.8):
+     * documents from the generic doc store, and the tables its schema declaration provisioned.
      *
-     * @return how many documents were removed
+     * <p>Both, because §7.8 says purge covers both and because a half-purge is the worse outcome either
+     * way round: doc-store documents left behind reappear under a reinstalled plugin, and schema tables left
+     * behind make a re-provision fail on a column whose declared type has since changed.
+     *
+     * <p>Activation and config survive on purpose: purging data must not silently re-enable a plugin or
+     * reset its settings.
+     *
+     * @return how many documents were removed (the schema tables are counted separately, in the log)
      */
     @Transactional
     public int purgeData(String pluginId) {
         int removed = data.deleteByPluginId(pluginId);
+        int tables = schemaMigrator.purge(pluginId);
         // Irreversible and admin-initiated: worth a permanent record of how much went.
-        log.info("Purged {} stored document(s) of plugin '{}'; its config and on/off state were kept",
-                removed, pluginId);
+        log.info("Purged {} stored document(s) and {} schema table(s) of plugin '{}'; "
+                        + "its config and on/off state were kept", removed, tables, pluginId);
         return removed;
     }
 }

@@ -16,22 +16,24 @@ import org.slf4j.LoggerFactory;
 /**
  * The {@link PluginContext} handed to one plugin's {@code register(ctx)} (ARCHITECTURE §7.4). Wires the
  * plugin's hard-scoped {@link DocStore}, its config, the shared host {@link FeedAccess}, and scheduling.
- * {@link #schema()} is always {@code null} in this milestone — schema-declaring plugins are rejected at
- * load (§7.6).
+ * {@link #schema()} is non-null only for a plugin whose manifest declares one (§7.6) — most declare
+ * nothing and get the doc store alone.
  */
 public class PluginContextImpl implements PluginContext {
 
     private final String pluginId;
     private final DocStore store;
+    private final SchemaStore schema;
     private final PluginConfig config;
     private final FeedAccess feeds;
     private final PluginScheduler scheduler;
     private int scheduleCount;
 
-    public PluginContextImpl(String pluginId, DocStore store, PluginConfig config, FeedAccess feeds,
-                             PluginScheduler scheduler) {
+    public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema, PluginConfig config,
+                             FeedAccess feeds, PluginScheduler scheduler) {
         this.pluginId = pluginId;
         this.store = store;
+        this.schema = schema;
         this.config = config;
         this.feeds = feeds;
         this.scheduler = scheduler;
@@ -55,9 +57,16 @@ public class PluginContextImpl implements PluginContext {
         return LoggerFactory.getLogger(AppLogAppender.loggerNameFor(pluginId));
     }
 
+    /**
+     * The plugin's relational store, or {@code null} when its manifest declares no schema.
+     *
+     * <p>Null rather than an empty implementation, because that is the SDK's documented signal: a plugin
+     * that reaches for {@code ctx.schema()} without declaring one has a manifest and a codebase that
+     * disagree, and a null teaches that immediately.
+     */
     @Override
     public SchemaStore schema() {
-        return null;
+        return schema;
     }
 
     @Override

@@ -5,6 +5,7 @@ package dev.mosaicast.core.plugin;
 
 import tools.jackson.databind.ObjectMapper;
 import dev.mosaicast.plugin.api.FeedAccess;
+import dev.mosaicast.plugin.api.SchemaStore;
 import dev.mosaicast.plugin.api.PlatformApi;
 import dev.mosaicast.plugin.api.PluginBackend;
 import java.io.IOException;
@@ -48,6 +49,8 @@ public class PluginLoaderService implements ApplicationRunner {
     private final PluginScheduler scheduler;
     private final PluginSettingsService settings;
     private final ObjectMapper objectMapper;
+    private final PluginSchemaMigrator schemaMigrator;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** Registrations in discovery order, keyed by id; populated once at startup. */
     private final Map<String, PluginRegistration> registrations = new LinkedHashMap<>();
@@ -57,13 +60,17 @@ public class PluginLoaderService implements ApplicationRunner {
 
     public PluginLoaderService(PluginProperties properties, PluginDataService dataService,
                                FeedAccess feedAccess, PluginScheduler scheduler,
-                               PluginSettingsService settings, ObjectMapper objectMapper) {
+                               PluginSettingsService settings, ObjectMapper objectMapper,
+                               PluginSchemaMigrator schemaMigrator,
+                               org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.properties = properties;
         this.dataService = dataService;
         this.feedAccess = feedAccess;
         this.scheduler = scheduler;
         this.settings = settings;
         this.objectMapper = objectMapper;
+        this.schemaMigrator = schemaMigrator;
+        this.jdbc = jdbc;
     }
 
     @Override
@@ -134,11 +141,26 @@ public class PluginLoaderService implements ApplicationRunner {
         }
     }
 
+    /**
+     * Builds the context one plugin's {@code register(ctx)} receives.
+     *
+     * <p>A schema declaration is provisioned here, before {@code register} runs: a plugin's first act is
+     * often to seed or migrate its own rows, so the tables have to exist by the time it gets the context.
+     * Provisioning throws on a declaration the host cannot apply, which lands in the same catch as any
+     * other load failure and disables that plugin alone (§7.8).
+     */
     private PluginContextImpl buildContext(PluginManifest manifest) {
         DocStoreImpl store = new DocStoreImpl(manifest.id(), dataService);
         PluginConfigImpl config =
                 new PluginConfigImpl(manifest.id(), manifest.config(), settings, objectMapper);
-        return new PluginContextImpl(manifest.id(), store, config, feedAccess, scheduler);
+
+        Map<String, PluginSchemaValidator.Entity> entities = manifest.schemaEntities();
+        SchemaStoreImpl schema = null;
+        if (!entities.isEmpty()) {
+            schemaMigrator.provision(manifest.id(), entities);
+            schema = new SchemaStoreImpl(manifest.id(), entities, jdbc, objectMapper);
+        }
+        return new PluginContextImpl(manifest.id(), store, schema, config, feedAccess, scheduler);
     }
 
     /**
