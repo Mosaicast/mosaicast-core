@@ -152,6 +152,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/me/**").authenticated()
                         // Feeds/planned episodes are a podcaster capability; other admin endpoints are ADMIN.
                         .requestMatchers("/api/admin/feeds/**").hasAnyRole("ADMIN", "PODCASTER")
+                        // Pinned related episodes (§6.3) are an editorial decision about episodes, which
+                        // §8.5 puts with the podcaster — same reasoning as feeds above.
+                        .requestMatchers("/api/admin/episodes/**").hasAnyRole("ADMIN", "PODCASTER")
                         // Plugin config may be delegated to podcasters per field (manifest `editableBy`,
                         // §7.2); the controller enforces which fields this role may actually set. Activation
                         // and purge stay ADMIN via the catch-all below.

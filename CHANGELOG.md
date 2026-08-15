@@ -14,6 +14,37 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Related episodes, with podcaster-curated pins (M6, `0.6.5`, ARCHITECTURE §6.3).** §6.3 has specified a
+  `RelatedProvider` since the start and nothing implemented it; the detail sidebar was empty on any install
+  without a sidebar plugin, which is every install by default.
+  - **A swappable strategy, not a plugin.** `RelatedProvider` is a one-method interface the host resolves,
+    because the sidebar has to work with zero plugins installed. §6.3 already names the v2 successor — an
+    embedding strategy over `pgvector`, or a recommender — and both replace `DefaultRelatedProvider` without
+    the endpoint or the widget changing.
+  - **Pins win, and are not scored.** A pin is an answer, not a signal: it is emitted first, in the curated
+    order. Scoring it and having it land third would make the curation look broken.
+  - **Then the three signals §6.3 names**, weighted: same season (scaled by how near in episode number),
+    shared tags (with diminishing returns — the fifth shared tag adds little), fuzzy title (weakest, and
+    deliberately so; it catches "Part Two" and little else). Reuses `TitleSimilarity` from the reconciler
+    rather than growing a second matcher.
+  - **Same-feed is a tie-breaker, never a qualifier.** At least one substantive signal has to fire. Letting
+    the feed bonus stand alone made every episode of a show "related" to every other, which on a small site
+    fills the sidebar with the back catalogue and tells a listener nothing. An empty sidebar is a better
+    answer than a dishonest one — and the widget renders nothing at all rather than a heading over an empty
+    list.
+  - **Excluded:** the episode itself, `PLANNED` (no audio) and `WITHDRAWN` (gone), and anything in a
+    switched-off feed. A pin to an episode that has since become invisible is filtered from the public read
+    but still listed for the admin, who has to be able to unpin it — a pin records an intention, not a
+    permission.
+  - **Curation is inline on the episode**, for PODCASTER and ADMIN (`/api/admin/episodes/{slug}/pins`), not
+    in the admin area: the judgement is about *this* episode and is made while looking at it. Every mutation
+    invalidates the cache immediately, because a pin that only took effect at the next poll would look
+    broken to the person who just made it.
+  - **Computed on request and cached** (§6.3), dropped wholesale when a poll changes the episode set — a new
+    episode is a new candidate for every episode sharing a tag with it, and working out which cached answers
+    moved costs more than recomputing the few that get asked for.
+
+
 - **Basic rate limiting on auth endpoints and uploads (M6, `0.6.4`, ARCHITECTURE §13).** §13 has asked for
   this since the start and only `PluginLogRateLimiter` existed, which throttles plugin logs. Nothing stood
   between a script and `/api/auth/dev-login`, the OAuth2 endpoints, token minting or branding upload.
@@ -100,6 +131,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
       `PublicFeedView`/`FeedDetailView` deliberately withhold from unauthenticated callers ("must not leak").
       For a free RSS show that URL is already public and the tag is free discovery; for the tier-gated feeds
       §9 brings in v2 it is not. Reversing a deliberate exclusion is not a call to make in passing.
+
+### Fixed
+
+- **The detail sidebar no longer stacks underneath the show notes (`0.6.5`).** The two-column layout was
+  gated on `:has(.mc-detail__side .mc-slot:not(:empty))` — a *plugin* slot with content. Core content in the
+  sidebar did not match it, so the related list appeared below the notes at full width instead of beside
+  them. The rule now opens for any sidebar content, and the mobile breakpoint closes all of them again.
 
 ### Security
 

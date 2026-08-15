@@ -14,6 +14,7 @@ import dev.mosaicast.core.episode.EpisodeRef;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
 import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeTagRepository;
+import dev.mosaicast.core.episode.RelatedProvider;
 import dev.mosaicast.plugin.api.Access;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Instant;
@@ -45,11 +46,15 @@ class ReconcilerTest {
     @Mock
     private EpisodeTagRepository tags;
 
+    /** Reconciling changes the episode set, which is what invalidates the related cache (§6.3). */
+    @Mock
+    private RelatedProvider related;
+
     private Reconciler reconciler;
 
     @BeforeEach
     void setUp() {
-        reconciler = new Reconciler(refs, displays, tags);
+        reconciler = new Reconciler(refs, displays, tags, related);
         lenient().when(refs.save(any(EpisodeRef.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(displays.save(any(EpisodeDisplay.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(displays.findById(any(UUID.class))).thenReturn(Optional.empty());

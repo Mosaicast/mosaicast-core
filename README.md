@@ -272,6 +272,25 @@ deployment resolves them to, which on a directly exposed port is caller-supplied
 [`SECURITY.md`](SECURITY.md) for why that trade beats the alternative, and run behind a proxy that overwrites
 `X-Forwarded-For` if you need a real bound. Counters are per instance until Redis lands in v3.
 
+### Related episodes
+
+The detail sidebar suggests what else to listen to (ARCHITECTURE §6.3). **Deliberately not the same thing as
+previous/next**, which is core navigation, always shown, and lives at the foot of the page: related answers
+"what else is like this", and is allowed to come back empty.
+
+**Podcaster-curated pins win** and are shown first, in the order they were pinned. Everything after them is
+computed from three signals — same season (weighted by how near in episode number), shared tags, and fuzzy
+title — with same-feed as a tie-breaker rather than a qualifier. At least one real signal has to fire, so a
+show's whole back catalogue does not count as "related" to each of its episodes; when nothing qualifies the
+widget renders nothing rather than an empty heading.
+
+Curation is inline on the episode page for PODCASTER and ADMIN — the judgement is about that episode and is
+made while looking at it. Pins take effect immediately.
+
+`RelatedProvider` is a swappable strategy the host resolves, **not a plugin**, so the sidebar works with zero
+plugins installed. §6.3's v2 successor (an embedding strategy over `pgvector`, or a recommender) replaces
+`DefaultRelatedProvider` without the endpoint or the widget changing.
+
 ### Deep links, sharing and SEO
 
 The shell is an SPA, but link scrapers and most AI crawlers run no JS, so the server answers navigation URLs
@@ -408,7 +427,9 @@ Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/episodes?feedId=&season=&tag=&order=` (unified site-scope feed),
 `GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{slug}/episodes?season=`,
 `GET /api/feeds/{slug}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
-`GET /api/episodes/search?q=` (public read); `GET /api/me`, `GET/DELETE /api/me/identities`,
+`GET /api/episodes/{slug}/related?limit=` (§6.3), `GET /api/episodes/search?q=` (public read);
+`GET/POST/DELETE /api/admin/episodes/{slug}/pins` (curate related, **PODCASTER/ADMIN**);
+`GET /api/me`, `GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.
 
