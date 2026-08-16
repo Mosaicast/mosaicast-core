@@ -17,7 +17,8 @@ import { SlotRegion } from './SlotRegion';
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
 
 /**
- * The persistent top-bar chrome (ARCHITECTURE §6/§8): brand, nav, the anonymous language switcher (§12.7),
+ * The persistent top-bar chrome (ARCHITECTURE §6/§8): brand (which is the link home), the anonymous
+ * language switcher (§12.7),
  * and auth — a **Log in** menu (Discord `oauth2Login`, plus dev-login under the dev profile) when anonymous,
  * or an **account menu** (avatar / name / role → Account, Admin, Log out) when signed in. Hosts the `top`
  * plugin slot region.
@@ -57,14 +58,15 @@ export function TopBar() {
   return (
     <header className="mc-top" data-slot="top">
       <div className="mc-top__inner">
+        {/*
+          The brand is the way home — one affordance, the one every site trains people to expect. It used
+          to sit beside a nav whose only item was a second link to the same place, which cost a row of
+          header on a phone to say the same thing twice.
+        */}
         <Link className="mc-brand" to="/">
           <img className="mc-brand__logo" src={logo} alt="" aria-hidden="true" />
           <span className="mc-brand__name">{name}</span>
         </Link>
-
-        <nav className="mc-nav" aria-label={t('nav.primary')}>
-          <Link to="/">{t('nav.home')}</Link>
-        </nav>
 
         <div className="mc-top__actions">
           <SlotRegion name="top" />
@@ -72,7 +74,14 @@ export function TopBar() {
             <Dropdown
               triggerClassName="mc-btn mc-btn--ghost"
               ariaLabel={t('nav.switchLanguage')}
-              trigger={<span className="mc-menu__label">{localeName(currentLocale)}</span>}
+              trigger={
+                <span className="mc-menu__label">
+                  {/* Both labels ship; CSS picks one. A phone header has room for "EN", not "English",
+                      and swapping in CSS keeps it a pure layout decision rather than a JS breakpoint. */}
+                  <span className="mc-menu__long">{localeName(currentLocale)}</span>
+                  <span className="mc-menu__short">{currentLocale.toUpperCase()}</span>
+                </span>
+              }
             >
               {locales.map((code) => (
                 <button
@@ -108,7 +117,9 @@ export function TopBar() {
               trigger={
                 <span className="mc-menu__label">
                   {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
-                  {user.displayName}
+                  {/* Wrapped so the name alone can be truncated: clamping the label would take the
+                      dropdown caret with it and leave the control looking like plain text. */}
+                  <span className="mc-menu__name">{user.displayName}</span>
                 </span>
               }
             >

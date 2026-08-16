@@ -6,6 +6,9 @@ package dev.mosaicast.plugin.fixture;
 import dev.mosaicast.plugin.api.PluginBackend;
 import dev.mosaicast.plugin.api.PluginContext;
 import dev.mosaicast.plugin.api.Criteria;
+import dev.mosaicast.plugin.api.SitemapProvider;
+import dev.mosaicast.plugin.api.SitemapUrl;
+import java.util.List;
 import dev.mosaicast.plugin.api.SchemaStore;
 import dev.mosaicast.plugin.api.Scope;
 import java.time.Duration;
@@ -20,7 +23,18 @@ import org.pf4j.Extension;
  * to prove the host loads a genuine PF4J extension and wires a working {@link PluginContext}.
  */
 @Extension
-public class FixturePlugin implements PluginBackend {
+public class FixturePlugin implements PluginBackend, SitemapProvider {
+
+    /**
+     * Set by {@link #register(PluginContext)} — deliberately a <strong>plain instance field</strong>, which
+     * is how the SDK contract reads and how an author would naturally write it.
+     *
+     * <p>PF4J's default {@code ExtensionFactory} builds a separate instance per extension point, so this
+     * field was null when {@link #urls()} ran and the plugin's sitemap entries silently vanished. The host
+     * now installs {@code SingletonExtensionFactory}; this field staying non-static is what keeps that
+     * honest, and {@link #urls()} below is the regression test's hook.
+     */
+    private PluginContext registered;
 
     @Override
     public void register(PluginContext ctx) {
@@ -35,6 +49,7 @@ public class FixturePlugin implements PluginBackend {
         ctx.onSchedule(Duration.ofMinutes(Math.max(1, refresh)), () -> {
             // Nothing to do on tick in the fixture; registering it proves onSchedule accepts the task.
         });
+        this.registered = ctx;
         seedSchema(ctx);
     }
 
@@ -61,5 +76,19 @@ public class FixturePlugin implements PluginBackend {
                 "rating", 4.5,
                 "published", true,
                 "updatedAt", Instant.parse("2026-03-04T10:00:00Z")));
+    }
+
+    /**
+     * Contributes one URL, and only when {@link #register(PluginContext)} has run on <em>this</em> object.
+     *
+     * <p>That condition is the whole point: with PF4J's default per-lookup factory the host asks a different
+     * instance than the one it registered, {@link #registered} is null here, and the entry disappears
+     * without an error anywhere. The path is hardcoded to the {@code good} fixture's namespace; for the
+     * other fixtures sharing this jar it is dropped by the host's own namespace check, which is tested
+     * separately.
+     */
+    @Override
+    public List<SitemapUrl> urls() {
+        return registered == null ? List.of() : List.of(new SitemapUrl("/p/good/ctx-seen", null));
     }
 }
