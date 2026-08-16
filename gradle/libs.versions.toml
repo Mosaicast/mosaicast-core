@@ -14,7 +14,7 @@ pf4j = "3.15.0"
 shedlock = "7.7.0"
 jsoup = "1.23.1"
 commonsText = "1.15.0"
-commonmark = "0.29.0"
+commonmark = "0.30.0"
 
 [libraries]
 # --- Mosaicast plugin SDK (consumed from mavenLocal — see README dev setup) ---
