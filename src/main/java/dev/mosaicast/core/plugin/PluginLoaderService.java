@@ -55,6 +55,13 @@ public class PluginLoaderService implements ApplicationRunner {
     /** Registrations in discovery order, keyed by id; populated once at startup. */
     private final Map<String, PluginRegistration> registrations = new LinkedHashMap<>();
 
+    /**
+     * The {@link SchemaStore} of every plugin that declared one, keyed by id — the same instance its
+     * {@code register(ctx)} was handed, so the HTTP surface and the plugin's own backend read through one
+     * object rather than two built from the same manifest.
+     */
+    private final Map<String, SchemaStoreImpl> schemaStores = new LinkedHashMap<>();
+
     /** The PF4J manager, kept after boot so optional extension points can be resolved on demand (§7.4). */
     private MosaicastPluginManager manager;
 
@@ -159,6 +166,7 @@ public class PluginLoaderService implements ApplicationRunner {
         if (!entities.isEmpty()) {
             schemaMigrator.provision(manifest.id(), entities);
             schema = new SchemaStoreImpl(manifest.id(), entities, jdbc, objectMapper);
+            schemaStores.put(manifest.id(), schema);
         }
         return new PluginContextImpl(manifest.id(), store, schema, config, feedAccess, scheduler);
     }
@@ -247,6 +255,22 @@ public class PluginLoaderService implements ApplicationRunner {
      */
     public Optional<PluginRegistration> active(String id) {
         return loaded(id).filter(r -> settings.enabled(id));
+    }
+
+    /**
+     * The {@link SchemaStore} of a plugin that is loaded, switched on <em>and</em> declares a schema —
+     * empty otherwise, which is the doc-store case as much as the unknown-plugin one.
+     *
+     * <p>Gated on {@link #active} rather than on the map alone, so switching a plugin off closes its
+     * schema surface at the same instant it closes its doc surface (§7.8): the store object survives the
+     * toggle, the access to it does not.
+     *
+     * <p>This is the object the plugin's own {@code register(ctx)} received. Handing the HTTP layer a
+     * second store built from the same manifest would work today and drift the moment one of them learns
+     * something the other does not.
+     */
+    public Optional<SchemaStoreImpl> schemaOf(String id) {
+        return active(id).map(r -> schemaStores.get(r.id()));
     }
 
     /** Every plugin that is loaded and switched on, in discovery order. */

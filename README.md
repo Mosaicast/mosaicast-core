@@ -152,14 +152,19 @@ fields must be renderable), loads the JAR, and calls `register(ctx)`. A bad mani
 **disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
 A plugin an admin switched off is skipped here entirely.
 
-The frontend never calls plugin-authored routes; there are none. Instead the host exposes a fixed, generic,
-per-plugin **doc-store** surface the plugin's Web Component reaches via `ctx.api`:
+The frontend never calls plugin-authored routes; there are none. Instead the host exposes fixed, generic,
+per-plugin surfaces the plugin's Web Component reaches via `ctx.api` (the doc store) and `ctx.schema` (its
+declared tables, read-only):
 
 ```
 GET    /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # one doc; 404 if absent
 GET    /api/plugins/{id}/data/{scopeType}/{scopeId}?prefix=&page=&size=   # paginated list
 PUT    /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # upsert (last-write-wins)
 DELETE /api/plugins/{id}/data/{scopeType}/{scopeId}/{key}      # idempotent
+GET    /api/plugins/{id}/schema/{entity}?where=&orderBy=&page=&size=      # declared rows, filtered
+GET    /api/plugins/{id}/schema/{entity}/search?field=&q=&where=&page=&size=  # full-text, on the GIN index
+GET    /api/plugins/{id}/schema/{entity}/count?where=          # how many match
+GET    /api/plugins/{id}/schema/{entity}/{rowId}               # one row; 404 if absent
 GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
 GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags)
@@ -220,7 +225,7 @@ not from `ctx`. The definitions, and the reasoning for which values are derived,
 }
 ```
 
-### Relational storage for plugins (`ctx.schema()`)
+### Relational storage for plugins (`ctx.schema()` / `ctx.schema`)
 
 The doc store is the default and covers nearly everything. A plugin that needs full-text search, revisions
 or backlinks declares a **schema** instead (ARCHITECTURE §7.6), and the platform provisions namespaced
@@ -248,6 +253,17 @@ leaves its column alone, and a field whose declared type changed **refuses the p
 retyping a column that already holds data. Flyway is static, so this runs through the host's own migration
 runner with a bookkeeping table (`plugin_schema_table`) — which is also how **purge** knows what to drop.
 Purge removes both storage kinds; removing a plugin folder still just makes it dormant (§7.8).
+
+**The frontend reads the same tables over HTTP** (`ctx.schema`, `null` for a doc-store plugin), through the
+`/api/plugins/{id}/schema/**` endpoints above: `where=field:op:value` and `orderBy=field:asc|desc` terms,
+paged like every other list endpoint (`page` from 0, `size` 50, capped at 200). Values are read against the
+field's *declared* type, so `views:gte:30` binds a number and `published:eq:yes` is a 400 rather than a
+quietly wrong answer. The manifest's `readableBy` governs it, exactly as it governs the doc surface.
+
+**Reads only.** A v1 plugin authors no HTTP routes, so no plugin code runs at request time to enforce slug
+uniqueness or append a revision atomically — the backend stays the only writer of relational truth. A
+frontend that must write puts a document in the doc store and the backend ingests it on its schedule, which
+makes such a write eventually consistent.
 
 ### Configuring, switching off and purging a plugin (E5c)
 

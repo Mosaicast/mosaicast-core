@@ -1,10 +1,10 @@
 {
-  "id": "wikifix",
+  "id": "wikilocked",
   "version": "1.0.0",
   "platformApi": "0.7.0",
-  "name": "Schema Fixture (valid)",
+  "name": "Schema Fixture (podcaster-only reads)",
   "backend": {
-    "basePath": "/api/plugins/wikifix",
+    "basePath": "/api/plugins/wikilocked",
     "extensions": [
       "dev.mosaicast.plugin.fixture.FixturePlugin"
     ]
@@ -37,7 +37,7 @@
     }
   },
   "data": {
-    "readableBy": "anonymous",
+    "readableBy": "podcaster",
     "writableBy": "podcaster"
   },
   "config": {}

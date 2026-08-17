@@ -110,4 +110,61 @@ describe('buildCtx', () => {
     expect(calls[0].body).toContain('"level":"WARN"');
     vi.unstubAllGlobals();
   });
+
+  it('hands a doc-store plugin no schema client at all', () => {
+    // Mirrors the backend's ctx.schema() being null: a client that 404s on every call would be a worse
+    // answer than saying there is nothing here, and the SDK type makes the plugin handle it.
+    expect(buildCtx(base).schema).toBeNull();
+
+    const schema = buildCtx({ ...base, hasSchema: true }).schema;
+    expect(typeof schema?.search).toBe('function');
+    expect(typeof schema?.count).toBe('function');
+  });
+
+  it('confines navigate to the plugin’s own subtree', () => {
+    const targets: { path: string; replace?: boolean }[] = [];
+    const ctx = buildCtx({ ...base, navigateTo: (path, opts) => targets.push({ path, ...opts }) });
+
+    ctx.route.navigate('glossary/kraken');
+    ctx.route.navigate('index', { replace: true });
+
+    expect(targets).toEqual([
+      { path: '/p/sample/glossary/kraken' },
+      { path: '/p/sample/index', replace: true },
+    ]);
+  });
+
+  it('cannot be aimed at another plugin or at core', () => {
+    const targets: string[] = [];
+    const ctx = buildCtx({ ...base, navigateTo: (path) => targets.push(path) });
+
+    ctx.route.navigate('/p/other/secret');       // a leading slash does not escape the namespace
+    ctx.route.navigate('../../admin');           // nor does climbing
+    ctx.route.navigate('a/../../b');             // including mid-path
+    ctx.route.navigate('');                      // the plugin's own root
+
+    expect(targets).toEqual([
+      '/p/sample/p/other/secret',
+      '/p/sample/admin',
+      '/p/sample/a/b',
+      '/p/sample',
+    ]);
+  });
+
+  it('keeps a query and hash the plugin carries', () => {
+    const targets: string[] = [];
+    const ctx = buildCtx({ ...base, navigateTo: (path) => targets.push(path) });
+
+    ctx.route.navigate('page?tab=history#top');
+    // `..` inside the query is text, not a segment, so cleaning the path leaves it alone.
+    ctx.route.navigate('page?next=../x');
+
+    expect(targets).toEqual(['/p/sample/page?tab=history#top', '/p/sample/page?next=../x']);
+  });
+
+  it('is a no-op rather than a throw when no router is above the mount', () => {
+    // A plugin calls navigate inside its own render; an unwired host must not turn that into a crashed
+    // tile. The SlotRegion boundary would catch it, but blanking a tile for a missing router is worse.
+    expect(() => buildCtx(base).route.navigate('anywhere')).not.toThrow();
+  });
 });

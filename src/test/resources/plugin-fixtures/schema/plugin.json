@@ -1,7 +1,7 @@
 {
   "id": "schema",
   "version": "1.0.0",
-  "platformApi": "0.6.0",
+  "platformApi": "0.7.0",
   "name": "Schema Fixture",
   "backend": {
     "basePath": "/api/plugins/schema",

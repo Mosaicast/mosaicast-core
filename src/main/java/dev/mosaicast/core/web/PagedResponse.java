@@ -20,6 +20,38 @@ import org.springframework.data.domain.Page;
  */
 public record PagedResponse<T>(List<T> items, int page, int size, long totalElements, int totalPages) {
 
+    /**
+     * The largest page any list endpoint serves.
+     *
+     * <p>Lives here rather than in one controller because a caller learns paging once: the plugin doc
+     * surface and the plugin schema surface answer the same way to {@code size=10000}, and a second copy
+     * of the number is a second thing to forget to change.
+     */
+    public static final int MAX_PAGE_SIZE = 200;
+
+    /** The requested page index, floored at 0. */
+    public static int page(int requested) {
+        return Math.max(0, requested);
+    }
+
+    /** The requested page size, clamped into {@code [1, MAX_PAGE_SIZE]}. */
+    public static int size(int requested) {
+        return Math.min(Math.max(1, requested), MAX_PAGE_SIZE);
+    }
+
+    /**
+     * Builds a page from an already-sliced list and the total behind it — for endpoints whose store is
+     * not Spring Data and hands back a {@link List} plus a separate count.
+     *
+     * @param items the rows on this page, already sliced
+     * @param page  the zero-based page index, already normalized
+     * @param size  the page size, already clamped
+     * @param total the number of matching rows across all pages
+     */
+    public static <T> PagedResponse<T> of(List<T> items, int page, int size, long total) {
+        return new PagedResponse<>(items, page, size, total, (int) Math.ceil((double) total / size));
+    }
+
     /** Maps a {@link Page} of entities to a {@code PagedResponse} of DTOs. */
     public static <E, T> PagedResponse<T> of(Page<E> page, Function<E, T> mapper) {
         return new PagedResponse<>(

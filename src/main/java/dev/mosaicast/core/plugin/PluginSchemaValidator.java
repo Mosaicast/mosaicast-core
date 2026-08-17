@@ -27,6 +27,28 @@ public final class PluginSchemaValidator {
 
     /** One declared entity: its table name and its fields, in declaration order. */
     public record Entity(String name, String tableName, Map<String, SchemaField> fields) {
+
+        /**
+         * One declared field by name, or a throw naming what <em>is</em> declared.
+         *
+         * <p>The single place a field name is resolved, so the store and the HTTP surface refuse the same
+         * names with the same wording. {@link IllegalArgumentException} per the SDK contract: an
+         * undeclared name means the manifest and the code disagree, which is a programming error in the
+         * plugin — and on the HTTP surface it is what the host answers 400 for.
+         *
+         * @param name the field name a plugin (or a request) supplied
+         * @return the declared field
+         * @throws IllegalArgumentException if this entity declares no such field
+         */
+        public SchemaField field(String name) {
+            SchemaField field = fields.get(name);
+            if (field == null) {
+                throw new IllegalArgumentException(
+                        "Field '%s' is not declared by entity '%s'; declared: %s"
+                                .formatted(name, this.name, fields.keySet()));
+            }
+            return field;
+        }
     }
 
     /**
