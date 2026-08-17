@@ -59,9 +59,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
-- **`platformApi` is now `0.7.0` (`0.6.8`).** The host matches `major.minor` exactly, so **every plugin
-  declaring `0.6.x` is rejected at load** until it re-declares. Both SDK additions are additive — the
-  migration is the version string; see the SDK's `MIGRATION.md`.
+- **`platformApi` is now `0.7.x` (`0.6.8`).** The host builds against SDK **0.7.1** and matches
+  `major.minor` exactly, so **every plugin declaring `0.6.x` is rejected at load** until it re-declares —
+  while anything on `0.7.0` or `0.7.1` loads either way. No plugin *code* changes; the one compile break is
+  a test that hand-builds a `route` override, which SDK 0.7.1 removes the need for. See the SDK's
+  `MIGRATION.md`.
 
 - **The list-endpoint page cap lives on `PagedResponse` (`0.6.8`).** `MAX_PAGE_SIZE = 200` plus `page()`
   and `size()` normalizers, shared by the doc and schema surfaces, so a caller learns paging once and the
