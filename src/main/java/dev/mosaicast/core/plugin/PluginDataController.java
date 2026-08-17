@@ -50,8 +50,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PluginDataController {
 
-    private static final int MAX_PAGE_SIZE = 200;
-
     private final PluginLoaderService plugins;
     private final PluginDataService data;
     private final FeedAccessImpl scopes;
@@ -88,7 +86,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireReadable(manifest, scope, authentication);
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), MAX_PAGE_SIZE));
+        Pageable pageable = PageRequest.of(PagedResponse.page(page), PagedResponse.size(size));
         return PagedResponse.of(data.queryPage(id, scope, prefix, pageable), e -> e);
     }
 

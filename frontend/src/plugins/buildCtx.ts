@@ -5,7 +5,7 @@ import type { PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-
 
 import { api } from '../api/client';
 import type { MeView, ThemeTokenSet } from '../api/types';
-import { makePluginApi } from './pluginApi';
+import { makePluginApi, makePluginSchema } from './pluginApi';
 
 /**
  * Assembles the {@link PluginContext} the host sets on a mounted plugin element (ARCHITECTURE §7.5). The shell
@@ -14,6 +14,9 @@ import { makePluginApi } from './pluginApi';
  * `route` subpath. `filter` and `progress` are wired to the shell where cheap and stubbed where their full
  * mechanism lands later; the shell re-renders the element by reassigning `ctx` whenever these inputs change,
  * so `onChange` handlers are intentionally inert.
+ *
+ * `route.navigate` is the exception to that inertness and the only outbound handle here: a plugin cannot
+ * describe where it wants to go by re-rendering, so this one has to actually do something (§6.4).
  */
 export interface CtxInputs {
   pluginId: string;
@@ -27,6 +30,14 @@ export interface CtxInputs {
   playerSeekTo: (seconds: number) => void;
   /** The subpath below `/p/{pluginId}/` when the plugin is rendered as a deep-link page; else empty. */
   routePath?: string;
+  /** Whether the plugin declares `storage.schema` — decides `ctx.schema` vs `null` (§7.6). */
+  hasSchema?: boolean;
+  /**
+   * Navigates the shell to an absolute path. Supplied by {@link PluginMount} from the router; absent in
+   * tests and in any mount with no router above it, where `navigate` degrades to a no-op rather than
+   * throwing inside a plugin's render.
+   */
+  navigateTo?: (path: string, opts?: { replace?: boolean }) => void;
   /** Whether the visitor granted a consent category (§12.5); defaults to deny when absent. */
   consentHas?: (category: string) => boolean;
   /** Every granted category, for `ctx.consent.granted()`. */
@@ -65,6 +76,9 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     episodeLabels: inputs.episodeLabels,
     user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
     api: makePluginApi(inputs.pluginId),
+    // Null for a doc-store plugin, mirroring the backend's `ctx.schema()`. Handing every plugin a client
+    // would mean one that 404s on every call — a worse answer than saying there is nothing here.
+    schema: inputs.hasSchema ? makePluginSchema(inputs.pluginId) : null,
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
     consent: {
       // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
@@ -79,7 +93,12 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
       seekTo: inputs.playerSeekTo,
       on: noUnsubscribe,
     },
-    route: { path: inputs.routePath ?? '', onChange: noUnsubscribe },
+    route: {
+      path: inputs.routePath ?? '',
+      onChange: noUnsubscribe,
+      navigate: (subpath: string, opts?: { replace?: boolean }) =>
+        inputs.navigateTo?.(pluginPath(inputs.pluginId, subpath), opts),
+    },
     locale: { current: () => inputs.locale, onChange: noUnsubscribe },
     progress: {
       get: (episodeId: string) => {
@@ -99,6 +118,34 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
         .catch(() => {});
     },
   };
+}
+
+/**
+ * The absolute path a plugin's `navigate(subpath)` resolves to, confined to `/p/{pluginId}/`.
+ *
+ * The confinement is the host's job, not the plugin's promise: a leading `/` is stripped so an absolute
+ * target cannot escape the namespace, and `..` segments are dropped so a relative one cannot climb out of
+ * it either. `.` segments go too, being noise. Query and hash survive — a plugin may legitimately carry
+ * either — and are searched for only after the path is cleaned, so `..` inside a query string is left
+ * alone.
+ *
+ * The result is that another plugin's route, or a core one, is not so much blocked as unnameable — the same
+ * property the schema store has for tables.
+ */
+export function pluginPath(pluginId: string, subpath: string): string {
+  const [rawPath = '', suffix = ''] = splitSuffix(subpath ?? '');
+  const segments = rawPath
+    .split('/')
+    .filter((segment) => segment !== '' && segment !== '.' && segment !== '..');
+  return `/p/${pluginId}${segments.length ? `/${segments.join('/')}` : ''}${suffix}`;
+}
+
+/** Splits a subpath into its path and its `?query#hash` tail, whichever comes first. */
+function splitSuffix(subpath: string): [string, string] {
+  const cut = Math.min(
+    ...['?', '#'].map((mark) => (subpath.includes(mark) ? subpath.indexOf(mark) : subpath.length)),
+  );
+  return [subpath.slice(0, cut), subpath.slice(cut)];
 }
 
 /** Privilege ranks matching the backend `PluginAccessPolicy`; anonymous is 0. */

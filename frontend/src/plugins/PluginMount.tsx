@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 import type { Scope } from '@mosaicast/plugin-sdk';
 
@@ -27,6 +28,8 @@ interface PluginMountProps {
   episodeLabels: Record<string, string>;
   /** Subpath below `/p/{pluginId}/` when this mount is a deep-link page (§6.4); empty elsewhere. */
   routePath?: string;
+  /** Whether the plugin declares `storage.schema`; decides `ctx.schema` vs `null` (§7.6). */
+  hasSchema?: boolean;
 }
 
 export function PluginMount({
@@ -36,6 +39,7 @@ export function PluginMount({
   episodes,
   episodeLabels,
   routePath,
+  hasSchema,
 }: PluginMountProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
@@ -44,6 +48,17 @@ export function PluginMount({
   const player = usePlayer();
   const consent = useConsent();
   const { i18n } = useTranslation();
+
+  // Held in a ref and wrapped: `useNavigate` is not guaranteed stable across renders, and it is a `ctx`
+  // input — an unstable one would rebuild `ctx` and reassign it on every location change, re-rendering
+  // every mounted plugin for a navigation that had nothing to do with it.
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const navigateTo = useCallback(
+    (path: string, opts?: { replace?: boolean }) => navigateRef.current(path, { replace: opts?.replace }),
+    [],
+  );
 
   const ctx = useMemo(
     () =>
@@ -58,6 +73,8 @@ export function PluginMount({
         playerCurrentTime: () => player.currentTime,
         playerSeekTo: player.seek,
         routePath,
+        hasSchema,
+        navigateTo,
         consentHas: consent.has,
         consentGranted: consent.granted,
         consentRequest: consent.request,
@@ -74,6 +91,8 @@ export function PluginMount({
       i18n.language,
       player,
       routePath,
+      hasSchema,
+      navigateTo,
       consent.has,
       consent.granted,
       consent.request,

@@ -12,6 +12,63 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **The schema store has an HTTP surface: a plugin frontend can query its own tables (`0.6.8`,
+  [#76](https://github.com/Mosaicast/mosaicast-core/issues/76), §7.6).** `0.6.6` shipped the schema
+  provider's provisioning half — the manifest declares entities, the host creates
+  `plugin_<id>_<entity>` with the indexes asked for — but `SchemaStore` was reachable only from a plugin's
+  Java backend. So the GIN index the platform builds for full-text search existed for a search box that
+  had no way to reach it, and the capability had no consumer that could ship. Four read endpoints, mapping
+  one-to-one onto `SchemaStore`:
+  ```text
+  GET /api/plugins/{id}/schema/{entity}?where=&orderBy=&page=&size=
+  GET /api/plugins/{id}/schema/{entity}/search?field=&q=&where=&orderBy=&page=&size=
+  GET /api/plugins/{id}/schema/{entity}/count?where=
+  GET /api/plugins/{id}/schema/{entity}/{rowId}
+  ```
+  - **No new injection surface.** `SchemaStoreImpl` already resolved every entity and field name against
+    the plugin's own manifest and bound every value as a JDBC parameter, so the new layer only parses a
+    `Criteria` out of `where=field:op:value` / `orderBy=field:asc|desc` terms. It is schema-*aware* because
+    it has to be: a value arrives as text and JDBC binds by column type, so `views:gte:30` becomes a `Long`
+    against the declared type, and a value that cannot be read as that type is a **400** rather than a
+    driver error at 500.
+  - **The manifest's `data.readableBy` governs it**, the same floor as the doc surface — one rule, two
+    surfaces. There is no scope in these paths (schema tables are per plugin), so there is no `USER`-scope
+    exemption to make. An undeclared **entity** is a 404 (over HTTP it is a path segment, i.e. an address);
+    an undeclared **field**, an unreadable value or `search` on a field that is not `:fulltext` is a 400. A
+    doc-store plugin and a switched-off one both answer 404, indistinguishably.
+  - **Writes stay out, deliberately.** A v1 plugin authors no HTTP routes, so there is no request-time hook
+    where plugin code could enforce slug uniqueness or append a revision atomically — exposing writes would
+    hand clients direct row access with no plugin code in the path. The backend remains the only writer of
+    relational truth; a frontend that must write puts a document in the doc store and the backend ingests
+    it on its schedule, which makes such a write eventually consistent.
+
+- **`ctx.route.navigate(...)`: a page plugin can move without reloading the page (`0.6.8`,
+  [#77](https://github.com/Mosaicast/mosaicast-core/issues/77), §6.4).** `ctx.route` was read-only, so a
+  plugin owning `/p/<pluginId>/*` had no supported way to follow its own links: an `<a href>` re-fetched
+  the shell, the plugin registry and every plugin bundle per click, and the alternative that *worked* —
+  `history.pushState` plus a synthetic `popstate` — silently coupled plugins to the host's router. The new
+  handle is real SPA navigation through the shell's own router, and it is namespace-confined host-side: a
+  leading `/` is stripped and `..` segments are dropped, so another plugin's route or a core one is not
+  blocked so much as unnameable.
+
+- **`ctx.schema` on the frontend context (`0.6.8`).** `null` unless the manifest declares `storage.schema`,
+  mirroring the backend's `ctx.schema()` — a doc-store plugin gets nothing rather than a client that would
+  404 on every call. The public manifest gained `hasSchema` so the shell knows which to build.
+
+### Changed
+
+- **`platformApi` is now `0.7.x` (`0.6.8`).** The host builds against SDK **0.7.1** and matches
+  `major.minor` exactly, so **every plugin declaring `0.6.x` is rejected at load** until it re-declares —
+  while anything on `0.7.0` or `0.7.1` loads either way. No plugin *code* changes; the one compile break is
+  a test that hand-builds a `route` override, which SDK 0.7.1 removes the need for. See the SDK's
+  `MIGRATION.md`.
+
+- **The list-endpoint page cap lives on `PagedResponse` (`0.6.8`).** `MAX_PAGE_SIZE = 200` plus `page()`
+  and `size()` normalizers, shared by the doc and schema surfaces, so a caller learns paging once and the
+  number has one home.
+
 ### Fixed
 
 - **A plugin's extension points ran on a different object than `register(ctx)` (`0.6.7`, §7.4).** PF4J's

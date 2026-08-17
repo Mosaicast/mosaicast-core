@@ -108,9 +108,10 @@ tasks.processResources {
 // Stage the fixture plugin JAR + its checked-in manifests/assets into
 // build/test-plugins/{good,broken,schema,nopage} so the plugin-loading integration test can point
 // MOSAICAST_PLUGINS_DIR at a real, hermetic plugins dir. The same JAR is reused across the folders; only the
-// manifest differs (good loads; broken has an incompatible platformApi; schema declares deferred schema
-// storage; nopage loads but declares no `page` slot) so the test can assert failure isolation and the
-// deep-link 404.
+// manifest differs (good loads; broken has an incompatible platformApi; schema declares "schema" storage
+// with no entities; wikifix declares a real one readable anonymously and wikilocked the same one behind a
+// podcaster read floor; nopage loads but declares no `page` slot) so the test can assert failure isolation,
+// the deep-link 404 and the schema surface's access rules.
 // Only when the test-only fixture project is present (it is absent from the production Docker build context,
 // which copies `src/` but not `test-fixtures/` and skips tests — see settings.gradle.kts).
 val fixtureProject = findProject(":test-fixtures:sample-plugin")
@@ -121,7 +122,7 @@ val stageTestPlugins = fixtureProject?.let { fixture ->
         dependsOn("${fixture.path}:jar")
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         into(layout.buildDirectory.dir("test-plugins"))
-        listOf("good", "broken", "schema", "wikifix", "nopage", "ownedbad").forEach { name ->
+        listOf("good", "broken", "schema", "wikifix", "wikilocked", "nopage", "ownedbad").forEach { name ->
             into(name) {
                 from("src/test/resources/plugin-fixtures/$name")
                 from(fixture.layout.buildDirectory.dir("libs")) { rename { "plugin.jar" } }

@@ -24,6 +24,11 @@ export interface PublicPlugin {
   version: string;
   frontend: { entry: string; elements: string[] } | null;
   slots: PluginSlot[] | null;
+  /**
+   * Whether the plugin declares `storage.schema`. Decides whether the shell hands it a `ctx.schema` client
+   * or `null` — the frontend mirror of the backend's `ctx.schema()` being `null` for a doc-store plugin.
+   */
+  hasSchema?: boolean;
 }
 
 /** One declared config field with the value currently in effect — a row of the generated admin form. */

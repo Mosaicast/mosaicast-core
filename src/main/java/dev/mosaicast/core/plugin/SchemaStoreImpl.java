@@ -80,22 +80,14 @@ public class SchemaStoreImpl implements SchemaStore {
     @Override
     public <T> List<T> search(String entity, String field, String text, Criteria criteria, Class<T> type) {
         PluginSchemaValidator.Entity resolved = entity(entity);
-        SchemaField target = field(resolved, field);
-        if (!target.fulltext()) {
-            throw new IllegalArgumentException(
-                    "field '%s' of entity '%s' is not declared :fulltext".formatted(field, entity));
-        }
+        SchemaField target = fulltextField(resolved, field, entity);
         if (text == null || text.isEmpty()) {
             // The SDK contract: an empty query matches nothing rather than everything.
             return List.of();
         }
 
         String column = quote(target.name());
-        // websearch_to_tsquery takes what a person would type — quotes, OR, a leading minus — and never
-        // throws on syntax, unlike to_tsquery. A plugin passes its users' words straight through, and a
-        // parse error from a stray operator would surface as a 500 inside that plugin's UI.
-        String match = "to_tsvector('simple', coalesce(%s, '')) @@ websearch_to_tsquery('simple', ?)"
-                .formatted(column);
+        String match = match(column);
 
         // Parameters are appended in the order the statement will read them: the match, then the criteria's
         // own predicates, then the ranking term, then limit/offset.
@@ -122,6 +114,42 @@ public class SchemaStoreImpl implements SchemaStore {
         String sql = "select * from %s%s%s%s".formatted(
                 table(resolved), whereClause, ordering, limitOffset(criteria, args));
         return jdbc.queryForList(sql, args.toArray()).stream().map(row -> map(row, type)).toList();
+    }
+
+    /**
+     * How many rows one {@link #search} would match — the count the SDK's {@code SchemaStore} has no method
+     * for, because a plugin's Java code pages with {@code limit}/{@code offset} and rarely needs a total.
+     *
+     * <p>The HTTP surface does: it answers in a paginated envelope carrying {@code totalElements}, and a
+     * total invented from the page's own length tells a client there is nothing after the page it is
+     * holding. Core-only, deliberately — adding it to the plugin contract would be a second way to ask the
+     * same question, versioned forever.
+     *
+     * @param entity   the declared entity
+     * @param field    the field declared {@code :fulltext}
+     * @param text     the search text; empty matches nothing, as in {@link #search}
+     * @param criteria extra predicates, ANDed with the match; ordering and paging are ignored
+     * @return the number of matching rows
+     */
+    public long searchCount(String entity, String field, String text, Criteria criteria) {
+        PluginSchemaValidator.Entity resolved = entity(entity);
+        SchemaField target = fulltextField(resolved, field, entity);
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+
+        List<Object> args = new ArrayList<>();
+        args.add(text);
+        List<Object> criteriaArgs = new ArrayList<>();
+        String extra = where(resolved, criteria, criteriaArgs);
+        String whereClause = " where " + match(quote(target.name()))
+                + (extra.isEmpty() ? "" : " and " + extra.substring(" where ".length()));
+        args.addAll(criteriaArgs);
+
+        Long count = jdbc.queryForObject(
+                "select count(*) from %s%s".formatted(table(resolved), whereClause), Long.class,
+                args.toArray());
+        return count == null ? 0 : count;
     }
 
     @Override
@@ -183,6 +211,29 @@ public class SchemaStoreImpl implements SchemaStore {
     }
 
     // ---- statement building ----
+
+    /**
+     * The full-text predicate for one column.
+     *
+     * <p>{@code websearch_to_tsquery} takes what a person would type — quotes, OR, a leading minus — and
+     * never throws on syntax, unlike {@code to_tsquery}. A plugin passes its users' words straight through,
+     * and a parse error from a stray operator would surface as a 500 inside that plugin's UI.
+     */
+    private static String match(String column) {
+        return "to_tsvector('simple', coalesce(%s, '')) @@ websearch_to_tsquery('simple', ?)"
+                .formatted(column);
+    }
+
+    /** The named field, or a throw — searching a field with no full-text index is a caller error. */
+    private static SchemaField fulltextField(PluginSchemaValidator.Entity resolved, String field,
+                                             String entity) {
+        SchemaField target = field(resolved, field);
+        if (!target.fulltext()) {
+            throw new IllegalArgumentException(
+                    "field '%s' of entity '%s' is not declared :fulltext".formatted(field, entity));
+        }
+        return target;
+    }
 
     /** The {@code where} clause for a criteria, appending its values to {@code args} in order. */
     private String where(PluginSchemaValidator.Entity entity, Criteria criteria, List<Object> args) {
@@ -264,13 +315,7 @@ public class SchemaStoreImpl implements SchemaStore {
     }
 
     private static SchemaField field(PluginSchemaValidator.Entity entity, String name) {
-        SchemaField field = entity.fields().get(name);
-        if (field == null) {
-            throw new IllegalArgumentException(
-                    "Field '%s' is not declared by entity '%s'; declared: %s"
-                            .formatted(name, entity.name(), entity.fields().keySet()));
-        }
-        return field;
+        return entity.field(name);
     }
 
     private static void requireNoId(Map<String, Object> values) {
