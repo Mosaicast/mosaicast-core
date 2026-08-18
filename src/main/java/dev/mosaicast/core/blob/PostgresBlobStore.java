@@ -8,8 +8,10 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,11 +21,19 @@ import org.springframework.transaction.annotation.Transactional;
  * ranges; no presigned URLs (that arrives with S3).
  */
 @Component
-public class PostgresBlobStore implements BlobStore {
+public class PostgresBlobStore implements NamedBlobStore {
+
+    /** The name {@code mosaicast.blobs.*} routes to, and the default backend. */
+    public static final String NAME = "postgres";
 
     private static final BlobCapabilities CAPABILITIES = new BlobCapabilities(true, false);
 
     private final BlobRepository blobs;
+
+    @Override
+    public String backendName() {
+        return NAME;
+    }
 
     public PostgresBlobStore(BlobRepository blobs) {
         this.blobs = blobs;
@@ -91,10 +101,46 @@ public class PostgresBlobStore implements BlobStore {
         blobs.deleteById(ref.id());
     }
 
+    /**
+     * Always empty: there is no URL that reaches into a {@code BYTEA} column, so callers serve the bytes.
+     *
+     * <p>This used to answer {@code "/api/blobs/<id>"} for a route nothing has ever mapped — a contract that
+     * read as satisfied and would have 404ed the first caller to believe it.
+     */
     @Override
-    public String urlFor(BlobRef ref, AccessContext ctx) {
-        // Own-endpoint form; branding is served by its dedicated ETag endpoints (§12.2).
-        return "/api/blobs/" + ref.id();
+    public Optional<String> directUrl(BlobRef ref, AccessContext ctx) {
+        return Optional.empty();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BlobMetadata> list(String namespace, int page, int size) {
+        return blobs.listByNamespace(namespace, PageRequest.of(Math.max(0, page), Math.max(1, size)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long count(String namespace) {
+        return blobs.countByNamespace(namespace);
+    }
+
+    /**
+     * Sums an indexed column — cheap enough to run on every upload, which is what the quota check does.
+     *
+     * <p>Worth stating because it is the operation a future object-store backend cannot implement this way:
+     * there, this becomes a maintained counter. Postgres being good at it is the reason the interface can
+     * afford to ask.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public long usedBytes(String namespace) {
+        return blobs.sumSizeBytesByNamespace(namespace);
+    }
+
+    @Override
+    @Transactional
+    public int deleteNamespace(String namespace) {
+        return blobs.deleteByNamespace(namespace);
     }
 
     @Override

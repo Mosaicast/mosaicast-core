@@ -12,6 +12,39 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Changed
+
+- **`BlobStore` is now an abstraction a second backend could actually implement (`0.6.14`, §11).** §11 has
+  always said "one interface, one backend per namespace — `branding/*` may stay in Postgres, `audio/*` later
+  S3/CDN". It was not true yet, and the gap was not visible from the interface:
+  - **The plugin surface reached past it.** `PluginBlobService` queried `BlobRepository` directly for
+    listing, counting, quota and purge. A non-Postgres backend would have accepted uploads and then reported
+    an empty media library and **zero usage** — the quota silently unenforced, nothing failing loudly.
+    Those four now live on `BlobStore`, and a backend answers for its own namespaces.
+  - **The router could not be configured.** It was constructed with `Map.of()` hardcoded, so per-namespace
+    routing was a shape rather than a setting. Backends now register by name (`NamedBlobStore`) and
+    `mosaicast.blobs.namespaces` points namespaces at them — exact match first, then longest `/` prefix, so
+    `plugin` covers every plugin without naming ones that are not installed yet. A rule naming an
+    unregistered backend **fails startup** rather than falling through to the default: a typo would
+    otherwise put files in a store nobody chose, and the symptom appears long after the cause.
+  - **`urlFor` was a dead contract.** It returned `/api/blobs/{id}` for a route nothing has ever mapped —
+    satisfied-looking, and a 404 to the first caller who believed it. Replaced by
+    `Optional<String> directUrl(ref, ctx)`, where empty means "serve the bytes yourself" (Postgres always
+    does) and a value is the CDN/presigned URL that makes an object store worth having at all. It takes an
+    `AccessContext` because tier-gated audio (§10) must be signed *after* the entitlement check.
+  - **Self-contained backends, not a shared Postgres index.** Two stores of the same truth can disagree and
+    nothing can then say which is right. The cost is that each backend owes good answers to `usedBytes` and
+    friends — Postgres sums an indexed column, an object store will keep a counter rather than paginate its
+    own prefix on every upload — and that is the backend's problem rather than the interface's.
+  - **Proven by a second implementation**, in tests: an in-memory backend, a namespace routed to it, and the
+    whole plugin surface driven over HTTP against it. An abstraction with one implementation is an
+    assertion; every gap listed above was found by writing that test, not by reading the interface.
+
+  No behaviour changes: Postgres remains the only registered backend and the default. What changed is that
+  adding a filesystem or object-store backend is now a new class plus a config line rather than a refactor.
+  *Known deferral:* listing stays offset-paged, which an object store pages badly. Moving to cursor paging
+  is an SDK contract change and belongs with the backend that needs it.
+
 ### Added
 
 - **A plugin's storage limits are editable per plugin in admin (`0.6.13`, §11.1).** `0.6.11` shipped them

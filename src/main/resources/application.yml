@@ -52,6 +52,19 @@ mosaicast:
     auth-window: 1m
     upload-limit: ${MOSAICAST_RATE_LIMIT_UPLOAD:10}
     upload-window: 1m
+  # Which backend stores which blob namespace (ARCHITECTURE §11). `postgres` is the only one registered
+  # today; a filesystem or object-store backend becomes a bean plus a line under `namespaces`, e.g.
+  #
+  #   namespaces:
+  #     plugin: s3        # every plugin's files, matched by prefix
+  #     branding: postgres
+  #
+  # Keys match as exact namespaces first, then by longest `/` prefix. A name with no backend behind it
+  # fails startup rather than falling through to the default — a typo here would otherwise put files in a
+  # store the operator did not choose, and the symptom appears long after the cause.
+  blobs:
+    default-backend: ${MOSAICAST_BLOB_BACKEND:postgres}
+
   # Plugin file storage (ARCHITECTURE §11.1). Two kinds of number, and the difference matters:
   #
   #   default-*  what a plugin gets when nobody has said otherwise. Conservative on purpose — plugin blobs

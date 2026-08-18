@@ -6,7 +6,6 @@ package dev.mosaicast.core.plugin;
 import dev.mosaicast.core.blob.BlobContent;
 import dev.mosaicast.core.blob.BlobMetadata;
 import dev.mosaicast.core.blob.BlobRef;
-import dev.mosaicast.core.blob.BlobRepository;
 import dev.mosaicast.core.blob.BlobStore;
 import dev.mosaicast.core.blob.MimeSniffer;
 import dev.mosaicast.plugin.api.BlobInfo;
@@ -20,7 +19,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,14 +49,12 @@ public class PluginBlobService {
     static final int MAX_PAGE_SIZE = 200;
 
     private final BlobStore blobs;
-    private final BlobRepository repository;
     private final PluginBlobProperties properties;
     private final PluginBlobGrantRepository grants;
 
-    public PluginBlobService(BlobStore blobs, BlobRepository repository, PluginBlobProperties properties,
+    public PluginBlobService(BlobStore blobs, PluginBlobProperties properties,
                              PluginBlobGrantRepository grants) {
         this.blobs = blobs;
-        this.repository = repository;
         this.properties = properties;
         this.grants = grants;
     }
@@ -119,7 +115,7 @@ public class PluginBlobService {
         }
         String namespace = namespaceOf(manifest.id());
         long quota = effectiveQuotaBytes(manifest);
-        long used = repository.sumSizeBytesByNamespace(namespace);
+        long used = blobs.usedBytes(namespace);
         if (used + bytes.length > quota) {
             throw new BlobQuotaExceededException(
                     "storing this file would exceed the plugin's quota of %d bytes (%d used)"
@@ -175,7 +171,7 @@ public class PluginBlobService {
     @Transactional(readOnly = true)
     public List<BlobInfo> list(String pluginId, int page, int size) {
         int capped = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
-        return repository.listByNamespace(namespaceOf(pluginId), PageRequest.of(Math.max(0, page), capped))
+        return blobs.list(namespaceOf(pluginId), Math.max(0, page), capped)
                 .stream().map(PluginBlobService::toInfo).toList();
     }
 
@@ -194,12 +190,12 @@ public class PluginBlobService {
      */
     @Transactional(readOnly = true)
     public long usedBytes(String pluginId) {
-        return repository.sumSizeBytesByNamespace(namespaceOf(pluginId));
+        return blobs.usedBytes(namespaceOf(pluginId));
     }
 
     @Transactional(readOnly = true)
     public long count(String pluginId) {
-        return repository.countByNamespace(namespaceOf(pluginId));
+        return blobs.count(namespaceOf(pluginId));
     }
 
     /**
@@ -224,7 +220,7 @@ public class PluginBlobService {
      */
     @Transactional(readOnly = true)
     public BlobQuota quota(PluginManifest manifest) {
-        return new BlobQuota(repository.sumSizeBytesByNamespace(namespaceOf(manifest.id())),
+        return new BlobQuota(blobs.usedBytes(namespaceOf(manifest.id())),
                 effectiveQuotaBytes(manifest), effectiveMaxFileBytes(manifest));
     }
 
@@ -242,7 +238,7 @@ public class PluginBlobService {
     public int purge(String pluginId) {
         // The admin's grant is a host setting and survives, like activation and config: purging the data a
         // plugin stored is not a statement about how much room it should have next time (§7.8).
-        return repository.deleteByNamespace(namespaceOf(pluginId));
+        return blobs.deleteNamespace(namespaceOf(pluginId));
     }
 
     /** The URL the host serves a plugin's file from — same origin, so no CSP host and no consent decision. */
