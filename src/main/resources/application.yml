@@ -52,13 +52,21 @@ mosaicast:
     auth-window: 1m
     upload-limit: ${MOSAICAST_RATE_LIMIT_UPLOAD:10}
     upload-window: 1m
-  # Ceilings on plugin file storage (ARCHITECTURE §11). A manifest declares what a plugin wants; these decide
-  # what this install grants, and the effective value is the smaller of the two — a plugin asking for more is
-  # granted less, never rejected. Plugin blobs are the first unbounded write a plugin can make, so the
-  # defaults are conservative on purpose.
+  # Plugin file storage (ARCHITECTURE §11.1). Two kinds of number, and the difference matters:
+  #
+  #   default-*  what a plugin gets when nobody has said otherwise. Conservative on purpose — plugin blobs
+  #              are the first unbounded write a plugin can make.
+  #   hard-*     the most an ADMIN may grant from the web UI. UNSET by default, i.e. the admin decides.
+  #              Set these only where the person deploying and the person logged in as ADMIN are not the
+  #              same, and the former wants a bound the latter cannot cross.
+  #
+  # A per-plugin grant made in the admin UI wins over the plugin's manifest, and is where "the wiki has
+  # outgrown its space" is answered — not here, and not by a redeploy.
   plugin-blobs:
-    max-file-bytes: ${MOSAICAST_PLUGIN_BLOB_MAX_FILE:10485760}
-    max-quota-bytes: ${MOSAICAST_PLUGIN_BLOB_QUOTA:268435456}
+    default-max-file-bytes: ${MOSAICAST_PLUGIN_BLOB_MAX_FILE:10485760}
+    default-quota-bytes: ${MOSAICAST_PLUGIN_BLOB_QUOTA:268435456}
+    hard-max-file-bytes: ${MOSAICAST_PLUGIN_BLOB_HARD_MAX_FILE:}
+    hard-quota-bytes: ${MOSAICAST_PLUGIN_BLOB_HARD_QUOTA:}
     # What may be stored at all. A plugin cannot reach past this by declaring more. SVG is not listed and
     # cannot be added — it is a script container wearing an image's extension (§12.2), and nothing here
     # sanitises it.

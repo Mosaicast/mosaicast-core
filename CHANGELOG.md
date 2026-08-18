@@ -14,6 +14,32 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A plugin's storage limits are editable per plugin in admin (`0.6.13`, §11.1).** `0.6.11` shipped them
+  configurable only through `mosaicast.plugin-blobs.*` — one number for every plugin on the install, changed
+  by redeploying. That is the wrong shape for what it governs: a wiki accumulating diagrams and a bingo
+  plugin storing nothing have no reason to share a ceiling, and "the wiki has outgrown its space" is an
+  ordinary operational event rather than an infrastructure change.
+  - **An admin's grant replaces the manifest's ask rather than being minimised with it**, which is the part
+    worth reading twice. A manifest says what a plugin's author guessed it would need on an install they
+    have never seen; an admin raising it is looking at this install's real usage. Under the old
+    `min(manifest, operator)` an admin granting 2 GB against a manifest asking 256 MB would have got 256 MB
+    and no explanation — a control that appears to work and silently does nothing. The manifest still
+    decides when nobody has said otherwise.
+  - **The properties split in two**, because one number was doing two jobs. `default-quota-bytes` /
+    `default-max-file-bytes` are what a plugin gets when nobody has said otherwise; `hard-quota-bytes` /
+    `hard-max-file-bytes` are the most an *admin* may grant and are **unset by default**, i.e. the admin
+    decides. They exist because ADMIN is a role inside the application (§8.5) while these are
+    infrastructure — where those are not the same person, an operator needs a bound the UI cannot cross. A
+    grant past a ceiling is **clamped, not refused**, and the clamped value is stored, so an admin is never
+    shown a number that means something else.
+  - **The MIME allow-list stays operator-only.** No grant widens it: what a file may *be* is a security
+    question (§12.2), not a capacity one.
+  - The panel is **ADMIN-only**, unlike `/config`, which is open to PODCASTER for per-field delegation —
+    how many gigabytes a plugin may occupy is a decision about someone else's server. It leads with current
+    usage and file count, since that is what prompts raising a limit, and a limit set *below* what is
+    already stored is allowed with a warning: nothing is deleted, further uploads fail until files are
+    removed, and refusing it would mean the only way to signal "shrink" is to delete someone's files first.
+
 - **A share dialog on episodes, feed tabs and the site panel (`0.6.12`,
   [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4).** `0.6.9` made a timestamped link
   *work*; without a way to produce one, only people who already knew the trick would ever have used it. The

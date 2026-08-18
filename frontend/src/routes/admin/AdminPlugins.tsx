@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
 import type { AdminConfigField, AdminPlugin } from '../../plugins/types';
+import { PluginStorage } from './PluginStorage';
 
 /**
  * The admin plugin surface (ARCHITECTURE §7.2/§7.8): every discovered plugin with its load state, an
@@ -90,6 +91,17 @@ export function AdminPlugins() {
       });
     }, plugin.id);
 
+  /**
+   * Storage limits are their own endpoint, not a config field: they are a host decision about the
+   * installation's disk rather than something the plugin declared, and they are ADMIN-only where `/config`
+   * is open to PODCASTER.
+   */
+  const saveStorage = (plugin: AdminPlugin, quotaBytes: number | null, maxFileBytes: number | null) =>
+    void run(
+      () => api.put(`/api/admin/plugins/${plugin.id}/blob-limits`, { quotaBytes, maxFileBytes }),
+      plugin.id,
+    );
+
   if (plugins == null) {
     return <p className="mc-muted">{t('common.loading')}</p>;
   }
@@ -136,6 +148,15 @@ export function AdminPlugins() {
                   </button>
                 </div>
               </div>
+
+              {plugin.blobs && (
+                <PluginStorage
+                  blobs={plugin.blobs}
+                  saved={saved === plugin.id}
+                  onSave={(quota, maxFile) => saveStorage(plugin, quota, maxFile)}
+                  onClear={() => saveStorage(plugin, null, null)}
+                />
+              )}
 
               {Object.keys(plugin.config ?? {}).length > 0 && (
                 <div className="mc-pluginrow__config">
