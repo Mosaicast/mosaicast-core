@@ -203,6 +203,7 @@ A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web
 - **`slots`**: scope + Web Component + `placement` (named region) + `visibleTo` (minimum role) + optional `order`.
 - **`storage`**: `"doc"` = generic JSONB store. For the wiki, a schema declaration instead (§7.6).
 - **`data`**: the access floor of the generic data surface (§7.6) — `readableBy` / `writableBy`, each `anonymous | fan | podcaster | admin`; `writableBy` may not be `anonymous`. **Declared, never derived:** the host does not infer it from slots. An absent block defaults `readableBy` to the *write* floor, not to anonymous — a **behaviour change**: a plugin that relied on an anonymous slot making its data anonymously readable must now declare `readableBy: "anonymous"` to keep it. A slot's `visibleTo` governs **rendering only**. Neither floor applies to the `USER` scope (§7.6). `backendOwned` names the keys only the plugin's **backend** may write — an exact key, a `*`-terminated prefix, or the bare `*`; clients may still read them (subject to `readableBy`) and a client `PUT`/`DELETE` is a **403** the host words apart from the role-floor one, so an author can tell which rule refused them. It is the only **per-key** rule on this surface; see §7.6 for why it is needed and what it does not do.
+- **`blobs`**: opt-in file storage (§11.1) — `maxFileBytes`, `quotaBytes`, `mimeTypes`. Declared, never derived, like `data`: what a plugin may write to disk should be readable off its manifest. Absent = no file storage at all. The operator caps every number and intersects the type list with the install's own, so a plugin is granted the smaller of the two rather than rejected for asking. `image/svg+xml` is refused at load — SVG is never storable (§12.2).
 - **`consent`**: third-party services the plugin loads — one declaration each (`id`, `name`, `provider`, `category`, `privacyUrl`, `hosts`, `thirdCountryTransfer`, `storage[]`); the visitor decides per *category*, and `hosts` doubles as the CSP allow-list (§12.5). Omit the key entirely when the plugin loads nothing third-party.
 - **`config`**: declared fields are rendered by core as a **generic admin form** (respecting `editableBy`) — plugins never build their own config UI.
 
@@ -217,6 +218,7 @@ public interface PluginBackend extends ExtensionPoint { void register(PluginCont
 public interface PluginContext {
     DocStore     store();    // (scope, key) → JSON, hard-scoped
     SchemaStore  schema();   // only present if the manifest declares schema
+    PluginBlobs  blobs();    // only present if the manifest declares `blobs` (§11.1); null otherwise
     PluginConfig config();
     FeedAccess   feeds();
     void onSchedule(Duration every, Runnable task); // ShedLock-wrapped
@@ -257,11 +259,13 @@ interface PluginContext {
   user:     { id: string; role: Role } | null;
   api:      PluginApiClient;          // calls /api/plugins/<id>/* with auth token
   schema:   SchemaClient | null;      // read-only; null unless the manifest declares a schema (§7.6)
+  blobs:    BlobClient | null;        // upload/list/delete; null unless the manifest declares `blobs` (§11.1)
   consent:  { has(cat: string): boolean; onChange(cb: () => void): void };
   filter:   { current(): FilterState; onChange(cb: (f: FilterState) => void): void }; // read-only
   player:   { currentTime(): number; seekTo(s: number): void; on(ev, cb): void };     // for sync plugins
   route:    { path: string; onChange(cb: (p: string) => void): void;     // subpath under /p/<pluginId>/ (§6.4)
               navigate(subpath: string, opts?: { replace?: boolean }): void };  // within that subtree only
+  links:    { episode(slug, opts?): string; feed(slug, opts?): string }; // host URL shapes, strings only
   locale:   { current(): string; onChange(cb: (l: string) => void): void }; // active UI locale (§12.7)
   progress: { get(episodeId: string): Promise<number | null> };          // core listening progress, seconds (§6.5)
   theme:    ThemeTokens;              // host colors/spacing as CSS variables
@@ -377,6 +381,25 @@ interface BlobStore {
 - **Namespace routing:** `branding/*` may stay in Postgres forever, `audio/*` later S3/CDN. One interface, one backend per namespace.
 - v1: `PostgresBlobStore` (BYTEA). Later: `S3BlobStore`, `FilesystemBlobStore` (config switch).
 - Tier-gated audio (future): expiring presigned URLs only after the entitlement check (`AccessContext`).
+
+### 11.1 Plugin file storage
+
+Branding was the only customer for a long time, and the asymmetry that left was hard to defend: a plugin's CSP allows an image from **any** host on the web (§12.5), and there was no way to accept one from the site's own podcaster. A wiki wants diagrams; "find an image host first" is not an answer. So plugins get a scoped surface over the same store — the namespace `plugin/{id}`, computed by the host from the plugin id and never passed in, which is the property `SchemaStore` has for tables and `ctx.route.navigate` has for URLs.
+
+```text
+POST   /api/plugins/{id}/blob         multipart; → { ref, url, mime, size, filename, updatedAt }
+GET    /api/plugins/{id}/blob         paged, newest first
+GET    /api/plugins/{id}/blob/quota   used / allowed, as this install sees it
+GET    /api/plugins/{id}/blob/{ref}   streaming; Range + ETag
+DELETE /api/plugins/{id}/blob/{ref}   idempotent
+```
+
+- **Declared, never derived.** A manifest `blobs` block (`maxFileBytes`, `quotaBytes`, `mimeTypes`) is the opt-in, so a plugin's appetite for disk is readable by whoever installs it. Absent → `ctx.blobs` is `null` and every path is a **404**, indistinguishable from an unknown plugin, exactly as the schema surface answers a doc-store plugin. Reachable through `ctx.blobs` (TS) and `ctx.blobs()` (Java) — the latter mostly so a backend can collect the orphans nothing else collects.
+- **The operator's numbers win.** An install caps both ceilings and holds the allow-list a plugin's declared types are intersected with; the effective value is the smaller of the two, and the quota endpoint is the only honest source. A plugin asking for more is **granted less, not rejected** — its portability should not depend on the most restrictive install it might meet.
+- **Writes are the point here, and that is why this differs from §7.6.** The case against schema writes over HTTP is that no plugin code runs at request time to enforce a relational invariant. A file has none, so `data.writableBy` plus a quota is the whole authorization story. Reads take `data.readableBy` — one floor pair, three surfaces. `backendOwned` does not apply: it reserves *keys*, and a caller never names one — a ref is a UUID the host mints per upload, so an upload can never overwrite an existing file, including another tenant's.
+- **What the bytes say is what gets stored**, in this order: size, the declared type, the *actual* type read from the leading bytes, then the quota. One shared sniffer serves branding and plugins, and **SVG has no case in it** — that is what makes it unstorable rather than merely undeclared (§12.2). Refusals are **415** (type) and **413** (size or quota), worded apart because the fixes differ.
+- **Purge removes files** alongside documents and schema tables (§7.8), matched on the namespace exactly rather than on a name prefix.
+- Blobs are served **same-origin** under `/api/`, so a plugin rendering its own upload needs no CSP host and makes no consent decision — which an external image URL cannot say. This is the answer to the asymmetry above, not merely a workaround for it.
 
 ---
 
