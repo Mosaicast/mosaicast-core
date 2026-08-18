@@ -12,6 +12,7 @@ import { useFeeds } from '../components/FeedsContext';
 import { useResource } from '../hooks/useResource';
 import { RelatedEpisodes } from '../components/RelatedEpisodes';
 import { RelatedPins } from '../components/RelatedPins';
+import { ShareButton } from '../components/ShareButton';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePlayer, type PlayableEpisode } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
@@ -136,22 +137,32 @@ export function EpisodePage() {
               </>
             )}
           </div>
-          {playable && (
-            <button
-              type="button"
-              className="mc-btn mc-btn--accent mc-btn--lg"
-              onClick={() =>
-                play(
-                  toPlayable(episode, titleOf(episode.feedId)),
-                  startAt == null ? undefined : { startAt },
-                )
-              }
-            >
-              {/* Say where the button will land when a shared link asked for a moment — pressing play and
-                  silently starting somewhere other than the beginning is otherwise unexplained. */}
-              ▶ {startAt == null ? t('player.play') : t('player.playFrom', { time: formatDuration(startAt) })}
-            </button>
-          )}
+          <div className="mc-hero__actions">
+            {playable && (
+              <button
+                type="button"
+                className="mc-btn mc-btn--accent mc-btn--lg"
+                onClick={() =>
+                  play(
+                    toPlayable(episode, titleOf(episode.feedId)),
+                    startAt == null ? undefined : { startAt },
+                  )
+                }
+              >
+                {/* Say where the button will land when a shared link asked for a moment — pressing play and
+                    silently starting somewhere other than the beginning is otherwise unexplained. */}
+                ▶ {startAt == null ? t('player.play') : t('player.playFrom', { time: formatDuration(startAt) })}
+              </button>
+            )}
+            {/* Shared without the current query string: a timestamp is chosen in the dialog, and nothing
+                else on an episode URL is part of what is being shared. */}
+            <ShareButton
+              path={`/episodes/${episode.slug}`}
+              title={episode.title}
+              episodeSlug={episode.slug}
+              className="mc-btn mc-btn--lg"
+            />
+          </div>
         </div>
       </div>
 

@@ -3,10 +3,12 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 
 import { api } from '../api/client';
 import type { FeedDetail } from '../api/types';
 import { Cover } from './Cover';
+import { ShareButton } from './ShareButton';
 import { SlotRegion } from './SlotRegion';
 import { sanitizeFeedHtml } from '../util/sanitize';
 
@@ -17,6 +19,7 @@ import { sanitizeFeedHtml } from '../util/sanitize';
  */
 export function FeedPanel({ feedSlug }: { feedSlug: string }) {
   const { t } = useTranslation();
+  const location = useLocation();
   const [feed, setFeed] = useState<FeedDetail | null>(null);
 
   useEffect(() => {
@@ -42,6 +45,10 @@ export function FeedPanel({ feedSlug }: { feedSlug: string }) {
       )}
       {description && (
         <div className="mc-scope-panel__desc mc-muted" dangerouslySetInnerHTML={{ __html: description }} />
+      )}
+      {/* Shared with the filters that are showing: a filtered view is part of what is being shared (§6.1). */}
+      {feed && (
+        <ShareButton path={location.pathname + location.search} title={feed.title} className="mc-btn mc-btn--sm" />
       )}
       {/* Feed-scoped plugins (E5) mount here. */}
       <SlotRegion name="feed" scope={{ type: 'feed', id: feedSlug }} />

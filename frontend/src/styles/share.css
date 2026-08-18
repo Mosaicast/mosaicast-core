@@ -1,0 +1,131 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later */
+/* SPDX-FileCopyrightText: 2026 The Mosaicast Authors */
+
+/*
+ * The dialog primitive and the share sheet.
+ *
+ * `.mc-dialog__*` is the generic half — scrim and sheet, no opinion about contents — so the next dialog the
+ * shell needs does not invent a third overlay. (`.mc-consent__overlay` predates it and is left alone; it is
+ * a surface with its own layout, not a reason to churn the consent styles.)
+ *
+ * Everything reads tokens rather than literals, so both themes and any accent follow without a second rule
+ * set: the sheet is `--mc-surface` on `--mc-overlay`, and the only colour of its own is the error text.
+ */
+
+.mc-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--mc-space-5);
+  overflow-y: auto;
+  background: var(--mc-overlay);
+}
+.mc-dialog__sheet {
+  width: min(30rem, 100%);
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-lg);
+  box-shadow: var(--mc-shadow-3);
+}
+/* The sheet takes focus on open so `aria-modal` is true; it is not itself an interactive control, so the
+   ring would only tell the visitor something they cannot act on. */
+.mc-dialog__sheet:focus {
+  outline: none;
+}
+
+/* ---- the share sheet ---- */
+
+.mc-share {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-4);
+  padding: var(--mc-space-5);
+}
+.mc-share__title {
+  margin: 0;
+  font-size: var(--mc-text-lg);
+}
+
+/*
+ * The prepared destinations. A row that wraps rather than scrolls: there are few enough of them that a
+ * hidden one would simply never be found.
+ */
+.mc-share__targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2);
+}
+.mc-share__target {
+  display: flex;
+  flex: 1 1 6.5rem;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--mc-space-2);
+  padding: var(--mc-space-3) var(--mc-space-2);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-surface);
+  color: var(--mc-text);
+  font: inherit;
+  font-size: var(--mc-text-xs);
+  text-align: center;
+  cursor: pointer;
+  transition:
+    background var(--mc-motion-fast) var(--mc-ease),
+    border-color var(--mc-motion-fast) var(--mc-ease);
+}
+.mc-share__target:hover {
+  border-color: var(--mc-border-strong);
+  background: var(--mc-surface-2);
+  text-decoration: none;
+}
+.mc-share__glyph {
+  font-size: var(--mc-text-xl);
+  line-height: 1;
+}
+
+/* ---- start at ---- */
+
+.mc-share__time {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-3);
+}
+.mc-share__at {
+  display: flex;
+  align-items: center;
+  gap: var(--mc-space-2);
+  font-size: var(--mc-text-sm);
+  cursor: pointer;
+}
+.mc-share__clock {
+  width: 6rem;
+  font-variant-numeric: tabular-nums;
+}
+.mc-share__error {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--mc-danger);
+  font-size: var(--mc-text-xs);
+}
+
+/* ---- the link itself ---- */
+
+.mc-share__link {
+  display: flex;
+  gap: var(--mc-space-2);
+}
+.mc-share__url {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-family: var(--mc-font-mono);
+  font-size: var(--mc-text-xs);
+}
+.mc-share__actions {
+  display: flex;
+  justify-content: flex-end;
+}

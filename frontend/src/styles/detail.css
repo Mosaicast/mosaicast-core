@@ -93,6 +93,14 @@
   align-items: center;
   margin-bottom: var(--mc-space-4);
 }
+/* Play and share sit together; on a narrow screen they wrap rather than shrink, since a truncated action
+   label is worse than a second row. */
+.mc-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-3);
+  align-items: center;
+}
 
 @media (max-width: 720px) {
   .mc-hero {
