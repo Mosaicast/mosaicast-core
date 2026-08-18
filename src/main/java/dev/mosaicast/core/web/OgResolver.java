@@ -132,24 +132,76 @@ public class OgResolver {
     }
 
     /**
-     * One episode's detail page (§6.2).
+     * One episode's detail page (§6.2), optionally at a shared position (§6.4).
+     *
+     * <p>The timestamp does not change what this page <em>is</em>: the canonical URL, the JSON-LD and the
+     * no-JS block are the episode's, whether or not someone linked to a moment inside it. It changes only
+     * the URL advertised as {@code og:url}, so a card in a messenger points back at the moment that was
+     * shared rather than at the top of the episode. An unparsable value is dropped
+     * ({@link TimestampParam}), which is also what keeps the parameter from reaching the page as text.
      *
      * @param slug the episode's public slug
+     * @param t    the raw {@code t} query parameter, or {@code null} when absent
      * @return the view for this URL; never {@code null}
      * @throws NotFoundException if no visible episode has that slug
      */
-    public PageView episode(String slug) {
+    public PageView episode(String slug, String t) {
         EpisodeDetail episode = episodes.detailBySlug(slug);
         String path = "/episodes/" + episode.slug();
+        String canonical = urls.absolute(path);
+        java.util.OptionalInt at = TimestampParam.parse(t);
+        String shareUrl = at.isPresent() ? urls.absolute(path, TimestampParam.query(at.getAsInt())) : canonical;
 
         return new PageView(
                 new IndexHtmlService.Meta(
                         episode.title() == null ? siteName() : episode.title(),
                         plainText(episode.description()),
-                        episode.imageUrl() == null ? siteImageUrl() : episode.imageUrl()),
-                urls.absolute(path),
-                podcastEpisode(episode, urls.absolute(path)),
+                        episode.imageUrl() == null ? siteImageUrl() : episode.imageUrl(),
+                        // One episode is a piece of dated content, not a website — and `article` is the type
+                        // that carries a publication date a scraper will show.
+                        "article",
+                        episode.audioUrl(),
+                        audioMime(episode.audioUrl()),
+                        episode.publishedAt()),
+                canonical,
+                shareUrl,
+                podcastEpisode(episode, canonical),
                 episodeHtml(episode));
+    }
+
+    /**
+     * The MIME type of an enclosure, as far as its URL admits.
+     *
+     * <p>The feed's declared enclosure type is not carried on the display snapshot (§4.2), so this reads the
+     * extension and answers only for the formats where that is unambiguous. {@code og:audio:type} is
+     * optional — a client that gets no type still gets the URL — so guessing is the one thing not worth
+     * doing here.
+     *
+     * @param audioUrl the audio URL, possibly null
+     * @return the MIME type, or {@code null} when it cannot be told
+     */
+    private static String audioMime(String audioUrl) {
+        if (audioUrl == null) {
+            return null;
+        }
+        // Enclosure URLs routinely carry tracking query strings; the extension is what precedes them.
+        String path = audioUrl.split("[?#]", 2)[0].toLowerCase(java.util.Locale.ROOT);
+        if (path.endsWith(".mp3")) {
+            return "audio/mpeg";
+        }
+        if (path.endsWith(".m4a") || path.endsWith(".mp4")) {
+            return "audio/mp4";
+        }
+        if (path.endsWith(".ogg") || path.endsWith(".oga")) {
+            return "audio/ogg";
+        }
+        if (path.endsWith(".wav")) {
+            return "audio/wav";
+        }
+        if (path.endsWith(".opus")) {
+            return "audio/opus";
+        }
+        return null;
     }
 
     /**

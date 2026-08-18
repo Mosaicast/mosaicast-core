@@ -55,10 +55,17 @@ public class ShellController {
         return render(() -> og.feed(slug, season, tag, order));
     }
 
-    /** One episode detail page — the link people actually share. */
+    /**
+     * One episode detail page — the link people actually share.
+     *
+     * <p>{@code t} is the shared position inside the episode (§6.4). It is read here only so the injected
+     * {@code og:url} points back at the moment that was sent; the page itself, its canonical URL and its
+     * structured data are the episode's either way, and the seek happens in the shell.
+     */
     @GetMapping(path = "/episodes/{slug}", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> episode(@PathVariable String slug) {
-        return render(() -> og.episode(slug));
+    public ResponseEntity<String> episode(@PathVariable String slug,
+                                          @RequestParam(required = false) String t) {
+        return render(() -> og.episode(slug, t));
     }
 
     /**

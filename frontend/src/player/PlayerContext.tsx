@@ -44,7 +44,12 @@ interface PlayerContextValue {
   volume: number;
   /** Playback speed. Table stakes for a podcast player, and remembered across episodes and reloads. */
   rate: number;
-  play: (episode: PlayableEpisode) => void;
+  /**
+   * Starts (or resumes) an episode. `startAt` is the position a **shared timestamped link** asked for
+   * (§6.4); it wins over the stored listening position for that navigation, and until playback actually
+   * advances past it nothing is written back (§6.5).
+   */
+  play: (episode: PlayableEpisode, opts?: { startAt?: number }) => void;
   toggle: () => void;
   seek: (seconds: number) => void;
   /** Jumps relative to the current position; negative goes back. Clamped to the episode. */
@@ -85,9 +90,21 @@ export function usePlayer(): PlayerContextValue {
 
 const progressKey = (id: string) => `mc.progress.${id}`;
 
+/**
+ * How far playback must advance past a shared timestamp before the position is remembered again.
+ *
+ * Following a link to `12:04` is a request to hear *that spot*, not a statement about where the listener
+ * got to — so writing it straight to their stored progress would silently move their place in an episode
+ * they were halfway through. A few seconds of actual playback is the difference between "looked" and
+ * "listened", and it is what turns the seek back into an ordinary position worth keeping.
+ */
+const PROGRESS_ADVANCE_SECONDS = 5;
+
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingSeekRef = useRef<number>(0);
+  // Set while a shared timestamp is being honoured; progress writes are suppressed below it (§6.5).
+  const progressFloorRef = useRef<number | null>(null);
   // Whether the viewer is logged in — read via a ref so the audio-event handlers don't re-subscribe on
   // login state changes, and the server progress write is throttled to avoid a PUT every second (§6.5).
   const { user } = useUser();
@@ -106,11 +123,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   rateRef.current = rate;
 
   const play = useCallback(
-    async (episode: PlayableEpisode) => {
+    async (episode: PlayableEpisode, opts?: { startAt?: number }) => {
       const audio = audioRef.current;
       if (!audio) {
         return;
       }
+      const startAt = opts?.startAt;
       // Resolve the audio URL (summaries omit it — detail only) if the caller didn't provide it.
       let url = episode.audioUrl ?? null;
       if (!url) {
@@ -124,8 +142,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (!url) {
         return; // nothing playable (e.g. an upcoming episode with no audio yet)
       }
-      if (current?.id !== episode.id) {
+      if (current?.id === episode.id) {
+        // Already the loaded episode, so metadata is there and the deferred seek would never fire — move
+        // now instead. Nothing else changes: re-playing the current episode has never reset its position.
+        if (startAt != null) {
+          progressFloorRef.current = startAt;
+          audio.currentTime = Math.max(0, startAt);
+        }
+      } else if (startAt != null) {
+        // An explicit timestamp wins over the stored position for this navigation — someone following a
+        // shared link asked for that spot. The stored position is not even read: it cannot win, and asking
+        // the server for it would be a request whose answer is discarded.
         audio.src = url;
+        progressFloorRef.current = startAt;
+        pendingSeekRef.current = Math.max(0, startAt);
+        setCurrent({ ...episode, audioUrl: url });
+      } else {
+        audio.src = url;
+        progressFloorRef.current = null;
         // Restore the resume position: server-side for a logged-in user (§6.5), else localStorage.
         // Nothing to restore once the visitor switched remembering off — the stored positions are gone.
         // The switch has to gate the server read too, not only the local one.
@@ -178,6 +212,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const seek = useCallback((seconds: number) => {
     const audio = audioRef.current;
     if (audio) {
+      // Scrubbing by hand is a deliberate statement about where this listener is, so it ends the hold a
+      // shared timestamp had on their stored position.
+      progressFloorRef.current = null;
       audio.currentTime = Math.max(0, seconds);
     }
   }, []);
@@ -186,6 +223,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const skip = useCallback((seconds: number) => {
     const audio = audioRef.current;
     if (audio) {
+      progressFloorRef.current = null;
       audio.currentTime = Math.min(Math.max(0, audio.currentTime + seconds), audio.duration || Infinity);
     }
   }, []);
@@ -259,6 +297,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         return;
       }
       const seconds = Math.floor(audio.currentTime);
+      // A shared timestamp holds the stored position until playback has actually moved on from it, so
+      // opening someone's link never rewrites where *they* were (§6.5).
+      const floor = progressFloorRef.current;
+      if (floor != null) {
+        if (audio.currentTime < floor + PROGRESS_ADVANCE_SECONDS) {
+          return;
+        }
+        progressFloorRef.current = null;
+      }
       // Remembering the position is a disclosed feature with an off switch rather than a consent gate
       // (§12.5) — first-party, local, never profiled, written only after a deliberate press of play. When
       // it is off, nothing is written here or sent to the server.
