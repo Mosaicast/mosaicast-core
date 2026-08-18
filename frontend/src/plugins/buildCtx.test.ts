@@ -121,6 +121,31 @@ describe('buildCtx', () => {
     expect(typeof schema?.count).toBe('function');
   });
 
+  it('hands a plugin that stores no files no blob client at all', () => {
+    // Same shape as `schema`, and it matters more here: `blobs` is the newer member, so a component written
+    // against a context that always has one would break on every plugin that declared no `blobs` block.
+    expect(buildCtx(base).blobs).toBeNull();
+
+    const blobs = buildCtx({ ...base, hasBlobs: true }).blobs;
+    expect(typeof blobs?.upload).toBe('function');
+    // Derived from the ref, and pointed at the host's own origin — no CSP host, no consent decision.
+    expect(blobs?.urlFor('abc')).toBe('/api/plugins/sample/blob/abc');
+  });
+
+  it('builds core links without granting a way to navigate to them', () => {
+    const { links } = buildCtx(base);
+
+    expect(links.episode('kraken')).toBe('/episodes/kraken');
+    expect(links.episode('kraken', { t: 724 })).toBe('/episodes/kraken?t=724');
+    // Zero is the start, which a bare link already means — carrying `?t=0` would make one moment two URLs.
+    expect(links.episode('kraken', { t: 0 })).toBe('/episodes/kraken');
+    expect(links.feed('main', { season: '2' })).toBe('/feeds/main?season=2');
+    // `newest` is the shell's fallback and what SiteUrls canonicalizes to, so it is never carried.
+    expect(links.feed('main', { order: 'newest' })).toBe('/feeds/main');
+    expect(links.feed('main', { order: 'oldest' })).toBe('/feeds/main?order=oldest');
+    expect(links.episode('a b/c')).toBe('/episodes/a%20b%2Fc');
+  });
+
   it('confines navigate to the plugin’s own subtree', () => {
     const targets: { path: string; replace?: boolean }[] = [];
     const ctx = buildCtx({ ...base, navigateTo: (path, opts) => targets.push({ path, ...opts }) });

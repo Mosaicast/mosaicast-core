@@ -24,16 +24,19 @@ public class PluginContextImpl implements PluginContext {
     private final String pluginId;
     private final DocStore store;
     private final SchemaStore schema;
+    private final dev.mosaicast.plugin.api.PluginBlobs blobs;
     private final PluginConfig config;
     private final FeedAccess feeds;
     private final PluginScheduler scheduler;
     private int scheduleCount;
 
-    public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema, PluginConfig config,
+    public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
+                             dev.mosaicast.plugin.api.PluginBlobs blobs, PluginConfig config,
                              FeedAccess feeds, PluginScheduler scheduler) {
         this.pluginId = pluginId;
         this.store = store;
         this.schema = schema;
+        this.blobs = blobs;
         this.config = config;
         this.feeds = feeds;
         this.scheduler = scheduler;
@@ -67,6 +70,15 @@ public class PluginContextImpl implements PluginContext {
     @Override
     public SchemaStore schema() {
         return schema;
+    }
+
+    /**
+     * File storage, or {@code null} for a plugin whose manifest declares no {@code blobs} block (§11) — the
+     * same null-means-not-declared shape as {@link #schema()}.
+     */
+    @Override
+    public dev.mosaicast.plugin.api.PluginBlobs blobs() {
+        return blobs;
     }
 
     @Override

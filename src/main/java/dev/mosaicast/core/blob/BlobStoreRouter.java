@@ -27,13 +27,45 @@ public class BlobStoreRouter implements BlobStore {
         this.byNamespace = Map.of();
     }
 
+    /**
+     * The backend for a namespace: an exact registration first, then the longest {@code /}-separated
+     * prefix, then the default.
+     *
+     * <p>Prefix matching exists because namespaces became hierarchical the moment plugins got one:
+     * {@code plugin/wiki} and {@code plugin/stats} are different namespaces that an operator would want to
+     * route together, and {@code audio/*} is the same shape (§11 names it in exactly those terms). An
+     * exact-map lookup would have needed one registration per installed plugin, which is a thing nobody can
+     * configure ahead of time. Longest-prefix rather than first-match so a specific registration can still
+     * win over a general one.
+     *
+     * @param namespace the namespace being addressed
+     * @return the backend that owns it; never {@code null}
+     */
     private BlobStore route(String namespace) {
-        return byNamespace.getOrDefault(namespace, defaultStore);
+        BlobStore exact = byNamespace.get(namespace);
+        if (exact != null) {
+            return exact;
+        }
+        String candidate = namespace;
+        for (int slash = candidate.lastIndexOf('/'); slash > 0; slash = candidate.lastIndexOf('/')) {
+            candidate = candidate.substring(0, slash);
+            BlobStore prefixed = byNamespace.get(candidate);
+            if (prefixed != null) {
+                return prefixed;
+            }
+        }
+        return defaultStore;
     }
 
     @Override
     public BlobRef put(String namespace, String key, InputStream data, String mime) {
         return route(namespace).put(namespace, key, data, mime);
+    }
+
+    @Override
+    public BlobRef put(String namespace, String key, InputStream data, String mime, String filename,
+                       java.util.UUID uploader) {
+        return route(namespace).put(namespace, key, data, mime, filename, uploader);
     }
 
     @Override

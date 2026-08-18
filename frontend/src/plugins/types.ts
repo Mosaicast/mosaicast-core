@@ -29,6 +29,12 @@ export interface PublicPlugin {
    * or `null` — the frontend mirror of the backend's `ctx.schema()` being `null` for a doc-store plugin.
    */
   hasSchema?: boolean;
+  /**
+   * Whether the plugin declares a `blobs` block. Decides `ctx.blobs` vs `null`, the same way `hasSchema`
+   * decides `ctx.schema` (§11). The declared limits are deliberately absent: they are what the plugin
+   * asked for, this install may grant less, and the quota endpoint is the only honest source.
+   */
+  hasBlobs?: boolean;
 }
 
 /** One declared config field with the value currently in effect — a row of the generated admin form. */

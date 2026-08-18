@@ -1,0 +1,316 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+
+package dev.mosaicast.core.plugin;
+
+import dev.mosaicast.core.blob.BlobContent;
+import dev.mosaicast.core.blob.BlobMetadata;
+import dev.mosaicast.core.blob.BlobRef;
+import dev.mosaicast.core.blob.BlobRepository;
+import dev.mosaicast.core.blob.BlobStore;
+import dev.mosaicast.core.blob.MimeSniffer;
+import dev.mosaicast.plugin.api.BlobInfo;
+import dev.mosaicast.plugin.api.BlobQuota;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.stream.Collectors;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/**
+ * Plugin-scoped file storage over the host's {@link BlobStore} (ARCHITECTURE §11, issue #81).
+ *
+ * <p>This is the only place a plugin's namespace is computed, which is what makes the scoping real rather
+ * than checked: every method takes a plugin id and derives {@code plugin/<id>} from it, so a plugin cannot
+ * name another's file — the same property {@code SchemaStoreImpl} has for tables and {@code ctx.route}
+ * has for URLs. A caller never passes a namespace.
+ *
+ * <p><strong>Writes are the point here</strong>, unlike the schema surface. The argument against schema
+ * writes over HTTP is that no plugin code runs at request time to enforce a relational invariant; a file has
+ * none, so the manifest's floors plus a quota are the whole authorization story and the surface can be a
+ * write surface.
+ *
+ * <p><strong>What a write is checked against</strong>, in order — size, the declared type, then the type the
+ * bytes actually are, then the quota. The order matters: the cheapest refusals come first, and the content
+ * check comes before the quota so a file that will be refused anyway never counts against anyone's space.
+ */
+@Service
+public class PluginBlobService {
+
+    /** The namespace prefix every plugin's files live under; see {@link #namespaceOf}. */
+    static final String NAMESPACE_PREFIX = "plugin/";
+
+    /** Page size ceiling for a listing, matching the doc and schema surfaces. */
+    static final int MAX_PAGE_SIZE = 200;
+
+    private final BlobStore blobs;
+    private final BlobRepository repository;
+    private final PluginBlobProperties properties;
+
+    public PluginBlobService(BlobStore blobs, BlobRepository repository, PluginBlobProperties properties) {
+        this.blobs = blobs;
+        this.repository = repository;
+        this.properties = properties;
+    }
+
+    /**
+     * The blob namespace owned by a plugin.
+     *
+     * @param pluginId the plugin's manifest id
+     * @return the namespace, e.g. {@code plugin/wiki}
+     */
+    static String namespaceOf(String pluginId) {
+        return NAMESPACE_PREFIX + pluginId;
+    }
+
+    /**
+     * Stores a file for a plugin.
+     *
+     * @param manifest the plugin's manifest, which decides what it may store
+     * @param filename the original filename, for display; may be null and is never treated as a path
+     * @param declared the content type the client claimed
+     * @param size     the size the client reported, used for the cheap check before anything is read
+     * @param content  the bytes
+     * @param uploader the authenticated uploader, or null for a backend with no caller
+     * @return the stored file
+     * @throws BlobQuotaExceededException if the file or the total is over the effective ceiling
+     * @throws BlobTypeNotAllowedException if the declared or actual type is not permitted
+     */
+    @Transactional
+    public BlobInfo put(PluginManifest manifest, String filename, String declared, long size,
+                        InputStream content, UUID uploader) {
+        long maxFile = effectiveMaxFileBytes(manifest);
+        if (size > maxFile) {
+            throw new BlobQuotaExceededException(
+                    "file is larger than this plugin may store: %d > %d bytes".formatted(size, maxFile));
+        }
+        Set<String> allowed = effectiveMimeTypes(manifest);
+        String claimed = declared == null ? "" : declared.trim().toLowerCase(Locale.ROOT);
+        if (!allowed.contains(claimed)) {
+            throw new BlobTypeNotAllowedException(
+                    "content type '%s' is not one this plugin may store; allowed: %s".formatted(declared, allowed));
+        }
+
+        // Read once, into memory: the size ceiling above is what makes that safe, and the alternative —
+        // streaming to the store and sniffing afterwards — would mean deleting a file that should never have
+        // been written, with a window in which it exists.
+        byte[] bytes = readAll(content, maxFile);
+        String actual = MimeSniffer.sniff(bytes);
+        if (actual == null || !allowed.contains(actual)) {
+            // Deliberately not naming what it turned out to be: the useful half is that the file is not what
+            // it said, and echoing a sniffed type invites probing the sniffer through the error message.
+            throw new BlobTypeNotAllowedException(
+                    "the file's content is not '%s'; upload the format you declared".formatted(claimed));
+        }
+        // Re-checked against the real length, because the client reported the one above.
+        if (bytes.length > maxFile) {
+            throw new BlobQuotaExceededException(
+                    "file is larger than this plugin may store: %d > %d bytes".formatted(bytes.length, maxFile));
+        }
+        String namespace = namespaceOf(manifest.id());
+        long quota = effectiveQuotaBytes(manifest);
+        long used = repository.sumSizeBytesByNamespace(namespace);
+        if (used + bytes.length > quota) {
+            throw new BlobQuotaExceededException(
+                    "storing this file would exceed the plugin's quota of %d bytes (%d used)"
+                            .formatted(quota, used));
+        }
+
+        // A fresh UUID per upload, never a client-supplied key: a key a caller can name is a key a caller can
+        // overwrite, and on a shared surface that is another tenant's file.
+        String ref = UUID.randomUUID().toString();
+        BlobRef stored = blobs.put(namespace, ref, new java.io.ByteArrayInputStream(bytes), actual,
+                sanitizeFilename(filename), uploader);
+        return blobs.stat(stored)
+                .map(PluginBlobService::toInfo)
+                .orElseThrow(() -> new IllegalStateException("blob vanished immediately after being stored"));
+    }
+
+    /**
+     * One of a plugin's files, by ref.
+     *
+     * @param pluginId the plugin's id
+     * @param ref      the ref returned by {@link #put}
+     * @return the file's metadata, or empty when this plugin has no such file
+     */
+    @Transactional(readOnly = true)
+    public Optional<BlobInfo> stat(String pluginId, String ref) {
+        return find(pluginId, ref).map(PluginBlobService::toInfo);
+    }
+
+    /**
+     * Opens a plugin's file, whole or as a range.
+     *
+     * @param pluginId     the plugin's id
+     * @param ref          the ref
+     * @param start        first byte, or -1 for the whole file
+     * @param endInclusive last byte, ignored when {@code start} is negative
+     * @return the content, or empty when this plugin has no such file
+     */
+    @Transactional(readOnly = true)
+    public Optional<BlobContent> open(String pluginId, String ref, long start, long endInclusive) {
+        return find(pluginId, ref)
+                .map(BlobMetadata::ref)
+                .map(handle -> start < 0 ? blobs.get(handle) : blobs.getRange(handle, start, endInclusive));
+    }
+
+    /**
+     * A plugin's files, newest first.
+     *
+     * @param pluginId the plugin's id
+     * @param page     zero-based page
+     * @param size     page size, capped at {@value #MAX_PAGE_SIZE}
+     * @return the page's files
+     */
+    @Transactional(readOnly = true)
+    public List<BlobInfo> list(String pluginId, int page, int size) {
+        int capped = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
+        return repository.listByNamespace(namespaceOf(pluginId), PageRequest.of(Math.max(0, page), capped))
+                .stream().map(PluginBlobService::toInfo).toList();
+    }
+
+    /**
+     * How many files a plugin has, for the paged envelope.
+     *
+     * @param pluginId the plugin's id
+     * @return the count
+     */
+    @Transactional(readOnly = true)
+    public long count(String pluginId) {
+        return repository.countByNamespace(namespaceOf(pluginId));
+    }
+
+    /**
+     * Deletes one of a plugin's files. Idempotent.
+     *
+     * @param pluginId the plugin's id
+     * @param ref      the ref
+     * @return true if a file was deleted
+     */
+    @Transactional
+    public boolean delete(String pluginId, String ref) {
+        Optional<BlobMetadata> found = find(pluginId, ref);
+        found.ifPresent(meta -> blobs.delete(meta.ref()));
+        return found.isPresent();
+    }
+
+    /**
+     * What a plugin has used and what it is allowed, as this install sees it.
+     *
+     * @param manifest the plugin's manifest
+     * @return the effective quota and current usage
+     */
+    @Transactional(readOnly = true)
+    public BlobQuota quota(PluginManifest manifest) {
+        return new BlobQuota(repository.sumSizeBytesByNamespace(namespaceOf(manifest.id())),
+                effectiveQuotaBytes(manifest), effectiveMaxFileBytes(manifest));
+    }
+
+    /**
+     * Deletes every file a plugin stored — the file half of "purge plugin data" (§7.8).
+     *
+     * <p>Matched on the namespace exactly, not on a name prefix. The distinction is the one
+     * {@code V23__plugin_schema_registry.sql} makes for tables: a destructive operation keyed on a
+     * convention deletes whatever happens to match the convention, and here it does not have to be.
+     *
+     * @param pluginId the plugin's id
+     * @return how many files were deleted
+     */
+    @Transactional
+    public int purge(String pluginId) {
+        return repository.deleteByNamespace(namespaceOf(pluginId));
+    }
+
+    /** The URL the host serves a plugin's file from — same origin, so no CSP host and no consent decision. */
+    static String urlFor(String pluginId, String ref) {
+        return "/api/plugins/" + pluginId + "/blob/" + ref;
+    }
+
+    /**
+     * A blob belonging to this plugin, or empty.
+     *
+     * <p>The namespace is part of the lookup rather than checked afterwards, so another plugin's ref is not
+     * refused but simply absent — a caller cannot tell "not yours" from "not there", which is the same answer
+     * the doc and schema surfaces give.
+     */
+    private Optional<BlobMetadata> find(String pluginId, String ref) {
+        return blobs.stat(namespaceOf(pluginId), ref);
+    }
+
+    /** The smaller of what the plugin asked for and what this install allows. */
+    private long effectiveMaxFileBytes(PluginManifest manifest) {
+        Long asked = manifest.blobs() == null ? null : manifest.blobs().maxFileBytes();
+        return asked == null ? properties.maxFileBytes() : Math.min(asked, properties.maxFileBytes());
+    }
+
+    /** The smaller of what the plugin asked for and what this install allows. */
+    private long effectiveQuotaBytes(PluginManifest manifest) {
+        Long asked = manifest.blobs() == null ? null : manifest.blobs().quotaBytes();
+        return asked == null ? properties.maxQuotaBytes() : Math.min(asked, properties.maxQuotaBytes());
+    }
+
+    /**
+     * The intersection of what the plugin declared and what the install permits.
+     *
+     * <p>An empty declaration means "whatever the install allows" rather than "nothing": a plugin that names
+     * no types has expressed no preference, and the operator's list is already the ceiling.
+     */
+    private Set<String> effectiveMimeTypes(PluginManifest manifest) {
+        Set<String> allowed = properties.allowed();
+        List<String> declared = manifest.blobs() == null ? List.of() : manifest.blobs().mimeTypesOrEmpty();
+        if (declared.isEmpty()) {
+            return allowed;
+        }
+        return declared.stream().filter(allowed::contains).collect(Collectors.toUnmodifiableSet());
+    }
+
+    /**
+     * Keeps a filename as a label and nothing else.
+     *
+     * <p>It is never resolved as a path — the storage key is a UUID — but it is rendered by whatever plugin
+     * UI lists the file, and it lands in a {@code Content-Disposition} header. So: no separators, no control
+     * characters, no quotes, and bounded.
+     */
+    private static String sanitizeFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return null;
+        }
+        String cleaned = filename.trim()
+                .replace('\\', '_')
+                .replace('/', '_')
+                .replaceAll("[\\p{Cntrl}\"]", "");
+        cleaned = cleaned.length() > 120 ? cleaned.substring(0, 120) : cleaned;
+        return cleaned.isBlank() ? null : cleaned;
+    }
+
+    private static BlobInfo toInfo(BlobMetadata meta) {
+        return new BlobInfo(meta.key(), meta.filename(), meta.mime(), meta.size(), meta.updatedAt());
+    }
+
+    /**
+     * Reads the upload, refusing to keep going past the ceiling.
+     *
+     * <p>The size the client reported is a claim; a chunked upload need not send one at all. Reading one byte
+     * past the limit is enough to know it lied, and stopping there is what keeps a declared-small,
+     * actually-huge upload from being a memory problem before it is a rejected one.
+     */
+    private static byte[] readAll(InputStream content, long maxFile) {
+        try (content) {
+            byte[] bytes = content.readNBytes(Math.toIntExact(Math.min(maxFile + 1, Integer.MAX_VALUE)));
+            if (bytes.length > maxFile) {
+                throw new BlobQuotaExceededException(
+                        "file is larger than this plugin may store: over %d bytes".formatted(maxFile));
+            }
+            return bytes;
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read upload", e);
+        }
+    }
+}

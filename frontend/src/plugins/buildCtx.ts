@@ -5,7 +5,8 @@ import type { PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-
 
 import { api } from '../api/client';
 import type { MeView, ThemeTokenSet } from '../api/types';
-import { makePluginApi, makePluginSchema } from './pluginApi';
+import { makePluginApi, makePluginBlobs, makePluginSchema } from './pluginApi';
+import { coreLinks } from './coreLinks';
 
 /**
  * Assembles the {@link PluginContext} the host sets on a mounted plugin element (ARCHITECTURE §7.5). The shell
@@ -32,6 +33,8 @@ export interface CtxInputs {
   routePath?: string;
   /** Whether the plugin declares `storage.schema` — decides `ctx.schema` vs `null` (§7.6). */
   hasSchema?: boolean;
+  /** Whether the plugin declares a `blobs` block — decides `ctx.blobs` vs `null` (§11). */
+  hasBlobs?: boolean;
   /**
    * Navigates the shell to an absolute path. Supplied by {@link PluginMount} from the router; absent in
    * tests and in any mount with no router above it, where `navigate` degrades to a no-op rather than
@@ -79,6 +82,9 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // Null for a doc-store plugin, mirroring the backend's `ctx.schema()`. Handing every plugin a client
     // would mean one that 404s on every call — a worse answer than saying there is nothing here.
     schema: inputs.hasSchema ? makePluginSchema(inputs.pluginId) : null,
+    // Null unless the manifest declared file storage, for the same reason `schema` is: a client that 404s on
+    // every call is a worse answer than saying there is nothing here (§11).
+    blobs: inputs.hasBlobs ? makePluginBlobs(inputs.pluginId) : null,
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
     consent: {
       // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
@@ -99,6 +105,9 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
       navigate: (subpath: string, opts?: { replace?: boolean }) =>
         inputs.navigateTo?.(pluginPath(inputs.pluginId, subpath), opts),
     },
+    // Pure string builders over the host's own routes. Not a capability — a plugin can already write any
+    // href — but the URL shapes belong to the host that serves them (§6.4).
+    links: coreLinks,
     locale: { current: () => inputs.locale, onChange: noUnsubscribe },
     progress: {
       get: (episodeId: string) => {
