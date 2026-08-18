@@ -12,6 +12,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+## [0.6.14] — 2026-08-18
+
+> Closes everything accumulated since `0.4.2`. Each entry keeps the `(0.6.x)` label of the
+> version it actually shipped in — that is the fine-grained record; this heading is the
+> release that draws a line under all of it.
+
 ### Changed
 
 - **`BlobStore` is now an abstraction a second backend could actually implement (`0.6.14`, §11).** §11 has
@@ -1311,6 +1317,7 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
-[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.14...HEAD
+[0.6.14]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...v0.6.14
 [0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
 [0.1.0]: https://github.com/Mosaicast/mosaicast-core/releases/tag/v0.1.0
