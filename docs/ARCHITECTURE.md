@@ -378,12 +378,20 @@ interface BlobStore {
     BlobRef put(String namespace, String key, InputStream data, String mime);
     BlobContent get(BlobRef ref);              // STREAMING, not "all bytes"
     void delete(BlobRef ref);
-    String urlFor(BlobRef ref, AccessContext ctx); // direct/presigned URL or own endpoint
+    List<BlobMetadata> list(String namespace, int page, int size);  // a backend answers for its own
+    long count(String namespace);
+    long usedBytes(String namespace);          // called on every upload — quota (§11.1)
+    int  deleteNamespace(String namespace);    // purge (§7.8)
+    Optional<String> directUrl(BlobRef ref, AccessContext ctx); // empty = serve it yourself
     BlobCapabilities capabilities();           // supportsRange, supportsPresignedUrls
 }
 ```
 - **Streaming-first + range requests** from day one (a 5 KB favicon like a 100 MB audio file).
-- **Namespace routing:** `branding/*` may stay in Postgres forever, `audio/*` later S3/CDN. One interface, one backend per namespace.
+- **Namespace routing:** `branding/*` may stay in Postgres forever, `audio/*` later S3/CDN. One interface, one backend per namespace, chosen in configuration (`mosaicast.blobs.namespaces`) — exact namespace first, then longest `/` prefix, so `plugin` covers every plugin without naming plugins that are not installed yet. A rule naming a backend that is not registered **fails startup**: falling through to the default would put files in a store nobody chose, with the symptom appearing long after the cause.
+- **A backend is self-contained.** It answers for its own namespaces — listing, count, total size, delete-all — rather than sharing an index in Postgres. Two stores of the same truth can disagree and nothing can then say which is right, and the alternative was worse in practice: the plugin surface reached past the interface into `BlobRepository`, so a non-Postgres backend would have accepted uploads and reported an empty library with zero usage, leaving the quota unenforced and nothing failing loudly.
+  - The cost is that each backend owes those answers *well*, and that is the backend's problem rather than the interface's: Postgres sums an indexed column, a filesystem walks a directory, an object store keeps a counter instead of paginating its own prefix on every upload. `usedBytes` is called on every write, which is the constraint that shapes the choice.
+  - Listing is **offset-paged**, matching the plugin HTTP surface. That is a real constraint on an object store, which pages by continuation token; a media library is browsed from its first page, so walking to a deep one is a cost such a backend may cap. Moving to cursor paging is an SDK contract change and belongs with the backend that needs it, not before.
+- **`directUrl` is the seam that makes an object store worth having.** A backend that can serve bytes without the app in the path says so; Postgres returns empty and callers serve the bytes themselves. Proxying every byte gives up most of the reason to move them out of the database. It is also where tier-gated audio (§10) signs a URL *after* the entitlement check, which is why it takes an `AccessContext` and cannot be cached per blob.
 - v1: `PostgresBlobStore` (BYTEA). Later: `S3BlobStore`, `FilesystemBlobStore` (config switch).
 - Tier-gated audio (future): expiring presigned URLs only after the entitlement check (`AccessContext`).
 
