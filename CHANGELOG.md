@@ -10,8 +10,6 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 [Semantic Versioning](https://semver.org/). The minor version tracks the build milestone
 (M1 = `0.1.x`, M2 = `0.2.x`, …) and is independent of the plugin-contract (SDK) version.
 
-## [Unreleased]
-
 ## [0.6.14] — 2026-08-18
 
 > Closes everything accumulated since `0.4.2`. Each entry keeps the `(0.6.x)` label of the
@@ -1317,7 +1315,6 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
-[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.14...HEAD
 [0.6.14]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...v0.6.14
 [0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
 [0.1.0]: https://github.com/Mosaicast/mosaicast-core/releases/tag/v0.1.0
