@@ -1,10 +1,10 @@
 {
-  "id": "ownedbad",
+  "id": "blobs",
   "version": "1.0.0",
   "platformApi": "0.8.0",
-  "name": "Malformed Backend-Owned Fixture",
+  "name": "Blob Fixture",
   "backend": {
-    "basePath": "/api/plugins/ownedbad",
+    "basePath": "/api/plugins/blobs",
     "extensions": [
       "dev.mosaicast.plugin.fixture.FixturePlugin"
     ]
@@ -27,8 +27,11 @@
   "storage": "doc",
   "data": {
     "readableBy": "anonymous",
-    "writableBy": "podcaster",
-    "backendOwned": ["a*b"]
+    "writableBy": "podcaster"
   },
-  "config": {}
+  "blobs": {
+    "maxFileBytes": 4096,
+    "quotaBytes": 8192,
+    "mimeTypes": ["image/png", "image/gif"]
+  }
 }

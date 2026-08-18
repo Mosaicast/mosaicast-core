@@ -29,7 +29,7 @@ public class PluginManifestController {
         return plugins.allActive().stream()
                 .map(PluginRegistration::manifest)
                 .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), m.slots(),
-                        !m.schemaEntities().isEmpty()))
+                        !m.schemaEntities().isEmpty(), m.declaresBlobs()))
                 .toList();
     }
 
@@ -41,8 +41,12 @@ public class PluginManifestController {
      *                  frontend mirror of the Java {@code ctx.schema()} being {@code null} for a doc-store
      *                  plugin. The entity names themselves stay out: the host resolves those per request,
      *                  and a plugin already knows what it declared.
+     * @param hasBlobs  whether the plugin declares a {@code blobs} block, the same signal for
+     *                  {@code ctx.blobs} (§11). The declared limits stay out: they are the manifest's
+     *                  *ask*, this install may grant less, and the only honest source is the quota
+     *                  endpoint.
      */
     public record PublicPlugin(String id, String name, String version, Frontend frontend, List<Slot> slots,
-                               boolean hasSchema) {
+                               boolean hasSchema, boolean hasBlobs) {
     }
 }

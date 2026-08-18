@@ -14,7 +14,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
-- **A share dialog on episodes, feed tabs and the site panel (`0.6.10`,
+- **A share dialog on episodes, feed tabs and the site panel (`0.6.12`,
   [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4).** `0.6.9` made a timestamped link
   *work*; without a way to produce one, only people who already knew the trick would ever have used it. The
   dialog is the familiar one: prepared destinations, the link itself in a field with a copy button, and — on
@@ -37,6 +37,49 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - New `Modal` primitive (scrim, sheet, Escape, focus in and back out again) and a `styles/share.css`
     partial holding it. The consent dialog predates it and is left alone — it is a surface with its own
     layout, not a reason to churn those styles.
+
+- **Plugins can store files: `POST /api/plugins/{id}/blob` and `ctx.blobs` (`0.6.11`,
+  [#81](https://github.com/Mosaicast/mosaicast-core/issues/81), §11).** A plugin could declare relational
+  tables, publish documents and serve a deep-linked page, and could not store a **file**. `BlobStore` had
+  existed since branding shipped and had exactly one caller. The asymmetry that left is the point of the
+  issue: `PluginCspHeaderWriter` gives `img-src`/`media-src` a blanket `https:`, so a plugin could display an
+  image from *any* host on the web — and had no way to accept one from the site's own podcaster.
+  - **Opt-in through a new manifest `blobs` block** (`maxFileBytes`, `quotaBytes`, `mimeTypes`). Declared,
+    never derived — the same rule as the data floors, so a plugin's appetite for disk is something whoever
+    installs it can read off the manifest. Without it, `ctx.blobs` is `null` and all five endpoints answer
+    **404**, indistinguishably from an unknown or switched-off plugin.
+  - **The operator's numbers win.** `mosaicast.plugin-blobs.*` caps both ceilings and holds the allow-list a
+    plugin's declared types are intersected with; the effective value is the smaller of the two, and
+    `GET .../blob/quota` is the only honest source for what was actually granted. A plugin asking for more
+    than an install allows is granted less, never rejected — its portability should not depend on the most
+    restrictive install it might ever meet.
+  - **Writes are the point here, unlike the schema surface.** The argument against schema writes over HTTP
+    is that no plugin code runs at request time to enforce a relational invariant. A file has none, so
+    `data.writableBy` plus a quota is the whole authorization story and a plugin's editing UI uploads
+    directly. Reads take `data.readableBy` — one floor pair, now three surfaces. `backendOwned` does not
+    apply: it reserves *keys*, and a caller never names one here (a ref is a UUID the host mints per upload,
+    so an upload cannot overwrite an existing file, including another tenant's).
+  - **What the bytes say is what gets stored.** Size, then the declared type against the allow-list, then
+    the *actual* type read from the leading bytes, then the quota. `MimeSniffer` is extracted from
+    `BrandingService` and shared, so there is one place that decides what a file is; SVG has no case in it,
+    which is what makes it unstorable rather than merely undeclared. A refusal answers **415** (type) or
+    **413** (size or quota) with distinct problem `type`s, worded apart because the fixes differ.
+  - **Range requests and ETags from day one** (§11), on the streaming reads `BlobStore` already had —
+    `Accept-Ranges`, `206` with `Content-Range`, and immutable caching, since a ref is never reused. Blobs
+    are served **same-origin** under `/api/`, so a plugin rendering its own upload needs no CSP host and
+    makes no consent decision, which an external image URL cannot say.
+  - **Purge takes files with it** (§7.8), matched on the namespace exactly rather than on a name prefix —
+    the distinction `V23__plugin_schema_registry.sql` already makes for tables. A purge that left uploads
+    behind would be the half-purge the schema work called out.
+  - **Two config changes worth knowing about.** The global `spring.servlet.multipart.max-file-size` rises
+    from 2 MB to 12 MB so it clears the plugin ceiling — it is not the effective cap for anything (branding
+    still enforces its own 2 MB in code), it only means a refusal comes from code that can say which rule
+    refused it. And plugin blob writes join the upload rate-limit bucket, matched by path *shape*
+    (`/api/plugins/*/blob`) so ordinary doc-store writes stay out of a bucket sized for files.
+  - Also: `ctx.links.episode/feed`, the host's own URL shapes as plain string builders. Not a capability — a
+    plugin could always write any `href` — but `ctx.route.navigate` is namespace-confined by construction, so
+    a plugin linking to an episode previously hardcoded `/episodes/${slug}` and became a thing that breaks
+    when a route changes.
 
 - **An episode link can point at a moment: `/episodes/{slug}?t=754` (`0.6.9`,
   [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4/§6.5).** Every podcast player people
@@ -66,6 +109,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     `og:image:alt`. *Known limit:* episode artwork comes from the feed as an external URL, so
     `og:image:width/height` cannot be emitted and a show with very large artwork may still render a small
     card in WhatsApp — that is a property of the feed, not something this can fix.
+
+### Fixed
+
+- **A branding upload could store a format the allow-list does not name (§12.2).** The check was "declared
+  type is allowed" then "the bytes are *some* recognised format" — which held only while the sniffer knew
+  exactly the four types branding accepts. Sharing it with plugin uploads broke that coincidence, so the
+  sniffed type is now checked against the allow-list too. Reachable before this release only by declaring
+  `image/png` and sending something else the sniffer would have recognised.
+
+### Changed
+
+- SDK bumped to **0.8.0** (`platformApi` matches `major.minor` exactly, so every plugin manifest moves with
+  it — the bundled fixtures are updated here).
+
+### Added
 
 - **The schema store has an HTTP surface: a plugin frontend can query its own tables (`0.6.8`,
   [#76](https://github.com/Mosaicast/mosaicast-core/issues/76), §7.6).** `0.6.6` shipped the schema

@@ -14,6 +14,7 @@ export interface SlotMount {
   order: number;
   /** Carried from the manifest so the mount can decide `ctx.schema` without another registry lookup. */
   hasSchema: boolean;
+  hasBlobs: boolean;
 }
 
 /**
@@ -37,6 +38,7 @@ export function selectMounts(
           element: slot.element,
           order: slot.order ?? Number.MAX_SAFE_INTEGER,
           hasSchema: plugin.hasSchema ?? false,
+          hasBlobs: plugin.hasBlobs ?? false,
         });
       }
     }

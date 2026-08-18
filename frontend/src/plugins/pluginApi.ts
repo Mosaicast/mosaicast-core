@@ -2,6 +2,10 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import type {
+  BlobClient,
+  BlobInfo,
+  BlobPage,
+  BlobQuota,
   PluginApiClient,
   SchemaClient,
   SchemaPage,
@@ -105,6 +109,53 @@ export function makePluginSchema(pluginId: string): SchemaClient {
       api
         .get<{ count: number }>(`${base}${encodeURIComponent(entity)}/count${params(query)}`)
         .then((body) => body.count),
+  };
+}
+
+/**
+ * Builds the {@link BlobClient} the host sets on `ctx.blobs` for a plugin that declares a `blobs` block
+ * (ARCHITECTURE §11) — `null` for one that does not, decided in {@link buildCtx}.
+ *
+ * The upload goes through `api.upload`, which already carries the cookie session and the SPA's CSRF header;
+ * `ctx.api` is JSON-only and cannot express a multipart body, which is why this is its own client rather
+ * than a path a plugin could have called itself.
+ *
+ * **Refusals reject.** A file that is too large, of a type this plugin may not store, or one that would put
+ * it over quota comes back as an {@link ApiError} carrying the host's problem detail. Surface it: the person
+ * who picked the file is the only one who can pick a different one.
+ */
+export function makePluginBlobs(pluginId: string): BlobClient {
+  const base = `/api/plugins/${pluginId}/blob`;
+  return {
+    upload: (file: File | Blob, opts?: { filename?: string }) => {
+      const form = new FormData();
+      // The third argument is what the host reads as the original filename; a bare Blob has none of its
+      // own, so an explicit one is the only way to name it.
+      const filename = opts?.filename ?? (file instanceof File ? file.name : undefined);
+      if (filename) {
+        form.append('file', file, filename);
+      } else {
+        form.append('file', file);
+      }
+      return api.uploadFor<BlobInfo>(base, form);
+    },
+    list: (opts?: { page?: number; size?: number }) =>
+      api
+        .get<{ items: BlobInfo[]; page: number; size: number; totalElements: number }>(
+          `${base}?page=${opts?.page ?? 0}&size=${opts?.size ?? 50}`,
+        )
+        .then(
+          (body): BlobPage => ({
+            items: body.items,
+            page: body.page,
+            size: body.size,
+            total: body.totalElements,
+          }),
+        ),
+    // Idempotent, matching the host: removing what is already gone resolves.
+    remove: (ref: string) => api.del<void>(`${base}/${encodeURIComponent(ref)}`).then(() => undefined),
+    urlFor: (ref: string) => `${base}/${encodeURIComponent(ref)}`,
+    quota: () => api.get<BlobQuota>(`${base}/quota`),
   };
 }
 

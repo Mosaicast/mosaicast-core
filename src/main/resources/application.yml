@@ -29,9 +29,15 @@ spring:
     locations: classpath:db/migration
   servlet:
     multipart:
-      # Branding uploads are small; cap them (ARCHITECTURE §13 upload limits).
-      max-file-size: 2MB
-      max-request-size: 4MB
+      # The container-level ceiling, above every endpoint's own (ARCHITECTURE §13 upload limits). It has to
+      # clear `mosaicast.plugin-blobs.max-file-bytes`, or a plugin upload inside its granted limit would be
+      # refused by the servlet before any code that could explain why.
+      #
+      # This is deliberately NOT the effective cap for any endpoint: branding still enforces its own 2 MB in
+      # BrandingService, and a plugin gets the smaller of its manifest's ask and the operator's ceiling. A
+      # bigger number here only means the refusal comes from code that can say which rule refused it.
+      max-file-size: ${MOSAICAST_MAX_UPLOAD_SIZE:12MB}
+      max-request-size: ${MOSAICAST_MAX_REQUEST_SIZE:16MB}
 
 # Host-wide settings (bound in feature @ConfigurationProperties as they land).
 mosaicast:
@@ -46,6 +52,17 @@ mosaicast:
     auth-window: 1m
     upload-limit: ${MOSAICAST_RATE_LIMIT_UPLOAD:10}
     upload-window: 1m
+  # Ceilings on plugin file storage (ARCHITECTURE §11). A manifest declares what a plugin wants; these decide
+  # what this install grants, and the effective value is the smaller of the two — a plugin asking for more is
+  # granted less, never rejected. Plugin blobs are the first unbounded write a plugin can make, so the
+  # defaults are conservative on purpose.
+  plugin-blobs:
+    max-file-bytes: ${MOSAICAST_PLUGIN_BLOB_MAX_FILE:10485760}
+    max-quota-bytes: ${MOSAICAST_PLUGIN_BLOB_QUOTA:268435456}
+    # What may be stored at all. A plugin cannot reach past this by declaring more. SVG is not listed and
+    # cannot be added — it is a script container wearing an image's extension (§12.2), and nothing here
+    # sanitises it.
+    allowed-mime-types: image/png,image/jpeg,image/webp,image/gif,image/avif,audio/mpeg,audio/mp4,audio/ogg,audio/wav
   auth:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}

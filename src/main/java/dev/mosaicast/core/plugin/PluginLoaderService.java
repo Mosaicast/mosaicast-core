@@ -50,6 +50,7 @@ public class PluginLoaderService implements ApplicationRunner {
     private final PluginSettingsService settings;
     private final ObjectMapper objectMapper;
     private final PluginSchemaMigrator schemaMigrator;
+    private final PluginBlobService blobService;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** Registrations in discovery order, keyed by id; populated once at startup. */
@@ -68,7 +69,7 @@ public class PluginLoaderService implements ApplicationRunner {
     public PluginLoaderService(PluginProperties properties, PluginDataService dataService,
                                FeedAccess feedAccess, PluginScheduler scheduler,
                                PluginSettingsService settings, ObjectMapper objectMapper,
-                               PluginSchemaMigrator schemaMigrator,
+                               PluginSchemaMigrator schemaMigrator, PluginBlobService blobService,
                                org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.properties = properties;
         this.dataService = dataService;
@@ -77,6 +78,7 @@ public class PluginLoaderService implements ApplicationRunner {
         this.settings = settings;
         this.objectMapper = objectMapper;
         this.schemaMigrator = schemaMigrator;
+        this.blobService = blobService;
         this.jdbc = jdbc;
     }
 
@@ -168,7 +170,10 @@ public class PluginLoaderService implements ApplicationRunner {
             schema = new SchemaStoreImpl(manifest.id(), entities, jdbc, objectMapper);
             schemaStores.put(manifest.id(), schema);
         }
-        return new PluginContextImpl(manifest.id(), store, schema, config, feedAccess, scheduler);
+        // Null unless the manifest asked for it, mirroring the schema store above: what a plugin may store
+        // is decided in the manifest and nowhere else (§11).
+        PluginBlobsImpl blobs = manifest.declaresBlobs() ? new PluginBlobsImpl(manifest, blobService) : null;
+        return new PluginContextImpl(manifest.id(), store, schema, blobs, config, feedAccess, scheduler);
     }
 
     /**

@@ -74,6 +74,31 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * A plugin upload refused for size (§11). 413 with its own {@code type}, worded apart from the type
+     * refusal below: the two have different fixes — send a smaller file, versus delete something first — and
+     * a client that cannot tell them apart cannot say which.
+     */
+    @ExceptionHandler(dev.mosaicast.core.plugin.BlobQuotaExceededException.class)
+    public ProblemDetail handleBlobQuota(dev.mosaicast.core.plugin.BlobQuotaExceededException ex,
+                                         WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage());
+        problem.setTitle("Payload Too Large");
+        problem.setType(URI.create("https://mosaicast.dev/problems/blob-quota-exceeded"));
+        return problem;
+    }
+
+    /** A plugin upload refused for its content type, declared or actual (§11/§12.2). */
+    @ExceptionHandler(dev.mosaicast.core.plugin.BlobTypeNotAllowedException.class)
+    public ProblemDetail handleBlobType(dev.mosaicast.core.plugin.BlobTypeNotAllowedException ex,
+                                        WebRequest request) {
+        ProblemDetail problem =
+                ProblemDetail.forStatusAndDetail(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage());
+        problem.setTitle("Unsupported Media Type");
+        problem.setType(URI.create("https://mosaicast.dev/problems/blob-type-not-allowed"));
+        return problem;
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex, WebRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

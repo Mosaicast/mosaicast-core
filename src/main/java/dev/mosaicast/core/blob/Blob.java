@@ -41,6 +41,21 @@ public class Blob {
     @Column(nullable = false)
     private byte[] data;
 
+    /**
+     * The original filename, for display in a plugin's media library. Null for branding, which has one
+     * logo an admin uploaded and nothing a human would look up by name.
+     */
+    @Column(name = "filename")
+    private String filename;
+
+    /**
+     * Who uploaded it, or null — for branding, and for anything stored by a backend on a schedule, where
+     * there is no caller to attribute. The FK nulls on user deletion: an account going away must not take
+     * a podcast's media with it.
+     */
+    @Column(name = "created_by")
+    private UUID createdBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -58,6 +73,12 @@ public class Blob {
         this.mime = mime;
         this.data = data;
         this.sizeBytes = data.length;
+    }
+
+    /** Records who uploaded this and under what name; both are optional and neither is ever a path. */
+    void attribute(String filename, UUID createdBy) {
+        this.filename = filename;
+        this.createdBy = createdBy;
     }
 
     void replace(String mime, byte[] data) {
@@ -89,6 +110,14 @@ public class Blob {
 
     public byte[] getData() {
         return data;
+    }
+
+    public String getFilename() {
+        return filename;
+    }
+
+    public UUID getCreatedBy() {
+        return createdBy;
     }
 
     public Instant getUpdatedAt() {

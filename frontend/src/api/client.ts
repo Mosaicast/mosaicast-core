@@ -70,17 +70,41 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return (text ? JSON.parse(text) : undefined) as T;
 }
 
-/** Multipart upload (e.g. branding assets) — lets the browser set the multipart boundary; CSRF header added. */
-async function upload(path: string, formData: FormData): Promise<void> {
-  const headers: Record<string, string> = {};
+/**
+ * Multipart upload — lets the browser set the multipart boundary; CSRF header added.
+ *
+ * Errors carry the RFC-7807 `detail` when there is one, which matters more here than on any other call:
+ * an upload is refused for reasons only the server knows (too large, wrong type, over quota), and the
+ * person who chose the file is the only one who can act on the answer. Falling back to `statusText` would
+ * turn "that PNG is 12 MB and you may store 5" into "Payload Too Large".
+ */
+async function uploadFor<T>(path: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
   const token = readCookie('XSRF-TOKEN');
   if (token) {
     headers['X-XSRF-TOKEN'] = token;
   }
   const response = await fetch(path, { method: 'POST', headers, credentials: 'include', body: formData });
   if (!response.ok) {
-    throw new ApiError(response.status, response.statusText);
+    let detail: string | undefined;
+    try {
+      const problem = (await response.json()) as { detail?: string; title?: string };
+      detail = problem.detail ?? problem.title;
+    } catch {
+      /* no/!json body */
+    }
+    throw new ApiError(response.status, detail || response.statusText || `HTTP ${response.status}`, detail);
   }
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+/** Multipart upload with no response body of interest (e.g. branding assets). */
+async function upload(path: string, formData: FormData): Promise<void> {
+  await uploadFor<void>(path, formData);
 }
 
 export const api = {
@@ -89,4 +113,5 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
   del: <T>(path: string) => request<T>('DELETE', path),
   upload,
+  uploadFor,
 };
