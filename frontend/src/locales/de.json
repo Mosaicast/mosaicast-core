@@ -32,6 +32,7 @@
   "card.listened": "{{percent}}% gehört",
   "player.region": "Player",
   "player.play": "Abspielen",
+  "player.playFrom": "Ab {{time}} abspielen",
   "player.back15": "15 Sekunden zurück",
   "player.forward30": "30 Sekunden vor",
   "player.speed": "Wiedergabegeschwindigkeit, aktuell {{rate}}×",

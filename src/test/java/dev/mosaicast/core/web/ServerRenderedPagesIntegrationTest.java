@@ -100,6 +100,50 @@ class ServerRenderedPagesIntegrationTest {
         assertThat(html).contains("<meta property=\"og:image\" content=\"https://cdn.test/art/7.jpg\" />");
         assertThat(html).contains(
                 "<link rel=\"canonical\" href=\"https://podcast.test/episodes/seo-cast-s02e07\" />");
+        // The tags a messenger renders its card from: an episode is dated content, and a client that knows
+        // what to do with audio gets the enclosure.
+        assertThat(html).contains("<meta property=\"og:type\" content=\"article\" />");
+        assertThat(html).contains("<meta property=\"og:audio\" content=\"https://cdn.test/audio/7.mp3\" />");
+        assertThat(html).contains("<meta property=\"og:audio:type\" content=\"audio/mpeg\" />");
+        assertThat(html).contains("<meta property=\"article:published_time\" content=\"2026-03-04T10:00:00Z\" />");
+        assertThat(html).contains("<meta property=\"og:image:alt\" content=\"The Lighthouse Episode\" />");
+        assertThat(html).contains("<meta property=\"og:locale\" content=\"en_US\" />");
+    }
+
+    @Test
+    void aTimestampedEpisodeLinkSharesTheMomentButCanonicalizesToTheEpisode() {
+        String html = body("/episodes/seo-cast-s02e07?t=754");
+
+        // The page is the episode — that is what a search engine should index (§6.4).
+        assertThat(html).contains(
+                "<link rel=\"canonical\" href=\"https://podcast.test/episodes/seo-cast-s02e07\" />");
+        // ...but the thing that was shared is the moment, so a card links back to it rather than to the top.
+        assertThat(html).contains(
+                "<meta property=\"og:url\" content=\"https://podcast.test/episodes/seo-cast-s02e07?t=754\" />");
+        // Everything else about the view is unchanged by a position inside it.
+        assertThat(html).contains("<meta property=\"og:title\" content=\"The Lighthouse Episode\" />");
+        assertThat(html).contains("\"@type\":\"PodcastEpisode\"");
+    }
+
+    @Test
+    void anUnreadableTimestampIsDroppedRatherThanEchoed() {
+        // A mangled `t` in a forwarded link still opens the episode, and no input string reaches the page:
+        // only a value that survives parsing is re-serialized into og:url.
+        String html = body("/episodes/seo-cast-s02e07?t=%3Cscript%3Ealert(1)%3C/script%3E");
+
+        assertThat(html).contains(
+                "<meta property=\"og:url\" content=\"https://podcast.test/episodes/seo-cast-s02e07\" />");
+        assertThat(html).doesNotContain("alert(1)");
+        assertThat(html).doesNotContain("?t=");
+    }
+
+    @Test
+    void aTimestampIsNotPartOfTheCanonicalFormOfAFilteredView() {
+        // §6.1's filter axes are canonical; anything else in the query string is dropped, `t` included.
+        String html = body("/feeds/seo-cast?season=2&t=754");
+
+        assertThat(html).contains("<link rel=\"canonical\" href=\"https://podcast.test/feeds/seo-cast?season=2\" />");
+        assertThat(html).doesNotContain("t=754");
     }
 
     @Test
