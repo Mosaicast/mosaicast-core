@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import type { CSSProperties } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '../api/client';
 import type { AdjacentEpisodes, EpisodeDetail, EpisodeSummary } from '../api/types';
@@ -13,22 +13,51 @@ import { useResource } from '../hooks/useResource';
 import { RelatedEpisodes } from '../components/RelatedEpisodes';
 import { RelatedPins } from '../components/RelatedPins';
 import { SlotRegion } from '../components/SlotRegion';
-import { usePlayer } from '../player/PlayerContext';
+import { usePlayer, type PlayableEpisode } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
 import { sanitizeFeedHtml } from '../util/sanitize';
+import { parseTimestamp } from '../util/timestamp';
 import { NotFound } from './Placeholder';
+
+/** Whether this episode has audio a visitor may actually play (upcoming/locked ones do not). */
+function isPlayable(episode: EpisodeDetail): boolean {
+  // Detail carries the real audioUrl (no hasAudio flag) — playability is "has an audio URL".
+  return !!episode.audioUrl && episode.status !== 'PLANNED' && episode.access !== 'TIER';
+}
+
+/** The detail payload narrowed to what the player needs. */
+function toPlayable(episode: EpisodeDetail, feedTitle: string | null | undefined): PlayableEpisode {
+  return {
+    id: episode.id,
+    slug: episode.slug,
+    title: episode.title,
+    audioUrl: episode.audioUrl,
+    imageUrl: episode.imageUrl,
+    feedTitle,
+    season: episode.season,
+    episodeNo: episode.episodeNo,
+  };
+}
 
 /**
  * The episode detail page (§6.2): hero with play, sanitized show notes, the fixed **previous/next**
  * navigation (core, and deliberately separate from the related list in the sidebar, §6.3), and the
  * `main`/`sidebar` plugin slot regions.
  * A missing/withdrawn episode renders the 404 landmark (real 404 — §6.6).
+ *
+ * A `?t=` search parameter (§6.4) arms the player at that position: the link is a link to a *moment*, so
+ * the timestamp beats the stored listening position, and the page keeps the parameter in the URL so a
+ * reload or a back-navigation lands in the same place.
  */
 export function EpisodePage() {
   const { slug = '' } = useParams();
   const { t, i18n } = useTranslation();
   const { play } = usePlayer();
   const { titleOf } = useFeeds();
+  const [params] = useSearchParams();
+  // An unparsable value is ignored rather than an error — a mangled timestamp in a forwarded link should
+  // still open the episode (§6.4).
+  const startAt = parseTimestamp(params.get('t'));
 
   const { data: episode, error } = useResource<EpisodeDetail>(`/api/episodes/${slug}`);
   const { data: adjacent } = useResource<AdjacentEpisodes>(`/api/episodes/${slug}/adjacent`);
@@ -36,6 +65,24 @@ export function EpisodePage() {
   // share one source of truth about when to re-read it.
   const { data: related, error: relatedError, reload: reloadRelated } =
     useResource<EpisodeSummary[]>(`/api/episodes/${slug}/related`);
+
+  // Arm the player at the shared position once the detail resolves, and once per (episode, timestamp) so a
+  // re-render does not yank a listener who has since scrubbed elsewhere.
+  //
+  // The browser may refuse to start audio without a gesture; that rejection is swallowed in the player and
+  // the seek is applied on `loadedmetadata` regardless, so the first press of play still lands on the spot.
+  const armedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!episode || startAt == null || !isPlayable(episode)) {
+      return;
+    }
+    const token = `${episode.id}#${startAt}`;
+    if (armedRef.current === token) {
+      return;
+    }
+    armedRef.current = token;
+    play(toPlayable(episode, titleOf(episode.feedId)), { startAt });
+  }, [episode, startAt, play, titleOf]);
 
   // A withdrawn or mistyped episode is a real 404, not an empty page (§6.6).
   if (error instanceof ApiError && error.status === 404) {
@@ -50,9 +97,7 @@ export function EpisodePage() {
   }
 
   const upcoming = episode.status === 'PLANNED';
-  const locked = episode.access === 'TIER';
-  // Detail carries the real audioUrl (no hasAudio flag) — playability is "has an audio URL".
-  const playable = !!episode.audioUrl && !upcoming && !locked;
+  const playable = isPlayable(episode);
   const seasonEp =
     episode.season != null && episode.episodeNo != null ? `S${episode.season} · E${episode.episodeNo}` : null;
   // Show notes are feed HTML → sanitize before rendering (no scripts/handlers).
@@ -96,19 +141,15 @@ export function EpisodePage() {
               type="button"
               className="mc-btn mc-btn--accent mc-btn--lg"
               onClick={() =>
-                play({
-                  id: episode.id,
-                  slug: episode.slug,
-                  title: episode.title,
-                  audioUrl: episode.audioUrl,
-                  imageUrl: episode.imageUrl,
-                  feedTitle: titleOf(episode.feedId),
-                  season: episode.season,
-                  episodeNo: episode.episodeNo,
-                })
+                play(
+                  toPlayable(episode, titleOf(episode.feedId)),
+                  startAt == null ? undefined : { startAt },
+                )
               }
             >
-              ▶ {t('player.play')}
+              {/* Say where the button will land when a shared link asked for a moment — pressing play and
+                  silently starting somewhere other than the beginning is otherwise unexplained. */}
+              ▶ {startAt == null ? t('player.play') : t('player.playFrom', { time: formatDuration(startAt) })}
             </button>
           )}
         </div>

@@ -52,11 +52,28 @@ public class IndexHtmlService {
     /**
      * What a scraper should show for one URL.
      *
+     * <p>The tags beyond title/description/image exist because a link is pasted into a messenger far more
+     * often than into a search box, and the messengers are the strictest readers: WhatsApp and Telegram
+     * render a card from these tags alone, with no JS and no second request. {@code og:type} lets an episode
+     * announce itself as something other than a generic website, and {@code og:audio} lets a client that
+     * knows what to do with audio (Telegram, Discord) offer it.
+     *
      * @param title       the page title; never blank
      * @param description a one-line summary, possibly empty
      * @param imageUrl    an absolute or root-relative image URL, or {@code null} to send none
+     * @param type        the {@code og:type} for this view — {@code website} for a listing, {@code article}
+     *                    for one episode; never blank
+     * @param audioUrl    the episode's audio URL, or {@code null} when this view has none
+     * @param audioMime   the audio's MIME type when it can be told from the URL, else {@code null}
+     * @param publishedAt when this was published, for {@code article:published_time}; {@code null} for none
      */
-    public record Meta(String title, String description, String imageUrl) {
+    public record Meta(String title, String description, String imageUrl, String type, String audioUrl,
+                       String audioMime, java.time.Instant publishedAt) {
+
+        /** The ordinary page: a listing or a static page, with nothing to say about audio or a date. */
+        public Meta(String title, String description, String imageUrl) {
+            this(title, description, imageUrl, "website", null, null, null);
+        }
     }
 
     /** Site-level fallback: used when nothing more specific is known for a URL. */
@@ -112,13 +129,23 @@ public class IndexHtmlService {
         return html.substring(0, insertAt) + "\n" + content + html.substring(insertAt);
     }
 
-    /** Everything this view contributes to {@code <head>}. */
+    /**
+     * Everything this view contributes to {@code <head>}.
+     *
+     * <p><strong>{@code rel=canonical} and {@code og:url} are deliberately allowed to differ</strong>
+     * (§6.4). They answer different questions: canonical says which URL a search engine should index — the
+     * bare episode, because a timestamp is a position within one page and not a page of its own — while
+     * {@code og:url} is the identity of the thing being shared. Emitting the canonical form as
+     * {@code og:url} would let a scraper normalize a shared moment back to the top of the episode, which is
+     * precisely the link someone did not send. {@link PageView#shareUrl()} falls back to the canonical URL,
+     * so every view that has nothing extra to say still emits the two identically.
+     */
     private String headTags(PageView view) {
         StringBuilder tags = new StringBuilder(ogTags(view.meta()));
         if (view.canonicalUrl() != null && !view.canonicalUrl().isBlank()) {
             tags.append("    <link rel=\"canonical\" href=\"")
                     .append(escape(view.canonicalUrl())).append("\" />\n");
-            tags.append(meta("og:url", view.canonicalUrl()));
+            tags.append(meta("og:url", view.shareUrl()));
         }
         if (view.jsonLd() != null && !view.jsonLd().isBlank()) {
             tags.append("    <script type=\"application/ld+json\">")
@@ -136,9 +163,19 @@ public class IndexHtmlService {
     private String ogTags(Meta meta) {
         StringBuilder tags = new StringBuilder("\n");
         tags.append(meta("og:title", meta.title()));
-        tags.append(meta("og:type", "website"));
+        tags.append(meta("og:type", meta.type() == null || meta.type().isBlank() ? "website" : meta.type()));
         tags.append(meta("twitter:card", meta.imageUrl() == null ? "summary" : "summary_large_image"));
         tags.append(meta("twitter:title", meta.title()));
+        // Site name and locale are properties of the install rather than of a URL, so they are read here
+        // instead of being carried on every Meta a resolver builds.
+        String siteName = siteConfig.get().getSiteName();
+        if (siteName != null && !siteName.isBlank()) {
+            tags.append(meta("og:site_name", siteName));
+        }
+        String ogLocale = ogLocale(siteConfig.get().getDefaultLocale());
+        if (ogLocale != null) {
+            tags.append(meta("og:locale", ogLocale));
+        }
         if (meta.description() != null && !meta.description().isBlank()) {
             tags.append(meta("og:description", meta.description()));
             tags.append(meta("twitter:description", meta.description()));
@@ -146,8 +183,43 @@ public class IndexHtmlService {
         if (meta.imageUrl() != null && !meta.imageUrl().isBlank()) {
             tags.append(meta("og:image", meta.imageUrl()));
             tags.append(meta("twitter:image", meta.imageUrl()));
+            // The title is the honest alt text: the image is the episode's or the show's artwork, and what
+            // it depicts is not knowable from a feed. An empty alt would tell a screen reader nothing.
+            tags.append(meta("og:image:alt", meta.title()));
+            tags.append(meta("twitter:image:alt", meta.title()));
+        }
+        if (meta.audioUrl() != null && !meta.audioUrl().isBlank()) {
+            tags.append(meta("og:audio", meta.audioUrl()));
+            if (meta.audioMime() != null) {
+                tags.append(meta("og:audio:type", meta.audioMime()));
+            }
+        }
+        if (meta.publishedAt() != null) {
+            tags.append(meta("article:published_time",
+                    java.time.format.DateTimeFormatter.ISO_INSTANT.format(meta.publishedAt())));
         }
         return tags.toString();
+    }
+
+    /**
+     * OpenGraph wants {@code language_TERRITORY}, while the site stores a plain language tag like
+     * {@code de} (§12.7) — a bare language is not a valid {@code og:locale}.
+     *
+     * <p>A territory cannot be derived from a language in general, so the two launch locales get the pairing
+     * they actually have and anything else is left to say only what it knows. Guessing wrongly here is worse
+     * than saying nothing: {@code en_EN} is not a locale, and a scraper that cannot read the value is in the
+     * same position as one that never received it.
+     */
+    private static String ogLocale(String locale) {
+        String tag = locale == null || locale.isBlank() ? "en" : locale.trim().replace('-', '_');
+        if (tag.contains("_")) {
+            return tag;
+        }
+        return switch (tag.toLowerCase(java.util.Locale.ROOT)) {
+            case "en" -> "en_US";
+            case "de" -> "de_DE";
+            default -> null;
+        };
     }
 
     private static String meta(String property, String content) {

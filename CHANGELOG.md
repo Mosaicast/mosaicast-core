@@ -14,6 +14,35 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **An episode link can point at a moment: `/episodes/{slug}?t=754` (`0.6.9`,
+  [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4/§6.5).** Every podcast player people
+  are used to supports this, and the machinery was already half-built — `PlayerContext` has kept a deferred
+  seek applied on `loadedmetadata` since the player shipped. What was missing was the wiring from the URL to
+  it, and a server that knew the parameter existed.
+  - **The grammar is what people actually paste**: bare seconds (`754`), the clock a player shows (`12:34`,
+    `1:02:03`), and the unit form other apps emit (`1h02m03s`, `90m`). An unparsable value is **dropped, not
+    rejected** — a mangled timestamp in a forwarded link should still open the episode. The rule lives twice,
+    in `frontend/src/util/timestamp.ts` and `web/TimestampParam`, held to one table of cases by both test
+    suites: the shell decides where playback lands and the server decides what the card says, and a link
+    that previews as one moment and plays another is worse than one carrying no timestamp at all.
+  - **An explicit `t` beats stored listening progress, and does not overwrite it** (§6.5). Someone following
+    a link asked for that spot; someone who was halfway through the episode did not ask to lose their place.
+    The position is only written back once playback has actually advanced five seconds past the shared one —
+    the difference between having looked and having listened. Scrubbing by hand ends the hold immediately,
+    since that is a deliberate statement about where the listener is.
+  - **`rel=canonical` and `og:url` are now allowed to differ**, which is the one judgement call here. A
+    timestamp is a position within a page rather than a page of its own, so the canonical URL stays the bare
+    episode and the filter-normalizing rules of §6.1 are untouched. But emitting that as `og:url` would let a
+    scraper normalize a shared moment back to the top of the episode — exactly the link the sharer did not
+    send — so `og:url` carries what was shared. Only a value that survives parsing is re-serialized into the
+    page, so no input string reaches the HTML on this route.
+  - **Richer preview tags, because a link is pasted into a messenger far more often than into a search box.**
+    Episodes now declare `og:type: article` with `article:published_time`, `og:audio`/`og:audio:type` when
+    the enclosure's format can be told from its URL, and every view carries `og:site_name`, `og:locale` and
+    `og:image:alt`. *Known limit:* episode artwork comes from the feed as an external URL, so
+    `og:image:width/height` cannot be emitted and a show with very large artwork may still render a small
+    card in WhatsApp — that is a property of the feed, not something this can fix.
+
 - **The schema store has an HTTP surface: a plugin frontend can query its own tables (`0.6.8`,
   [#76](https://github.com/Mosaicast/mosaicast-core/issues/76), §7.6).** `0.6.6` shipped the schema
   provider's provisioning half — the manifest declares entities, the host creates
