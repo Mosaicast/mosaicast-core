@@ -14,6 +14,30 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A share dialog on episodes, feed tabs and the site panel (`0.6.10`,
+  [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4).** `0.6.9` made a timestamped link
+  *work*; without a way to produce one, only people who already knew the trick would ever have used it. The
+  dialog is the familiar one: prepared destinations, the link itself in a field with a copy button, and — on
+  an episode — a **start-at row prefilled with wherever the player currently is**, editable to any other
+  moment, off by default.
+  - **The prepared destinations are WhatsApp, Telegram, Email, plus the OS share sheet where the browser has
+    one.** Every one is a plain outbound link the visitor clicks: nothing loads a third-party script, embeds
+    a widget or makes a request before the click, so this surface makes **no consent decision** (§12.5),
+    needs no CSP host and stores nothing on the device. A share button that phones home before anyone shares
+    is what the consent service exists to prevent.
+  - **The social networks are deliberately absent as buttons and unaffected as destinations.** A link pasted
+    into any of them still renders a correct card — that is `0.6.9`'s OG work doing its job, and it needs no
+    button here.
+  - The prefilled time is **captured when the dialog opens**, not tracked live: a field that moved under the
+    cursor while the episode played would be unusable. A time the parser cannot read marks the field invalid
+    and falls back to sharing the episode — better a link to the episode than a link to a moment that does
+    not exist.
+  - A feed or site share carries **the filter query that was showing** (§6.1), since a filtered view is part
+    of what was being shared; an episode share does not, because nothing else on an episode URL is.
+  - New `Modal` primitive (scrim, sheet, Escape, focus in and back out again) and a `styles/share.css`
+    partial holding it. The consent dialog predates it and is left alone — it is a surface with its own
+    layout, not a reason to churn those styles.
+
 - **An episode link can point at a moment: `/episodes/{slug}?t=754` (`0.6.9`,
   [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4/§6.5).** Every podcast player people
   are used to supports this, and the machinery was already half-built — `PlayerContext` has kept a deferred

@@ -2,8 +2,10 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 
 import { useSite } from '../theme/SiteContext';
+import { ShareButton } from './ShareButton';
 import { SlotRegion } from './SlotRegion';
 
 /**
@@ -14,6 +16,7 @@ import { SlotRegion } from './SlotRegion';
 export function SitePanel() {
   const { t } = useTranslation();
   const { site, mode } = useSite();
+  const location = useLocation();
 
   const logo =
     mode === 'dark' && site?.branding.darkLogo
@@ -25,6 +28,8 @@ export function SitePanel() {
     <aside className="mc-scope-panel">
       <img className="mc-scope-panel__logo" src={logo} alt="" aria-hidden="true" />
       <h1 className="mc-scope-panel__title">{name}</h1>
+      {/* Shared with the filters that are showing: a filtered view is part of what is being shared (§6.1). */}
+      <ShareButton path={location.pathname + location.search} title={name} className="mc-btn mc-btn--sm" />
       {/* Site-scoped plugins (E5) mount here — both the dedicated `site` region and a site-scoped sidebar. */}
       <SlotRegion name="site" />
       <SlotRegion name="sidebar" />
