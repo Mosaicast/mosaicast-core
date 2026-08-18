@@ -32,6 +32,16 @@
   "blobs": {
     "maxFileBytes": 4096,
     "quotaBytes": 8192,
-    "mimeTypes": ["image/png", "image/gif"]
+    "mimeTypes": [
+      "image/png",
+      "image/gif"
+    ]
+  },
+  "config": {
+    "caption": {
+      "type": "string",
+      "default": "",
+      "editableBy": "podcaster"
+    }
   }
 }

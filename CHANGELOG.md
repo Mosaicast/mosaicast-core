@@ -10,9 +10,78 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 [Semantic Versioning](https://semver.org/). The minor version tracks the build milestone
 (M1 = `0.1.x`, M2 = `0.2.x`, …) and is independent of the plugin-contract (SDK) version.
 
-## [Unreleased]
+## [0.6.14] — 2026-08-18
+
+> Closes everything accumulated since `0.4.2`. Each entry keeps the `(0.6.x)` label of the
+> version it actually shipped in — that is the fine-grained record; this heading is the
+> release that draws a line under all of it.
+
+### Changed
+
+- **`BlobStore` is now an abstraction a second backend could actually implement (`0.6.14`, §11).** §11 has
+  always said "one interface, one backend per namespace — `branding/*` may stay in Postgres, `audio/*` later
+  S3/CDN". It was not true yet, and the gap was not visible from the interface:
+  - **The plugin surface reached past it.** `PluginBlobService` queried `BlobRepository` directly for
+    listing, counting, quota and purge. A non-Postgres backend would have accepted uploads and then reported
+    an empty media library and **zero usage** — the quota silently unenforced, nothing failing loudly.
+    Those four now live on `BlobStore`, and a backend answers for its own namespaces.
+  - **The router could not be configured.** It was constructed with `Map.of()` hardcoded, so per-namespace
+    routing was a shape rather than a setting. Backends now register by name (`NamedBlobStore`) and
+    `mosaicast.blobs.namespaces` points namespaces at them — exact match first, then longest `/` prefix, so
+    `plugin` covers every plugin without naming ones that are not installed yet. A rule naming an
+    unregistered backend **fails startup** rather than falling through to the default: a typo would
+    otherwise put files in a store nobody chose, and the symptom appears long after the cause.
+  - **`urlFor` was a dead contract.** It returned `/api/blobs/{id}` for a route nothing has ever mapped —
+    satisfied-looking, and a 404 to the first caller who believed it. Replaced by
+    `Optional<String> directUrl(ref, ctx)`, where empty means "serve the bytes yourself" (Postgres always
+    does) and a value is the CDN/presigned URL that makes an object store worth having at all. It takes an
+    `AccessContext` because tier-gated audio (§10) must be signed *after* the entitlement check.
+  - **Self-contained backends, not a shared Postgres index.** Two stores of the same truth can disagree and
+    nothing can then say which is right. The cost is that each backend owes good answers to `usedBytes` and
+    friends — Postgres sums an indexed column, an object store will keep a counter rather than paginate its
+    own prefix on every upload — and that is the backend's problem rather than the interface's.
+  - **Proven by a second implementation**, in tests: an in-memory backend, a namespace routed to it, and the
+    whole plugin surface driven over HTTP against it. An abstraction with one implementation is an
+    assertion; every gap listed above was found by writing that test, not by reading the interface.
+
+  - **Branding is guarded to Postgres at startup.** `site_config.*_asset_id` is
+    `UUID REFERENCES blob(id)`, so a branding asset's pointer is a row id in the Postgres `blob` table —
+    routing that namespace elsewhere creates no such row and the upload dies on the constraint. Making
+    routing configurable made that reachable from a config line that reads as reasonable, so it now fails at
+    startup naming the setting, rather than at the next logo upload naming a foreign key.
+
+  No behaviour changes: Postgres remains the only registered backend and the default. What changed is that
+  adding a filesystem or object-store backend is now a new class plus a config line rather than a refactor.
+  *Known deferral:* listing stays offset-paged, which an object store pages badly. Moving to cursor paging
+  is an SDK contract change and belongs with the backend that needs it.
 
 ### Added
+
+- **A plugin's storage limits are editable per plugin in admin (`0.6.13`, §11.1).** `0.6.11` shipped them
+  configurable only through `mosaicast.plugin-blobs.*` — one number for every plugin on the install, changed
+  by redeploying. That is the wrong shape for what it governs: a wiki accumulating diagrams and a bingo
+  plugin storing nothing have no reason to share a ceiling, and "the wiki has outgrown its space" is an
+  ordinary operational event rather than an infrastructure change.
+  - **An admin's grant replaces the manifest's ask rather than being minimised with it**, which is the part
+    worth reading twice. A manifest says what a plugin's author guessed it would need on an install they
+    have never seen; an admin raising it is looking at this install's real usage. Under the old
+    `min(manifest, operator)` an admin granting 2 GB against a manifest asking 256 MB would have got 256 MB
+    and no explanation — a control that appears to work and silently does nothing. The manifest still
+    decides when nobody has said otherwise.
+  - **The properties split in two**, because one number was doing two jobs. `default-quota-bytes` /
+    `default-max-file-bytes` are what a plugin gets when nobody has said otherwise; `hard-quota-bytes` /
+    `hard-max-file-bytes` are the most an *admin* may grant and are **unset by default**, i.e. the admin
+    decides. They exist because ADMIN is a role inside the application (§8.5) while these are
+    infrastructure — where those are not the same person, an operator needs a bound the UI cannot cross. A
+    grant past a ceiling is **clamped, not refused**, and the clamped value is stored, so an admin is never
+    shown a number that means something else.
+  - **The MIME allow-list stays operator-only.** No grant widens it: what a file may *be* is a security
+    question (§12.2), not a capacity one.
+  - The panel is **ADMIN-only**, unlike `/config`, which is open to PODCASTER for per-field delegation —
+    how many gigabytes a plugin may occupy is a decision about someone else's server. It leads with current
+    usage and file count, since that is what prompts raising a limit, and a limit set *below* what is
+    already stored is allowed with a warning: nothing is deleted, further uploads fail until files are
+    removed, and refusing it would mean the only way to signal "shrink" is to delete someone's files first.
 
 - **A share dialog on episodes, feed tabs and the site panel (`0.6.12`,
   [#82](https://github.com/Mosaicast/mosaicast-core/issues/82), §6.4).** `0.6.9` made a timestamped link
@@ -1246,6 +1315,6 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
-[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...HEAD
+[0.6.14]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...v0.6.14
 [0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
 [0.1.0]: https://github.com/Mosaicast/mosaicast-core/releases/tag/v0.1.0

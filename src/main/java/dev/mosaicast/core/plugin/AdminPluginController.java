@@ -41,10 +41,15 @@ public class AdminPluginController {
 
     private final PluginLoaderService plugins;
     private final PluginSettingsService settings;
+    private final PluginBlobService blobs;
+    private final PluginBlobProperties blobProperties;
 
-    public AdminPluginController(PluginLoaderService plugins, PluginSettingsService settings) {
+    public AdminPluginController(PluginLoaderService plugins, PluginSettingsService settings,
+                                 PluginBlobService blobs, PluginBlobProperties blobProperties) {
         this.plugins = plugins;
         this.settings = settings;
+        this.blobs = blobs;
+        this.blobProperties = blobProperties;
     }
 
     @GetMapping("/api/admin/plugins")
@@ -98,6 +103,33 @@ public class AdminPluginController {
     }
 
     /**
+     * Sets or clears a plugin's storage limits (ARCHITECTURE §11.1).
+     *
+     * <p><strong>ADMIN only</strong>, unlike {@code /config}, which is open to PODCASTER so per-field
+     * delegation works. Disk is a property of the installation rather than of the show: a podcaster deciding
+     * how many gigabytes a plugin may occupy is deciding about someone else's server.
+     *
+     * <p>Either value may be {@code null} to clear that limit back to the manifest's ask and then to the
+     * operator's default; clearing both removes the decision entirely. Values are clamped to the operator's
+     * hard ceilings, so the response reports what is actually in force rather than what was typed.
+     *
+     * @param id      the plugin
+     * @param request the limits to grant
+     * @return the plugin's updated admin view
+     */
+    @PutMapping("/api/admin/plugins/{id}/blob-limits")
+    public AdminPlugin setBlobLimits(@PathVariable String id, @RequestBody BlobLimitRequest request,
+                                     Authentication authentication) {
+        PluginRegistration registration = registrationOf(id);
+        if (!registration.manifest().declaresBlobs()) {
+            throw new IllegalArgumentException(
+                    "Plugin '%s' declares no file storage, so it has no limits to set".formatted(id));
+        }
+        blobs.grant(id, request.quotaBytes(), request.maxFileBytes());
+        return toAdminPlugin(registration, CurrentUser.role(authentication));
+    }
+
+    /**
      * Removes everything the plugin stored in the generic doc store (§7.8). Deliberately explicit and
      * irreversible: deleting a plugin folder only makes it dormant, its data survives until an admin asks
      * for this. Activation and config are host settings and are kept.
@@ -140,7 +172,33 @@ public class AdminPluginController {
                 manifest == null ? null : manifest.version(),
                 settings.enabled(r.id()),
                 config,
-                manifest == null ? null : manifest.consent());
+                manifest == null ? null : manifest.consent(),
+                blobsOf(manifest, role));
+    }
+
+    /**
+     * The storage panel's model, or {@code null} when there is nothing to show.
+     *
+     * <p>Null for a plugin that declares no {@code blobs} block — there is no surface to size — and null for
+     * a PODCASTER, who cannot edit these and has no use for the install's disk numbers. That mirrors how
+     * config values are redacted above rather than hidden by the client.
+     */
+    private AdminBlobs blobsOf(PluginManifest manifest, Optional<Role> role) {
+        if (manifest == null || !manifest.declaresBlobs() || !role.filter(r -> r == Role.ADMIN).isPresent()) {
+            return null;
+        }
+        Optional<PluginBlobGrant> grant = blobs.grantOf(manifest.id());
+        return new AdminBlobs(
+                blobs.usedBytes(manifest.id()),
+                blobs.count(manifest.id()),
+                blobs.effectiveQuotaBytes(manifest),
+                blobs.effectiveMaxFileBytes(manifest),
+                grant.map(g -> g.getQuotaBytes() != null).orElse(false),
+                grant.map(g -> g.getMaxFileBytes() != null).orElse(false),
+                manifest.blobs().quotaBytes(),
+                manifest.blobs().maxFileBytes(),
+                blobProperties.hardQuotaBytes(),
+                blobProperties.hardMaxFileBytes());
     }
 
     private static Map<String, ConfigField> declaredConfig(PluginRegistration r) {
@@ -170,12 +228,47 @@ public class AdminPluginController {
      *                while {@code LOADED} + {@code enabled=false} means it was switched off since
      */
     public record AdminPlugin(String id, String status, String reason, String name, String version,
-                              boolean enabled, Map<String, AdminConfigField> config, Consent consent) {
+                              boolean enabled, Map<String, AdminConfigField> config, Consent consent,
+                              AdminBlobs blobs) {
     }
 
     /** One declared config field, its default and the value currently in effect — the form's row model. */
     public record AdminConfigField(String type, String editableBy, JsonNode defaultValue,
                                    JsonNode value, boolean overridden) {
+    }
+
+    /**
+     * A request to change a plugin's storage limits; {@code null} clears that limit.
+     *
+     * @param quotaBytes   the total to grant, or null to fall back to the manifest/operator value
+     * @param maxFileBytes the per-file limit to grant, or null for the same
+     */
+    public record BlobLimitRequest(Long quotaBytes, Long maxFileBytes) {
+    }
+
+    /**
+     * A plugin's storage situation, as the admin form needs it (§11.1).
+     *
+     * <p>Both what is <em>in force</em> and where it came from: an admin raising a limit needs to see the
+     * usage that prompted it, and needs to be able to tell "this is the plugin's own declaration" from "this
+     * is a decision someone made here". {@code hardQuotaBytes} is what the operator will allow to be
+     * granted, so the form can say so instead of silently clamping what was typed.
+     *
+     * @param usedBytes          what the plugin currently occupies
+     * @param fileCount          how many files that is
+     * @param quotaBytes         the total in force
+     * @param maxFileBytes       the per-file limit in force
+     * @param quotaOverridden    whether the total comes from an admin grant rather than manifest/default
+     * @param maxFileOverridden  the same for the per-file limit
+     * @param declaredQuotaBytes what the manifest asked for, or null
+     * @param declaredMaxFileBytes the same for one file
+     * @param hardQuotaBytes     the most an admin may grant here, or null for no bound
+     * @param hardMaxFileBytes   the same for one file
+     */
+    public record AdminBlobs(long usedBytes, long fileCount, long quotaBytes, long maxFileBytes,
+                             boolean quotaOverridden, boolean maxFileOverridden,
+                             Long declaredQuotaBytes, Long declaredMaxFileBytes,
+                             Long hardQuotaBytes, Long hardMaxFileBytes) {
     }
 
     /** How many documents a purge removed. */

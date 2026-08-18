@@ -378,12 +378,20 @@ interface BlobStore {
     BlobRef put(String namespace, String key, InputStream data, String mime);
     BlobContent get(BlobRef ref);              // STREAMING, not "all bytes"
     void delete(BlobRef ref);
-    String urlFor(BlobRef ref, AccessContext ctx); // direct/presigned URL or own endpoint
+    List<BlobMetadata> list(String namespace, int page, int size);  // a backend answers for its own
+    long count(String namespace);
+    long usedBytes(String namespace);          // called on every upload — quota (§11.1)
+    int  deleteNamespace(String namespace);    // purge (§7.8)
+    Optional<String> directUrl(BlobRef ref, AccessContext ctx); // empty = serve it yourself
     BlobCapabilities capabilities();           // supportsRange, supportsPresignedUrls
 }
 ```
 - **Streaming-first + range requests** from day one (a 5 KB favicon like a 100 MB audio file).
-- **Namespace routing:** `branding/*` may stay in Postgres forever, `audio/*` later S3/CDN. One interface, one backend per namespace.
+- **Namespace routing:** `branding/*` may stay in Postgres forever, `audio/*` later S3/CDN. One interface, one backend per namespace, chosen in configuration (`mosaicast.blobs.namespaces`) — exact namespace first, then longest `/` prefix, so `plugin` covers every plugin without naming plugins that are not installed yet. A rule naming a backend that is not registered **fails startup**: falling through to the default would put files in a store nobody chose, with the symptom appearing long after the cause.
+- **A backend is self-contained.** It answers for its own namespaces — listing, count, total size, delete-all — rather than sharing an index in Postgres. Two stores of the same truth can disagree and nothing can then say which is right, and the alternative was worse in practice: the plugin surface reached past the interface into `BlobRepository`, so a non-Postgres backend would have accepted uploads and reported an empty library with zero usage, leaving the quota unenforced and nothing failing loudly.
+  - The cost is that each backend owes those answers *well*, and that is the backend's problem rather than the interface's: Postgres sums an indexed column, a filesystem walks a directory, an object store keeps a counter instead of paginating its own prefix on every upload. `usedBytes` is called on every write, which is the constraint that shapes the choice.
+  - Listing is **offset-paged**, matching the plugin HTTP surface. That is a real constraint on an object store, which pages by continuation token; a media library is browsed from its first page, so walking to a deep one is a cost such a backend may cap. Moving to cursor paging is an SDK contract change and belongs with the backend that needs it, not before.
+- **`directUrl` is the seam that makes an object store worth having.** A backend that can serve bytes without the app in the path says so; Postgres returns empty and callers serve the bytes themselves. Proxying every byte gives up most of the reason to move them out of the database. It is also where tier-gated audio (§10) signs a URL *after* the entitlement check, which is why it takes an `AccessContext` and cannot be cached per blob.
 - v1: `PostgresBlobStore` (BYTEA). Later: `S3BlobStore`, `FilesystemBlobStore` (config switch).
 - Tier-gated audio (future): expiring presigned URLs only after the entitlement check (`AccessContext`).
 
@@ -400,7 +408,11 @@ DELETE /api/plugins/{id}/blob/{ref}   idempotent
 ```
 
 - **Declared, never derived.** A manifest `blobs` block (`maxFileBytes`, `quotaBytes`, `mimeTypes`) is the opt-in, so a plugin's appetite for disk is readable by whoever installs it. Absent → `ctx.blobs` is `null` and every path is a **404**, indistinguishable from an unknown plugin, exactly as the schema surface answers a doc-store plugin. Reachable through `ctx.blobs` (TS) and `ctx.blobs()` (Java) — the latter mostly so a backend can collect the orphans nothing else collects.
-- **The operator's numbers win.** An install caps both ceilings and holds the allow-list a plugin's declared types are intersected with; the effective value is the smaller of the two, and the quota endpoint is the only honest source. A plugin asking for more is **granted less, not rejected** — its portability should not depend on the most restrictive install it might meet.
+- **Who decides how much room a plugin gets, in order:** an **admin's grant** in the plugin settings UI, else the **manifest's** ask, else the install's **default** — then clamped by an optional operator **hard ceiling**, which is unset by default. The quota endpoint is the only honest source for what came out of that.
+  - An admin's grant **replaces** the manifest's ask rather than being minimised with it. A manifest says what a plugin's author guessed it would need on an install they have never seen; an admin raising it is looking at this install's real usage. Minimised, a grant of 2 GB against a manifest asking 256 MB would yield 256 MB and no explanation — a control that appears to work and does nothing. The manifest still decides when nobody has said otherwise, and remains what an installing operator reads to see what a plugin is asking for.
+  - The **hard ceiling** exists because ADMIN is a role inside the application (§8.5) while the properties are infrastructure. Where those are not the same person, an operator needs a bound the UI cannot cross; where they are, leaving it unset is right. A grant past it is **clamped, not refused**, and the clamped value is what is stored — an admin is never shown a number that means something else.
+  - **The MIME allow-list is not grantable.** No admin decision widens it, because what a file may *be* is a security question (§12.2) rather than a capacity one.
+  - Storage is **per plugin**: a wiki accumulating diagrams and a bingo plugin storing nothing have no reason to share a ceiling, and "the wiki has outgrown its space" is an ordinary operational event rather than a redeploy.
 - **Writes are the point here, and that is why this differs from §7.6.** The case against schema writes over HTTP is that no plugin code runs at request time to enforce a relational invariant. A file has none, so `data.writableBy` plus a quota is the whole authorization story. Reads take `data.readableBy` — one floor pair, three surfaces. `backendOwned` does not apply: it reserves *keys*, and a caller never names one — a ref is a UUID the host mints per upload, so an upload can never overwrite an existing file, including another tenant's.
 - **What the bytes say is what gets stored**, in this order: size, the declared type, the *actual* type read from the leading bytes, then the quota. One shared sniffer serves branding and plugins, and **SVG has no case in it** — that is what makes it unstorable rather than merely undeclared (§12.2). Refusals are **415** (type) and **413** (size or quota), worded apart because the fixes differ.
 - **Purge removes files** alongside documents and schema tables (§7.8), matched on the namespace exactly rather than on a name prefix.

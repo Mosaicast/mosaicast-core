@@ -11,29 +11,63 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.bind.DefaultValue;
 
 /**
- * The operator's ceilings on plugin file storage (ARCHITECTURE §11, {@code mosaicast.plugin-blobs.*}).
+ * The operator's side of plugin file storage (ARCHITECTURE §11.1, {@code mosaicast.plugin-blobs.*}).
  *
- * <p><strong>The operator's numbers always win.</strong> A manifest declares what a plugin wants; these
- * decide what an install actually grants, and the effective value is the smaller of the two. A plugin is not
- * rejected for asking too much — a plugin's portability should not depend on the most restrictive install it
- * might ever meet — it is simply granted less, and {@code quota()} tells it so.
+ * <p>Two kinds of number, and the distinction is the whole design:
  *
- * <p>Plugin blobs are the first <em>unbounded</em> write a plugin can make: doc-store documents and schema
- * rows are bounded by request size and by what a plugin's own backend writes, while a file is as large as
- * whoever uploads it. So the defaults are conservative and an operator raises them deliberately.
+ * <ul>
+ *   <li><strong>Defaults</strong> ({@code default-quota-bytes}, {@code default-max-file-bytes}) — what a
+ *       plugin gets when nobody has said otherwise. Deliberately conservative, because plugin blobs are the
+ *       first <em>unbounded</em> write a plugin can make: a document is bounded by request size, a file is
+ *       as large as whoever uploads it.</li>
+ *   <li><strong>Hard ceilings</strong> ({@code hard-quota-bytes}, {@code hard-max-file-bytes}) — the most an
+ *       <em>admin</em> may grant through the UI. <strong>Unset by default</strong>, meaning the admin
+ *       decides. They exist because ADMIN is a role inside the application (§8.5) while these properties are
+ *       infrastructure: on an install where those are not the same person, an operator needs a bound the web
+ *       UI cannot cross. On a single-podcaster install, leaving them unset is the right answer.</li>
+ * </ul>
  *
- * @param maxFileBytes  the largest single file any plugin may store; default 10 MB
- * @param maxQuotaBytes the most any one plugin may occupy in total; default 256 MB
- * @param allowedMimeTypes the content types an install permits at all; a plugin's declared list is
- *                         intersected with this, so nothing outside it is reachable by declaring it
+ * <p>This replaces the earlier shape, where one property was both the default and the ceiling. That
+ * conflation is what made "the wiki has outgrown its space" a redeploy rather than a decision: raising the
+ * number raised it for every plugin on the install, and only from the environment.
+ *
+ * @param defaultQuotaBytes   what a plugin may store in total with no manifest ask and no admin grant
+ * @param defaultMaxFileBytes the same for a single file
+ * @param hardQuotaBytes      the most an admin may grant in total, or null for no bound
+ * @param hardMaxFileBytes    the most an admin may grant for one file, or null for no bound
+ * @param allowedMimeTypes    the content types this install permits at all; a plugin's declared list is
+ *                            intersected with this, and <strong>no grant widens it</strong> — what a file
+ *                            may be is a security question, not a capacity one
  */
 @ConfigurationProperties(prefix = "mosaicast.plugin-blobs")
 public record PluginBlobProperties(
-        @DefaultValue("10485760") long maxFileBytes,
-        @DefaultValue("268435456") long maxQuotaBytes,
+        @DefaultValue("268435456") long defaultQuotaBytes,
+        @DefaultValue("10485760") long defaultMaxFileBytes,
+        Long hardQuotaBytes,
+        Long hardMaxFileBytes,
         @DefaultValue({"image/png", "image/jpeg", "image/webp", "image/gif", "image/avif",
                 "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav"})
         List<String> allowedMimeTypes) {
+
+    /**
+     * Clamps an admin's requested total to the operator's ceiling, if there is one.
+     *
+     * @param requested what the admin asked to grant
+     * @return the grantable value
+     */
+    public long clampQuota(long requested) {
+        return hardQuotaBytes == null ? requested : Math.min(requested, hardQuotaBytes);
+    }
+
+    /**
+     * Clamps an admin's requested per-file limit to the operator's ceiling, if there is one.
+     *
+     * @param requested what the admin asked to grant
+     * @return the grantable value
+     */
+    public long clampMaxFile(long requested) {
+        return hardMaxFileBytes == null ? requested : Math.min(requested, hardMaxFileBytes);
+    }
 
     /**
      * The install's allow-list, normalised.

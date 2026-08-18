@@ -6,7 +6,6 @@ package dev.mosaicast.core.plugin;
 import dev.mosaicast.core.blob.BlobContent;
 import dev.mosaicast.core.blob.BlobMetadata;
 import dev.mosaicast.core.blob.BlobRef;
-import dev.mosaicast.core.blob.BlobRepository;
 import dev.mosaicast.core.blob.BlobStore;
 import dev.mosaicast.core.blob.MimeSniffer;
 import dev.mosaicast.plugin.api.BlobInfo;
@@ -20,7 +19,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,13 +49,14 @@ public class PluginBlobService {
     static final int MAX_PAGE_SIZE = 200;
 
     private final BlobStore blobs;
-    private final BlobRepository repository;
     private final PluginBlobProperties properties;
+    private final PluginBlobGrantRepository grants;
 
-    public PluginBlobService(BlobStore blobs, BlobRepository repository, PluginBlobProperties properties) {
+    public PluginBlobService(BlobStore blobs, PluginBlobProperties properties,
+                             PluginBlobGrantRepository grants) {
         this.blobs = blobs;
-        this.repository = repository;
         this.properties = properties;
+        this.grants = grants;
     }
 
     /**
@@ -116,7 +115,7 @@ public class PluginBlobService {
         }
         String namespace = namespaceOf(manifest.id());
         long quota = effectiveQuotaBytes(manifest);
-        long used = repository.sumSizeBytesByNamespace(namespace);
+        long used = blobs.usedBytes(namespace);
         if (used + bytes.length > quota) {
             throw new BlobQuotaExceededException(
                     "storing this file would exceed the plugin's quota of %d bytes (%d used)"
@@ -172,7 +171,7 @@ public class PluginBlobService {
     @Transactional(readOnly = true)
     public List<BlobInfo> list(String pluginId, int page, int size) {
         int capped = Math.min(Math.max(1, size), MAX_PAGE_SIZE);
-        return repository.listByNamespace(namespaceOf(pluginId), PageRequest.of(Math.max(0, page), capped))
+        return blobs.list(namespaceOf(pluginId), Math.max(0, page), capped)
                 .stream().map(PluginBlobService::toInfo).toList();
     }
 
@@ -182,9 +181,21 @@ public class PluginBlobService {
      * @param pluginId the plugin's id
      * @return the count
      */
+    /**
+     * What a plugin's files occupy in total — the number an admin is looking at when they decide whether to
+     * raise its ceiling.
+     *
+     * @param pluginId the plugin's id
+     * @return the total size in bytes
+     */
+    @Transactional(readOnly = true)
+    public long usedBytes(String pluginId) {
+        return blobs.usedBytes(namespaceOf(pluginId));
+    }
+
     @Transactional(readOnly = true)
     public long count(String pluginId) {
-        return repository.countByNamespace(namespaceOf(pluginId));
+        return blobs.count(namespaceOf(pluginId));
     }
 
     /**
@@ -209,7 +220,7 @@ public class PluginBlobService {
      */
     @Transactional(readOnly = true)
     public BlobQuota quota(PluginManifest manifest) {
-        return new BlobQuota(repository.sumSizeBytesByNamespace(namespaceOf(manifest.id())),
+        return new BlobQuota(blobs.usedBytes(namespaceOf(manifest.id())),
                 effectiveQuotaBytes(manifest), effectiveMaxFileBytes(manifest));
     }
 
@@ -225,7 +236,9 @@ public class PluginBlobService {
      */
     @Transactional
     public int purge(String pluginId) {
-        return repository.deleteByNamespace(namespaceOf(pluginId));
+        // The admin's grant is a host setting and survives, like activation and config: purging the data a
+        // plugin stored is not a statement about how much room it should have next time (§7.8).
+        return blobs.deleteNamespace(namespaceOf(pluginId));
     }
 
     /** The URL the host serves a plugin's file from — same origin, so no CSP host and no consent decision. */
@@ -244,16 +257,87 @@ public class PluginBlobService {
         return blobs.stat(namespaceOf(pluginId), ref);
     }
 
-    /** The smaller of what the plugin asked for and what this install allows. */
-    private long effectiveMaxFileBytes(PluginManifest manifest) {
+    /**
+     * The per-file limit actually in force: an admin's grant, else the manifest's ask, else the operator's
+     * default — clamped by the operator's hard ceiling if one is configured.
+     *
+     * @param manifest the plugin's manifest
+     * @return the effective limit in bytes
+     */
+    public long effectiveMaxFileBytes(PluginManifest manifest) {
+        Long granted = grants.findById(manifest.id()).map(PluginBlobGrant::getMaxFileBytes).orElse(null);
         Long asked = manifest.blobs() == null ? null : manifest.blobs().maxFileBytes();
-        return asked == null ? properties.maxFileBytes() : Math.min(asked, properties.maxFileBytes());
+        long resolved = granted != null ? granted : (asked != null ? asked : properties.defaultMaxFileBytes());
+        return properties.clampMaxFile(resolved);
     }
 
-    /** The smaller of what the plugin asked for and what this install allows. */
-    private long effectiveQuotaBytes(PluginManifest manifest) {
+    /**
+     * The total in force, resolved the same way.
+     *
+     * <p><strong>An admin's grant replaces the manifest's ask rather than being minimised with it.</strong>
+     * That is deliberate, and it is the difference between a working control and one that appears to work:
+     * a manifest's {@code quotaBytes} is what the plugin's author guessed the plugin would need on an
+     * install they have never seen, while an admin raising it is looking at this install's actual usage. If
+     * the two were minimised, an admin granting a wiki 2 GB against a manifest asking for 256 MB would get
+     * 256 MB and no explanation.
+     *
+     * <p>The manifest is not thereby meaningless — with no grant it still decides, so a plugin that knows it
+     * needs little still gets little, and a plugin's declaration remains what an installing operator reads
+     * to see what it is asking for.
+     *
+     * @param manifest the plugin's manifest
+     * @return the effective limit in bytes
+     */
+    public long effectiveQuotaBytes(PluginManifest manifest) {
+        Long granted = grants.findById(manifest.id()).map(PluginBlobGrant::getQuotaBytes).orElse(null);
         Long asked = manifest.blobs() == null ? null : manifest.blobs().quotaBytes();
-        return asked == null ? properties.maxQuotaBytes() : Math.min(asked, properties.maxQuotaBytes());
+        long resolved = granted != null ? granted : (asked != null ? asked : properties.defaultQuotaBytes());
+        return properties.clampQuota(resolved);
+    }
+
+    /**
+     * Records an admin's storage decision for a plugin (ARCHITECTURE §11.1).
+     *
+     * <p>Each limit is independently optional: {@code null} clears that one back to the manifest/operator
+     * fallback, and clearing both removes the row rather than leaving an empty decision behind. Values are
+     * clamped to the operator's hard ceilings on the way in, so what is stored is what is in force — an
+     * admin never sees a number that silently means something else.
+     *
+     * <p>A grant <em>below</em> current usage is allowed. It is how an admin says "shrink": nothing is
+     * deleted, and no further upload succeeds until the plugin's own people remove enough. Refusing it would
+     * mean the only way to signal that is to delete someone else's files first.
+     *
+     * @param pluginId     the plugin
+     * @param quotaBytes   the total to grant, or null to clear
+     * @param maxFileBytes the per-file limit to grant, or null to clear
+     * @throws IllegalArgumentException if either value is not positive
+     */
+    @Transactional
+    public void grant(String pluginId, Long quotaBytes, Long maxFileBytes) {
+        if ((quotaBytes != null && quotaBytes <= 0) || (maxFileBytes != null && maxFileBytes <= 0)) {
+            throw new IllegalArgumentException("storage limits must be positive");
+        }
+        Long quota = quotaBytes == null ? null : properties.clampQuota(quotaBytes);
+        Long maxFile = maxFileBytes == null ? null : properties.clampMaxFile(maxFileBytes);
+
+        if (quota == null && maxFile == null) {
+            grants.deleteById(pluginId);
+            return;
+        }
+        PluginBlobGrant grant = grants.findById(pluginId).orElseGet(() -> new PluginBlobGrant(pluginId, null, null));
+        grant.set(quota, maxFile);
+        grants.save(grant);
+    }
+
+    /**
+     * The admin decision currently recorded for a plugin, if any.
+     *
+     * @param pluginId the plugin
+     * @return the grant, or empty when no admin has decided anything
+     */
+    @Transactional(readOnly = true)
+    public Optional<PluginBlobGrant> grantOf(String pluginId) {
+        return grants.findById(pluginId);
     }
 
     /**

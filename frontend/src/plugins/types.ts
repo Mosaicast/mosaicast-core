@@ -70,6 +70,27 @@ export interface ConsentServiceDeclaration {
  * host booted, while `LOADED` + `enabled: false` means an admin switched it off since — its backend keeps
  * running until the next restart, though every surface it serves is already closed.
  */
+/**
+ * A plugin's storage situation for the admin form (§11.1) — `null` when the plugin declares no `blobs`
+ * block, and for a PODCASTER, who cannot edit these and has no use for the install's disk numbers.
+ */
+export interface AdminBlobs {
+  usedBytes: number;
+  fileCount: number;
+  /** What is in force, whichever source it came from. */
+  quotaBytes: number;
+  maxFileBytes: number;
+  /** Whether it came from an admin grant rather than the manifest or the operator default. */
+  quotaOverridden: boolean;
+  maxFileOverridden: boolean;
+  /** What the manifest asked for, or null. */
+  declaredQuotaBytes: number | null;
+  declaredMaxFileBytes: number | null;
+  /** The most an admin may grant here; null when the operator set no bound. */
+  hardQuotaBytes: number | null;
+  hardMaxFileBytes: number | null;
+}
+
 export interface AdminPlugin {
   id: string;
   status: 'LOADED' | 'DISABLED' | 'REJECTED';
@@ -79,4 +100,5 @@ export interface AdminPlugin {
   enabled: boolean;
   config: Record<string, AdminConfigField>;
   consent: { services: ConsentServiceDeclaration[] | null } | null;
+  blobs: AdminBlobs | null;
 }

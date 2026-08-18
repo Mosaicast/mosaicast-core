@@ -245,6 +245,33 @@
   display: grid;
   gap: 0.6rem;
 }
+/* The per-plugin storage panel (§11.1) — same divided-block treatment as the config form above it, so a
+   plugin row reads as one card with sections rather than as stacked widgets. */
+.mc-pluginrow__storage {
+  margin-top: 0.85rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--mc-border);
+  display: grid;
+  gap: 0.5rem;
+}
+.mc-pluginrow__storageTitle {
+  margin: 0;
+  font-size: var(--mc-text-sm);
+  font-weight: var(--mc-weight-medium);
+}
+.mc-pluginrow__storageFields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-4);
+}
+/* The two limits are short numbers; a full-width field would imply free text. */
+.mc-pluginrow__storageFields .mc-field {
+  max-width: 14rem;
+}
+.mc-pluginrow__storageNote {
+  margin: 0;
+}
+
 .mc-suggestions {
   margin-top: 0.75rem;
   border-top: 1px solid var(--mc-border);
