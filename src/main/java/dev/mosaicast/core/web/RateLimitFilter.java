@@ -106,11 +106,31 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (matches(path, AUTH_PATHS) && (stateChanging || isOauthPath(path))) {
             return new Bucket(authLimiter, properties.authLimitOrDefault(), properties.authWindowOrDefault());
         }
-        if (matches(path, UPLOAD_PATHS) && stateChanging) {
+        if ((matches(path, UPLOAD_PATHS) || isPluginBlobPath(path)) && stateChanging) {
             return new Bucket(uploadLimiter, properties.uploadLimitOrDefault(),
                     properties.uploadWindowOrDefault());
         }
         return null;
+    }
+
+    /**
+     * Whether this is a plugin's file surface, {@code /api/plugins/{id}/blob[/...]} (§11).
+     *
+     * <p>Matched by shape rather than by prefix because the plugin id sits in the middle: adding
+     * {@code /api/plugins/} to {@link #UPLOAD_PATHS} would put ordinary doc-store writes — small, frequent,
+     * and the way a plugin UI saves anything — into the upload bucket, which is sized for files.
+     */
+    private static boolean isPluginBlobPath(String path) {
+        if (!path.startsWith("/api/plugins/")) {
+            return false;
+        }
+        String rest = path.substring("/api/plugins/".length());
+        int slash = rest.indexOf('/');
+        if (slash < 0) {
+            return false;
+        }
+        String tail = rest.substring(slash + 1);
+        return tail.equals("blob") || tail.startsWith("blob/");
     }
 
     private static boolean isOauthPath(String path) {

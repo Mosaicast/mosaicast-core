@@ -33,6 +33,7 @@ public class PluginSettingsService {
     private final PluginConfigValueRepository configValues;
     private final PluginDataRepository data;
     private final PluginSchemaMigrator schemaMigrator;
+    private final PluginBlobService blobs;
 
     /** pluginId → explicit admin decision. Absent = never toggled = enabled. */
     private final Map<String, Boolean> enabledCache = new ConcurrentHashMap<>();
@@ -43,11 +44,13 @@ public class PluginSettingsService {
     public PluginSettingsService(PluginActivationRepository activations,
                                  PluginConfigValueRepository configValues,
                                  PluginDataRepository data,
-                                 PluginSchemaMigrator schemaMigrator) {
+                                 PluginSchemaMigrator schemaMigrator,
+                                 PluginBlobService blobs) {
         this.activations = activations;
         this.configValues = configValues;
         this.data = data;
         this.schemaMigrator = schemaMigrator;
+        this.blobs = blobs;
     }
 
     /**
@@ -124,9 +127,13 @@ public class PluginSettingsService {
     public int purgeData(String pluginId) {
         int removed = data.deleteByPluginId(pluginId);
         int tables = schemaMigrator.purge(pluginId);
+        // Files are the third store a plugin can write to (§11), and a purge that left them behind would be
+        // the half-purge the schema work already called out: an admin who asked for the data to be gone
+        // would still be hosting the uploads.
+        int files = blobs.purge(pluginId);
         // Irreversible and admin-initiated: worth a permanent record of how much went.
-        log.info("Purged {} stored document(s) and {} schema table(s) of plugin '{}'; "
-                        + "its config and on/off state were kept", removed, tables, pluginId);
+        log.info("Purged {} stored document(s), {} schema table(s) and {} file(s) of plugin '{}'; "
+                        + "its config and on/off state were kept", removed, tables, files, pluginId);
         return removed;
     }
 }

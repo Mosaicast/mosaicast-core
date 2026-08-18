@@ -30,6 +30,7 @@ interface PluginMountProps {
   routePath?: string;
   /** Whether the plugin declares `storage.schema`; decides `ctx.schema` vs `null` (§7.6). */
   hasSchema?: boolean;
+  hasBlobs?: boolean;
 }
 
 export function PluginMount({
@@ -40,6 +41,7 @@ export function PluginMount({
   episodeLabels,
   routePath,
   hasSchema,
+  hasBlobs,
 }: PluginMountProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
@@ -74,6 +76,7 @@ export function PluginMount({
         playerSeekTo: player.seek,
         routePath,
         hasSchema,
+        hasBlobs,
         navigateTo,
         consentHas: consent.has,
         consentGranted: consent.granted,
@@ -92,6 +95,7 @@ export function PluginMount({
       player,
       routePath,
       hasSchema,
+      hasBlobs,
       navigateTo,
       consent.has,
       consent.granted,

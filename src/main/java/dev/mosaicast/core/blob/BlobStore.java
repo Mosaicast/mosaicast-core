@@ -20,6 +20,27 @@ public interface BlobStore {
      */
     BlobRef put(String namespace, String key, InputStream data, String mime);
 
+    /**
+     * Stores a blob along with who uploaded it and under what name (§11).
+     *
+     * <p>Attribution is optional to <em>store</em> and optional to <em>support</em>: it is a display and
+     * housekeeping detail, not part of addressing a blob, so a backend that cannot carry it (a future
+     * object-store one, say) keeps working through this default. Branding never supplies it — there is one
+     * logo and an admin uploaded it — and a plugin's media library always does.
+     *
+     * @param namespace the namespace
+     * @param key       the key within it
+     * @param data      the content; fully read and closed by the store
+     * @param mime      the content type
+     * @param filename  the original filename for display, or {@code null}; never treated as a path
+     * @param uploader  the uploading user, or {@code null} when there is no caller (a backend task)
+     * @return the stored blob's handle
+     */
+    default BlobRef put(String namespace, String key, InputStream data, String mime, String filename,
+                        java.util.UUID uploader) {
+        return put(namespace, key, data, mime);
+    }
+
     /** Metadata for a namespaced key, without the bytes (for ETag/existence checks). */
     Optional<BlobMetadata> stat(String namespace, String key);
 

@@ -32,6 +32,13 @@ public class PostgresBlobStore implements BlobStore {
     @Override
     @Transactional
     public BlobRef put(String namespace, String key, InputStream data, String mime) {
+        return put(namespace, key, data, mime, null, null);
+    }
+
+    @Override
+    @Transactional
+    public BlobRef put(String namespace, String key, InputStream data, String mime, String filename,
+                       UUID uploader) {
         byte[] bytes = readAll(data);
         Blob blob = blobs.findByNamespaceAndKey(namespace, key)
                 .map(existing -> {
@@ -39,6 +46,7 @@ public class PostgresBlobStore implements BlobStore {
                     return existing;
                 })
                 .orElseGet(() -> new Blob(UUID.randomUUID(), namespace, key, mime, bytes));
+        blob.attribute(filename, uploader);
         blobs.save(blob);
         return new BlobRef(blob.getId(), blob.getNamespace());
     }
@@ -101,7 +109,7 @@ public class PostgresBlobStore implements BlobStore {
 
     private static BlobMetadata toMetadata(Blob blob) {
         return new BlobMetadata(new BlobRef(blob.getId(), blob.getNamespace()),
-                blob.getKey(), blob.getMime(), blob.getSizeBytes(), blob.getUpdatedAt());
+                blob.getKey(), blob.getMime(), blob.getSizeBytes(), blob.getUpdatedAt(), blob.getFilename());
     }
 
     private static byte[] readAll(InputStream data) {

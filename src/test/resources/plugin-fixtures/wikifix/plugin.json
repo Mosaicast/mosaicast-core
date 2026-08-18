@@ -1,7 +1,7 @@
 {
   "id": "wikifix",
   "version": "1.0.0",
-  "platformApi": "0.7.0",
+  "platformApi": "0.8.0",
   "name": "Schema Fixture (valid)",
   "backend": {
     "basePath": "/api/plugins/wikifix",

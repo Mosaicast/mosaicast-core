@@ -47,6 +47,7 @@ public record PluginManifest(
         PluginStorage storage,
         Map<String, ConfigField> config,
         DataAccess data,
+        Blobs blobs,
         Consent consent) {
 
     /** Storage kinds a manifest may declare; see {@link PluginStorage} for the two shapes it takes. */
@@ -147,6 +148,38 @@ public record PluginManifest(
     /** The effective floors, whether or not the manifest declared them. */
     public DataAccess dataOrDefault() {
         return data == null ? DEFAULT_DATA_ACCESS : data;
+    }
+
+    /**
+     * What a plugin asks to be allowed to store as files (ARCHITECTURE §11, §7.2).
+     *
+     * <p>Declared, never derived — the same rule as the data floors. A plugin's appetite for disk is
+     * something whoever installs it should be able to read off the manifest, and an operator caps every
+     * number here from their own configuration, so what is granted may be less than what is asked.
+     *
+     * <p>An absent block means <strong>no file storage at all</strong>: {@code ctx.blobs} is null and the
+     * HTTP surface answers 404, indistinguishably from an unknown plugin. Storage is opt-in because the
+     * alternative — every plugin able to write bytes by default — is the first unbounded write a plugin
+     * could make.
+     *
+     * @param maxFileBytes the largest single file, or null to take the operator's ceiling
+     * @param quotaBytes   the total this plugin may occupy, or null to take the operator's ceiling
+     * @param mimeTypes    the content types it wants to store; intersected with the operator's allow-list
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Blobs(Long maxFileBytes, Long quotaBytes, List<String> mimeTypes) {
+
+        /** The declared types, lower-cased and never null. */
+        public List<String> mimeTypesOrEmpty() {
+            return mimeTypes == null ? List.of()
+                    : mimeTypes.stream().filter(java.util.Objects::nonNull)
+                            .map(type -> type.trim().toLowerCase(java.util.Locale.ROOT)).toList();
+        }
+    }
+
+    /** Whether this plugin declared any file storage at all. */
+    public boolean declaresBlobs() {
+        return blobs != null;
     }
 
     /** Backend entry points. */
@@ -290,7 +323,43 @@ public record PluginManifest(
         }
         validateConfig();
         validateData();
+        validateBlobs();
         validateConsent();
+    }
+
+    /**
+     * Validates the {@code blobs} block's own shape — the parts that are wrong no matter how the install is
+     * configured.
+     *
+     * <p>The <em>ceilings</em> are deliberately not checked against the operator's here: a plugin asking for
+     * more than an install allows is not malformed, it is simply granted less, and refusing to load it would
+     * make a plugin's portability depend on the most restrictive install it might ever meet. What is refused
+     * is a declaration that could never work anywhere: a non-positive limit, or a type list that is present
+     * but names nothing usable. Both are silent failures otherwise — a plugin that loads, declares file
+     * storage, and rejects every upload.
+     *
+     * <p>{@code image/svg+xml} is refused by name. §12.2 keeps SVG out of uploads because it is a script
+     * container wearing an image's extension; a manifest asking for it is asking for the one thing the
+     * platform does not do, and saying so at load beats a refusal per upload with no explanation.
+     */
+    private void validateBlobs() {
+        if (blobs == null) {
+            return;
+        }
+        for (Long limit : new Long[] {blobs.maxFileBytes(), blobs.quotaBytes()}) {
+            if (limit != null && limit <= 0) {
+                throw new PluginValidationException(
+                        "blobs limits must be positive; got " + limit);
+            }
+        }
+        if (blobs.mimeTypes() != null && blobs.mimeTypesOrEmpty().isEmpty()) {
+            throw new PluginValidationException(
+                    "blobs.mimeTypes is present but names no type — omit it to take the operator's list");
+        }
+        if (blobs.mimeTypesOrEmpty().contains("image/svg+xml")) {
+            throw new PluginValidationException(
+                    "blobs.mimeTypes may not include image/svg+xml — SVG uploads are never accepted (§12.2)");
+        }
     }
 
     /**

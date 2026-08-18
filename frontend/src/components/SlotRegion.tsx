@@ -113,6 +113,7 @@ export function SlotRegion({
             episodeLabels={episodeLabels}
             routePath={routePath}
             hasSchema={mount.hasSchema}
+            hasBlobs={mount.hasBlobs}
           />
         </SlotErrorBoundary>
       ))}

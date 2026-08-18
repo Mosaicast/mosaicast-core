@@ -6,6 +6,7 @@ package dev.mosaicast.core.branding;
 import dev.mosaicast.core.blob.BlobMetadata;
 import dev.mosaicast.core.blob.BlobRef;
 import dev.mosaicast.core.blob.BlobStore;
+import dev.mosaicast.core.blob.MimeSniffer;
 import dev.mosaicast.core.web.NotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -103,8 +104,12 @@ public class BrandingService {
             throw new IllegalArgumentException(
                     "Only raster images (PNG, ICO, JPEG, WEBP) may be uploaded; SVG is not allowed");
         }
+        // The sniffed type has to clear the same allow-list, not merely be recognised. The sniffer knows
+        // more formats than branding accepts (it also serves plugin uploads, §11), so "recognised" and
+        // "allowed here" came apart: a GIF labelled `image/png` would otherwise pass the declared check and
+        // be stored as the GIF it is.
         String mime = sniff(file);
-        if (mime == null) {
+        if (mime == null || !ALLOWED_UPLOAD_MIMES.contains(mime)) {
             throw new IllegalArgumentException(
                     "That file is not a PNG, ICO, JPEG or WEBP image; SVG is not allowed");
         }
@@ -119,50 +124,23 @@ public class BrandingService {
     }
 
     /**
-     * Identifies the format from its leading bytes, or {@code null} when it is none of the four allowed.
+     * Identifies the format from its leading bytes, or {@code null} when it is unrecognised.
      *
-     * <p>Magic numbers rather than a decode: it is enough to establish that the file is the raster format it
-     * claims, and decoding attacker-supplied images to find out is a larger attack surface than the one being
-     * closed.
+     * <p>Delegates to {@link MimeSniffer}, which plugin uploads share (§11) — one place that decides what a
+     * file actually is, rather than two that can drift apart. The allow-list above still decides what
+     * branding will accept.
      */
     private static String sniff(MultipartFile file) {
-        byte[] head = new byte[16];
+        byte[] head = new byte[MimeSniffer.HEAD_BYTES];
         try (InputStream in = file.getInputStream()) {
             int read = in.readNBytes(head, 0, head.length);
-            if (read < 12) {
-                return null;
+            if (read < head.length) {
+                head = java.util.Arrays.copyOf(head, read);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read upload", e);
         }
-        if (startsWith(head, 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A)) {
-            return "image/png";
-        }
-        if (startsWith(head, 0xFF, 0xD8, 0xFF)) {
-            return "image/jpeg";
-        }
-        // ICO: a 2-byte zero reserved field, then image type 1 (icon) or 2 (cursor).
-        if (startsWith(head, 0x00, 0x00, 0x01, 0x00) || startsWith(head, 0x00, 0x00, 0x02, 0x00)) {
-            return "image/x-icon";
-        }
-        // WEBP: "RIFF" ....(size).... "WEBP".
-        if (startsWith(head, 'R', 'I', 'F', 'F')
-                && head[8] == 'W' && head[9] == 'E' && head[10] == 'B' && head[11] == 'P') {
-            return "image/webp";
-        }
-        return null;
-    }
-
-    private static boolean startsWith(byte[] bytes, int... prefix) {
-        if (bytes.length < prefix.length) {
-            return false;
-        }
-        for (int i = 0; i < prefix.length; i++) {
-            if ((bytes[i] & 0xFF) != (prefix[i] & 0xFF)) {
-                return false;
-            }
-        }
-        return true;
+        return MimeSniffer.sniff(head);
     }
 
     /** Clears a custom asset, reverting to the bundled default. */
