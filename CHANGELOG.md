@@ -40,6 +40,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     whole plugin surface driven over HTTP against it. An abstraction with one implementation is an
     assertion; every gap listed above was found by writing that test, not by reading the interface.
 
+  - **Branding is guarded to Postgres at startup.** `site_config.*_asset_id` is
+    `UUID REFERENCES blob(id)`, so a branding asset's pointer is a row id in the Postgres `blob` table —
+    routing that namespace elsewhere creates no such row and the upload dies on the constraint. Making
+    routing configurable made that reachable from a config line that reads as reasonable, so it now fails at
+    startup naming the setting, rather than at the next logo upload naming a foreign key.
+
   No behaviour changes: Postgres remains the only registered backend and the default. What changed is that
   adding a filesystem or object-store backend is now a new class plus a config line rather than a refactor.
   *Known deferral:* listing stays offset-paged, which an object store pages badly. Moving to cursor paging

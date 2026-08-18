@@ -22,8 +22,8 @@ public class BlobStoreRouter implements BlobStore {
 
     private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(BlobStoreRouter.class);
 
-    private final BlobStore defaultStore;
-    private final Map<String, BlobStore> byNamespace;
+    private final NamedBlobStore defaultStore;
+    private final Map<String, NamedBlobStore> byNamespace;
 
     /**
      * Wires the routing table from configuration.
@@ -41,13 +41,13 @@ public class BlobStoreRouter implements BlobStore {
      * @param properties the routing rules
      */
     public BlobStoreRouter(List<NamedBlobStore> backends, BlobStoreProperties properties) {
-        Map<String, BlobStore> registry = new LinkedHashMap<>();
+        Map<String, NamedBlobStore> registry = new LinkedHashMap<>();
         backends.forEach(backend -> registry.put(backend.backendName(), backend));
 
         String defaultName = properties.defaultBackendName();
         this.defaultStore = require(registry, defaultName, "mosaicast.blobs.default-backend");
 
-        Map<String, BlobStore> routes = new LinkedHashMap<>();
+        Map<String, NamedBlobStore> routes = new LinkedHashMap<>();
         properties.rules().forEach((namespace, name) ->
                 routes.put(namespace, require(registry, name, "mosaicast.blobs.namespaces." + namespace)));
         this.byNamespace = Map.copyOf(routes);
@@ -57,8 +57,8 @@ public class BlobStoreRouter implements BlobStore {
         }
     }
 
-    private static BlobStore require(Map<String, BlobStore> registry, String name, String setting) {
-        BlobStore backend = registry.get(name);
+    private static NamedBlobStore require(Map<String, NamedBlobStore> registry, String name, String setting) {
+        NamedBlobStore backend = registry.get(name);
         if (backend == null) {
             throw new IllegalStateException(
                     "%s names blob backend '%s', which is not registered; available: %s"
@@ -81,20 +81,34 @@ public class BlobStoreRouter implements BlobStore {
      * @param namespace the namespace being addressed
      * @return the backend that owns it; never {@code null}
      */
-    private BlobStore route(String namespace) {
-        BlobStore exact = byNamespace.get(namespace);
+    private NamedBlobStore route(String namespace) {
+        NamedBlobStore exact = byNamespace.get(namespace);
         if (exact != null) {
             return exact;
         }
         String candidate = namespace;
         for (int slash = candidate.lastIndexOf('/'); slash > 0; slash = candidate.lastIndexOf('/')) {
             candidate = candidate.substring(0, slash);
-            BlobStore prefixed = byNamespace.get(candidate);
+            NamedBlobStore prefixed = byNamespace.get(candidate);
             if (prefixed != null) {
                 return prefixed;
             }
         }
         return defaultStore;
+    }
+
+    /**
+     * Which backend a namespace resolves to, by name — for a component that has a constraint about
+     * <em>where</em> its blobs live rather than merely how to reach them.
+     *
+     * <p>Exists for exactly one caller today ({@code BrandingStorageCheck}), and that is the honest shape:
+     * the router knows the routing, and the constraint belongs to whoever has it.
+     *
+     * @param namespace the namespace
+     * @return the resolved backend's name
+     */
+    public String backendNameFor(String namespace) {
+        return route(namespace).backendName();
     }
 
     @Override

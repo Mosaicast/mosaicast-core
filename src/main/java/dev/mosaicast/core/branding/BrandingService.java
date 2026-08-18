@@ -32,7 +32,13 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class BrandingService {
 
-    private static final String NAMESPACE = "branding";
+    /**
+     * The blob namespace branding assets live in.
+     *
+     * <p>Visible so {@link BrandingStorageCheck} can assert at startup that it is not routed away from
+     * Postgres — the asset pointers are a foreign key into the {@code blob} table (§11).
+     */
+    static final String NAMESPACE = "branding";
     private static final long MAX_UPLOAD_BYTES = 2L * 1024 * 1024; // 2 MB
 
     /** Raster types accepted for upload; SVG and anything else is rejected. */
