@@ -4,6 +4,7 @@
 package dev.mosaicast.core.blob;
 
 import java.io.InputStream;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -59,11 +60,84 @@ public interface BlobStore {
     /** Removes the blob. */
     void delete(BlobRef ref);
 
+    // ---- namespace-scoped operations (ARCHITECTURE §11) ----
+    //
+    // A namespace is the unit of ownership on this interface: `branding` is one, `plugin/<id>` is one per
+    // plugin. Every backend answers these for its own namespaces, because the alternative — a shared index
+    // in Postgres that every backend writes to — makes the index and the bytes two things that can disagree,
+    // and nothing can then say which is right.
+    //
+    // The cost of self-containment is that each backend has to answer them *well*. That is deliberately not
+    // this interface's problem: Postgres sums a column, a filesystem walks a directory, and an object store
+    // will keep a counter rather than paginate its own prefix on every upload. What matters here is that
+    // asking is possible at all, which is what the doc surface reaching into `BlobRepository` used to
+    // prevent.
+
     /**
-     * A URL for the blob appropriate to the caller: a direct/presigned URL where the backend supports it,
-     * otherwise an own-endpoint path the app serves (ARCHITECTURE §11).
+     * The blobs in a namespace, newest first, without their bytes.
+     *
+     * <p>Offset paging, matching the HTTP surface. That is a real constraint on a future object-store
+     * backend, which pages by continuation token and cannot seek to an arbitrary offset cheaply — a media
+     * library is browsed from the first page, so walking to a deep one is a cost that backend may cap. If
+     * that stops being an acceptable answer, the fix is cursor paging on the plugin API, which is an SDK
+     * contract change and is why it is not being made speculatively now.
+     *
+     * @param namespace the namespace to list
+     * @param page      zero-based page index
+     * @param size      page size
+     * @return the page's metadata, newest first; empty past the end
      */
-    String urlFor(BlobRef ref, AccessContext ctx);
+    List<BlobMetadata> list(String namespace, int page, int size);
+
+    /**
+     * How many blobs a namespace holds.
+     *
+     * @param namespace the namespace to count
+     * @return the count
+     */
+    long count(String namespace);
+
+    /**
+     * What a namespace's blobs occupy in total — what a quota is checked against.
+     *
+     * <p>Called on <strong>every upload</strong>, so a backend owes it an answer that is cheap at that
+     * frequency. Postgres sums an indexed column; an object store should maintain a counter and recompute it
+     * on demand rather than list its own prefix each time.
+     *
+     * @param namespace the namespace to total
+     * @return the total size in bytes, zero for an empty or unknown namespace
+     */
+    long usedBytes(String namespace);
+
+    /**
+     * Removes every blob in a namespace — what "purge plugin data" means for files (§7.8).
+     *
+     * @param namespace the namespace to empty
+     * @return how many blobs were removed
+     */
+    int deleteNamespace(String namespace);
+
+    /**
+     * A URL that serves these bytes <em>without going through the app</em> — a CDN URL, or a presigned one
+     * (ARCHITECTURE §11) — or empty when this backend has none.
+     *
+     * <p><strong>Empty is the normal answer, and callers must handle it</strong> by serving the bytes
+     * themselves. That is what Postgres does and always will: there is no URL that reaches into a BYTEA
+     * column, and the previous version of this method returned {@code "/api/blobs/" + id} for a route
+     * nothing has ever mapped — a contract that read as satisfied and answered with a 404.
+     *
+     * <p>This is the seam that makes an object store worth having. Proxying every byte through the app
+     * gives up most of the reason to move them out of the database, so a backend that can hand out a URL
+     * says so here, and {@link BlobCapabilities#supportsPresignedUrls()} advertises it in advance.
+     *
+     * <p>{@code ctx} is what a presigned URL is signed <em>for</em>: tier-gated audio (§10, v2) may only be
+     * handed a working URL after the entitlement check, so the decision cannot be cached per blob.
+     *
+     * @param ref the blob
+     * @param ctx who is asking
+     * @return a URL the caller may redirect to, or empty to serve the bytes through the app
+     */
+    Optional<String> directUrl(BlobRef ref, AccessContext ctx);
 
     /** What this backend can do — queried instead of the concrete type. */
     BlobCapabilities capabilities();
