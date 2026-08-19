@@ -10,6 +10,39 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 [Semantic Versioning](https://semver.org/). The minor version tracks the build milestone
 (M1 = `0.1.x`, M2 = `0.2.x`, …) and is independent of the plugin-contract (SDK) version.
 
+## [Unreleased]
+
+### Added
+
+- **A generated icon set, shared with plugins through the theme tokens (`0.6.15`, §12.3).** The shell drew
+  its symbols as literal characters — `🟢` for WhatsApp in the share sheet, plus `▶ ❚❚ ↺ ↻ ⓘ ⚠ ▾ ↗ ⇪`
+  across the player, chrome and admin. Emoji are rendered by the platform, so the same markup was different
+  artwork on every OS, could not take a theme colour and could not be optically aligned. There is now one
+  `<Icon>` component, generated from a whitelist (`frontend/dev/icons.txt` → `npm run icons`) out of
+  Bootstrap Icons, drawing in `currentColor` and sizing in `em`. A deliberate **public subset is published
+  as `--mc-icon-*` custom properties**, which inherit across the shadow boundary exactly as the colour
+  tokens do — so a plugin's Web Component can use the shell's icons with no SDK import, no `platformApi`
+  bump and no version skew, and every plugin UI re-themes with the same drawings. Used as a mask
+  (`mask-image` + `background: currentColor`), never as a background image, so an icon takes the caller's
+  own colour. Published names are a contract: add freely, rename never.
+- **CI fails a PR whose generated icons disagree with their whitelist (`0.6.15`).** The generator runs in CI
+  and the result is diffed. An edited whitelist that was never regenerated is caught on the PR, where the
+  author can still fix it, rather than repaired afterwards by a bot commit nobody reviewed and CI never ran
+  against.
+- **A changelog check (`0.6.15`).** A PR touching `src/main/`, `frontend/src/` or `plugins/` must also touch
+  `CHANGELOG.md`, escapable with the `no-changelog` label. Entries written while the change is fresh are the
+  only ones that stay specific; reconstructing them at release time from a diff is how they go vague.
+- **`THIRD-PARTY-NOTICES.md` (`0.6.15`).** Bootstrap Icons ships inside the bundle, so its MIT copyright and
+  permission notice ship with it — minifiers strip comments, so the binding copy lives in a file the
+  generated headers point at. Also records that the WhatsApp and Telegram marks are used nominatively: an
+  MIT or CC0 licence covers copyright in a drawing and grants no trademark rights, and no licence could.
+
+### Changed
+
+- **`.mc-menu__label::after` draws the dropdown caret as a mask instead of the `▾` glyph (`0.6.15`).** Same
+  drawing as everywhere else in the shell, and it takes the trigger's own colour rather than whatever the
+  platform font decides.
+
 ## [0.6.14] — 2026-08-18
 
 > Closes everything accumulated since `0.4.2`. Each entry keeps the `(0.6.x)` label of the
@@ -1315,6 +1348,7 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
+[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.14...HEAD
 [0.6.14]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...v0.6.14
 [0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
 [0.1.0]: https://github.com/Mosaicast/mosaicast-core/releases/tag/v0.1.0

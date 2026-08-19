@@ -9,6 +9,7 @@ import { ApiError } from '../api/client';
 import type { AdjacentEpisodes, EpisodeDetail, EpisodeSummary } from '../api/types';
 import { Cover } from '../components/Cover';
 import { useFeeds } from '../components/FeedsContext';
+import { Icon } from '../components/Icon';
 import { useResource } from '../hooks/useResource';
 import { RelatedEpisodes } from '../components/RelatedEpisodes';
 import { RelatedPins } from '../components/RelatedPins';
@@ -151,7 +152,8 @@ export function EpisodePage() {
               >
                 {/* Say where the button will land when a shared link asked for a moment — pressing play and
                     silently starting somewhere other than the beginning is otherwise unexplained. */}
-                ▶ {startAt == null ? t('player.play') : t('player.playFrom', { time: formatDuration(startAt) })}
+                <Icon name="play" />{' '}
+                {startAt == null ? t('player.play') : t('player.playFrom', { time: formatDuration(startAt) })}
               </button>
             )}
             {/* Shared without the current query string: a timestamp is chosen in the dialog, and nothing
@@ -193,7 +195,9 @@ export function EpisodePage() {
       <nav className="mc-prevnext" aria-label={t('episode.sequence')}>
         {adjacent?.prev ? (
           <Link className="mc-prevnext__link" to={`/episodes/${adjacent.prev.slug}`}>
-            <span className="mc-prevnext__dir mc-muted">← {t('episode.previous')}</span>
+            <span className="mc-prevnext__dir mc-muted">
+              <Icon name="arrow-left" /> {t('episode.previous')}
+            </span>
             <span className="mc-prevnext__title">{adjacent.prev.title}</span>
           </Link>
         ) : (
@@ -201,7 +205,9 @@ export function EpisodePage() {
         )}
         {adjacent?.next ? (
           <Link className="mc-prevnext__link mc-prevnext__link--next" to={`/episodes/${adjacent.next.slug}`}>
-            <span className="mc-prevnext__dir mc-muted">{t('episode.next')} →</span>
+            <span className="mc-prevnext__dir mc-muted">
+              {t('episode.next')} <Icon name="arrow-right" />
+            </span>
             <span className="mc-prevnext__title">{adjacent.next.title}</span>
           </Link>
         ) : (

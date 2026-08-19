@@ -7,9 +7,14 @@
  * This file is the manifest — every rule lives in a partial under `styles/`. Order is the cascade,
  * so it is deliberate: tokens first (everything reads them), then the document baseline, then the
  * surfaces from outermost to innermost.
+ *
+ * `icons.css` sits with the tokens because that is what it is: generated `--mc-icon-*` custom
+ * properties, declared before anything can read them. It is written by `npm run icons` — edit
+ * `dev/icons.txt` instead.
  */
 
 @import './styles/tokens.css';
+@import './styles/icons.css';
 @import './styles/base.css';
 @import './styles/chrome.css';
 @import './styles/feed.css';

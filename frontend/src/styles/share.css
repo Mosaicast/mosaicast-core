@@ -82,9 +82,13 @@
   background: var(--mc-surface-2);
   text-decoration: none;
 }
+/* The destination icons carry the tile, so they are set well above the label they sit over. */
 .mc-share__glyph {
   font-size: var(--mc-text-xl);
   line-height: 1;
+}
+.mc-share__glyph .mc-icon {
+  vertical-align: 0;
 }
 
 /* ---- start at ---- */

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { usePlayer } from '../player/PlayerContext';
+import { Icon } from './Icon';
 import { ShareDialog } from './ShareDialog';
 
 /**
@@ -61,7 +62,7 @@ export function ShareButton({
   return (
     <>
       <button type="button" className={className} onClick={() => setOpen(true)}>
-        <span aria-hidden="true">↗</span> {t('share.open')}
+        <Icon name="share-out" /> {t('share.open')}
       </button>
       {open &&
         (episodeSlug ? (

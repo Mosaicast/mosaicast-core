@@ -1,0 +1,45 @@
+# The shell's icon set — the input to `npm run icons`.
+#
+# One line per icon:   <bootstrap-icons file name> = <mosaicast name> [*]
+#
+# The rename column is the point: call sites say `<Icon name="settings" />`, never the source
+# family's spelling. Swapping icon families later is then a change to this file alone.
+#
+# A trailing `*` marks the icon PUBLIC: it is additionally emitted into `src/styles/icons.css` as a
+# `--mc-icon-*` custom property. Those inherit across the shadow boundary, so plugins read them
+# exactly as they read the colour tokens (ARCHITECTURE §12.3). A published name is a contract with
+# every installed plugin — add freely, rename never. Keep the public set small and deliberate.
+#
+# The whole list ships whether an icon is used or not (`<Icon name>` resolves its drawing at
+# runtime, so no bundler can prove a name unreachable). That makes this file the budget: ~100 bytes
+# gzipped per icon. Delete a line when the last call site goes.
+#
+# Regenerate after every change:  npm run icons   (CI fails a PR where this file and the generated
+# artefacts disagree).
+
+# --- player transport ---
+play-fill                 = play            *
+pause-fill                = pause           *
+arrow-counterclockwise    = skip-back
+arrow-clockwise           = skip-forward
+
+# --- navigation & chrome ---
+chevron-down              = chevron-down    *
+chevron-right             = chevron-right   *
+arrow-left                = arrow-left
+arrow-right               = arrow-right
+info-circle               = info            *
+x-lg                      = close           *
+
+# --- feedback ---
+exclamation-triangle      = warning         *
+
+# --- share ---
+box-arrow-up-right        = share-out       *
+whatsapp                  = whatsapp
+telegram                  = telegram
+envelope                  = email
+box-arrow-up              = share-native
+
+# --- admin ---
+arrow-left-right          = swap

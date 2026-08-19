@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import { Cover } from '../components/Cover';
+import { Icon } from '../components/Icon';
 import { SlotRegion } from '../components/SlotRegion';
 import { formatDuration } from '../util/format';
 import { PLAYBACK_RATES, usePlayer } from './PlayerContext';
@@ -126,7 +127,8 @@ export function PlayerBar() {
             onClick={() => skip(-15)}
             aria-label={t('player.back15')}
           >
-            ↺<span className="mc-player__skipnum">15</span>
+            <Icon name="skip-back" />
+            <span className="mc-player__skipnum">15</span>
           </button>
           <button
             type="button"
@@ -134,7 +136,7 @@ export function PlayerBar() {
             onClick={toggle}
             aria-label={playing ? t('player.pause') : t('player.play')}
           >
-            {playing ? '❚❚' : '▶'}
+            <Icon name={playing ? 'pause' : 'play'} />
           </button>
           <button
             type="button"
@@ -142,7 +144,8 @@ export function PlayerBar() {
             onClick={() => skip(30)}
             aria-label={t('player.forward30')}
           >
-            ↻<span className="mc-player__skipnum">30</span>
+            <Icon name="skip-forward" />
+            <span className="mc-player__skipnum">30</span>
           </button>
         </div>
 

@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# Checks that a PR touching source also touches CHANGELOG.md.
+#
+# The changelog is the release record: entries live under `## [Unreleased]` and each is annotated with
+# the version it actually shipped in, so a release heading can be drawn over the top of them later
+# without losing the fine-grained history. That only works if entries are written while the change is
+# fresh — reconstructing them at release time from a diff is how they end up vague or missing.
+#
+# Escape hatch: add the `no-changelog` label for changes with nothing to tell a reader (a pure rename,
+# a test-only fix, a comment pass). The label is deliberate and visible, unlike a silent skip.
+#
+# Merge blocker like DCO: set the "Changelog" check as required in branch protection.
+name: Changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  changelog:
+    name: Changelog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: CHANGELOG.md updated alongside source
+        env:
+          LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: |
+          set -euo pipefail
+          if printf '%s' "$LABELS" | grep -q '"no-changelog"'; then
+            echo "Labelled no-changelog. ✅"; exit 0
+          fi
+
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          changed="$(git diff --name-only --diff-filter=ACMR "$base".."$head")"
+
+          # Source only. Docs, workflows, assets and the generated bundle are not the kind of change a
+          # reader of the changelog is looking for.
+          if ! printf '%s\n' "$changed" | grep -qE '^(src/main/|frontend/src/|plugins/)' ; then
+            echo "No source changes. ✅"; exit 0
+          fi
+          if printf '%s\n' "$changed" | grep -qx 'CHANGELOG.md'; then
+            echo "CHANGELOG.md updated. ✅"; exit 0
+          fi
+
+          echo "::error file=CHANGELOG.md::This PR changes source but not CHANGELOG.md"
+          echo ""
+          echo "Add an entry under '## [Unreleased]' (re-add the heading if this is the first change"
+          echo "since a release), annotated with the version it will ship in, e.g.:"
+          echo ""
+          echo "  ## [Unreleased]"
+          echo ""
+          echo "  ### Added"
+          echo "  - **<what changed> (\`0.6.15\`, §7.3).** <why it changed>"
+          echo ""
+          echo "Nothing worth telling a reader? Add the 'no-changelog' label."
+          exit 1

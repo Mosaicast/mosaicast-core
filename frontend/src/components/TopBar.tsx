@@ -12,6 +12,7 @@ import { useLegalEntries } from '../hooks/useLegalEntries';
 import { availableLocales, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
 import { Dropdown } from './Dropdown';
+import { Icon } from './Icon';
 import { SlotRegion } from './SlotRegion';
 
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
@@ -101,7 +102,11 @@ export function TopBar() {
             <Dropdown
               triggerClassName="mc-btn mc-btn--ghost"
               ariaLabel={t('nav.info')}
-              trigger={<span className="mc-menu__icon" aria-hidden="true">ⓘ</span>}
+              trigger={
+                <span className="mc-menu__icon">
+                  <Icon name="info" />
+                </span>
+              }
             >
               {legal.map((entry) => (
                 <Link key={entry.slug} role="menuitem" to={`/legal/${entry.slug}`}>

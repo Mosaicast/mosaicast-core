@@ -30,9 +30,10 @@ jobs:
           #
           # The glob used to cover Java/Kotlin/JS/TS alone, which is why a release adding nine CSS partials
           # and two SQL migrations passed unchecked — the convention applies to those too, and CI simply was
-          # not looking. Every type below is one this repo actually puts a header in.
+          # not looking. Every type below is one this repo actually puts a header in. `.mjs` earns its own
+          # entry rather than riding on `.js`: the dev generators use the explicit extension.
           mapfile -t files < <(git diff --name-only --diff-filter=ACMR "$base".."$head" -- \
-            '*.java' '*.kt' '*.ts' '*.tsx' '*.js' '*.jsx' \
+            '*.java' '*.kt' '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' \
             '*.css' '*.sql' '*.sh' '*.yml' '*.yaml' '*.properties' \
             | grep -vE '(^|/)(node_modules|build|dist|out|target|\.gradle)/' \
             | grep -vE '(^|/)(package-lock\.json|gradle/wrapper/)' || true)

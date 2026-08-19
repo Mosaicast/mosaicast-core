@@ -100,9 +100,21 @@
 .mc-menu__short {
   display: none;
 }
+/*
+ * The dropdown caret. A mask rather than a glyph, so it is the same drawing the rest of the shell
+ * uses (`--mc-icon-chevron-down`) and takes the trigger's own colour instead of whatever the platform
+ * font renders for `▾`.
+ */
 .mc-menu__label::after {
-  content: '▾';
-  font-size: 0.65em;
+  content: '';
+  flex: none;
+  width: 0.65em;
+  height: 0.65em;
+  mask-image: var(--mc-icon-chevron-down);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  background: currentColor;
   opacity: 0.7;
 }
 .mc-menu__panel {

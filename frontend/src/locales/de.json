@@ -253,6 +253,7 @@
   "admin.feeds.enabled": "Aktiv",
   "admin.feeds.interval": "Abrufen alle",
   "admin.feeds.refresh": "Aktualisieren",
+  "admin.feeds.failures": "Fehler in Folge",
   "admin.feeds.suggestions": "Vorschläge",
   "admin.feeds.noSuggestions": "Keine Vorschläge.",
   "admin.feeds.confirm": "Bestätigen",

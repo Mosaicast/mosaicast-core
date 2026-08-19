@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
 import type { AppLogEntry, AppLogFacets, HealthView, Paged } from '../../api/types';
+import { Icon } from '../../components/Icon';
 
 /**
  * The admin log & health viewer (ARCHITECTURE §13). Everything the host knows about its own failures — a
@@ -220,7 +221,7 @@ export function AdminLogs() {
                             setExpanded(open ? null : entry.id);
                           }}
                         >
-                          {open ? '▾' : '▸'}
+                          <Icon name={open ? 'chevron-down' : 'chevron-right'} />
                         </button>
                       )}
                     </td>
