@@ -42,9 +42,12 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
   regenerates and diffs, so an un-regenerated whitelist fails the PR. Never edit the generated files.
   Use `<Icon name="…" />`; it is `aria-hidden` by default, so pass `label` only where the icon is the
   sole carrier of meaning. No emoji or literal symbols in UI — the platform picks that artwork, so the
-  same markup renders differently per OS and cannot take a theme colour. A trailing `*` in the
-  whitelist also publishes the icon as `--mc-icon-*` for plugins (below); the whole whitelist ships
-  whether used or not, so keep it to what the shell actually draws.
+  same markup renders differently per OS and cannot take a theme colour.
+- **Two icon tiers.** `+` publishes `--mc-icon-*` only; `*` also bundles the drawing into `Icon.tsx`.
+  **Default to `+` and consume it from CSS** (`mask-image: var(--mc-icon-x); background: currentColor`)
+  — that is how the dropdown caret is drawn, and it keeps the JS bundle to the artwork core renders.
+  Promote to `*` only when a mask cannot do the job: a name that varies at runtime, an icon needing an
+  `aria-label` (pseudo-elements are invisible to assistive tech), or standalone markup.
 - **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): they inherit across the
   shadow boundary, so plugin Web Components read the same tokens, which is what makes plugin UIs re-theme
   automatically. Renaming or dropping one breaks every plugin. Add tokens freely; change existing names only

@@ -1,14 +1,33 @@
 # The shell's icon set — the input to `npm run icons`.
 #
-# One line per icon:   <bootstrap-icons file name> = <mosaicast name> [*]
+# One line per icon:   <bootstrap-icons file name> = <mosaicast name> <tier>
 #
 # The rename column is the point: call sites say `<Icon name="settings" />`, never the source
 # family's spelling. Swapping icon families later is then a change to this file alone.
 #
-# A trailing `*` marks the icon PUBLIC: it is additionally emitted into `src/styles/icons.css` as a
-# `--mc-icon-*` custom property. Those inherit across the shadow boundary, so plugins read them
-# exactly as they read the colour tokens (ARCHITECTURE §12.3). **A published name is a contract with
-# every installed plugin — add freely, rename never.**
+# ## The two tiers
+#
+#   `+`  Published only. Emitted to `src/styles/icons.css` as a `--mc-icon-*` custom property and
+#        left out of the JS bundle. **Still fully usable — by core as well as by plugins** — from any
+#        stylesheet:
+#
+#            mask-image: var(--mc-icon-close); mask-size: contain; background: currentColor;
+#
+#        `.mc-menu__label::after` in `chrome.css` is core doing exactly that. The one thing a `+`
+#        icon cannot be is an `<Icon>` element.
+#
+#   `*`  Published *and* bundled, so it can also be `<Icon name="…" />`. Reserve it for the three
+#        cases a mask genuinely cannot serve: a name that varies at runtime
+#        (`<Icon name={playing ? 'pause' : 'play'} />`), an icon that carries meaning and so needs
+#        `aria-label` (a pseudo-element is invisible to assistive tech), or standalone markup with
+#        no element to hang a pseudo-element off. Sixteen icons qualify today.
+#
+#   (none) Bundled but not published — core-internal, not a contract. Unused today; it exists so a
+#        future core-only icon need not become permanent public API.
+#
+# **A published name is a contract with every installed plugin — add freely, rename never.**
+# Custom properties inherit across the shadow boundary, so plugins read them exactly as they read
+# the colour tokens (ARCHITECTURE §12.3).
 #
 # ## Why this list is larger than what core draws
 #
@@ -18,10 +37,10 @@
 # about (bingo, stats, wiki) plus the obvious next one (polls). An icon nobody has used yet is not
 # dead weight; it is the difference between a plugin author shipping this week or next quarter.
 #
-# The whole list ships whether an icon is used or not — `<Icon name>` resolves its drawing at
-# runtime, so no bundler can prove a name unreachable, and the custom properties are declared on
-# `:root` for everyone. Measured cost is roughly 160 B gzipped per icon across both artefacts. That
-# is the deliberate trade for one coherent, always-available palette.
+# Every published icon ships in the stylesheet whether used or not — custom properties are declared
+# on `:root` for everyone, and no bundler can prove one unreachable. Roughly 150 B gzipped each.
+# That is the deliberate trade for one coherent, always-available palette; the `+`/`*` split is what
+# keeps the JS bundle carrying only the artwork core actually renders.
 #
 # Regenerate after every change:  npm run icons   (CI fails a PR where this file and the generated
 # artefacts disagree).
@@ -29,178 +48,178 @@
 # ---------------------------------------------------------------------------
 # Navigation & chrome
 # ---------------------------------------------------------------------------
-house                     = home             *
-search                    = search           *
-x-lg                      = close            *
-list                      = menu             *
-chevron-up                = chevron-up       *
+house                     = home             +
+search                    = search           +
+x-lg                      = close            +
+list                      = menu             +
+chevron-up                = chevron-up       +
 chevron-down              = chevron-down     *
-chevron-left              = chevron-left     *
+chevron-left              = chevron-left     +
 chevron-right             = chevron-right    *
-arrow-up                  = arrow-up         *
-arrow-down                = arrow-down       *
+arrow-up                  = arrow-up         +
+arrow-down                = arrow-down       +
 arrow-left                = arrow-left       *
 arrow-right               = arrow-right      *
 box-arrow-up-right        = share-out        *
-signpost-split            = signpost         *
+signpost-split            = signpost         +
 
 # ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
-plus-lg                   = add              *
-dash-lg                   = remove           *
-pencil                    = edit             *
-pencil-square             = compose          *
-trash                     = delete           *
-check-lg                  = check            *
-check2-square             = check-box        *
-copy                      = copy             *
-floppy                    = save             *
-download                  = download         *
-upload                    = upload           *
-arrow-repeat              = refresh          *
-arrow-90deg-left          = undo             *
-funnel                    = filter           *
-sort-down                 = sort             *
-three-dots                = more             *
-three-dots-vertical       = more-vertical    *
-gear                      = settings         *
-sliders                   = adjust           *
-pin-angle                 = pin              *
+plus-lg                   = add              +
+dash-lg                   = remove           +
+pencil                    = edit             +
+pencil-square             = compose          +
+trash                     = delete           +
+check-lg                  = check            +
+check2-square             = check-box        +
+copy                      = copy             +
+floppy                    = save             +
+download                  = download         +
+upload                    = upload           +
+arrow-repeat              = refresh          +
+arrow-90deg-left          = undo             +
+funnel                    = filter           +
+sort-down                 = sort             +
+three-dots                = more             +
+three-dots-vertical       = more-vertical    +
+gear                      = settings         +
+sliders                   = adjust           +
+pin-angle                 = pin              +
 
 # ---------------------------------------------------------------------------
 # State & feedback
 # ---------------------------------------------------------------------------
 exclamation-triangle      = warning          *
 info-circle               = info             *
-exclamation-octagon       = error            *
-exclamation-circle        = alert            *
-question-circle           = help             *
-check2-circle             = success          *
-x-circle                  = failed           *
-lock                      = lock             *
-unlock                    = unlock           *
-shield-check              = shield           *
-shield-lock               = shield-lock      *
-eye                       = visible          *
-eye-slash                 = hidden           *
-hourglass-split           = pending          *
-clock                     = clock            *
-clock-history             = history          *
+exclamation-octagon       = error            +
+exclamation-circle        = alert            +
+question-circle           = help             +
+check2-circle             = success          +
+x-circle                  = failed           +
+lock                      = lock             +
+unlock                    = unlock           +
+shield-check              = shield           +
+shield-lock               = shield-lock      +
+eye                       = visible          +
+eye-slash                 = hidden           +
+hourglass-split           = pending          +
+clock                     = clock            +
+clock-history             = history          +
 
 # ---------------------------------------------------------------------------
 # Player & audio  — core's transport, plus the vocabulary the stats plugin measures in
 # ---------------------------------------------------------------------------
 play-fill                 = play             *
 pause-fill                = pause            *
-stop-fill                 = stop             *
+stop-fill                 = stop             +
 arrow-counterclockwise    = skip-back        *
 arrow-clockwise           = skip-forward     *
-skip-start-fill           = previous         *
-skip-end-fill             = next             *
-volume-up-fill            = volume           *
-volume-mute-fill          = mute             *
-headphones                = headphones       *
-mic-fill                  = mic              *
-mic-mute-fill             = mic-off          *
-broadcast                 = live             *
-soundwave                 = waveform         *
-music-note-beamed         = music            *
-speedometer2              = speed            *
-stopwatch                 = stopwatch        *
+skip-start-fill           = previous         +
+skip-end-fill             = next             +
+volume-up-fill            = volume           +
+volume-mute-fill          = mute             +
+headphones                = headphones       +
+mic-fill                  = mic              +
+mic-mute-fill             = mic-off          +
+broadcast                 = live             +
+soundwave                 = waveform         +
+music-note-beamed         = music            +
+speedometer2              = speed            +
+stopwatch                 = stopwatch        +
 
 # ---------------------------------------------------------------------------
 # Content — most of the wiki plugin's surface lives here
 # ---------------------------------------------------------------------------
-calendar3                 = calendar         *
-calendar-event            = calendar-event   *
-tag                       = tag              *
-tags                      = tags             *
-bookmark                  = bookmark         *
-bookmark-fill             = bookmark-on      *
-bookmarks                 = bookmarks        *
-star                      = star             *
-star-fill                 = star-on          *
-heart                     = heart            *
-heart-fill                = heart-on         *
-chat                      = comment          *
-chat-left-text            = comments         *
-chat-quote                = quote            *
-link-45deg                = link             *
-file-earmark-text         = document         *
-files                     = documents        *
-folder2                   = folder           *
-image                     = image            *
-paperclip                 = attachment       *
-list-ul                   = list             *
-list-ol                   = list-numbered    *
-card-list                 = list-detail      *
-book                      = book             *
-journal-text              = journal          *
-diagram-3                 = structure        *
-translate                 = translate        *
+calendar3                 = calendar         +
+calendar-event            = calendar-event   +
+tag                       = tag              +
+tags                      = tags             +
+bookmark                  = bookmark         +
+bookmark-fill             = bookmark-on      +
+bookmarks                 = bookmarks        +
+star                      = star             +
+star-fill                 = star-on          +
+heart                     = heart            +
+heart-fill                = heart-on         +
+chat                      = comment          +
+chat-left-text            = comments         +
+chat-quote                = quote            +
+link-45deg                = link             +
+file-earmark-text         = document         +
+files                     = documents        +
+folder2                   = folder           +
+image                     = image            +
+paperclip                 = attachment       +
+list-ul                   = list             +
+list-ol                   = list-numbered    +
+card-list                 = list-detail      +
+book                      = book             +
+journal-text              = journal          +
+diagram-3                 = structure        +
+translate                 = translate        +
 
 # ---------------------------------------------------------------------------
 # People — bingo is per-host, stats is speaking-shares-per-person
 # ---------------------------------------------------------------------------
-person                    = person           *
-person-fill               = person-on        *
-people                    = people           *
-person-badge              = role             *
-person-plus               = person-add       *
-person-check              = person-check     *
-at                        = mention          *
+person                    = person           +
+person-fill               = person-on        +
+people                    = people           +
+person-badge              = role             +
+person-plus               = person-add       +
+person-check              = person-check     +
+at                        = mention          +
 envelope                  = email            *
 
 # ---------------------------------------------------------------------------
 # Data & charts — the stats plugin's core vocabulary
 # ---------------------------------------------------------------------------
-bar-chart-line            = chart-bar        *
-bar-chart-steps           = chart-ranked     *
-pie-chart                 = chart-pie        *
-graph-up                  = trend-up         *
-graph-down                = trend-down       *
-table                     = table            *
-percent                   = percent          *
-activity                  = activity         *
+bar-chart-line            = chart-bar        +
+bar-chart-steps           = chart-ranked     +
+pie-chart                 = chart-pie        +
+graph-up                  = trend-up         +
+graph-down                = trend-down       +
+table                     = table            +
+percent                   = percent          +
+activity                  = activity         +
 
 # ---------------------------------------------------------------------------
 # Games & polls — bingo today, a poll plugin next.
 # `ui-radios` and `ui-checks` are drawn *as* single- and multi-choice controls, so a poll UI reads
 # correctly without inventing anything; `grid` is a bingo card at 3×3.
 # ---------------------------------------------------------------------------
-grid-3x3-gap              = grid             *
-ui-checks-grid            = board            *
-trophy                    = trophy           *
-award                     = award            *
-dice-5                    = dice             *
-controller                = game             *
-flag                      = flag             *
-ui-radios                 = choice-single    *
-ui-checks                 = choice-multi     *
-list-check                = checklist        *
-hand-thumbs-up            = thumbs-up        *
-hand-thumbs-down          = thumbs-down      *
-patch-question            = quiz             *
-clipboard-check           = clipboard        *
-megaphone                 = announce         *
+grid-3x3-gap              = grid             +
+ui-checks-grid            = board            +
+trophy                    = trophy           +
+award                     = award            +
+dice-5                    = dice             +
+controller                = game             +
+flag                      = flag             +
+ui-radios                 = choice-single    +
+ui-checks                 = choice-multi     +
+list-check                = checklist        +
+hand-thumbs-up            = thumbs-up        +
+hand-thumbs-down          = thumbs-down      +
+patch-question            = quiz             +
+clipboard-check           = clipboard        +
+megaphone                 = announce         +
 
 # ---------------------------------------------------------------------------
 # Ops & admin — plugin management, storage, consent surfaces
 # ---------------------------------------------------------------------------
-puzzle                    = plugin           *
-box-seam                  = package          *
-database                  = database         *
-hdd-stack                 = storage          *
-key                       = key              *
-terminal                  = terminal         *
-bug                       = bug              *
-plug                      = plug             *
-cloud-arrow-down          = cloud-down       *
-cloud-arrow-up            = cloud-up         *
-tools                     = tools            *
-fingerprint               = fingerprint      *
-incognito                 = incognito        *
+puzzle                    = plugin           +
+box-seam                  = package          +
+database                  = database         +
+hdd-stack                 = storage          +
+key                       = key              +
+terminal                  = terminal         +
+bug                       = bug              +
+plug                      = plug             +
+cloud-arrow-down          = cloud-down       +
+cloud-arrow-up            = cloud-up         +
+tools                     = tools            +
+fingerprint               = fingerprint      +
+incognito                 = incognito        +
 
 # ---------------------------------------------------------------------------
 # Share destinations — brand marks, used nominatively (see THIRD-PARTY-NOTICES.md)

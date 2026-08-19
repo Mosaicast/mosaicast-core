@@ -55,15 +55,34 @@ const CREDIT_LINES = [
 ];
 
 /**
- * Parses one whitelist line: `source = alias` with an optional trailing `*` marking it public.
+ * Parses one whitelist line: `source = alias` with an optional trailing tier marker.
+ *
+ * The marker decides which artefact the icon lands in, and the two are genuinely different
+ * capabilities rather than a bundling detail:
+ *
+ * - `*` — **both.** In `Icon.tsx` *and* published. Needed for `<Icon name={…} />`: a name that
+ *         varies at runtime, an icon that carries meaning and so needs `aria-label`, or one that is
+ *         standalone markup rather than a pseudo-element.
+ * - `+` — **published only.** A `--mc-icon-*` property and nothing in the JS bundle. Still fully
+ *         usable by core *and* plugins as `mask-image: var(--mc-icon-x); background: currentColor`
+ *         — see `.mc-menu__label::after` in `chrome.css`, which is core consuming a `+` icon. What
+ *         it cannot do is be an `<Icon>` element.
+ * - none — **core-internal.** In `Icon.tsx`, not published, so not a contract. Nothing uses this
+ *         tier today; it exists so a future core-only icon need not become permanent public API.
  *
  * @param {string} line a non-empty, comment-stripped line
- * @returns {{source: string, alias: string, isPublic: boolean}}
+ * @returns {{source: string, alias: string, inBundle: boolean, isPublic: boolean}}
  */
 function parseEntry(line) {
   const [source, target] = line.split('=').map((part) => part.trim());
   if (!source || !target) throw new Error(`dev/icons.txt: cannot parse "${line}"`);
-  return { source, alias: target.replace(/\*$/, '').trim(), isPublic: target.endsWith('*') };
+  const marker = /[*+]$/.exec(target)?.[0] ?? '';
+  return {
+    source,
+    alias: target.slice(0, target.length - marker.length).trim(),
+    inBundle: marker !== '+',
+    isPublic: marker !== '',
+  };
 }
 
 /**
@@ -112,14 +131,23 @@ if (duplicates.length > 0) throw new Error(`dev/icons.txt: duplicate name(s) ${d
 
 // ---- src/components/Icon.tsx ----
 
+const bundled = icons.filter((i) => i.inBundle);
+
 const tsx = `${header(null, '// ', null)}
 
-/** Every icon's \`viewBox\` and drawing children, keyed by its Mosaicast name. */
+/**
+ * Every icon's \`viewBox\` and drawing children, keyed by its Mosaicast name.
+ *
+ * Only the icons core renders as \`<Icon>\` elements are here. The full palette is published as
+ * \`--mc-icon-*\` in \`styles/icons.css\` and is reachable from any stylesheet — core's own included —
+ * as a mask; keeping it out of this map is what stops the JS bundle carrying artwork nothing draws.
+ * To promote one, change its \`+\` to \`*\` in \`dev/icons.txt\` and regenerate.
+ */
 const ICONS = {
-${icons.map((i) => `  '${i.alias}': ['${i.viewBox}', ${JSON.stringify(i.body)}],`).join('\n')}
+${bundled.map((i) => `  '${i.alias}': ['${i.viewBox}', ${JSON.stringify(i.body)}],`).join('\n')}
 } as const satisfies Record<string, readonly [string, string]>;
 
-/** Every icon the shell can draw. */
+/** Every icon \`<Icon>\` can draw. Not the whole palette — see \`styles/icons.css\`. */
 export type IconName = keyof typeof ICONS;
 
 /**
@@ -201,5 +229,5 @@ ${publicIcons.map((i) => `  --mc-icon-${i.alias}: url("${dataUri(i)}");`).join('
 
 writeFileSync(join(ROOT, 'src', 'styles', 'icons.css'), css);
 
-console.log(`Icon.tsx   ${icons.length} icons`);
-console.log(`icons.css  ${publicIcons.length} public: ${publicIcons.map((i) => i.alias).join(' ')}`);
+console.log(`Icon.tsx   ${bundled.length} bundled: ${bundled.map((i) => i.alias).join(' ')}`);
+console.log(`icons.css  ${publicIcons.length} published (${icons.length} in the whitelist)`);

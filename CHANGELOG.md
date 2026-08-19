@@ -31,8 +31,14 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   release. The groups are aimed at the plugins we know about and the obvious next one: charts, percent and
   stopwatch for **stats**; document, journal, history, structure and link for **wiki**; grid, board, trophy
   and dice for **bingo**; `choice-single`/`choice-multi` (drawn *as* radio and checkbox controls),
-  checklist, thumbs-up/down and quiz for a **poll** plugin. Costs ~42 kB gzipped across both artefacts —
-  paid deliberately, for one coherent palette that is always there.
+  checklist, thumbs-up/down and quiz for a **poll** plugin.
+- **Two whitelist tiers, so the palette costs the JS bundle nothing (`0.6.15`).** `+` publishes an icon as
+  a `--mc-icon-*` property and leaves it out of `Icon.tsx`; `*` does both. A `+` icon is **not** second
+  class — core and plugins alike use it from any stylesheet as `mask-image` + `background: currentColor`,
+  which is how the shell's own dropdown caret is drawn. `*` is only for what a mask genuinely cannot do: a
+  name that varies at runtime, an icon needing an `aria-label` (a pseudo-element is invisible to assistive
+  tech), or standalone markup. Sixteen icons qualify; the other 126 ride the stylesheet. Bundle: JS
+  126.5 kB gzipped (unchanged from the seventeen-icon set), CSS 8.9 → 30.0 kB.
 - **CI fails a PR whose generated icons disagree with their whitelist (`0.6.15`).** The generator runs in CI
   and the result is diffed. An edited whitelist that was never regenerated is caught on the PR, where the
   author can still fix it, rather than repaired afterwards by a bot commit nobody reviewed and CI never ran
