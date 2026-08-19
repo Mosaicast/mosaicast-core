@@ -25,6 +25,14 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   bump and no version skew, and every plugin UI re-themes with the same drawings. Used as a mask
   (`mask-image` + `background: currentColor`), never as a background image, so an icon takes the caller's
   own colour. Published names are a contract: add freely, rename never.
+- **The icon palette is provisioned ahead of demand — 142 icons, all public (`0.6.15`, §12.3).** Core draws
+  seventeen of them; the rest exist because a plugin lives in its own repo and builds against a *released*
+  core, so an icon that is not already published is one its author cannot add — they wait for a core
+  release. The groups are aimed at the plugins we know about and the obvious next one: charts, percent and
+  stopwatch for **stats**; document, journal, history, structure and link for **wiki**; grid, board, trophy
+  and dice for **bingo**; `choice-single`/`choice-multi` (drawn *as* radio and checkbox controls),
+  checklist, thumbs-up/down and quiz for a **poll** plugin. Costs ~42 kB gzipped across both artefacts —
+  paid deliberately, for one coherent palette that is always there.
 - **CI fails a PR whose generated icons disagree with their whitelist (`0.6.15`).** The generator runs in CI
   and the result is diffed. An edited whitelist that was never regenerated is caught on the PR, where the
   author can still fix it, rather than repaired afterwards by a bot commit nobody reviewed and CI never ran
