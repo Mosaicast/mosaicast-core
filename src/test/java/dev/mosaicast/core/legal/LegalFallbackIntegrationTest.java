@@ -47,4 +47,21 @@ class LegalFallbackIntegrationTest {
         siteConfig.update(null, null, null, "en");
         assertThatThrownBy(() -> legal.render("imprint-fb", "fr")).isInstanceOf(NotFoundException.class);
     }
+
+    @Test
+    void theAboutPageIsAuthoredHereButIsNotAFooterLegalLink() {
+        // /about uses this CMS for its per-locale markdown and admin editor, but it is not a legal page —
+        // listing it beside privacy and imprint would say something untrue about what it is. It gets its
+        // own link in the footer and the info menu instead.
+        legal.createPage("about-x", LegalService.ROLE_ABOUT, 100);
+        legal.putTranslation("about-x", "en", "About this instance", "Two people and a microphone.");
+        legal.createPage("terms-x", "terms", 30);
+        legal.putTranslation("terms-x", "en", "Terms", "Some terms.");
+
+        assertThat(legal.footer("en")).extracting(LegalViews.FooterEntry::slug).contains("terms-x");
+        assertThat(legal.footer("en")).extracting(LegalViews.FooterEntry::slug).doesNotContain("about-x");
+
+        // Excluded from the nav, still fully readable at its own URL — otherwise the page could not render.
+        assertThat(legal.render("about-x", "en").title()).isEqualTo("About this instance");
+    }
 }

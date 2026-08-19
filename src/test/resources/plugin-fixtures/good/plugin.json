@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "platformApi": "0.8.0",
   "name": "Good Fixture",
+  "license": "Apache-2.0",
+  "author": "The Mosaicast Authors",
+  "homepage": "https://fixture.example/good",
+  "attribution": "https://fixture.example/thanks",
   "backend": {
     "basePath": "/api/plugins/good",
     "extensions": [

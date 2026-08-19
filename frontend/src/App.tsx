@@ -15,6 +15,7 @@ import { ConsentBanner } from './consent/ConsentBanner';
 import { ConsentProvider } from './consent/ConsentContext';
 import { PlayerProvider } from './player/PlayerContext';
 import { PluginRegistryProvider } from './plugins/PluginRegistry';
+import { AboutPage } from './routes/AboutPage';
 import { AccountPage } from './routes/AccountPage';
 import { CookiesPage } from './routes/CookiesPage';
 import { AdminConsent } from './routes/admin/AdminConsent';
@@ -62,6 +63,9 @@ export default function App() {
                   <Route path="/legal/:slug" element={<LegalPage />} />
                   {/* Reachable on every install, plugins or not — core stores things too (§12.5). */}
                   <Route path="/cookies" element={<CookiesPage />} />
+                  {/* What this is, what it runs, what it is built on. Shipped, not admin-authored, so a
+                      bare install still answers "what is this site?" (§12.6). */}
+                  <Route path="/about" element={<AboutPage />} />
                   {/* Reserved for plugin deep links (§6.4): the subpath becomes ctx.route. */}
                   <Route path="/p/:pluginId/*" element={<PluginPage />} />
                   <Route path="/p/:pluginId" element={<PluginPage />} />

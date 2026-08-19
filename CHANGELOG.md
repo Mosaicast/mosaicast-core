@@ -14,6 +14,26 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A public `/about` page (`0.6.15`, §12.6).** A visitor had no way to find out what this software is, what
+  the instance is running, or what any of it is built on. The page answers all four in narrowing scope:
+  fixed shipped text about Mosaicast with this build's version and a link to the source (which is what makes
+  the AGPL's offer of source actually reachable rather than a clause nobody can act on); the operator's own
+  blurb; the plugins this install runs; and everything the project stands on. Every section is
+  absent-tolerant on its own — a bare install with no plugins and no admin text still answers "what is this
+  site?", which is exactly where the question is hardest.
+- **Plugins can declare credit: `license`, `author`, `homepage`, `attribution` (`0.6.15`, §7.2).** All
+  optional, all surfaced on `/about` through the already-anonymous `GET /api/plugins/manifest`. **No
+  `platformApi` bump** — the manifest ignores unknown fields and the SDK has no manifest type, so a new
+  plugin loads on an old host and an old plugin loads on a new one. `validate()` deliberately says nothing
+  about any of them: a plugin written before they existed must keep loading, and an oddly-spelled licence is
+  still a working plugin. `attribution` is separate from `homepage` because "where this lives" and "who
+  deserves credit" are not the same link.
+- **The credit list is generated into two places from one source (`0.6.15`).** `frontend/dev/attributions.mjs`
+  feeds both the About page and the index in `THIRD-PARTY-NOTICES.md`, checked by CI, because attribution
+  that has quietly stopped matching what ships is worse than none — it looks maintained. Curated and
+  deliberately generous rather than a transitive dependency dump, with a line on what each project actually
+  does here, and crediting the build and test tooling too.
+
 - **A generated icon set, shared with plugins through the theme tokens (`0.6.15`, §12.3).** The shell drew
   its symbols as literal characters — `🟢` for WhatsApp in the share sheet, plus `▶ ❚❚ ↺ ↻ ⓘ ⚠ ▾ ↗ ⇪`
   across the player, chrome and admin. Emoji are rendered by the platform, so the same markup was different
@@ -53,6 +73,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **The info (ⓘ) menu is no longer hidden on a bare install (`0.6.15`).** It appeared only once a legal page
+  existed, so a fresh install — the one where "what is this site?" is hardest to answer — had no info menu
+  at all. `/about` ships with the shell, so there is always something to open.
+- **The `about` entry is excluded from the footer's legal group (`0.6.15`, §12.6).** It is authored through
+  the legal mini-CMS to inherit per-locale markdown, sanitising and the admin editor — a `site_config` column
+  would have meant reinventing `legal_page_translation` — but it is not a legal page, and listing it beside
+  privacy and imprint would say something untrue about what it is.
 - **`.mc-menu__label::after` draws the dropdown caret as a mask instead of the `▾` glyph (`0.6.15`).** Same
   drawing as everywhere else in the shell, and it takes the trigger's own colour rather than whatever the
   platform font decides.

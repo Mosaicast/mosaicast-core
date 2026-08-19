@@ -371,3 +371,62 @@
 .mc-pins__result:focus-visible {
   border-color: var(--mc-accent);
 }
+
+/* ---- /about (§12.6) ---- */
+
+/*
+ * The About page: prose sections with two tables under them. It lives here rather than in a partial of
+ * its own because this file already owns "the detail page and the prose surfaces that share its measure",
+ * and an About page is exactly that.
+ */
+.mc-about__section {
+  margin-bottom: var(--mc-space-7);
+}
+.mc-about__section > h2 {
+  margin: 0 0 var(--mc-space-3);
+  font-size: var(--mc-text-lg);
+}
+.mc-about__section > p {
+  max-width: 70ch;
+}
+
+/*
+ * Tables scroll inside their own box rather than widening the page. Four columns of licence data do not
+ * fit a phone, and a body that scrolls sideways breaks every other surface on the page to fix one.
+ */
+.mc-tablewrap {
+  overflow-x: auto;
+  margin: var(--mc-space-3) 0;
+}
+
+/* Modelled on `.mc-consent__storage` — the shell's established look for "an inventory of this install". */
+.mc-about__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mc-text-sm);
+}
+.mc-about__caption {
+  text-align: left;
+  padding-bottom: var(--mc-space-2);
+  color: var(--mc-text-muted);
+  font-size: var(--mc-text-xs);
+}
+.mc-about__table th {
+  text-align: left;
+  font-weight: var(--mc-weight-medium);
+}
+.mc-about__table thead th {
+  color: var(--mc-text-muted);
+  font-size: var(--mc-text-xs);
+  white-space: nowrap;
+}
+.mc-about__table th,
+.mc-about__table td {
+  padding: var(--mc-space-2) var(--mc-space-3) var(--mc-space-2) 0;
+  border-bottom: 1px solid var(--mc-border);
+  vertical-align: top;
+}
+/* A licence identifier is a token, not prose — it should never wrap mid-string. */
+.mc-about__table code {
+  white-space: nowrap;
+}

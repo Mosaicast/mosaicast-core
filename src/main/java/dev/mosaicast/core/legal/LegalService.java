@@ -72,11 +72,29 @@ public class LegalService {
 
     // ---- public read ----
 
-    /** Footer links for the locale (pages with no usable translation are omitted). */
+    /**
+     * The {@code about} page is authored through this CMS but is not a legal page.
+     *
+     * It gets the mini-CMS for free — per-locale markdown, sanitising, the tabbed admin editor — without
+     * being listed among privacy and imprint, which is a different promise to the reader. `/about` has its
+     * own link in the footer and the info menu.
+     */
+    public static final String ROLE_ABOUT = "about";
+
+    /**
+     * Footer links for the locale (pages with no usable translation are omitted).
+     *
+     * Everything in {@code legal_page} lands here, which is why {@link #ROLE_ABOUT} has to be filtered
+     * out explicitly: it lives in the same table on purpose, but grouping it under "Legal" would say
+     * something untrue about what it is.
+     */
     @Transactional(readOnly = true)
     public List<FooterEntry> footer(String locale) {
         List<FooterEntry> entries = new ArrayList<>();
         for (LegalPage page : pages.findAllByOrderBySortOrderAscSlugAsc()) {
+            if (ROLE_ABOUT.equals(page.getRoleMarker())) {
+                continue;
+            }
             resolveTranslation(page, locale).ifPresent(t ->
                     entries.add(new FooterEntry(page.getSlug(), t.getTitle(), page.getRoleMarker())));
         }

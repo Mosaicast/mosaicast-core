@@ -76,3 +76,15 @@ jobs:
             echo "::error::dev/icons.txt and the generated icons disagree. Run 'npm run icons' and commit the result."
             exit 1
           }
+
+      # The credit list is generated into two places at once — the About page and the notices file —
+      # precisely so they cannot drift. That guarantee is only real if CI checks it.
+      - name: Generated credits match dev/attributions.mjs
+        working-directory: frontend
+        run: |
+          npm run attributions
+          git add --intent-to-add src/generated/attributions.ts
+          git diff --exit-code -- src/generated/attributions.ts ../THIRD-PARTY-NOTICES.md || {
+            echo "::error::dev/attributions.mjs and the generated credits disagree. Run 'npm run attributions' and commit the result."
+            exit 1
+          }

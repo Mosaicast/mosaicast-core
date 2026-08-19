@@ -159,6 +159,37 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void creditFieldsAreOptionalAndNeverValidated() throws Exception {
+        // Both directions have to hold, because credit is not a correctness concern. A plugin written
+        // before these fields existed must keep loading — it would otherwise be broken by a release that
+        // only added a line to an About page. And an unparseable licence string is still a working plugin,
+        // so `validate()` deliberately says nothing about any of them.
+        PluginManifest bare = parse("""
+                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]}}
+                """);
+
+        assertThatCode(bare::validate).doesNotThrowAnyException();
+        assertThat(bare.license()).isNull();
+        assertThat(bare.author()).isNull();
+        assertThat(bare.homepage()).isNull();
+        assertThat(bare.attribution()).isNull();
+
+        PluginManifest credited = parse("""
+                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]},
+                 "license":"not-an-spdx-id","author":"A Person",
+                 "homepage":"https://example.test/p","attribution":"https://example.test/thanks"}
+                """);
+
+        assertThatCode(credited::validate).doesNotThrowAnyException();
+        assertThat(credited.license()).isEqualTo("not-an-spdx-id");
+        assertThat(credited.author()).isEqualTo("A Person");
+        assertThat(credited.homepage()).isEqualTo("https://example.test/p");
+        assertThat(credited.attribution()).isEqualTo("https://example.test/thanks");
+    }
+
+    @Test
     void declaringNoConsentAtAllIsFine() throws Exception {
         // The banner-free default: a plugin that contacts no third party says nothing.
         assertThatCode(parse("""
