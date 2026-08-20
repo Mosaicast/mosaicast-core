@@ -78,12 +78,30 @@ describe('AboutPage', () => {
     expect(screen.getByRole('link', { name: /Bootstrap Icons/ })).toBeInTheDocument();
   });
 
-  it('shows the operator blurb when one exists', async () => {
+  it('leads with the operator blurb, not with the platform', async () => {
     mockAbout({ title: 'About this instance', html: '<p>Two people and a microphone.</p>' });
     renderPage();
 
     expect(await screen.findByRole('heading', { name: 'About this instance' })).toBeInTheDocument();
     expect(screen.getByText('Two people and a microphone.')).toBeInTheDocument();
+
+    // Order is the point, not decoration: someone arrived at this podcast's site, not at a piece of
+    // software, so "whose site is this?" is answered before "what is it running on?".
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    expect(headings).toEqual([
+      'About this instance',
+      'What this is',
+      'Plugins on this site',
+      'Built with',
+    ]);
+  });
+
+  it('opens on the platform when the operator deleted their blurb', async () => {
+    mockAbout(null);
+    renderPage();
+
+    const headings = (await screen.findAllByRole('heading', { level: 2 })).map((h) => h.textContent);
+    expect(headings).toEqual(['What this is', 'Plugins on this site', 'Built with']);
   });
 
   it('lists installed plugins with whatever credit they declared', async () => {

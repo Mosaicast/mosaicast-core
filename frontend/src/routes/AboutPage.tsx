@@ -13,14 +13,17 @@ import { usePluginRegistry } from '../plugins/PluginRegistry';
 /**
  * `/about` — what this is, who runs it, what it is running, and what it is built on.
  *
- * Four sections, narrowing from the project to its parts:
+ * Four sections, each answering the question the one before it raises:
  *
- *  1. **Mosaicast** — fixed text, translated, with this build's version and a link to the source. The AGPL
- *     obliges a network user to be able to reach the source; putting it here means that is one click from
- *     every page rather than a clause nobody can act on.
- *  2. **This instance** — the operator's own words, authored through the legal mini-CMS under the `about`
- *     slug (§12.6) so it gets per-locale markdown and the existing admin editor for free. Absent if they
- *     deleted it, which is a legitimate choice and not an error.
+ *  1. **This instance** — the operator's own words, authored through the legal mini-CMS under the `about`
+ *     slug (§12.6) so it gets per-locale markdown and the existing admin editor for free. It comes first
+ *     because a visitor arrived at *this podcast's site*, not at a piece of software: "whose site is this?"
+ *     is the question they actually have, and answering with a paragraph about the platform first would be
+ *     talking about ourselves. Absent if the operator deleted it, which is a legitimate choice, not an
+ *     error — and then the page opens on Mosaicast instead.
+ *  2. **What this is** — fixed text, translated, with this build's version and a link to the source. The
+ *     AGPL obliges a network user to be able to reach the source; putting it here means that is one click
+ *     from every page rather than a clause nobody can act on.
  *  3. **Plugins** — what this install actually runs, with whatever credit each plugin declared.
  *  4. **Built with** — everything Mosaicast stands on, generated from one source shared with
  *     `THIRD-PARTY-NOTICES.md` so the two cannot drift.
@@ -48,6 +51,14 @@ export function AboutPage() {
     <article className="mc-page mc-about">
       <h1 className="mc-page__title">{t('about.heading')}</h1>
 
+      {instance && (
+        <section className="mc-about__section">
+          <h2>{instance.title}</h2>
+          {/* Server-sanitized HTML (markdown → safe HTML in LegalService), same path as a legal page. */}
+          <div className="mc-legal__body" dangerouslySetInnerHTML={{ __html: instance.html }} />
+        </section>
+      )}
+
       <section className="mc-about__section">
         <h2>{t('about.whatHeading')}</h2>
         <p>{t('about.whatBody')}</p>
@@ -64,14 +75,6 @@ export function AboutPage() {
           ) : null}
         </p>
       </section>
-
-      {instance && (
-        <section className="mc-about__section">
-          <h2>{instance.title}</h2>
-          {/* Server-sanitized HTML (markdown → safe HTML in LegalService), same path as a legal page. */}
-          <div className="mc-legal__body" dangerouslySetInnerHTML={{ __html: instance.html }} />
-        </section>
-      )}
 
       <section className="mc-about__section">
         <h2>{t('about.pluginsHeading')}</h2>

@@ -489,9 +489,10 @@ plugin picks up a new icon with no SDK change and no `platformApi` bump.
 
 ### About page and credits
 
-`/about` is shipped, not admin-authored: what Mosaicast is (with this build's version and a link to the
-source), the operator's own blurb, the plugins this install runs, and what the project is built on. Each
-section is absent-tolerant, so a bare install still answers "what is this site?".
+`/about` is shipped, not admin-authored: the operator's own blurb, then what Mosaicast is (with this
+build's version and a link to the source), then the plugins this install runs, then what the project is
+built on. The blurb leads because someone arrived at *this podcast's site*, not at a piece of software.
+Each section is absent-tolerant, so a bare install still answers "what is this site?".
 
 The operator blurb is the `about` entry in the legal mini-CMS (**Admin → Legal pages**), which is why it
 gets per-locale markdown for free; the `about` role marker keeps it out of the footer's legal group. The

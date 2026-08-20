@@ -15,12 +15,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 ### Added
 
 - **A public `/about` page (`0.6.15`, §12.6).** A visitor had no way to find out what this software is, what
-  the instance is running, or what any of it is built on. The page answers all four in narrowing scope:
-  fixed shipped text about Mosaicast with this build's version and a link to the source (which is what makes
-  the AGPL's offer of source actually reachable rather than a clause nobody can act on); the operator's own
-  blurb; the plugins this install runs; and everything the project stands on. Every section is
-  absent-tolerant on its own — a bare install with no plugins and no admin text still answers "what is this
-  site?", which is exactly where the question is hardest.
+  the instance is running, or what any of it is built on. The page answers all four, each section taking up
+  the question the one before it raises: the operator's own blurb first, because someone arrived at *this
+  podcast's site* and "whose site is this?" is the question they actually have; then what Mosaicast is, with
+  this build's version and a link to the source (which is what makes the AGPL's offer of source reachable
+  rather than a clause nobody can act on); then the plugins this install runs; then everything the project
+  stands on. Every section is absent-tolerant on its own — a bare install with no plugins and no admin text
+  still answers "what is this site?", which is exactly where the question is hardest.
 - **Plugins can declare credit: `license`, `author`, `homepage`, `attribution` (`0.6.15`, §7.2).** All
   optional, all surfaced on `/about` through the already-anonymous `GET /api/plugins/manifest`. **No
   `platformApi` bump** — the manifest ignores unknown fields and the SDK has no manifest type, so a new
