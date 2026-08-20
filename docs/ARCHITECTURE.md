@@ -181,7 +181,12 @@ Same machinery as §6.4 (the server knows episodes and can ask plugins), extende
 ### 7.1 Structure
 A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web Component bundle) + `plugin.json`. Loaded from a plugins folder at startup. **Trusted, in-process, no sandboxing** — the admin carries responsibility, also for 3rd-party.
 
-**Configurable plugins path (no forced folder layout):** core reads the plugins folder from `MOSAICAST_PLUGINS_DIR` (env/property, default `./plugins`). Plugins know **nothing** about it — their `build.sh` only writes to their own local `dist/` and never touches core. Distribution (`dist/` → plugins folder) is a **separate, manual step**; location is free to choose (sibling folder, central folder, Docker volume). An optional `install.sh` in a plugin may shortcut the copy if `MOSAICAST_PLUGINS_DIR` is set — never as a requirement.
+**Configurable plugins path (no forced folder layout):** core reads the plugins folder from `MOSAICAST_PLUGINS_DIR` (env/property, default `./plugins`). Plugins know **nothing** about it — their `build.sh` only writes to their own local `dist/` and never touches core. Distribution (`dist/` → plugins folder) stays a **separate step**; location is free to choose (sibling folder, central folder, Docker volume). An optional `install.sh` in a plugin may shortcut the copy if `MOSAICAST_PLUGINS_DIR` is set — never as a requirement.
+
+**Installing by spec (no registry).** Copying by hand remains valid and always will, but it is not the only path: `scripts/install-plugin.sh` resolves `owner/repo[@tag][#sha256:…]`, a tarball URL or a local file, and in a container `MOSAICAST_PLUGINS` does the same **before the JVM starts** — plugins are read once at startup, so anything arriving later would stay invisible until the next restart. **GitHub Releases are the index**: a fixed `plugin.tgz` asset reached through the plain `releases/…/download/` redirect, which is what keeps this an API call, a token and a JSON parser lighter than a registry would be. A central registry is not ruled out, but nothing here needs one yet.
+- The installed folder name comes from the manifest's own `id`, never from the repo name — a folder that disagrees with its id is rejected at load anyway, so guessing would only move the error somewhere less obvious.
+- An unresolvable spec **fails the container** rather than booting without it: an instance that looks healthy while silently missing a plugin the operator asked for surfaces later as a broken page instead of the deploy error it is. Restarts are idempotent — an already-installed spec is recognised without re-downloading.
+- **Pin a tag *and* a checksum.** Plugins are trusted, in-process and unsandboxed (above); making installation one env var away does not change that, so the documented default is the form an operator can audit. The checksum is the only integrity control this model has.
 
 > **Known rough edge:** PF4J classloading inside a Spring Boot fat JAR is fiddly. Keeping plugins Spring-free (plain PF4J extensions against the SDK) is the deliberate mitigation; still budget real time for the classloader setup in core (E5) instead of fighting it late.
 
@@ -192,6 +197,9 @@ A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web
   "version": "1.0.0",
   "platformApi": "1.x",
   "name": "Bingo",
+  "license": "AGPL-3.0-or-later",
+  "author": "The Mosaicast Authors",
+  "homepage": "https://github.com/Mosaicast/mosaicast-plugin-bingo",
   "backend":  { "basePath": "/api/plugins/bingo", "extensions": ["dev.mosaicast.plugin.bingo.BingoPlugin"] },
   "frontend": { "entry": "bingo.es.js", "elements": ["bingo-episode-card", "bingo-host-board"] },
   "slots": [
@@ -211,6 +219,7 @@ A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web
 - **`blobs`**: opt-in file storage (§11.1) — `maxFileBytes`, `quotaBytes`, `mimeTypes`. Declared, never derived, like `data`: what a plugin may write to disk should be readable off its manifest. Absent = no file storage at all. The operator caps every number and intersects the type list with the install's own, so a plugin is granted the smaller of the two rather than rejected for asking. `image/svg+xml` is refused at load — SVG is never storable (§12.2).
 - **`consent`**: third-party services the plugin loads — one declaration each (`id`, `name`, `provider`, `category`, `privacyUrl`, `hosts`, `thirdCountryTransfer`, `storage[]`); the visitor decides per *category*, and `hosts` doubles as the CSP allow-list (§12.5). Omit the key entirely when the plugin loads nothing third-party.
 - **`config`**: declared fields are rendered by core as a **generic admin form** (respecting `editableBy`) — plugins never build their own config UI.
+- **`license` / `author` / `homepage` / `attribution`**: credit, shown on the public About page (§12.6). All optional and **never validated** — a plugin written before these existed must keep loading, and an oddly-spelled licence is still a working plugin; credit is not a correctness concern. `attribution` is separate from `homepage` because "where this lives" and "who deserves credit for it" are not the same link: a plugin that borrows data, artwork or an upstream library should be able to say so without giving up its own page. Purely additive in both directions — the host ignores unknown manifest fields and there is no manifest type in the SDK — so **no `platformApi` bump**, which matters because that check is an exact `major.minor` match and a bump would reject every installed plugin until each one re-released.
 
 ### 7.3 Slots & placements
 - Regions (`top`, `card`, `main`, `sidebar`, `player`, `feed`, `site`, `admin`, …) are defined by the **host shell** per view. Plugins only target existing names; an unknown region → startup rejection. The **`feed`** and **`site`** regions are the scope panels' plugin spaces (§6.1): `feed` on a feed tab, `site` on the All tab.
@@ -431,6 +440,11 @@ Via `BlobStore` (namespace `branding/`). Served at `/branding/logo`, `/branding/
 
 ### 12.3 Light/dark + seed generator
 - **Semantic tokens** as CSS custom properties: `--mc-bg, --mc-surface, --mc-text, --mc-text-muted, --mc-accent, --mc-accent-contrast, --mc-border` (+ accent-2). Light/dark = two value sets, `data-theme` on the root. **Shell AND plugins read the same properties** → they re-theme automatically.
+- **Icons ride the same channel: `--mc-icon-*`.** The shell's icon set is generated from a whitelist and a deliberate subset is published as custom properties, so a plugin's Web Component draws the shell's icons with **no SDK import, no `platformApi` bump and no version skew** — a plugin built against an older SDK picks up an icon added here the day it lands. Consumed as a **mask**, never as `background-image`, so the icon takes the caller's own colour and re-themes with everything else:
+  ```css
+  mask-image: var(--mc-icon-close); mask-size: contain; background: currentColor;
+  ```
+  The published names are a **contract**, exactly like the colour tokens: add freely, rename never. The set is deliberately provisioned ahead of demand — a plugin builds against a *released* core, so an icon that is not already published is one its author cannot add without waiting for a core release.
 - **Seed:** the admin sets **one accent**, the system generates the rest. **OKLCH** (perceptually uniform) + **WCAG contrast clamp** (text/bg ≥ 4.5:1), so no unreadable theme can result.
 - **No theme flash:** a tiny inline script in `index.html` sets `data-theme` + accent synchronously from the site payload before first paint.
 - **Previews:** the branding panel shows the logo on a light AND a dark swatch; the theme seed renders live as the accent is dragged. Both client-side.
@@ -450,6 +464,14 @@ Publicly operated sites need jurisdiction-specific legal documents (e.g. Germany
 - A page can carry a **role marker** (`privacy`, `imprint`, `terms`, …); the consent service (§12.5) links to the page marked `privacy`.
 - Markdown is rendered sanitized (same care as wiki content).
 - Docs note for operators: German operators typically need Impressum + Datenschutzerklärung. **Mosaicast ships the mechanism, not legal texts** — bundling texts would be false safety. *(Not legal advice.)*
+
+**`/about` — what this is, what it runs, what it is built on.** A shipped route, not an admin-authored page, because a visitor to a *bare* install is the one most likely to ask "what is this site?" and least likely to find an answer. Four sections, each taking up the question the one before it raises:
+1. **This instance** — the operator's own words. It leads because someone arrived at *this podcast's site*, not at a piece of software; opening with a paragraph about the platform answers a question nobody asked.
+2. **What Mosaicast is** — fixed, translated text with the running version and a link to the source. This is also where the AGPL's obligation to offer source becomes something a network user can actually act on, rather than a clause with nowhere to click.
+3. **Plugins** — what this install runs, with whatever credit each declared (§7.2). Anonymous: what an install runs and under what terms is not privileged information.
+4. **Built with** — the third-party work the project stands on, generated from one source shared with the repository's notices file so the two cannot drift. Curated and deliberately generous rather than a transitive dependency dump, and it credits build and test tooling too.
+
+Every section is **absent-tolerant on its own**, so an install with no plugins, no About text and no legal pages still renders. The operator's blurb reuses this mini-CMS under an `about` slug — that buys per-locale markdown, sanitising, locale fallback and the existing editor for nothing, where a `SiteConfig` column could not do per-locale text without reinventing the translation table. It is **not** a legal page, so its role marker keeps it out of the footer's legal group; it gets its own link there and in the info menu.
 
 ### 12.7 Internationalization (i18n)
 Built in from the start so the project can grow international and translation is an easy first contribution.
