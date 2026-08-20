@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
 # Production stack: PULLS the prebuilt image from GHCR instead of building it (no Gradle, no SDK
 # token needed at deploy time). The image is published by .github/workflows/release.yml on each release.
 #
