@@ -182,8 +182,47 @@ floor, writes to `podcaster`). Two things narrow the floors further: the `user/m
 server-side, so another person's partition is unnameable rather than merely forbidden; and
 `"data": { "backendOwned": ["stats", "agg:*"] }` reserves the keys a plugin's backend authors — clients read
 them, a client `PUT`/`DELETE` is a 403 with its own problem type. Data is hard-scoped by plugin id — a plugin
-can never see another's. To try a plugin: build it and drop its `dist/` into `MOSAICAST_PLUGINS_DIR/<id>/`,
-then restart the host (the `mosaicast-plugin-sample` repo's `./build.sh` + `./install.sh` do this).
+can never see another's.
+
+### Installing a plugin
+
+```bash
+scripts/install-plugin.sh Mosaicast/mosaicast-plugin-wiki@v1.0.0#sha256:abc123…
+```
+
+| Spec | Resolves to |
+| --- | --- |
+| `owner/repo` | the latest release's `plugin.tgz` |
+| `owner/repo@v1.2.3` | that release |
+| `owner/repo@v1.2.3#sha256:…` | that release, contents verified |
+| `https://…/plugin.tgz[#sha256:…]` | a tarball anywhere |
+| `./plugin.tgz` | a local file (air-gapped, or one you just built) |
+
+With no release tarball, the script clones the repo and runs its own `build.sh` instead. The folder name
+comes from the manifest's `id`, never guessed from the repo name. Plugins are read **at startup only**, so
+restart the host afterwards. Building by hand and dropping `dist/` into `MOSAICAST_PLUGINS_DIR/<id>/` still
+works and always will.
+
+**In Docker**, set `MOSAICAST_PLUGINS` and the entrypoint resolves it before the JVM starts:
+
+```yaml
+MOSAICAST_PLUGINS: "Mosaicast/mosaicast-plugin-wiki@v1.0.0#sha256:abc123…"
+```
+
+Restarts are idempotent — an already-installed spec is skipped without re-downloading — and an
+**unresolvable spec fails the container** rather than booting without a plugin you asked for. The runtime
+image resolves prebuilt tarballs only; it has no git or JDK, and says so rather than failing obscurely.
+
+> **Pin a tag *and* a checksum.** A plugin is trusted, in-process, unsandboxed code (ARCHITECTURE §7.1) —
+> the installer does not change that trust model, it just makes acting on it one env var away. An unpinned
+> spec means whatever that repo publishes next runs inside your server. The checksum is the only integrity
+> control this model offers, which is why `dev/templates/release-plugin.yml` publishes the digest into every
+> release's notes: copy the line it prints.
+
+**Publishing a plugin:** copy [`dev/templates/release-plugin.yml`](dev/templates/release-plugin.yml) into
+the plugin repo as `.github/workflows/release.yml`. On a published release it builds, attaches `plugin.tgz`,
+checks the tag against the manifest version, and appends the SHA-256 to the notes. No registry is involved —
+GitHub Releases are the index.
 
 **Frontend (E5b):** the shell fetches the manifest, injects each plugin's bundle once, and mounts its Web
 Components into the slot regions — matched by `placement` + scope, gated by `visibleTo`, stacked by `order`,

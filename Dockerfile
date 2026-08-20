@@ -44,11 +44,20 @@ RUN --mount=type=secret,id=github_actor --mount=type=secret,id=github_token \
 # ---------- Stage 3: runtime (slim JRE) ----------
 FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
-# wget is used by the compose healthcheck (docker-compose.yml).
-RUN apt-get update && apt-get install -y --no-install-recommends wget \
+# wget for the compose healthcheck (docker-compose.yml); curl + ca-certificates for the plugin installer.
+# No git and no JDK here on purpose: the installer's build-from-source fallback is a developer-machine
+# path, and pulling a toolchain into the runtime image to support it would cost far more than it is worth.
+# The image resolves prebuilt release tarballs only, and says so when a spec has none.
+RUN apt-get update && apt-get install -y --no-install-recommends wget curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-# Plugins are dropped into MOSAICAST_PLUGINS_DIR at runtime (compose mounts ./plugins here).
+# Plugins are dropped into MOSAICAST_PLUGINS_DIR at runtime (compose mounts ./plugins here), or fetched at
+# boot from MOSAICAST_PLUGINS by the entrypoint.
 RUN mkdir -p /app/plugins
 COPY --from=backend /build/build/libs/*.jar /app/app.jar
+COPY scripts/install-plugin.sh /app/bin/install-plugin.sh
+COPY docker/entrypoint.sh /app/bin/entrypoint.sh
+RUN chmod +x /app/bin/install-plugin.sh /app/bin/entrypoint.sh
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# The entrypoint resolves MOSAICAST_PLUGINS and then `exec`s the JVM, so the JVM keeps PID 1 and signals
+# still reach it — a plain `java -jar` wrapper that forgot to exec would break container shutdown.
+ENTRYPOINT ["/app/bin/entrypoint.sh"]
