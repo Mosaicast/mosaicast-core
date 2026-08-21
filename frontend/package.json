@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite",
     "icons": "node dev/gen-icons.mjs",
+    "attributions": "node dev/gen-attributions.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",

@@ -464,7 +464,43 @@ test-fixtures/sample-plugin/   a tiny real plugin JAR, compiled for the plugin-l
 frontend/    React/Vite host shell (built into resources/static)
   src/styles.css   the @import manifest; every rule lives in src/styles/*.css
   src/styles/tokens.css   the --mc-* design tokens plugins inherit (§12.3)
+  dev/icons.txt           the icon whitelist -> `npm run icons` (see "Icons" below)
+  dev/attributions.mjs    what we are built on -> `npm run attributions`
 ```
+
+### Icons
+
+Icons are generated, never pasted in. Add a line to `frontend/dev/icons.txt`, run `npm run icons`, and
+commit the two generated artefacts; CI regenerates and diffs, so a whitelist edit that was never
+regenerated fails the PR.
+
+The tier marker decides where an icon lands, and the two are different capabilities:
+
+| | emitted to | usable as |
+| --- | --- | --- |
+| `+` | `src/styles/icons.css` | `mask-image: var(--mc-icon-x); background: currentColor` — from core CSS *and* from plugins |
+| `*` | also `src/components/Icon.tsx` | additionally `<Icon name="x" />` |
+
+**Default to `+`.** Reserve `*` for what a mask cannot do: a name that varies at runtime, an icon that
+carries meaning and so needs an `aria-label` (pseudo-elements are invisible to assistive tech), or
+standalone markup. The published `--mc-icon-*` names are a contract with every installed plugin —
+add freely, rename never — and they cross the shadow boundary exactly as the colour tokens do, so a
+plugin picks up a new icon with no SDK change and no `platformApi` bump.
+
+### About page and credits
+
+`/about` is shipped, not admin-authored: the operator's own blurb, then what Mosaicast is (with this
+build's version and a link to the source), then the plugins this install runs, then what the project is
+built on. The blurb leads because someone arrived at *this podcast's site*, not at a piece of software.
+Each section is absent-tolerant, so a bare install still answers "what is this site?".
+
+The operator blurb is the `about` entry in the legal mini-CMS (**Admin → Legal pages**), which is why it
+gets per-locale markdown for free; the `about` role marker keeps it out of the footer's legal group. The
+credits come from `frontend/dev/attributions.mjs` via `npm run attributions`, which writes both the page
+and the index in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) so the two cannot drift.
+
+Plugins may declare `license`, `author`, `homepage` and `attribution` in their manifest; all are optional,
+never validated, and shown on this page.
 
 Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/admin/feeds/{id}/suggestions` + `POST …/suggestions/{id}/confirm` + `DELETE …/suggestions/{id}`

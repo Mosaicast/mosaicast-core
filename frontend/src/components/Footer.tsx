@@ -37,6 +37,9 @@ export function Footer() {
         install with no way to reach the settings at all — even though the core stores a session cookie, a
         language and a playback position of its own (§12.5).
       */}
+      <Link className="mc-foot__about" to="/about">
+        {t('about.heading')}
+      </Link>
       <Link className="mc-foot__consent" to="/cookies">
         {t('consent.settings')}
       </Link>

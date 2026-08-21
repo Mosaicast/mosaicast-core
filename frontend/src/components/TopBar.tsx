@@ -98,23 +98,29 @@ export function TopBar() {
             </Dropdown>
           )}
 
-          {legal.length > 0 && (
-            <Dropdown
-              triggerClassName="mc-btn mc-btn--ghost"
-              ariaLabel={t('nav.info')}
-              trigger={
-                <span className="mc-menu__icon">
-                  <Icon name="info" />
-                </span>
-              }
-            >
-              {legal.map((entry) => (
-                <Link key={entry.slug} role="menuitem" to={`/legal/${entry.slug}`}>
-                  {entry.title}
-                </Link>
-              ))}
-            </Dropdown>
-          )}
+          {/*
+            Unconditional. The menu used to appear only once a legal page existed, so a fresh install —
+            the one where "what is this site?" is hardest to answer — had no info menu at all. /about
+            ships with the shell and is always there, so there is always something to open.
+          */}
+          <Dropdown
+            triggerClassName="mc-btn mc-btn--ghost"
+            ariaLabel={t('nav.info')}
+            trigger={
+              <span className="mc-menu__icon">
+                <Icon name="info" />
+              </span>
+            }
+          >
+            <Link role="menuitem" to="/about">
+              {t('about.heading')}
+            </Link>
+            {legal.map((entry) => (
+              <Link key={entry.slug} role="menuitem" to={`/legal/${entry.slug}`}>
+                {entry.title}
+              </Link>
+            ))}
+          </Dropdown>
 
           {user ? (
             <Dropdown

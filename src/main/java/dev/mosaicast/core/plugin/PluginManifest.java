@@ -34,6 +34,15 @@ import java.util.Set;
  * @param data        the doc-store access floors and backend-owned keys (§7.2); absent means the closed
  *                    default and nothing reserved
  * @param consent     declared consent categories / external sources
+ * @param license     SPDX identifier of the plugin's own licence (e.g. {@code AGPL-3.0-or-later}); shown on
+ *                    the public About page. Free-form and never validated — an unrecognised or absent value
+ *                    must not stop a plugin loading, because credit is not a correctness concern
+ * @param author      who wrote the plugin, as they wish to be credited
+ * @param homepage    the plugin's own page — its repository, docs or project site
+ * @param attribution a URL for whoever the plugin wants to credit beyond its author: the source of its data,
+ *                    an upstream library, an artist. Separate from {@code homepage} because "where this
+ *                    lives" and "who deserves credit for it" are not the same link, and a plugin that
+ *                    borrows should be able to say so without giving up its own
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record PluginManifest(
@@ -48,7 +57,29 @@ public record PluginManifest(
         Map<String, ConfigField> config,
         DataAccess data,
         Blobs blobs,
-        Consent consent) {
+        Consent consent,
+        // Credit, not contract. Boxed and unvalidated on purpose: Jackson 3 refuses to map a missing value
+        // onto a primitive, and `validate()` deliberately says nothing about these — a plugin written
+        // before they existed must keep loading, and one that spells its licence oddly is still a working
+        // plugin. Additive in both directions (unknown fields are ignored), so no `platformApi` bump.
+        String license,
+        String author,
+        String homepage,
+        String attribution) {
+
+    /**
+     * The manifest without its credit fields — everything the host needs to actually run a plugin.
+     *
+     * Exists so that adding another purely descriptive field does not ripple through every construction
+     * site that never cared about them. Jackson always uses the canonical constructor; this is for callers
+     * assembling a manifest by hand.
+     */
+    public PluginManifest(String id, String version, String platformApi, String name, Backend backend,
+                          Frontend frontend, List<Slot> slots, PluginStorage storage,
+                          Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
+        this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, consent,
+                null, null, null, null);
+    }
 
     /** Storage kinds a manifest may declare; see {@link PluginStorage} for the two shapes it takes. */
     public static final String STORAGE_DOC = PluginStorage.DOC;

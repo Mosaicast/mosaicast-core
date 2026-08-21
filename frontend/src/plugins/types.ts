@@ -35,6 +35,21 @@ export interface PublicPlugin {
    * asked for, this install may grant less, and the quota endpoint is the only honest source.
    */
   hasBlobs?: boolean;
+  /**
+   * Credit, as the plugin declared it — all optional, all shown on `/about`.
+   *
+   * Never validated by the host: a plugin written before these existed, or one that spells its licence
+   * oddly, is still a working plugin. So every one of them can be absent and the About page renders what
+   * it has rather than asserting what it wants.
+   */
+  license?: string | null;
+  author?: string | null;
+  homepage?: string | null;
+  /**
+   * Whoever the plugin credits beyond its author — a data source, an upstream library, an artist. Separate
+   * from `homepage` because "where this lives" and "who deserves credit" are not the same link.
+   */
+  attribution?: string | null;
 }
 
 /** One declared config field with the value currently in effect — a row of the generated admin form. */

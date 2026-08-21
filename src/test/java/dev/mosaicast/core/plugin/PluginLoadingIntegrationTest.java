@@ -88,6 +88,24 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void declaredCreditReachesAnonymousVisitorsAndPluginsWithoutItStillLoad() {
+        // The whole path, unauthenticated: a manifest on disk -> Jackson -> PublicPlugin -> JSON. What the
+        // About page shows a visitor is what this install runs and under what terms, which is not privileged.
+        ResponseEntity<String> manifest = rest.getForEntity("/api/plugins/manifest", String.class);
+
+        assertThat(manifest.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(manifest.getBody())
+                .contains("\"license\":\"Apache-2.0\"")
+                .contains("\"author\":\"The Mosaicast Authors\"")
+                .contains("\"homepage\":\"https://fixture.example/good\"")
+                .contains("\"attribution\":\"https://fixture.example/thanks\"");
+
+        // And the other half of the contract: `nopage` declares none of it and is still a loaded plugin.
+        // A release that only added a line to an About page must not disable anybody's plugin.
+        assertThat(manifest.getBody()).contains("\"id\":\"nopage\"");
+    }
+
+    @Test
     void adminSeesLoadStateWithReasons() {
         Session admin = devLogin("admin");
         ResponseEntity<String> response = rest.exchange(

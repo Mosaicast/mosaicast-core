@@ -48,6 +48,11 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
   — that is how the dropdown caret is drawn, and it keeps the JS bundle to the artwork core renders.
   Promote to `*` only when a mask cannot do the job: a name that varies at runtime, an icon needing an
   `aria-label` (pseudo-elements are invisible to assistive tech), or standalone markup.
+- **Credits are generated too.** Add a dependency worth naming to `frontend/dev/attributions.mjs`, run
+  `npm run attributions`; it writes both `src/generated/attributions.ts` (the `/about` page) and the
+  index in `THIRD-PARTY-NOTICES.md`, and CI diffs them. Curate generously — over-attributing costs a
+  few lines, under-attributing costs someone their credit. Licence texts that must be reproduced in
+  full stay hand-written in the part of that file above the generated markers.
 - **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): they inherit across the
   shadow boundary, so plugin Web Components read the same tokens, which is what makes plugin UIs re-theme
   automatically. Renaming or dropping one breaks every plugin. Add tokens freely; change existing names only
