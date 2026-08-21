@@ -10,6 +10,7 @@ import { usePlayer } from '../player/PlayerContext';
 import { listenedFraction } from '../player/progress';
 import { formatDate, formatDuration } from '../util/format';
 import { Cover } from './Cover';
+import { Icon } from './Icon';
 import { SlotRegion } from './SlotRegion';
 
 /**
@@ -59,7 +60,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
             }
             aria-label={t('player.play')}
           >
-            ▶
+            <Icon name="play" />
           </button>
         )}
         {listened > 0 && (

@@ -253,6 +253,7 @@
   "admin.feeds.enabled": "Enabled",
   "admin.feeds.interval": "Poll every",
   "admin.feeds.refresh": "Refresh",
+  "admin.feeds.failures": "Consecutive failures",
   "admin.feeds.suggestions": "Suggestions",
   "admin.feeds.noSuggestions": "No suggestions.",
   "admin.feeds.confirm": "Confirm",

@@ -35,14 +35,27 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
 ## Frontend & UI (binding)
 - **Plain CSS, flat `mc-*` class names. No Tailwind, no shadcn, no CSS-in-JS, no component library** — do
   not introduce one, and ignore skill guidance that assumes them. `frontend/src/styles.css` is an `@import`
-  manifest; the rules live in `frontend/src/styles/*.css` (`tokens base chrome feed detail player forms
-  admin consent`). Import order is the cascade — put a rule in the partial that owns the surface.
+  manifest; the rules live in `frontend/src/styles/*.css` (`tokens icons base chrome feed detail player
+  forms admin consent`). Import order is the cascade — put a rule in the partial that owns the surface.
+- **Icons are generated, never hand-drawn or pasted.** Add a line to `frontend/dev/icons.txt`, run
+  `npm run icons`, commit both artefacts (`src/components/Icon.tsx`, `src/styles/icons.css`) — CI
+  regenerates and diffs, so an un-regenerated whitelist fails the PR. Never edit the generated files.
+  Use `<Icon name="…" />`; it is `aria-hidden` by default, so pass `label` only where the icon is the
+  sole carrier of meaning. No emoji or literal symbols in UI — the platform picks that artwork, so the
+  same markup renders differently per OS and cannot take a theme colour.
+- **Two icon tiers.** `+` publishes `--mc-icon-*` only; `*` also bundles the drawing into `Icon.tsx`.
+  **Default to `+` and consume it from CSS** (`mask-image: var(--mc-icon-x); background: currentColor`)
+  — that is how the dropdown caret is drawn, and it keeps the JS bundle to the artwork core renders.
+  Promote to `*` only when a mask cannot do the job: a name that varies at runtime, an icon needing an
+  `aria-label` (pseudo-elements are invisible to assistive tech), or standalone markup.
 - **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): they inherit across the
   shadow boundary, so plugin Web Components read the same tokens, which is what makes plugin UIs re-theme
   automatically. Renaming or dropping one breaks every plugin. Add tokens freely; change existing names only
   deliberately. Style with tokens, not literals — `styles/tokens.css` documents the full set, and the eight
   colour tokens are the only ones also delivered as JS (`ctx.theme`), mirrored in `theme/applyTheme.ts` and
-  `public/theme-init.js`.
+  `public/theme-init.js`. The same goes for the published `--mc-icon-*` subset: plugins consume them as
+  `mask-image` + `background: currentColor` (never `background-image`, or the icon cannot take their
+  colour), and a published icon name can be added but never renamed.
 - **Light and dark are both first-class** (`data-theme` on the root; `frontend/public/theme-init.js` sets it
   before first paint to avoid a flash). Check both for every visual change.
 - **i18n:** flat dotted keys in `frontend/src/locales/{en,de}.json`. **Both locales, always** — German is a

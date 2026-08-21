@@ -59,3 +59,20 @@ jobs:
           npm ci
           npm test
           npm run build
+
+      # `src/components/Icon.tsx` and `src/styles/icons.css` are generated from `dev/icons.txt`.
+      # Regenerating and diffing is what keeps the committed artefacts honest: an edited whitelist
+      # that was never regenerated fails here, on the PR, where the author can still fix it — rather
+      # than being repaired by a bot commit that nobody reviewed and that CI never ran against.
+      - name: Generated icons match dev/icons.txt
+        working-directory: frontend
+        run: |
+          npm run icons
+          # `--intent-to-add` first: `git diff` is blind to untracked files, so without it a PR that
+          # adds a generated file but never commits it would pass a check designed to catch exactly
+          # that. Staging the intent makes an untracked artefact show up as an addition.
+          git add --intent-to-add src/components/Icon.tsx src/styles/icons.css
+          git diff --exit-code -- src/components/Icon.tsx src/styles/icons.css || {
+            echo "::error::dev/icons.txt and the generated icons disagree. Run 'npm run icons' and commit the result."
+            exit 1
+          }

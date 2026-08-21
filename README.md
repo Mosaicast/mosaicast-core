@@ -522,5 +522,11 @@ Contributions welcome — see [`CONTRIBUTING.md`](CONTRIBUTING.md). In short: `g
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 ```
 
+Third-party work redistributed inside the artefacts — currently the Bootstrap Icons artwork inlined
+into the shell bundle — is recorded in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
 ## Name & trademark
 "Mosaicast" and the logo denote the official project. Please rename forks.
+
+WhatsApp and Telegram are trademarks of their respective owners; their marks appear in the share
+dialog nominatively, to name where a link is being sent. No endorsement or affiliation is implied.

@@ -5,15 +5,22 @@ import { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { formatDuration } from '../util/format';
-import { absoluteUrl, SHARE_TARGETS, shareHref } from '../util/shareTargets';
+import { absoluteUrl, SHARE_TARGETS, shareHref, type ShareTargetId } from '../util/shareTargets';
 import { parseTimestamp, withTimestamp } from '../util/timestamp';
+import { Icon, type IconName } from './Icon';
 import { Modal } from './Modal';
 
-/** The glyph shown for each prepared destination — literal characters, as everywhere else in the shell. */
-const TARGET_GLYPH: Record<string, string> = {
-  whatsapp: '🟢',
-  telegram: '✈',
-  email: '✉',
+/**
+ * The icon shown for each prepared destination.
+ *
+ * The brand marks are used nominatively — they name where the link is going, nothing more. They are
+ * drawn from the shell's own icon set (`components/Icon`), so nothing is fetched from a brand's own
+ * servers and the destinations stay as request-free as the links themselves.
+ */
+const TARGET_ICON: Record<ShareTargetId, IconName> = {
+  whatsapp: 'whatsapp',
+  telegram: 'telegram',
+  email: 'email',
 };
 
 /**
@@ -83,8 +90,8 @@ export function ShareDialog({
               target="_blank"
               rel="noopener noreferrer"
             >
-              <span className="mc-share__glyph" aria-hidden="true">
-                {TARGET_GLYPH[id]}
+              <span className="mc-share__glyph">
+                <Icon name={TARGET_ICON[id]} />
               </span>
               {t(`share.${id}`)}
             </a>
@@ -95,8 +102,8 @@ export function ShareDialog({
               className="mc-share__target"
               onClick={() => void navigator.share({ title, url }).catch(() => {})}
             >
-              <span className="mc-share__glyph" aria-hidden="true">
-                ⇪
+              <span className="mc-share__glyph">
+                <Icon name="share-native" />
               </span>
               {t('share.native')}
             </button>

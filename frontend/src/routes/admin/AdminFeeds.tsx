@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api, ApiError } from '../../api/client';
 import type { AdminFeed, FeedPreview, Suggestion } from '../../api/types';
+import { Icon } from '../../components/Icon';
 
 /** Poll-interval presets (seconds): 15 min / 30 min / 1 h / 6 h / 24 h. */
 const INTERVAL_PRESETS = [900, 1800, 3600, 21600, 86400];
@@ -124,7 +125,12 @@ export function AdminFeeds() {
                 <div className="mc-muted">
                   {t('feed.episodeCount', { count: feed.episodeCount })} ·{' '}
                   {feed.lastFetchStatus ?? '—'}
-                  {feed.consecutiveFailures > 0 && ` · ⚠ ${feed.consecutiveFailures}`}
+                  {feed.consecutiveFailures > 0 && (
+                    <>
+                      {' · '}
+                      <Icon name="warning" label={t('admin.feeds.failures')} /> {feed.consecutiveFailures}
+                    </>
+                  )}
                 </div>
                 {/* The error text was fetched and typed all along, and never shown — so a failing feed
                     looked like a bare status word with no way to find out why. */}
@@ -165,7 +171,7 @@ export function AdminFeeds() {
                 {suggestions.map((s) => (
                   <div key={s.id} className="mc-suggestion">
                     <span>
-                      <strong>{s.plannedTitle}</strong> ↔ {s.rawTitle}{' '}
+                      <strong>{s.plannedTitle}</strong> <Icon name="swap" /> {s.rawTitle}{' '}
                       <span className="mc-muted">({Math.round(s.similarity * 100)}%)</span>
                     </span>
                     <span className="mc-suggestion__actions">
