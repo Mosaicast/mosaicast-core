@@ -610,3 +610,58 @@
   background: var(--mc-surface-2);
   font-size: var(--mc-text-sm);
 }
+
+/* ---- Admin → Navigation: reordering (§7.3) ---- */
+
+/*
+ * Rows reorder by dragging for pointer users and by the move buttons for everyone else. The buttons are the
+ * real mechanism, not a fallback: HTML5 drag events never fire on touch and are invisible to assistive tech,
+ * so a drag-only list would be unusable for most of the ways this page is reached.
+ */
+.mc-navrow {
+  cursor: grab;
+}
+.mc-navrow:active {
+  cursor: grabbing;
+}
+
+.mc-navrow__move {
+  display: flex;
+  gap: var(--mc-space-1);
+  white-space: nowrap;
+}
+
+/*
+ * The move buttons carry no text — their name is the `aria-label`, and the glyph is a mask so it takes the
+ * button's own colour and needs nothing in the JS bundle.
+ */
+.mc-btn--icon {
+  padding: var(--mc-space-1) var(--mc-space-2);
+  line-height: 1;
+}
+.mc-move::before {
+  content: '';
+  display: block;
+  width: 1em;
+  height: 1em;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  background: currentColor;
+}
+.mc-move--up::before {
+  mask-image: var(--mc-icon-arrow-up);
+}
+.mc-move--down::before {
+  mask-image: var(--mc-icon-arrow-down);
+}
+/* At an end of the list there is nowhere to go; the button stays for a stable layout. */
+.mc-move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* The move column should not stretch — the entry names deserve the width. */
+.mc-navtable td:first-child {
+  width: 1%;
+}

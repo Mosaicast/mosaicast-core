@@ -32,7 +32,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     renders at all; an icon is decoration, and the host holds no icon list to check against — the palette
     lives in generated CSS, and a copy in Java would be a second source of truth. Unknown names fall back
     when drawn, which CSS gives for free.
-- **Admin → Navigation (`0.6.16`, §7.3).** Enable, disable and order the entries. Absent row means
+- **Admin → Navigation (`0.6.16`, §7.3).** Enable, disable and order the entries — **the row's position is
+  the order**, so there is no number to type and no second place for the ordering to live. Rows drag for
+  pointer users and move with arrow buttons for everyone else; the buttons are the mechanism and dragging is
+  the shortcut, because HTML5 drag events never fire on touch and are invisible to a screen reader, so a
+  drag-only list would be unusable on most of the ways this page is reached. A move is announced, since rows
+  changing places is silent to anyone not watching them. Absent row means
   "shown, where the manifest asked", the same way plugin activation stores only explicit decisions, so an
   untouched install has an empty table. A decision for an entry a plugin no longer declares is inert rather
   than an error. This implements the long-unimplemented "admin can steer `order`" line — though **not**
