@@ -52,6 +52,34 @@ export interface PublicPlugin {
   attribution?: string | null;
 }
 
+/**
+ * One entry in the shell's navigation menu, as `GET /api/plugins/navigation` resolved it.
+ *
+ * Already filtered to the caller and already ordered — the host applies the `visibleTo` floor and the
+ * admin's decisions, so an anonymous visitor is never sent a podcaster-only entrance to hide client-side.
+ */
+export interface NavItem {
+  pluginId: string;
+  /** The subpath below `/p/{pluginId}/`; empty for the plugin's own root. */
+  path: string;
+  /** The href to link to, built by the host — never assembled from `pluginId` + `path` in the shell. */
+  href: string;
+  label: string;
+  /**
+   * A published `--mc-icon-*` name without the prefix, or null. Not validated by the host: an unknown name
+   * falls back when rendered, and must be treated as untrusted input (see `NavMenu`).
+   */
+  icon: string | null;
+}
+
+/** One entry as the admin edits it — every declared entry, including ones currently switched off. */
+export interface AdminNavItem extends NavItem {
+  pluginName: string;
+  visibleTo: string | null;
+  enabled: boolean;
+  order: number;
+}
+
 /** One declared config field with the value currently in effect — a row of the generated admin form. */
 export interface AdminConfigField {
   type: 'string' | 'number' | 'boolean';

@@ -159,6 +159,85 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void navEntriesNeedAPageToLinkInto() throws Exception {
+        // Every entry would be a link into a 404. Failing at load names the contradiction; the alternative
+        // is a menu item that is broken for as long as nobody clicks it.
+        assertThatThrownBy(parse("""
+                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]},
+                 "nav":[{"path":"","label":"P"}]}
+                """)::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("page");
+    }
+
+    @Test
+    void aNavPathMayNotClimbOutOfItsPlugin() throws Exception {
+        // Refused rather than quietly normalised: rewriting an author's declaration into a *different* URL
+        // and then linking to it is worse than telling them it was wrong.
+        assertThatThrownBy(parse(withPage("""
+                "nav":[{"path":"../../admin","label":"Sneaky"}]
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("plain subpath");
+
+        assertThatThrownBy(parse(withPage("""
+                "nav":[{"path":"/absolute","label":"Sneaky"}]
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("plain subpath");
+    }
+
+    @Test
+    void aNavEntryNeedsALabelAndAUniquePath() throws Exception {
+        assertThatThrownBy(parse(withPage("""
+                "nav":[{"path":"a","label":"  "}]
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("label");
+
+        assertThatThrownBy(parse(withPage("""
+                "nav":[{"path":"a","label":"One"},{"path":"a","label":"Two"}]
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("duplicate");
+    }
+
+    @Test
+    void anUnknownIconNeverRejectsThePlugin() throws Exception {
+        // Placement rejects because it decides whether a thing renders at all; an icon is decoration, and
+        // refusing to load a whole plugin over a mistyped one would be disproportionate. The host also has
+        // no icon list to check against — the palette lives in generated CSS.
+        PluginManifest manifest = parse(withPage("""
+                "nav":[{"path":"","label":"Wiki","icon":"definitely-not-an-icon"}]
+                """));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.navOrEmpty().getFirst().icon()).isEqualTo("definitely-not-an-icon");
+    }
+
+    @Test
+    void aPagePluginWithoutNavIsStillFine() throws Exception {
+        // The back-compat case: every page plugin that exists today declares no nav, and each must keep
+        // loading — the host synthesises a default entry for them rather than asking for a re-release.
+        PluginManifest manifest = parse(withPage(null));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.navOrEmpty()).isEmpty();
+        assertThat(manifest.declaresPage()).isTrue();
+    }
+
+    /** A manifest that declares a `page` slot, plus whatever extra top-level JSON the case needs. */
+    private static String withPage(String extra) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]},
+                 "slots":[{"scope":"site","element":"p-page","placement":"page"}]
+                 %s}
+                """.formatted(extra == null ? "" : "," + extra);
+    }
+
+    @Test
     void creditFieldsAreOptionalAndNeverValidated() throws Exception {
         // Both directions have to hold, because credit is not a correctness concern. A plugin written
         // before these fields existed must keep loading — it would otherwise be broken by a release that

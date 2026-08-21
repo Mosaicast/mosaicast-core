@@ -13,6 +13,7 @@ import { availableLocales, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
 import { Dropdown } from './Dropdown';
 import { Icon } from './Icon';
+import { NavMenu } from './NavMenu';
 import { SlotRegion } from './SlotRegion';
 
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
@@ -60,10 +61,13 @@ export function TopBar() {
     <header className="mc-top" data-slot="top">
       <div className="mc-top__inner">
         {/*
-          The brand is the way home — one affordance, the one every site trains people to expect. It used
-          to sit beside a nav whose only item was a second link to the same place, which cost a row of
-          header on a phone to say the same thing twice.
+          The brand stays the way home — one affordance, the one every site trains people to expect. The nav
+          that used to sit here was deleted because its only item was a second link to the same place; the
+          menu below earns the space by carrying what nothing else does (other feeds from anywhere, and the
+          plugin pages that were previously reachable only by typing a URL), and it hides itself when it
+          would not.
         */}
+        <NavMenu />
         <Link className="mc-brand" to="/">
           <img className="mc-brand__logo" src={logo} alt="" aria-hidden="true" />
           <span className="mc-brand__name">{name}</span>

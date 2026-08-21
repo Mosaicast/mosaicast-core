@@ -610,3 +610,86 @@
   background: var(--mc-surface-2);
   font-size: var(--mc-text-sm);
 }
+
+/* ---- Admin → Navigation: reordering (§7.3) ---- */
+
+/*
+ * Rows reorder by dragging for pointer users and by the move buttons for everyone else. The buttons are the
+ * real mechanism, not a fallback: HTML5 drag events never fire on touch and are invisible to assistive tech,
+ * so a drag-only list would be unusable for most of the ways this page is reached.
+ */
+.mc-navrow {
+  cursor: grab;
+}
+.mc-navrow:active {
+  cursor: grabbing;
+}
+
+.mc-navrow__move {
+  display: flex;
+  gap: var(--mc-space-1);
+  white-space: nowrap;
+}
+
+/*
+ * The move buttons carry no text — their name is the `aria-label`, and the glyph is a mask so it takes the
+ * button's own colour and needs nothing in the JS bundle.
+ */
+.mc-btn--icon {
+  padding: var(--mc-space-1) var(--mc-space-2);
+  line-height: 1;
+}
+.mc-move::before {
+  content: '';
+  display: block;
+  width: 1em;
+  height: 1em;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  background: currentColor;
+}
+.mc-move--up::before {
+  mask-image: var(--mc-icon-arrow-up);
+}
+.mc-move--down::before {
+  mask-image: var(--mc-icon-arrow-down);
+}
+/* At an end of the list there is nowhere to go; the button stays for a stable layout. */
+.mc-move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* The move column should not stretch — the entry names deserve the width. */
+.mc-navtable td:first-child {
+  width: 1%;
+}
+
+/*
+ * On a phone the table is wider than its box, and the column that fell off the end was Enabled — the main
+ * control after ordering. Scrolling to reach a switch you cannot see is not a control. So the two columns
+ * that are context rather than controls yield, the same way the log table drops source and area: plugin
+ * name and visibility floor are both readable elsewhere, while order, entry and the switch are what this
+ * page is for.
+ */
+@media (max-width: 560px) {
+  .mc-navtable th:nth-child(3),
+  .mc-navtable td:nth-child(3),
+  .mc-navtable th:nth-child(4),
+  .mc-navtable td:nth-child(4) {
+    display: none;
+  }
+}
+
+/*
+ * Bigger targets where fingers are the input. The arrow buttons are the ordering mechanism on touch —
+ * dragging does not fire there at all — so 32px, fine under a cursor, is the wrong size for the one control
+ * that has to work. `pointer: coarse` rather than a width: a narrow desktop window is still a mouse.
+ */
+@media (pointer: coarse) {
+  .mc-navtable .mc-move {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+}

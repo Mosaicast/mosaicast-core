@@ -94,6 +94,18 @@ final class PluginAccessPolicy {
     }
 
     private static int rank(Optional<Role> role) {
+        return rankOf(role);
+    }
+
+    /**
+     * The caller's privilege rank, for policies that live outside this class.
+     *
+     * <p>Exposed so {@link PluginNavService} can apply the {@code visibleTo} floor to navigation entries
+     * without a second copy of the ranking. It deliberately does <em>not</em> expose the
+     * {@code visibleTo}-string mapping: the two policies differ on an unrecognised value, and sharing that
+     * half would quietly give one of them the other's behaviour.
+     */
+    static int rankOf(Optional<Role> role) {
         return role.map(PluginAccessPolicy::rank).orElse(ANONYMOUS);
     }
 

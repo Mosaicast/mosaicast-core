@@ -292,3 +292,78 @@
     border: 0;
   }
 }
+
+/* ---- the navigation menu (§7.3) ---- */
+
+/*
+ * The hamburger sits left of the brand — the one uncontested spot in the header. The action cluster on the
+ * right is pushed by `margin-left: auto`, so a leading child does not move it; it only takes width from the
+ * brand, which already shrinks and truncates below 560px.
+ */
+.mc-navmenu {
+  flex: none;
+}
+
+/*
+ * A left-edge trigger needs a left-anchored panel: the default `right: 0` would open it off the side of the
+ * viewport, since there is nothing to the left of this control.
+ */
+.mc-menu__panel--start {
+  right: auto;
+  left: 0;
+}
+
+/*
+ * Section heading inside the menu. Reuses `.mc-menu__role`'s type treatment (the shell's established
+ * section label) and adds the room a grouped list needs.
+ */
+.mc-navmenu__heading {
+  padding: var(--mc-space-2) 0.6rem 0.3rem;
+  color: var(--mc-text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/*
+ * The rule between groups. Inset to the panel's own padding rather than bleeding full-width — a divider that
+ * touches the panel edge reads as the end of the menu rather than a break within it.
+ */
+.mc-menu__sep {
+  height: 1px;
+  margin: var(--mc-space-2) 0.6rem;
+  background: var(--mc-border);
+}
+
+/*
+ * Entry icons are drawn as masks so they take the item's own colour. `mask-image` resolves a published
+ * `--mc-icon-*` property, and CSS gives the fallback for free: an undefined custom property falls through to
+ * the second argument, so an icon name no palette entry matches renders the default instead of nothing.
+ */
+.mc-navmenu__icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  mask-image: var(--mc-navmenu-icon, var(--mc-icon-chevron-right));
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  background: currentColor;
+}
+
+/* Items carry an icon beside their label, so they lay out as a row rather than as plain text. */
+.mc-menu__panel .mc-navmenu__item {
+  display: flex;
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+
+@media (max-width: 560px) {
+  /*
+   * Widen the panel on a phone. The default 190px is sized for "Account / Admin / Log out"; feed titles and
+   * plugin labels are real prose and would wrap to two lines in that width.
+   */
+  .mc-menu__panel--start {
+    min-width: min(16rem, calc(100vw - var(--mc-space-4) * 2));
+  }
+}
