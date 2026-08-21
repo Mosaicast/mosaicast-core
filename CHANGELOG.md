@@ -72,6 +72,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   generated headers point at. Also records that the WhatsApp and Telegram marks are used nominatively: an
   MIT or CC0 licence covers copyright in a drawing and grants no trademark rights, and no licence could.
 
+- **Plugins can be installed from a spec instead of by hand (`0.6.15`, §7.1).** `scripts/install-plugin.sh`
+  resolves `owner/repo[@tag][#sha256:…]`, a tarball URL or a local file; in Docker, `MOSAICAST_PLUGINS` does
+  the same before the JVM starts, because plugins are read once at startup and anything arriving later would
+  stay invisible until the next restart. **No registry** — GitHub Releases are the index, reached through
+  the plain `releases/…/download/plugin.tgz` redirect, so there is no API call, no token and no JSON parsing
+  in a shell script. Restarts are idempotent: an already-installed spec is skipped without re-downloading,
+  and an unresolvable one fails the container rather than booting without a plugin that was asked for. The
+  runtime image resolves prebuilt tarballs only and says so; the clone-and-build fallback needs git and a
+  JDK, which belong on a developer machine and not in a runtime image. The installed folder name comes from
+  the manifest's own `id` — the host rejects a folder that disagrees with it, so guessing would only move
+  the error somewhere less obvious. **Pinning a tag and a checksum is the documented default**: a plugin is
+  trusted, in-process, unsandboxed code, and this makes installing one an env var away, so it should make
+  installing a *known* one the path of least resistance.
+- **A release workflow template for plugin repos (`0.6.15`).** `dev/templates/release-plugin.yml` builds on
+  a published release, attaches `plugin.tgz`, refuses a tag that disagrees with the manifest version, and
+  appends the tarball's SHA-256 to the release notes — so an operator can copy a pinned, verified spec
+  rather than being asked to trust whatever the tag points at today.
+
 ### Changed
 
 - **The info (ⓘ) menu is no longer hidden on a bare install (`0.6.15`).** It appeared only once a legal page

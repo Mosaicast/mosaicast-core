@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
 # Copy into the core repo root. Local v1 stack: app + Postgres.
 # Start:  cp .env.example .env  (fill in)  →  docker compose up --build
 # Redis + reverse proxy are prepared for v3 and commented out.
@@ -36,6 +39,10 @@ services:
       MOSAICAST_DB_USER: ${POSTGRES_USER:-mosaicast}
       MOSAICAST_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
       MOSAICAST_PLUGINS_DIR: /app/plugins
+      # Plugins to fetch at boot (see .env.example). Empty by default: an install that wants none downloads
+      # nothing. Prebuilt release tarballs only in the container — no git or JDK in the runtime image.
+      MOSAICAST_PLUGINS: ${MOSAICAST_PLUGINS:-}
+      MOSAICAST_PLUGINS_REPLACE: ${MOSAICAST_PLUGINS_REPLACE:-false}
       MOSAICAST_BASE_URL: ${MOSAICAST_BASE_URL:-http://localhost:8080}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:-}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:-}
