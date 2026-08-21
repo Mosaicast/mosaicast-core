@@ -106,6 +106,54 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void navigationIsAnonymousAndFilteredToTheCaller() {
+        // The whole path: a manifest on disk -> resolution -> JSON, with the role floor applied on the
+        // server. An anonymous visitor is never told a podcaster-only entrance exists — filtering it in the
+        // browser would put it in the page source of someone who may not have it.
+        ResponseEntity<String> anonymous = rest.getForEntity("/api/plugins/navigation", String.class);
+
+        assertThat(anonymous.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(anonymous.getBody()).contains("\"label\":\"Good Fixture\"").contains("\"href\":\"/p/good\"");
+        assertThat(anonymous.getBody()).doesNotContain("Staff only");
+
+        Session podcaster = devLogin("podcaster");
+        String forStaff = rest.exchange("/api/plugins/navigation", HttpMethod.GET, podcaster.get(), String.class)
+                .getBody();
+        assertThat(forStaff).contains("Staff only").contains("\"href\":\"/p/good/_secret\"");
+
+        // A plugin with no page contributes nothing, and a rejected one is not there to contribute.
+        assertThat(anonymous.getBody()).doesNotContain("\"pluginId\":\"broken\"");
+    }
+
+    @Test
+    void anAdminCanHideAndReorderNavigationEntries() {
+        Session admin = devLogin("admin");
+
+        String before = rest.exchange("/api/admin/navigation", HttpMethod.GET, admin.get(), String.class).getBody();
+        // The admin view shows every declared entry, including the one an anonymous visitor cannot see.
+        assertThat(before).contains("Good Fixture").contains("Staff only");
+
+        // Hide the root entry and push the other to the front. A stale decision for an entry nobody
+        // declares is accepted and stored — a plugin may be mid-upgrade — and simply resolves to nothing.
+        String body = """
+                [{"pluginId":"good","path":"","enabled":false,"order":5},
+                 {"pluginId":"good","path":"_secret","enabled":true,"order":1},
+                 {"pluginId":"good","path":"_gone","enabled":true,"order":0}]
+                """;
+        ResponseEntity<String> saved = rest.exchange(
+                "/api/admin/navigation", HttpMethod.PUT, admin.write(body, true), String.class);
+        assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        String anonymous = rest.getForEntity("/api/plugins/navigation", String.class).getBody();
+        assertThat(anonymous).doesNotContain("Good Fixture");
+        assertThat(anonymous).doesNotContain("_gone");
+
+        String forStaff = rest.exchange("/api/plugins/navigation", HttpMethod.GET,
+                devLogin("podcaster").get(), String.class).getBody();
+        assertThat(forStaff).contains("Staff only").doesNotContain("Good Fixture");
+    }
+
+    @Test
     void adminSeesLoadStateWithReasons() {
         Session admin = devLogin("admin");
         ResponseEntity<String> response = rest.exchange(

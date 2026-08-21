@@ -43,11 +43,26 @@
       "visibleTo": "anonymous"
     }
   ],
+  "nav": [
+    {
+      "path": "",
+      "label": "Good Fixture",
+      "icon": "book"
+    },
+    {
+      "path": "_secret",
+      "label": "Staff only",
+      "visibleTo": "podcaster"
+    }
+  ],
   "storage": "doc",
   "data": {
     "readableBy": "anonymous",
     "writableBy": "podcaster",
-    "backendOwned": ["episode-count", "agg:*"]
+    "backendOwned": [
+      "episode-count",
+      "agg:*"
+    ]
   },
   "config": {
     "refreshIntervalMinutes": {

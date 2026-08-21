@@ -9,6 +9,7 @@ import tools.jackson.databind.JsonNode;
 import dev.mosaicast.plugin.api.DocStore;
 import dev.mosaicast.plugin.api.PlatformApi;
 import java.net.URI;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +35,9 @@ import java.util.Set;
  * @param data        the doc-store access floors and backend-owned keys (§7.2); absent means the closed
  *                    default and nothing reserved
  * @param consent     declared consent categories / external sources
+ * @param nav         ways into a {@code page} plugin, offered to the shell's navigation menu (§7.3). Absent
+ *                    on a page plugin means one default entry at its root; absent on any other plugin means
+ *                    nothing, and declaring entries without a {@code page} slot is rejected
  * @param license     SPDX identifier of the plugin's own licence (e.g. {@code AGPL-3.0-or-later}); shown on
  *                    the public About page. Free-form and never validated — an unrecognised or absent value
  *                    must not stop a plugin loading, because credit is not a correctness concern
@@ -58,6 +62,7 @@ public record PluginManifest(
         DataAccess data,
         Blobs blobs,
         Consent consent,
+        List<NavEntry> nav,
         // Credit, not contract. Boxed and unvalidated on purpose: Jackson 3 refuses to map a missing value
         // onto a primitive, and `validate()` deliberately says nothing about these — a plugin written
         // before they existed must keep loading, and one that spells its licence oddly is still a working
@@ -68,7 +73,8 @@ public record PluginManifest(
         String attribution) {
 
     /**
-     * The manifest without its credit fields — everything the host needs to actually run a plugin.
+     * The manifest without its navigation or credit fields — everything the host needs to actually run a
+     * plugin.
      *
      * Exists so that adding another purely descriptive field does not ripple through every construction
      * site that never cared about them. Jackson always uses the canonical constructor; this is for callers
@@ -78,7 +84,44 @@ public record PluginManifest(
                           Frontend frontend, List<Slot> slots, PluginStorage storage,
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, consent,
-                null, null, null, null);
+                null, null, null, null, null);
+    }
+
+    /** The declared nav entries, or an empty list — callers never have to null-check. */
+    public List<NavEntry> navOrEmpty() {
+        return nav == null ? List.of() : nav;
+    }
+
+    /** Whether the plugin declares a {@code page} slot, i.e. whether {@code /p/{id}} renders anything. */
+    public boolean declaresPage() {
+        return slots != null && slots.stream().anyMatch(s -> PLACEMENT_PAGE.equals(s.placement()));
+    }
+
+    /**
+     * Strips a leading slash and any {@code .}/{@code ..} segments from a nav path.
+     *
+     * <p>The same normalisation the shell applies to {@code ctx.route.navigate}, for the same reason: an
+     * entry addresses a subpath <em>inside</em> its own plugin, and neither a core route nor another
+     * plugin's page is nameable from here. Unlike the runtime version this one only cleans — a path that
+     * needed cleaning is rejected at load, because silently rewriting an author's declaration into a
+     * different URL is worse than telling them it was wrong.
+     */
+    static String normalizeNavPath(String path) {
+        if (path == null || path.isBlank()) {
+            return "";
+        }
+        String[] segments = path.replaceAll("^/+", "").split("/");
+        StringBuilder cleaned = new StringBuilder();
+        for (String segment : segments) {
+            if (segment.isEmpty() || ".".equals(segment) || "..".equals(segment)) {
+                continue;
+            }
+            if (!cleaned.isEmpty()) {
+                cleaned.append('/');
+            }
+            cleaned.append(segment);
+        }
+        return cleaned.toString();
     }
 
     /** Storage kinds a manifest may declare; see {@link PluginStorage} for the two shapes it takes. */
@@ -232,6 +275,40 @@ public record PluginManifest(
     }
 
     /**
+     * One way into a {@code page} plugin, offered to the shell's navigation menu.
+     *
+     * <p>A page plugin owns {@code /p/{id}/*} but nothing links to it, so without this a visitor has to
+     * know the URL. A plugin declares <em>what</em> its entrances are; the host decides where and how they
+     * render — navigation is host chrome, and a plugin drawing its own header link would style it its own
+     * way (the {@code top} region already allows that, and no plugin uses it).
+     *
+     * <p>Declaring none is normal: a page plugin with no {@code nav} gets one default entry at its root,
+     * labelled with its manifest name. Several are for plugins with genuinely distinct entrances — a wiki's
+     * front page, a random article, a "new page" form only a podcaster should see.
+     *
+     * @param path      the subpath below {@code /p/{id}/}; empty or {@code null} means the plugin's root.
+     *                  Normalised and range-checked at load, so an entry can never point outside its own
+     *                  plugin
+     * @param label     what the menu shows. Required — an entry nobody can read is not an entry. Taken from
+     *                  the manifest verbatim and <strong>not translated</strong>, matching the consent
+     *                  declarations; per-locale labels would be additive later
+     * @param icon      a published {@code --mc-icon-*} name (§12.3), without the prefix. Optional, and
+     *                  <strong>never validated</strong>: an unknown name falls back at render. Rejecting a
+     *                  whole plugin over a mistyped decoration would be disproportionate, and the host holds
+     *                  no icon list — the palette lives in generated CSS, and a copy here would be a second
+     *                  source of truth that could disagree with it
+     * @param visibleTo the minimum role, as everywhere else; absent means anonymous
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record NavEntry(String path, String label, String icon, String visibleTo) {
+
+        /** The path with a leading slash and any {@code .}/{@code ..} segments removed. */
+        public String normalizedPath() {
+            return normalizeNavPath(path);
+        }
+    }
+
+    /**
      * A declared config field: its type, default value (raw JSON) and who may edit it (ARCHITECTURE §7.2).
      * The host renders these as a generic admin form — plugins never build their own config UI — so the
      * declaration has to carry enough to render and validate an input.
@@ -356,6 +433,61 @@ public record PluginManifest(
         validateData();
         validateBlobs();
         validateConsent();
+        validateNav();
+    }
+
+    /**
+     * Validates declared navigation entries (§7.3).
+     *
+     * <p>What is rejected is what would produce a link that does not work, or one nobody can read:
+     *
+     * <ul>
+     *   <li><strong>Entries without a {@code page} slot.</strong> {@code /p/{id}} renders nothing for such a
+     *       plugin, so every entry would be a link into a 404. Failing at load names the contradiction; the
+     *       alternative is a menu item that is broken for as long as nobody clicks it.</li>
+     *   <li><strong>A blank label.</strong> The menu has nothing to draw.</li>
+     *   <li><strong>A path that needed normalising.</strong> A leading slash or a {@code ..} segment is
+     *       refused rather than quietly cleaned: rewriting an author's declaration into a <em>different</em>
+     *       URL and then linking to it is a worse outcome than saying it was wrong.</li>
+     *   <li><strong>Two entries on the same path.</strong> They are the same destination, and the admin
+     *       overrides that come later are keyed by it — duplicates would make an ordering ambiguous.</li>
+     * </ul>
+     *
+     * <p>{@code icon} is deliberately absent from this list. It is decoration, and refusing to load a whole
+     * plugin over a mistyped one would be disproportionate; an unknown name falls back when rendered. The
+     * host also has no list to check against — the icon palette lives in generated CSS, and a copy here
+     * would be a second source of truth free to disagree with it.
+     */
+    private void validateNav() {
+        List<NavEntry> entries = navOrEmpty();
+        if (entries.isEmpty()) {
+            return;
+        }
+        if (!declaresPage()) {
+            throw new PluginValidationException(
+                    "nav entries declared without a `page` slot — /p/" + id + " would render nothing");
+        }
+        Set<String> seen = new HashSet<>();
+        for (NavEntry entry : entries) {
+            if (entry.label() == null || entry.label().isBlank()) {
+                throw new PluginValidationException("nav entry has no label");
+            }
+            String declared = entry.path() == null ? "" : entry.path();
+            String normalized = normalizeNavPath(declared);
+            if (!declared.equals(normalized)) {
+                throw new PluginValidationException(
+                        "nav path must be a plain subpath of the plugin, without a leading `/` or `..`: "
+                                + declared);
+            }
+            if (!seen.add(normalized)) {
+                throw new PluginValidationException("duplicate nav path: " + describePath(normalized));
+            }
+        }
+    }
+
+    /** Names the plugin root readably — {@code ""} in an error message reads as a missing value. */
+    private static String describePath(String path) {
+        return path.isEmpty() ? "(the plugin root)" : path;
     }
 
     /**

@@ -14,6 +14,41 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A site navigation menu, and plugin-declared entry points (`0.6.16`, §7.3).** A `page` plugin owned
+  `/p/{id}/*` and nothing linked to it, so the only way in was to type the URL — a fresh wiki was invisible
+  by construction. The gap was wider than plugins: `FeedTabs` renders only inside the episode feed, so from
+  an episode, `/about` or a plugin page there was **no feed navigation at all**. A hamburger left of the
+  brand now holds both — the feeds (All + one per feed, above one feed) and the plugin pages.
+  - **It appears only when it carries more than Home.** A left-of-brand nav existed here once and was
+    deleted because its only item was a second link home; a menu holding just "Home" would be that again.
+    So: at least one plugin entry, or more than one feed. A single-feed install with no page plugins gets
+    no menu and the brand stays the one way home.
+  - Plugins may declare `nav[]` — a subpath, a label, an optional icon from the published `--mc-icon-*`
+    palette (§12.3) and a `visibleTo` floor. **Declaring nothing still works**: a page plugin gets one
+    default entry at its root, so every plugin that exists today became reachable without re-releasing.
+    Additive in both directions, so **no `platformApi` bump** — a bump would reject every installed plugin
+    until each re-released.
+  - An unknown icon name **never rejects a plugin**. Placement rejects because it decides whether a thing
+    renders at all; an icon is decoration, and the host holds no icon list to check against — the palette
+    lives in generated CSS, and a copy in Java would be a second source of truth. Unknown names fall back
+    when drawn, which CSS gives for free.
+- **Admin → Navigation (`0.6.16`, §7.3).** Enable, disable and order the entries. Absent row means
+  "shown, where the manifest asked", the same way plugin activation stores only explicit decisions, so an
+  untouched install has an empty table. A decision for an entry a plugin no longer declares is inert rather
+  than an error. This implements the long-unimplemented "admin can steer `order`" line — though **not**
+  through plugin config, which is scalar-only and could not express a cross-plugin ordering.
+
+### Changed
+
+- **`Dropdown` gained keyboard navigation and an `align` prop (`0.6.16`).** Arrow keys, `Home`/`End`, and
+  focus returning to the trigger on close — previously focus was orphaned onto an unmounted node. A twelve-
+  item nav menu is where the absence became indefensible; the fix improves the language, info and account
+  menus too. `align="start"` hangs the panel from the left edge, which a left-side trigger needs.
+
+## [0.6.15] — 2026-08-21
+
+### Added
+
 - **A public `/about` page (`0.6.15`, §12.6).** A visitor had no way to find out what this software is, what
   the instance is running, or what any of it is built on. The page answers all four, each section taking up
   the question the one before it raises: the operator's own blurb first, because someone arrived at *this
@@ -1408,7 +1443,8 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
-[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.14...HEAD
+[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.15...HEAD
+[0.6.15]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.14...v0.6.15
 [0.6.14]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...v0.6.14
 [0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
 [0.1.0]: https://github.com/Mosaicast/mosaicast-core/releases/tag/v0.1.0
