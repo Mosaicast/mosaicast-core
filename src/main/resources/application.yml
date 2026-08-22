@@ -52,11 +52,11 @@ mosaicast:
     auth-window: 1m
     upload-limit: ${MOSAICAST_RATE_LIMIT_UPLOAD:10}
     upload-window: 1m
-  # Which backend stores which blob namespace (ARCHITECTURE §11). `postgres` is the only one registered
-  # today; a filesystem or object-store backend becomes a bean plus a line under `namespaces`, e.g.
+  # Which backend stores which blob namespace (ARCHITECTURE §11). Two are registered: `postgres`, and
+  # `filesystem` once `filesystem.root` is set — an object-store backend becomes a bean plus a line here.
   #
   #   namespaces:
-  #     plugin: s3        # every plugin's files, matched by prefix
+  #     plugin: filesystem   # every plugin's files, matched by prefix
   #     branding: postgres
   #
   # Keys match as exact namespaces first, then by longest `/` prefix. A name with no backend behind it
@@ -64,6 +64,15 @@ mosaicast:
   # store the operator did not choose, and the symptom appears long after the cause.
   blobs:
     default-backend: ${MOSAICAST_BLOB_BACKEND:postgres}
+    # The `filesystem` backend registers only when a root is configured, which is why this stays
+    # commented out rather than defaulting to an empty string: an install that never asked for file
+    # storage on disk should not acquire a directory. Set both lines to move plugin files there, and back
+    # the directory up like any other data — the objects and their JSON sidecars are portable on purpose.
+    #
+    # namespaces:
+    #   plugin: filesystem
+    # filesystem:
+    #   root: /var/lib/mosaicast/blobs
 
   # Plugin file storage (ARCHITECTURE §11.1). Two kinds of number, and the difference matters:
   #

@@ -14,6 +14,28 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A filesystem blob backend (`0.6.20`, §11).** The seam has had one backend since it was built, so
+  "one backend per namespace" was a shape rather than a setting anyone could use. `filesystem` registers
+  once `mosaicast.blobs.filesystem.root` is set, and `mosaicast.blobs.namespaces.plugin=filesystem` moves
+  every plugin's files onto disk while branding stays in Postgres. **A self-hoster with a big disk and no
+  object store is the common case**, and it validates the seam against a second real backend rather than a
+  test double.
+  - Objects live at `<root>/<namespace>/objects/<id>` with a JSON sidecar beside them, and a key pointer
+    under `keys/`. Two indexes because there are two lookups — `stat(ref)` has only an id, `stat(ns, key)`
+    only a key — and a single one would make the other a directory walk on a per-request path. The sidecar
+    is a plain file rather than an xattr, because xattrs do not survive a tarball or an `rsync` without
+    `-X`, which is exactly the backup an operator will rely on.
+  - Writes go through a temp file and an atomic move, so a crash mid-upload leaves a temp file rather than
+    a half-written object that `stat` would report a size for.
+  - **Path safety is asserted, not assumed.** A namespace or key that escaped the root would turn a plugin
+    upload into a write anywhere the process can reach. Both are host-generated today (a plugin id, a
+    UUID); every segment is matched against a conservative pattern and the resolved path is re-checked to
+    be inside the root.
+  - `usedBytes` walks the sidecars — fine for the install this is for, and the obvious thing to replace
+    with a maintained counter if a large one proves otherwise.
+  - S3 is **not** here: it needs presigned URLs (and a controller that redirects instead of streaming), a
+    maintained size counter, and a decision about cursor paging that is an SDK contract change. See #88.
+
 - **Account deletion, and the half of it core does not own (`0.6.19`, §12, SDK `UserDataHandler`).** §12
   promised that deleting an account **pseudonymises** a plugin's public contributions rather than hard
   deleting them — and bingo is a plugin, so core could not keep that promise: it provisioned those tables

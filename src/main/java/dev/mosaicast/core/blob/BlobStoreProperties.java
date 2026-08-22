@@ -29,21 +29,37 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * prefix — so {@code plugin} covers every plugin without naming them, which matters because an operator
  * cannot enumerate plugins that are not installed yet.
  *
- * <p><strong>Today the only registrable name is {@code postgres}</strong>, and a name with no backend behind
- * it fails at startup rather than silently falling through to the default. A routing rule that points
- * nowhere is a misconfiguration whose symptom would otherwise be files quietly landing in the wrong store.
+ * <p><strong>Two names are registrable</strong>: {@code postgres} always, and {@code filesystem} once
+ * {@link Filesystem#root()} is set. A name with no backend behind it fails at startup rather than silently
+ * falling through to the default — a routing rule that points nowhere is a misconfiguration whose symptom
+ * would otherwise be files quietly landing in the wrong store.
  *
  * @param defaultBackend  the backend for any namespace no rule matches
  * @param namespaces      namespace (or prefix) → backend name
+ * @param filesystem      settings for the {@code filesystem} backend; absent means it is not registered
  */
 @ConfigurationProperties(prefix = "mosaicast.blobs")
 public record BlobStoreProperties(
         @DefaultValue("postgres") String defaultBackend,
-        Map<String, String> namespaces) {
+        Map<String, String> namespaces,
+        Filesystem filesystem) {
 
     /** Normalises an absent {@code namespaces} block to an empty map, which is the common configuration. */
     public BlobStoreProperties {
         namespaces = namespaces == null ? Map.of() : Map.copyOf(namespaces);
+        filesystem = filesystem == null ? new Filesystem(null) : filesystem;
+    }
+
+    /**
+     * Settings for the {@code filesystem} backend (ARCHITECTURE §11).
+     *
+     * <p>That backend registers only when a root is configured, so an install that never asked for it does
+     * not silently acquire a directory — and a {@code namespaces} rule naming {@code filesystem} without a
+     * root fails startup, which is the posture a rule naming an unregistered backend already has.
+     *
+     * @param root where objects live; created at startup when it does not exist
+     */
+    public record Filesystem(String root) {
     }
 
     /** The routing rules, normalised: trimmed, lower-cased names, no empty entries. */

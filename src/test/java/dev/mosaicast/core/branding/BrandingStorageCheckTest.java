@@ -36,7 +36,7 @@ class BrandingStorageCheckTest {
     private static BrandingStorageCheck checkWith(Map<String, String> namespaces) {
         BlobStoreRouter router = new BlobStoreRouter(
                 List.of(postgres(), new InMemoryBlobStore()),
-                new BlobStoreProperties(PostgresBlobStore.NAME, namespaces));
+                new BlobStoreProperties(PostgresBlobStore.NAME, namespaces, null));
         return new BrandingStorageCheck(router);
     }
 
@@ -65,7 +65,7 @@ class BrandingStorageCheckTest {
         // The subtler case: nobody named `branding`, but the default backend moved, so it goes along too.
         BlobStoreRouter router = new BlobStoreRouter(
                 List.of(postgres(), new InMemoryBlobStore()),
-                new BlobStoreProperties(InMemoryBlobStore.NAME, Map.of()));
+                new BlobStoreProperties(InMemoryBlobStore.NAME, Map.of(), null));
 
         assertThatThrownBy(() -> new BrandingStorageCheck(router).verifyBrandingStaysInPostgres())
                 .isInstanceOf(IllegalStateException.class);
@@ -77,7 +77,7 @@ class BrandingStorageCheckTest {
         // away has to keep working, since that is the point of the seam.
         BlobStoreRouter router = new BlobStoreRouter(
                 List.of(postgres(), new InMemoryBlobStore()),
-                new BlobStoreProperties(PostgresBlobStore.NAME, Map.of("plugin", InMemoryBlobStore.NAME)));
+                new BlobStoreProperties(PostgresBlobStore.NAME, Map.of("plugin", InMemoryBlobStore.NAME), null));
 
         assertThatCode(() -> new BrandingStorageCheck(router).verifyBrandingStaysInPostgres())
                 .doesNotThrowAnyException();
