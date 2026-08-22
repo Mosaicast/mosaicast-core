@@ -187,6 +187,39 @@ describe('buildCtx', () => {
     expect(targets).toEqual(['/p/sample/page?tab=history#top', '/p/sample/page?next=../x']);
   });
 
+  it('hands a plugin with no tags block no tags client at all', () => {
+    // The third repetition of the schema/blobs rule, and the reason it is a rule: what a plugin may touch
+    // is decided in the manifest, so a client that 403s on every call would say the wrong thing.
+    expect(buildCtx(base).tags).toBeNull();
+
+    const tags = buildCtx({ ...base, hasTags: true }).tags;
+    expect(typeof tags?.all).toBe('function');
+    expect(typeof tags?.tagEpisode).toBe('function');
+  });
+
+  it('always has a doc client and a feeds client', () => {
+    // Neither is declared in a manifest: every plugin has a doc store, and `feeds` reads host data the same
+    // visitor can already read from /api/episodes/*.
+    const ctx = buildCtx(base);
+    expect(typeof ctx.docs.get).toBe('function');
+    expect(typeof ctx.feeds.displayMany).toBe('function');
+  });
+
+  it('exposes the page URL’s query and hash, and only on a page mount', () => {
+    const onPage = buildCtx({ ...base, routePath: 'glossary', routeQuery: '?tab=history&page=2', routeHash: '#top' });
+
+    expect(onPage.route.query.get('tab')).toBe('history');
+    expect(onPage.route.query.get('page')).toBe('2');
+    // Without the '#': a plugin writing `#${ctx.route.hash}` should not produce '##top'.
+    expect(onPage.route.hash).toBe('top');
+
+    // A card in a slot region sits on a core route whose query is the shell's filter state — `ctx.filter`'s
+    // business, not this one's.
+    const inSlot = buildCtx(base);
+    expect([...inSlot.route.query.keys()]).toEqual([]);
+    expect(inSlot.route.hash).toBe('');
+  });
+
   it('is a no-op rather than a throw when no router is above the mount', () => {
     // A plugin calls navigate inside its own render; an unwired host must not turn that into a crashed
     // tile. The SlotRegion boundary would catch it, but blanking a tile for a missing router is worse.

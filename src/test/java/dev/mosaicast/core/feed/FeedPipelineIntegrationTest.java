@@ -266,7 +266,9 @@ class FeedPipelineIntegrationTest {
         assertThat(detail.episodeCount()).isEqualTo(2);
 
         // Tags parsed from itunes:keywords, exposed and filterable.
-        assertThat(episodes.tags(feed.id())).contains("alpha", "beta", "christmas");
+        assertThat(episodes.tags(feed.id()))
+                .extracting(dev.mosaicast.core.tag.TagOption::tag)
+                .contains("alpha", "beta", "christmas");
         var christmas = episodes.listSite(feed.id(), null, "christmas", true, PageRequest.of(0, 20));
         assertThat(christmas.getContent()).singleElement()
                 .satisfies(e -> assertThat(e.title()).isEqualTo("Fancy One"));

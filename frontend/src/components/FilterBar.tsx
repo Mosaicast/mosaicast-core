@@ -19,10 +19,21 @@ export interface FilterValues {
   order: 'newest' | 'oldest';
 }
 
+/**
+ * One tag filter option: the canonical key the URL carries, and the label a visitor reads.
+ *
+ * Two fields because the host normalises tag keys (§6.1) so several writers converge on one word — and a
+ * filter list lower-cased by that internal rule would be a visible regression for an invisible reason.
+ */
+export interface TagOption {
+  tag: string;
+  label: string;
+}
+
 interface FilterBarProps {
   values: FilterValues;
   seasons: number[];
-  tags: string[];
+  tags: TagOption[];
   onChange: (patch: Partial<FilterValues>) => void;
 }
 
@@ -59,8 +70,8 @@ export function FilterBar({ values, seasons, tags, onChange }: FilterBarProps) {
           <select value={values.tag} onChange={(e) => onChange({ tag: e.target.value })}>
             <option value="">{t('filter.allTags')}</option>
             {tags.map((tag) => (
-              <option key={tag} value={tag}>
-                {tag}
+              <option key={tag.tag} value={tag.tag}>
+                {tag.label}
               </option>
             ))}
           </select>

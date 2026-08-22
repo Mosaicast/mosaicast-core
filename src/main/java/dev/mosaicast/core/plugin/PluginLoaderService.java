@@ -51,6 +51,7 @@ public class PluginLoaderService implements ApplicationRunner {
     private final ObjectMapper objectMapper;
     private final PluginSchemaMigrator schemaMigrator;
     private final PluginBlobService blobService;
+    private final dev.mosaicast.core.tag.TagService tagService;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** Registrations in discovery order, keyed by id; populated once at startup. */
@@ -70,6 +71,7 @@ public class PluginLoaderService implements ApplicationRunner {
                                FeedAccess feedAccess, PluginScheduler scheduler,
                                PluginSettingsService settings, ObjectMapper objectMapper,
                                PluginSchemaMigrator schemaMigrator, PluginBlobService blobService,
+                               dev.mosaicast.core.tag.TagService tagService,
                                org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.properties = properties;
         this.dataService = dataService;
@@ -79,6 +81,7 @@ public class PluginLoaderService implements ApplicationRunner {
         this.objectMapper = objectMapper;
         this.schemaMigrator = schemaMigrator;
         this.blobService = blobService;
+        this.tagService = tagService;
         this.jdbc = jdbc;
     }
 
@@ -173,7 +176,9 @@ public class PluginLoaderService implements ApplicationRunner {
         // Null unless the manifest asked for it, mirroring the schema store above: what a plugin may store
         // is decided in the manifest and nowhere else (§11).
         PluginBlobsImpl blobs = manifest.declaresBlobs() ? new PluginBlobsImpl(manifest, blobService) : null;
-        return new PluginContextImpl(manifest.id(), store, schema, blobs, config, feedAccess, scheduler);
+        // Same rule again for the shared tag vocabulary (§6.1): declared or absent, never inferred.
+        TagsImpl tags = manifest.declaresTags() ? new TagsImpl(manifest, tagService) : null;
+        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, config, feedAccess, scheduler);
     }
 
     /**

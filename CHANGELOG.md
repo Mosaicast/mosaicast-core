@@ -14,6 +14,44 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **The host side of plugin contract `0.9.0` (`0.6.17`, §6.1/§7.5).** The SDK settled a release's worth of
+  contract ahead of implementation — `ctx.tags`, `ctx.feeds`, `ctx.docs`, typed API errors — and this is the
+  half that makes it real. Every piece came from the same observation: **the host held something a plugin
+  could only re-implement badly on its own**, so each plugin did, slightly differently.
+  - **Tags are now a site-wide vocabulary with provenance.** `episode_tag` gains a `source`
+    (`feed` · `manual` · `plugin:<id>`) and the reconciler's per-poll wipe narrows to the rows the feed owns
+    — before this, **a podcaster's or a plugin's tag survived exactly until the next poll**, which is
+    minutes. A `tag` table holds the canonical key every writer converges on (trim, collapse whitespace,
+    casefold) plus the display label kept from first use, so `Maritime`, `maritime` and `maritime ` stop
+    being three tags without lower-casing what a visitor reads. `plugin_tag` holds a plugin's assignments
+    against its own opaque subject keys.
+  - **What a plugin may never do, the host now enforces rather than asks:** remove another writer's
+    assignment (including the feed's), delete a word from the shared vocabulary, or rename one. Tagging an
+    **episode** is a declared capability (`"tags": { "writesEpisodes": true }`), separate from tagging its
+    own subjects, because it changes the shell's filter options *and* what `DefaultRelatedProvider`
+    recommends. Without the declaration the two episode endpoints are a 403 with a reason, never a silently
+    dropped write.
+  - **`GET /api/plugins/{id}/episodes?slugs=` — display snapshots for the frontend.** The Java contract
+    could read one and the frontend could not, so `mosaicast-plugin-wiki` projected episode titles and
+    artwork into its own doc store on a schedule and said so in a comment. The host filters the answer, so a
+    withdrawn episode is **absent rather than redacted** — and indistinguishable from a slug nobody minted,
+    because telling those apart would confirm an episode the visitor was not shown. Batched (200, clamped)
+    and ISO-8601 on the wire, which is why it projects rather than serialising the contract type.
+  - **`ctx.docs`, `ctx.route.query`/`hash`, `getOrNull` and typed refusals in the shell.** Rejections now
+    carry `status` and the whole RFC-7807 body, so the two 403s the host words differently — the read floor
+    refused you, versus this key is `backendOwned` — are finally distinguishable by the plugin they were
+    written for. `getOrNull` gives "nothing saved yet" a name: every plugin wrote `catch(() => undefined)`
+    around a missing doc and swallowed the 500, the 403 and the network failure with it.
+  - **`blobs.upload` normalises the declared type.** Firefox reads `File.type` from the OS MIME database and
+    hands over `''` where that lookup fails, so `FormData` sent `application/octet-stream` and §11.1 refused
+    on the declared type before sniffing the bytes: **a valid PNG rejected in one browser only**. Guessing is
+    safe here precisely because the host still reads the leading bytes.
+  - `/api/tags` now returns `{ tag, label }` rather than bare strings, and the shell's tag filter shows the
+    label while filtering by the key. A `?tag=` written in any spelling is canonicalised, so old links and
+    `ctx.links.feed(slug, { tag })` keep matching.
+  - Purging a plugin's data now takes its tag assignments with it; the vocabulary entries stay, because a
+    word other episodes still carry is not the departing plugin's to take.
+
 - **A site navigation menu, and plugin-declared entry points (`0.6.16`, §7.3).** A `page` plugin owned
   `/p/{id}/*` and nothing linked to it, so the only way in was to type the URL — a fresh wiki was invisible
   by construction. The gap was wider than plugins: `FeedTabs` renders only inside the episode feed, so from

@@ -29,7 +29,8 @@ public class PluginManifestController {
         return plugins.allActive().stream()
                 .map(PluginRegistration::manifest)
                 .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), m.slots(),
-                        !m.schemaEntities().isEmpty(), m.declaresBlobs(),
+                        !m.schemaEntities().isEmpty(), m.declaresBlobs(), m.declaresTags(),
+                        m.writesEpisodeTags(),
                         m.license(), m.author(), m.homepage(), m.attribution()))
                 .toList();
     }
@@ -46,6 +47,12 @@ public class PluginManifestController {
      *                  {@code ctx.blobs} (§11). The declared limits stay out: they are the manifest's
      *                  *ask*, this install may grant less, and the only honest source is the quota
      *                  endpoint.
+     * @param hasTags   whether the plugin declares a {@code tags} block, the same signal again for
+     *                  {@code ctx.tags} (§6.1)
+     * @param tagsWriteEpisodes whether it declared the episode-tagging capability. Public because it is one:
+     *                  what a plugin may change about the site's own filters and recommendations is not a
+     *                  secret from the visitor looking at the result, and the shell uses it to decide whether
+     *                  to offer the write at all rather than to let it fail at the endpoint
      * @param license   SPDX identifier the plugin declared, or {@code null}. Anonymous by design: what a
      *                  visitor is owed on the About page is what this install runs and under what terms,
      *                  and that is not privileged information.
@@ -54,7 +61,8 @@ public class PluginManifestController {
      * @param attribution whoever else the plugin wants to credit, or {@code null}
      */
     public record PublicPlugin(String id, String name, String version, Frontend frontend, List<Slot> slots,
-                               boolean hasSchema, boolean hasBlobs,
+                               boolean hasSchema, boolean hasBlobs, boolean hasTags,
+                               boolean tagsWriteEpisodes,
                                String license, String author, String homepage, String attribution) {
     }
 }

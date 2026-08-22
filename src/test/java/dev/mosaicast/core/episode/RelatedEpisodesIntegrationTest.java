@@ -48,6 +48,9 @@ class RelatedEpisodesIntegrationTest {
     private EpisodeTagRepository tags;
 
     @Autowired
+    private dev.mosaicast.core.tag.TagService vocabulary;
+
+    @Autowired
     private EpisodePinRepository pins;
 
     @Autowired
@@ -189,7 +192,12 @@ class RelatedEpisodesIntegrationTest {
                 Instant.parse("2026-01-01T00:00:00Z").plusSeconds(number * 86_400L),
                 Duration.ofMinutes(30), null, null, "A Host", null)));
         for (String tag : tagList) {
-            tags.save(new EpisodeTag(ref.getId(), tag));
+            // The vocabulary entry first: an assignment now references one, so writing the row alone would
+            // fail the foreign key (§6.1). Written directly rather than through TagService.tagEpisode
+            // because some of these fixtures are deliberately *not* visible — a switched-off feed is what
+            // one of these tests is about, and the plugin-facing write refuses those by design.
+            String key = vocabulary.ensure(tag);
+            tags.save(new EpisodeTag(ref.getId(), key, dev.mosaicast.core.tag.TagSource.FEED));
         }
         return ref.getId();
     }

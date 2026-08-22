@@ -34,6 +34,8 @@ import java.util.Set;
  * @param config      declared config fields, keyed by field name
  * @param data        the doc-store access floors and backend-owned keys (§7.2); absent means the closed
  *                    default and nothing reserved
+ * @param tags        what the plugin may do with the site's shared tag vocabulary (§6.1); absent means no
+ *                    tag surface at all
  * @param consent     declared consent categories / external sources
  * @param nav         ways into a {@code page} plugin, offered to the shell's navigation menu (§7.3). Absent
  *                    on a page plugin means one default entry at its root; absent on any other plugin means
@@ -61,6 +63,7 @@ public record PluginManifest(
         Map<String, ConfigField> config,
         DataAccess data,
         Blobs blobs,
+        TagAccess tags,
         Consent consent,
         List<NavEntry> nav,
         // Credit, not contract. Boxed and unvalidated on purpose: Jackson 3 refuses to map a missing value
@@ -83,8 +86,17 @@ public record PluginManifest(
     public PluginManifest(String id, String version, String platformApi, String name, Backend backend,
                           Frontend frontend, List<Slot> slots, PluginStorage storage,
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
-        this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, consent,
-                null, null, null, null, null);
+        this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, null,
+                consent, null, null, null, null, null);
+    }
+
+    /** As above, for a plugin that declares a {@code tags} block (§7.2). */
+    public PluginManifest(String id, String version, String platformApi, String name, Backend backend,
+                          Frontend frontend, List<Slot> slots, PluginStorage storage,
+                          Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
+                          Consent consent) {
+        this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
+                consent, null, null, null, null, null);
     }
 
     /** The declared nav entries, or an empty list — callers never have to null-check. */
@@ -254,6 +266,53 @@ public record PluginManifest(
     /** Whether this plugin declared any file storage at all. */
     public boolean declaresBlobs() {
         return blobs != null;
+    }
+
+    /**
+     * What a plugin asks to be allowed to do with the site's shared tag vocabulary (§6.1, §7.2).
+     *
+     * <p>Declared, never derived, like the data floors and {@code blobs}. An absent block means no tag
+     * surface at all: {@code ctx.tags} is null, {@code PluginContext.tags()} is null, and the HTTP endpoints
+     * answer 404 — indistinguishably from an unknown plugin, the same answer the schema and blob surfaces
+     * give a plugin that declared neither.
+     *
+     * <p><strong>Two flags, because the two acts are not alike.</strong> Tagging a plugin's own subjects
+     * touches rows nobody else can name. Tagging an <em>episode</em> changes what the shell offers as a
+     * filter and what {@code DefaultRelatedProvider} recommends beside that episode — a capability an
+     * operator should be able to read off the manifest before installing, rather than discover from its
+     * effects.
+     *
+     * @param readsVocabulary whether the plugin reads the vocabulary and its own assignments; absent means
+     *                        yes, since declaring the block at all is asking for the read surface
+     * @param writesEpisodes  whether the plugin may tag episodes; absent means no — the capability is opt-in
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record TagAccess(Boolean readsVocabulary, Boolean writesEpisodes) {
+
+        /** Whether the plugin reads the vocabulary; the default is yes. */
+        public boolean readsVocabularyOrDefault() {
+            return !Boolean.FALSE.equals(readsVocabulary);
+        }
+
+        /** Whether the plugin may tag episodes; the default is no. */
+        public boolean writesEpisodesOrDefault() {
+            return Boolean.TRUE.equals(writesEpisodes);
+        }
+    }
+
+    /** Whether this plugin declared any tag surface at all. */
+    public boolean declaresTags() {
+        return tags != null;
+    }
+
+    /** Whether this plugin may tag episodes — false for a plugin that declared no {@code tags} block. */
+    public boolean writesEpisodeTags() {
+        return tags != null && tags.writesEpisodesOrDefault();
+    }
+
+    /** Whether this plugin may read the vocabulary — false for a plugin that declared no block. */
+    public boolean readsTagVocabulary() {
+        return tags != null && tags.readsVocabularyOrDefault();
     }
 
     /** Backend entry points. */
@@ -432,6 +491,7 @@ public record PluginManifest(
         validateConfig();
         validateData();
         validateBlobs();
+        validateTags();
         validateConsent();
         validateNav();
     }
@@ -522,6 +582,25 @@ public record PluginManifest(
         if (blobs.mimeTypesOrEmpty().contains("image/svg+xml")) {
             throw new PluginValidationException(
                     "blobs.mimeTypes may not include image/svg+xml — SVG uploads are never accepted (§12.2)");
+        }
+    }
+
+    /**
+     * Rejects a {@code tags} block that asks for nothing.
+     *
+     * <p>{@code {"readsVocabulary": false, "writesEpisodes": false}} is a declaration whose every answer is
+     * no: {@code ctx.tags} would be non-null, because the block is there, and every call through it would
+     * refuse. A plugin that wants no tag surface omits the block, which is already the default — so this
+     * combination is always a mistake, and one whose symptom is a surface that exists and does nothing.
+     */
+    private void validateTags() {
+        if (tags == null) {
+            return;
+        }
+        if (!tags.readsVocabularyOrDefault() && !tags.writesEpisodesOrDefault()) {
+            throw new PluginValidationException(
+                    "tags block asks for nothing (readsVocabulary and writesEpisodes are both false) — "
+                            + "omit the block to declare no tag surface");
         }
     }
 

@@ -1,0 +1,28 @@
+{
+  "id": "tagreader",
+  "version": "1.0.0",
+  "platformApi": "0.9.0",
+  "name": "Tag Reader Fixture",
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "tagreader-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "tagreader-card",
+      "placement": "sidebar",
+      "visibleTo": "anonymous"
+    }
+  ],
+  "storage": "doc",
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster"
+  },
+  "tags": {
+    "readsVocabulary": true
+  }
+}

@@ -3,7 +3,12 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { makePluginSchema } from './pluginApi';
+import {
+  makePluginDocs,
+  makePluginFeeds,
+  makePluginSchema,
+  makePluginTags,
+} from './pluginApi';
 
 /**
  * The encoder for `PluginSchemaController`'s query grammar. What matters here is the exact wire shape —
@@ -131,5 +136,131 @@ describe('makePluginSchema', () => {
     vi.stubGlobal('fetch', vi.fn(() => respond({ detail: 'Not allowed to read plugin data' }, 403)));
 
     await expect(makePluginSchema('wiki').find('page', 1)).rejects.toThrow(/Not allowed/);
+  });
+});
+
+/** A fetch reply shaped like the shell's client expects — shared by the suites below. */
+const reply = (body: unknown, status = 200) =>
+  Promise.resolve({
+    ok: status < 400,
+    status,
+    headers: { get: () => 'application/json' },
+    json: () => Promise.resolve(body),
+    text: () => Promise.resolve(JSON.stringify(body)),
+  });
+
+/**
+ * The doc-store path builder (§7.6). The host owns these four-segment paths; what this removes is every
+ * plugin building them by hand, which is where the `user/me` convention and the key grammar were being
+ * re-learned one plugin at a time.
+ */
+describe('makePluginDocs', () => {
+  const captured: string[] = [];
+
+  beforeEach(() => {
+    captured.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        captured.push(url);
+        return reply({});
+      }),
+    );
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('resolves the two singleton partitions and a page scope', async () => {
+    const docs = makePluginDocs('wiki');
+    await docs.get('self', 'marks');
+    await docs.get('site', 'index');
+    await docs.get({ type: 'episode', id: 'the-cast-s01e01' }, 'notes');
+
+    expect(captured).toEqual([
+      '/api/plugins/wiki/data/user/me/marks',
+      '/api/plugins/wiki/data/site/main/index',
+      '/api/plugins/wiki/data/episode/the-cast-s01e01/notes',
+    ]);
+  });
+
+  it('answers null for a key that was never written', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => reply({ detail: 'No document: marks' }, 404)));
+
+    // "Nothing saved yet" is the normal state of a doc-store key, and the reason every plugin wrote a
+    // catch that also swallowed the 500 and the 403.
+    await expect(makePluginDocs('wiki').get('self', 'marks')).resolves.toBeNull();
+  });
+
+  it('refuses a key the host would reject, where it was written', async () => {
+    // A slash makes it two path segments, so the request would 404 somewhere unrelated. Throwing here
+    // names the rule instead of sending it.
+    expect(() => makePluginDocs('wiki').get('site', 'a/b')).toThrow(/usable doc-store key/);
+    expect(() => makePluginDocs('wiki').put('site', '', 1)).toThrow(/usable doc-store key/);
+  });
+});
+
+/** The tag surface's path encoder (§6.1) — the host parses these, so the wire shape is the contract. */
+describe('makePluginTags', () => {
+  const captured: string[] = [];
+
+  beforeEach(() => {
+    captured.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        captured.push(url);
+        return reply([]);
+      }),
+    );
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('sends any spelling through, encoded, and never normalises it here', async () => {
+    const tags = makePluginTags('wiki');
+    await tags.episodesWith('Maritime Lore');
+    await tags.tagSubject('page:kraken', 'Maritime Lore');
+    await tags.similarTo('kraken', 5);
+
+    // No lower-casing in the browser: the host owns the canonical key, and a second normaliser here would
+    // be a second rule free to disagree with it.
+    expect(captured).toEqual([
+      '/api/plugins/wiki/tags/Maritime%20Lore/episodes',
+      '/api/plugins/wiki/tags/Maritime%20Lore/subjects/page%3Akraken',
+      '/api/plugins/wiki/tags/kraken/similar?limit=5',
+    ]);
+  });
+});
+
+/** The `ctx.feeds` batch (§6.1): one request for many slugs, and a missing key is normal. */
+describe('makePluginFeeds', () => {
+  it('asks for a batch in one request and resolves null for what came back missing', async () => {
+    const captured: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        captured.push(url);
+        return reply({ 'the-cast-s01e01': { title: 'One', description: '' } });
+      }),
+    );
+
+    const feeds = makePluginFeeds('wiki');
+    await expect(feeds.display('the-cast-s01e01')).resolves.toMatchObject({ title: 'One' });
+    // Absent because the host filtered it out — normal, not a failure the plugin should report.
+    await expect(feeds.display('withdrawn-one')).resolves.toBeNull();
+    await feeds.displayMany(['a', 'b']);
+
+    expect(captured[2]).toBe('/api/plugins/wiki/episodes?slugs=a,b');
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for nothing when given nothing', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await expect(makePluginFeeds('wiki').displayMany([])).resolves.toEqual({});
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

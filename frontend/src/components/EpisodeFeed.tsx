@@ -11,7 +11,7 @@ import { EpisodeCard } from './EpisodeCard';
 import { FeedPanel } from './FeedPanel';
 import { FeedTabs } from './FeedTabs';
 import { useFeeds } from './FeedsContext';
-import { FilterBar, type FilterValues } from './FilterBar';
+import { FilterBar, type FilterValues, type TagOption } from './FilterBar';
 import { SitePanel } from './SitePanel';
 
 /**
@@ -37,7 +37,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
   const values: FilterValues = useMemo(() => ({ season, tag, order }), [season, tag, order]);
 
   const [seasons, setSeasons] = useState<number[]>([]);
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<TagOption[]>([]);
   const [items, setItems] = useState<EpisodeSummary[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
@@ -65,7 +65,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
   // Tag options for the current scope.
   useEffect(() => {
     const q = feedId ? `?feedId=${feedId}` : '';
-    api.get<string[]>(`/api/tags${q}`).then(setTags).catch(() => setTags([]));
+    api.get<TagOption[]>(`/api/tags${q}`).then(setTags).catch(() => setTags([]));
   }, [feedId]);
 
   // Reset + load the first page whenever the scope/filters change.

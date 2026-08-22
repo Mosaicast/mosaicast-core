@@ -4,6 +4,7 @@
 package dev.mosaicast.core.episode;
 
 import dev.mosaicast.core.feed.FeedService;
+import dev.mosaicast.core.tag.TagOption;
 import dev.mosaicast.core.web.PagedResponse;
 import java.util.List;
 import java.util.Optional;
@@ -85,7 +86,7 @@ public class EpisodeController {
 
     /** Distinct tags (optionally scoped to a feed) — the shell's tag-filter options (§6.1). */
     @GetMapping("/api/tags")
-    public List<String> tags(@RequestParam(required = false) String feedId) {
+    public List<TagOption> tags(@RequestParam(required = false) String feedId) {
         Optional<UUID> filter = publicFeedFilter(feedId);
         return filterMatchesNothing(feedId, filter) ? List.of() : episodes.tags(filter.orElse(null));
     }

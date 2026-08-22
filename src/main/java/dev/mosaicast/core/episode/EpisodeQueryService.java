@@ -4,6 +4,8 @@
 package dev.mosaicast.core.episode;
 
 import dev.mosaicast.core.web.NotFoundException;
+import dev.mosaicast.core.tag.TagKeys;
+import dev.mosaicast.core.tag.TagOption;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.List;
 import java.util.Objects;
@@ -55,7 +57,11 @@ public class EpisodeQueryService {
      * preserves the DB order (upcoming first, then by publish date).
      */
     public Page<EpisodeSummary> listSite(UUID feedId, Integer season, String tag, boolean newest, Pageable pageable) {
-        Page<UUID> ids = refs.findSiteVisibleIds(feedId, season, tag, newest, pageable);
+        // Assignments carry the canonical key, so a link written with any other spelling — a plugin's
+        // ctx.links.feed(slug, { tag }), a visitor's edited URL, a pre-0.9 bookmark — has to be normalised
+        // here or it silently matches nothing.
+        String key = TagKeys.isUsable(tag) ? TagKeys.canonical(tag) : null;
+        Page<UUID> ids = refs.findSiteVisibleIds(feedId, season, key, newest, pageable);
         return new PageImpl<>(summariesInOrder(ids.getContent()), pageable, ids.getTotalElements());
     }
 
@@ -64,9 +70,14 @@ public class EpisodeQueryService {
         return refs.findSeasons(feedId);
     }
 
-    /** Distinct tags across visible episodes, optionally scoped to a feed (§6.1) — the tag filter options. */
-    public List<String> tags(UUID feedId) {
-        return episodeTags.distinctTags(feedId);
+    /**
+     * Distinct tags across visible episodes, optionally scoped to a feed (§6.1) — the tag filter options,
+     * each with the vocabulary's display label beside the canonical key the filter is applied by.
+     */
+    public List<TagOption> tags(UUID feedId) {
+        return episodeTags.distinctTags(feedId).stream()
+                .map(row -> new TagOption(row.getTag(), row.getLabel()))
+                .toList();
     }
 
     /**
@@ -167,6 +178,26 @@ public class EpisodeQueryService {
         return refs.findVisibleBySlug(slug)
                 .map(ref -> resolveDisplay(ref, snapshotsFor(List.of(ref))))
                 .orElse(EMPTY);
+    }
+
+    /**
+     * Display snapshots for a batch of slugs, keyed by slug — the read behind a plugin's {@code ctx.feeds}.
+     *
+     * <p>Only visible episodes appear. A slug that is unknown, withdrawn or in a disabled feed is simply
+     * absent from the map: the caller cannot tell those apart, which is deliberate, because telling them
+     * apart would confirm the existence of an episode this visitor was not shown.
+     */
+    public Map<String, DisplaySnapshot> visibleDisplaysBySlug(List<String> slugs) {
+        if (slugs.isEmpty()) {
+            return Map.of();
+        }
+        List<EpisodeRef> found = refs.findVisibleBySlugIn(slugs);
+        Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
+        Map<String, DisplaySnapshot> bySlug = new java.util.LinkedHashMap<>();
+        for (EpisodeRef ref : found) {
+            bySlug.put(ref.getSlug(), resolveDisplay(ref, snapshots));
+        }
+        return bySlug;
     }
 
     /** Full-text search over display snapshots, ranked by relevance (paginated). */
