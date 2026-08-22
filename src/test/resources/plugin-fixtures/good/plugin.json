@@ -12,7 +12,8 @@
     "extensions": [
       "dev.mosaicast.plugin.fixture.FixturePlugin",
       "dev.mosaicast.plugin.fixture.FixtureShareMetadata",
-      "dev.mosaicast.plugin.fixture.FixtureSitemap"
+      "dev.mosaicast.plugin.fixture.FixtureSitemap",
+      "dev.mosaicast.plugin.fixture.FixtureSearch"
     ]
   },
   "frontend": {

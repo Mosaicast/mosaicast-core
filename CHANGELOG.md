@@ -14,6 +14,26 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Site-wide search, and a plugin's content in it (`0.6.18`, §6, SDK `SearchProvider`).** Core searched
+  episodes and nothing else, so a plugin with searchable content could only grow a **second search box on
+  the same site** — right for its own data, wrong for the visitor, who then had two places to type the same
+  query and no way to learn the answer was in the other one. `GET /api/search?q=` now asks every active
+  plugin that implements `SearchProvider`, and `/search` renders the answer.
+  - **Sections per source, never one merged ranking.** A plugin's `score` and Postgres `ts_rank` are not on
+    one scale; interleaving them produces an order nobody can explain and that silently changes meaning when
+    a plugin changes its scoring. Grouping stays honest and survives that.
+  - **A provider gets a budget (800 ms) and its own failure.** Search is the first extension point that runs
+    on a visitor's request rather than on a render the host controls, so a hanging plugin would hang the
+    page. A section that runs out of time comes back **marked** rather than dropped — "found nothing" and
+    "did not answer" are different answers, and a visitor given the first concludes the content is not here.
+  - **The host resolves the URL; a hit names only a subpath.** Segments are cleaned exactly as
+    `ctx.route.navigate` cleans them, so a hit aiming at `../../admin/feeds` lands inside the plugin's own
+    subtree instead of at a core route.
+  - **Access is the plugin's job here, unusually** — the host has no model of a plugin's objects, so it
+    cannot know that a row is a draft. The caller's role is passed through (`null` for anonymous) and the
+    SDK says plainly that a provider returning a draft to an anonymous visitor is a leak nothing else
+    catches.
+
 - **The host side of plugin contract `0.9.0` (`0.6.17`, §6.1/§7.5).** The SDK settled a release's worth of
   contract ahead of implementation — `ctx.tags`, `ctx.feeds`, `ctx.docs`, typed API errors — and this is the
   half that makes it real. Every piece came from the same observation: **the host held something a plugin

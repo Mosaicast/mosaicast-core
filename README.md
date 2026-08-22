@@ -562,9 +562,11 @@ Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 (review/confirm/dismiss fuzzy PLANNED bindings, §5.3, **PODCASTER/ADMIN**),
 `GET /api/feeds` (public catalog), `GET /api/feeds/{slug}` (feed detail for the panel),
 `GET /api/episodes?feedId=&season=&tag=&order=` (unified site-scope feed),
-`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{slug}/episodes?season=`,
+`GET /api/tags?feedId=` (tag filter options: `{ tag, label }`), `GET /api/feeds/{slug}/episodes?season=`,
 `GET /api/feeds/{slug}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
-`GET /api/episodes/{slug}/related?limit=` (§6.3), `GET /api/episodes/search?q=` (public read);
+`GET /api/episodes/{slug}/related?limit=` (§6.3), `GET /api/episodes/search?q=` (episodes only),
+`GET /api/search?q=` (site-wide: episodes **plus** what plugins contribute about their own content, in
+sections per source — see `SearchProvider` below);
 `GET/POST/DELETE /api/admin/episodes/{slug}/pins` (curate related, **PODCASTER/ADMIN**);
 `GET /api/me`, `GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are

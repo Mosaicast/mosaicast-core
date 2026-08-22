@@ -338,5 +338,14 @@
   "admin.consent.necessaryPending": "This add-on says visitors need not be asked about this service. Not yet confirmed by you, so visitors are still asked.",
   "admin.consent.necessaryApproved": "You confirmed that visitors need not be asked about this service, so it loads for everyone.",
   "admin.consent.approveNecessary": "Confirm as needed to run the site",
-  "admin.consent.revokeNecessary": "Withdraw confirmation"
+  "admin.consent.revokeNecessary": "Withdraw confirmation",
+  "search.title": "Search",
+  "search.label": "Search this site",
+  "search.placeholder": "Search episodes and pages…",
+  "search.submit": "Search",
+  "search.hint": "Type something to search episodes and everything the installed plugins know about.",
+  "search.episodes": "Episodes",
+  "search.none": "Nothing found for “{{query}}”.",
+  "search.failed": "The search could not be run. Please try again.",
+  "search.timedOut": "This section did not answer in time."
 }

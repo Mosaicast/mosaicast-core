@@ -14,6 +14,7 @@ import { useSite } from '../theme/SiteContext';
 import { Dropdown } from './Dropdown';
 import { Icon } from './Icon';
 import { NavMenu } from './NavMenu';
+import { SearchLink } from '../routes/SearchPage';
 import { SlotRegion } from './SlotRegion';
 
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
@@ -75,6 +76,12 @@ export function TopBar() {
 
         <div className="mc-top__actions">
           <SlotRegion name="top" />
+          {/*
+            A link rather than an inline field: the header is already crowded on a phone, and a search box
+            that collapses into an icon is the same two taps with more moving parts. The page owns the
+            input, focuses it, and keeps the query in the URL.
+          */}
+          <SearchLink />
           {locales.length > 1 && (
             <Dropdown
               triggerClassName="mc-btn mc-btn--ghost"

@@ -338,5 +338,14 @@
   "admin.consent.necessaryPending": "Diese Erweiterung gibt an, dass Besucher hierzu nicht gefragt werden müssen. Von Ihnen noch nicht bestätigt — Besucher werden weiterhin gefragt.",
   "admin.consent.necessaryApproved": "Sie haben bestätigt, dass Besucher hierzu nicht gefragt werden müssen; der Dienst lädt für alle.",
   "admin.consent.approveNecessary": "Als betriebsnotwendig bestätigen",
-  "admin.consent.revokeNecessary": "Bestätigung zurückziehen"
+  "admin.consent.revokeNecessary": "Bestätigung zurückziehen",
+  "search.title": "Suche",
+  "search.label": "Diese Seite durchsuchen",
+  "search.placeholder": "Folgen und Seiten durchsuchen…",
+  "search.submit": "Suchen",
+  "search.hint": "Gib etwas ein, um Folgen und alles zu durchsuchen, was die installierten Plugins kennen.",
+  "search.episodes": "Folgen",
+  "search.none": "Nichts gefunden für „{{query}}“.",
+  "search.failed": "Die Suche konnte nicht ausgeführt werden. Bitte versuche es erneut.",
+  "search.timedOut": "Dieser Bereich hat nicht rechtzeitig geantwortet."
 }
