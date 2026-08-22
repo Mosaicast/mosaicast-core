@@ -14,6 +14,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Account deletion, and the half of it core does not own (`0.6.19`, §12, SDK `UserDataHandler`).** §12
+  promised that deleting an account **pseudonymises** a plugin's public contributions rather than hard
+  deleting them — and bingo is a plugin, so core could not keep that promise: it provisioned those tables
+  without ever learning which column is a person, and cannot know that pseudonymising is right where
+  deleting is not. `DELETE /api/me` now asks every plugin, and the account page has the control.
+  - **Every plugin's part is recorded before it is asked.** A handler that throws, or a plugin an operator
+    switched off before the deletion ran, would otherwise be a log line — while the person has been told
+    their data is gone and it is still there. Open rows are retried hourly, settled immediately when a
+    switched-off plugin is switched back on, and listed under Admin → Users.
+  - **The receipt says what is outstanding.** Reporting a deletion as complete when a plugin has not
+    finished would be exactly the lie the record exists to prevent.
+  - Core drops what it owns in the same pass: identities, personal access tokens, listening progress, and
+    the `USER`-scope documents the host holds on plugins' behalf (host-owned since contract 0.5.0, which is
+    why core may drop them without asking).
+  - A **rejected** plugin is asked only if it has ever stored something. It did not run this boot, so it
+    cannot have written anything this boot — but "rejected" is also what a working plugin becomes after a
+    bad upgrade, and the rows it wrote last week do not disappear because its manifest stopped parsing.
+
 - **Site-wide search, and a plugin's content in it (`0.6.18`, §6, SDK `SearchProvider`).** Core searched
   episodes and nothing else, so a plugin with searchable content could only grow a **second search box on
   the same site** — right for its own data, wrong for the visitor, who then had two places to type the same

@@ -568,7 +568,10 @@ Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 `GET /api/search?q=` (site-wide: episodes **plus** what plugins contribute about their own content, in
 sections per source — see `SearchProvider` below);
 `GET/POST/DELETE /api/admin/episodes/{slug}/pins` (curate related, **PODCASTER/ADMIN**);
-`GET /api/me`, `GET/DELETE /api/me/identities`,
+`GET /api/me`, `DELETE /api/me` (delete the account: core's own data, plus every plugin's
+`UserDataHandler`; the answer names any plugin that has not finished, §12),
+`GET /api/admin/erasures` + `POST /api/admin/erasures/retry` (**ADMIN**: what a plugin still owes),
+`GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.
 

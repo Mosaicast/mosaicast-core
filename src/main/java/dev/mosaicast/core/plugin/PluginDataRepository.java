@@ -63,6 +63,24 @@ public interface PluginDataRepository extends JpaRepository<PluginData, PluginDa
     @Query("delete from PluginData d where d.id.pluginId = :pluginId")
     int deleteByPluginId(@Param("pluginId") String pluginId);
 
+    /**
+     * Deletes every plugin's documents in one <em>user's</em> partition, across all plugins (§12).
+     *
+     * <p>The one deletion that crosses plugin boundaries, and the reason it may: the {@code USER} scope is
+     * host-owned — the id in the key is the host's, substituted server-side — so a user's partition is
+     * core's to drop when that user's account goes. What core cannot touch is anything a plugin put in its
+     * own schema columns or files, which is what {@code UserDataHandler} exists for.
+     */
+    @Modifying
+    @Query("""
+            delete from PluginData d
+            where d.id.scopeType = 'USER' and d.id.scopeId = :userId
+            """)
+    int deleteUserScope(@Param("userId") String userId);
+
+    /** Whether a plugin has ever stored anything — used to decide whether a broken plugin owes an erasure. */
+    boolean existsByIdPluginId(String pluginId);
+
     /** Paginated variant of {@link #findInScope} for the host's HTTP list endpoint. */
     @Query("""
             select d from PluginData d

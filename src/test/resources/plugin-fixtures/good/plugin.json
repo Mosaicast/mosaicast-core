@@ -13,7 +13,8 @@
       "dev.mosaicast.plugin.fixture.FixturePlugin",
       "dev.mosaicast.plugin.fixture.FixtureShareMetadata",
       "dev.mosaicast.plugin.fixture.FixtureSitemap",
-      "dev.mosaicast.plugin.fixture.FixtureSearch"
+      "dev.mosaicast.plugin.fixture.FixtureSearch",
+      "dev.mosaicast.plugin.fixture.FixtureUserData"
     ]
   },
   "frontend": {
@@ -62,7 +63,8 @@
     "writableBy": "podcaster",
     "backendOwned": [
       "episode-count",
-      "agg:*"
+      "agg:*",
+      "erased:*"
     ]
   },
   "config": {
@@ -74,6 +76,11 @@
     "apiToken": {
       "type": "string",
       "default": "",
+      "editableBy": "admin"
+    },
+    "failErasure": {
+      "type": "boolean",
+      "default": false,
       "editableBy": "admin"
     }
   },

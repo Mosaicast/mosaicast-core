@@ -35,6 +35,7 @@ public class PluginSettingsService {
     private final PluginSchemaMigrator schemaMigrator;
     private final PluginBlobService blobs;
     private final dev.mosaicast.core.tag.TagService tags;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     /** pluginId → explicit admin decision. Absent = never toggled = enabled. */
     private final Map<String, Boolean> enabledCache = new ConcurrentHashMap<>();
@@ -47,13 +48,15 @@ public class PluginSettingsService {
                                  PluginDataRepository data,
                                  PluginSchemaMigrator schemaMigrator,
                                  PluginBlobService blobs,
-                                 dev.mosaicast.core.tag.TagService tags) {
+                                 dev.mosaicast.core.tag.TagService tags,
+                                 org.springframework.context.ApplicationEventPublisher events) {
         this.activations = activations;
         this.configValues = configValues;
         this.data = data;
         this.schemaMigrator = schemaMigrator;
         this.blobs = blobs;
         this.tags = tags;
+        this.events = events;
     }
 
     /**
@@ -75,6 +78,13 @@ public class PluginSettingsService {
         enabledCache.put(pluginId, enabled);
         log.info("Plugin '{}' {} by an admin{}", pluginId, enabled ? "enabled" : "disabled",
                 enabled ? " — its backend starts at the next restart" : " — it stops serving immediately");
+        if (enabled) {
+            // A plugin switched off when an account was deleted could not be asked to erase that user's
+            // data, and the debt was recorded rather than skipped (§12). Switching it back on is the moment
+            // it can be settled. Published rather than called: the erasure service reaches the plugin
+            // loader, which reaches this class, and a direct call would close that circle.
+            events.publishEvent(new PluginEnabledEvent(pluginId));
+        }
     }
 
     /** Every admin-set override of one plugin, keyed by field name. Never null. */

@@ -11,6 +11,7 @@ import dev.mosaicast.plugin.api.SearchProvider;
 import dev.mosaicast.plugin.api.ShareMetadataProvider;
 import dev.mosaicast.plugin.api.SitemapProvider;
 import dev.mosaicast.plugin.api.SitemapUrl;
+import dev.mosaicast.plugin.api.UserDataHandler;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -163,6 +164,27 @@ public class PluginExtensions {
             // break the search page for the rest of the site.
             log.warn("SearchProvider of plugin '{}' failed: {}", pluginId, e.getMessage());
             return new Timed<>(null, false);
+        }
+    }
+
+    /**
+     * Asks one plugin to erase everything it holds about a user (ARCHITECTURE §12, SDK
+     * {@code UserDataHandler}).
+     *
+     * <p>Unlike every other call in this class, a failure is <strong>not</strong> swallowed. Elsewhere a
+     * broken plugin costs its own sitemap entries or its own OpenGraph tags, and the page still renders. A
+     * failed erasure means personal data is still there while the person has been told it is gone, so it
+     * propagates and the caller records a debt.
+     *
+     * <p>A plugin with no handler is a success with nothing to do: most plugins hold no personal data, and
+     * not implementing the interface is how they say so.
+     *
+     * @param pluginId the plugin to ask — must be active; an inactive one cannot be asked at all
+     * @param userId   the user whose data goes
+     */
+    public void eraseUserData(String pluginId, String userId) {
+        for (UserDataHandler handler : plugins.extensions(UserDataHandler.class, pluginId)) {
+            handler.eraseUser(userId);
         }
     }
 

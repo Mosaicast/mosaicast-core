@@ -21,6 +21,9 @@ export function AccountPage() {
 
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
+  const [confirm, setConfirm] = useState('');
+  /** The receipt, once the account is gone — including whatever a plugin has not finished erasing. */
+  const [deleted, setDeleted] = useState<{ complete: boolean; outstanding: string[] } | null>(null);
   const [newName, setNewName] = useState('');
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -53,6 +56,25 @@ export function AccountPage() {
       setError(e instanceof ApiError ? e.message : t('account.unlinkFailed'));
     }
   };
+  /**
+   * Deletes the account, then reports what is left.
+   *
+   * The receipt matters: a plugin that could not be asked — its handler threw, or an operator had it
+   * switched off — leaves a debt the host retries, and telling someone their data is gone when part of it
+   * is not would be the failure this whole flow exists to avoid. The session is over either way, so the
+   * page stops being an account page and becomes the receipt.
+   */
+  const deleteAccount = async () => {
+    setError(null);
+    try {
+      const receipt = await api.del<{ complete: boolean; outstanding: string[] }>('/api/me');
+      setDeleted(receipt);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t('account.deleteFailed'));
+    }
+  };
+
   const createToken = async () => {
     setError(null);
     try {
@@ -158,6 +180,43 @@ export function AccountPage() {
           </button>
         </div>
       )}
+      {/*
+        Last, and visually apart: a destructive action that shares a column with everyday settings gets
+        clicked by accident. The confirmation is a typed word rather than a dialog button, because the cost
+        of getting this wrong is not recoverable — and the copy says what actually happens, including the
+        part core cannot promise on a plugin's behalf (§12).
+      */}
+      <h2>{t('account.deleteHeading')}</h2>
+      <div className="mc-danger">
+        <p>{t('account.deleteBody')}</p>
+        {deleted ? (
+          <p className="mc-muted">
+            {deleted.complete
+              ? t('account.deleteDone')
+              : t('account.deletePartial', { plugins: deleted.outstanding.join(', ') })}
+          </p>
+        ) : (
+          <>
+            <label className="mc-field">
+              <span>{t('account.deleteConfirmLabel', { word: t('account.deleteConfirmWord') })}</span>
+              <input
+                className="mc-input"
+                type="text"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="mc-btn mc-btn--danger"
+              disabled={confirm.trim().toLowerCase() !== t('account.deleteConfirmWord').toLowerCase()}
+              onClick={deleteAccount}
+            >
+              {t('account.deleteAction')}
+            </button>
+          </>
+        )}
+      </div>
     </section>
   );
 }

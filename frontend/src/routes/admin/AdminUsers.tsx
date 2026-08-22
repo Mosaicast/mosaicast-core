@@ -19,6 +19,7 @@ export function AdminUsers() {
   const { t } = useTranslation();
   const { user: me } = useUser();
   const [users, setUsers] = useState<UserAdminView[]>([]);
+  const [erasures, setErasures] = useState<ErasureView[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
@@ -26,8 +27,23 @@ export function AdminUsers() {
       .get<UserAdminView[]>('/api/admin/users')
       .then(setUsers)
       .catch(() => setError(t('admin.users.loadFailed')));
+    // Empty is the normal state and renders nothing; a row here is an obligation the operator is carrying
+    // without having been told (§12).
+    api
+      .get<ErasureView[]>('/api/admin/erasures')
+      .then(setErasures)
+      .catch(() => setErasures([]));
   };
   useEffect(load, [t]);
+
+  const retryErasures = async () => {
+    setError(null);
+    try {
+      setErasures(await api.post<ErasureView[]>('/api/admin/erasures/retry'));
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.detail ?? e.message) : t('admin.erasures.retryFailed'));
+    }
+  };
 
   const changeRole = async (u: UserAdminView, role: Role) => {
     setError(null);
@@ -81,6 +97,43 @@ export function AdminUsers() {
           );
         })}
       </ul>
+
+      {/*
+        Only when there is something to say. An erasure a plugin never finished is a legal obligation the
+        operator is carrying blind — and the fix is usually one switch away (re-enable the plugin), so the
+        row names the plugin and the reason rather than the person, whose account is already gone.
+      */}
+      {erasures.length > 0 && (
+        <>
+          <h2>{t('admin.erasures.title')}</h2>
+          <p className="mc-muted">{t('admin.erasures.help')}</p>
+          <ul className="mc-list">
+            {erasures.map((e) => (
+              <li key={e.id} className="mc-list__row">
+                <span>{e.pluginId}</span>
+                <span className="mc-muted">
+                  {t(`admin.erasures.status.${e.status.toLowerCase()}`)}
+                  {e.lastError ? ` · ${e.lastError}` : ''}
+                  {e.attempts > 0 ? ` · ${t('admin.erasures.attempts', { count: e.attempts })}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="mc-btn" onClick={retryErasures}>
+            {t('admin.erasures.retry')}
+          </button>
+        </>
+      )}
     </div>
   );
+}
+
+/** One unfinished account erasure, as `/api/admin/erasures` reports it. */
+interface ErasureView {
+  id: string;
+  userId: string;
+  pluginId: string;
+  status: 'PENDING' | 'FAILED' | 'DONE';
+  attempts: number;
+  lastError: string | null;
 }

@@ -302,3 +302,16 @@
   flex: none;
   margin-top: 0.15rem;
 }
+
+/* ---- destructive section (§12) ----
+   Set apart on purpose: an irreversible action sharing a column with everyday settings gets clicked by
+   accident, and the border is the affordance that says "read this one". */
+.mc-danger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+  align-items: flex-start;
+  padding: var(--mc-space-4);
+  border: 1px solid var(--mc-danger);
+  border-radius: var(--mc-radius-md);
+}
