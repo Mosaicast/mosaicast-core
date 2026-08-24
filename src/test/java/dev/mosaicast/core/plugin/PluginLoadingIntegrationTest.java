@@ -599,9 +599,33 @@ class PluginLoadingIntegrationTest {
 
     @Test
     void deepLinkWithoutAMatchFallsBackToSiteMetadata() {
-        ResponseEntity<String> other = rest.getForEntity("/p/good/somewhere-else", String.class);
+        // A route the plugin *does* render but has no share metadata for: 200, with the site's own tags.
+        // The two questions are deliberately separate — a search result page is a working route that should
+        // not claim to be a shareable document, so "no OpenGraph" must not mean "no page" (§6.6).
+        ResponseEntity<String> other = rest.getForEntity("/p/good/known", String.class);
         assertThat(other.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(other.getBody()).contains("og:title").doesNotContain("Fixture shared page");
+    }
+
+    @Test
+    void aSubpathThePluginDoesNotRenderIsARealNotFound() {
+        // The soft-404 this closes: every subpath under a page plugin answered 200, so a crawler indexed a
+        // wiki's typos and its deleted pages, and the sitemap and the status line disagreed about what
+        // exists. Only the plugin can answer, and now it is asked (PageRouteProvider, platformApi 0.9.1).
+        assertThat(rest.getForEntity("/p/good/nowhere", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        // The plugin root and a route it claims are unaffected.
+        assertThat(rest.getForEntity("/p/good", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(rest.getForEntity("/p/good/known", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void aProviderThatThrowsCostsItsOwnAnswerAndNotThePage() {
+        // The fixture throws for this subpath. A broken provider must not be able to turn a plugin's
+        // working pages into 404s, so the failure is logged and the route answers as it did before.
+        assertThat(rest.getForEntity("/p/good/boom", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
     }
 
     @Test

@@ -176,7 +176,9 @@ PUT    /api/plugins/{id}/tags/{tag}/episodes/{slug}            # needs `tags.wri
 DELETE /api/plugins/{id}/tags/{tag}/episodes/{slug}            # removes only this plugin's own row
 GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
-GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags)
+GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags);
+                                                               # 404 when the plugin's PageRouteProvider says
+                                                               # it renders nothing there (absent ⇒ 200)
 GET    /api/consent                                            # public: services, storage and the fingerprint
 GET    /api/admin/consent                                      # ADMIN: the same, attributed to plugins, + the CSP
 GET    /api/admin/plugins                                      # ADMIN: discovered plugins, state, config, consent
