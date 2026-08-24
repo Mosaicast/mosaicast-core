@@ -49,11 +49,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 // is picked up by the app's own component scan, which registers the JPA repositories twice and stops the
 // whole application booting. Living in its own tree, this class is invisible to the app and the app is
 // invisible to it, which is the separation the tool wants anyway.
-// Flyway is excluded rather than switched off through a property: a default property is the lowest
-// precedence source there is, so application.yml wins and the tool would run the app's schema migrations
-// on the way to moving some files. Schema migration is the app's job, at the app's chosen moment.
-@SpringBootApplication(scanBasePackages = "dev.mosaicast.core.blob",
-        exclude = org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration.class)
+@SpringBootApplication(scanBasePackages = "dev.mosaicast.core.blob")
 @EnableConfigurationProperties(BlobStoreProperties.class)
 @EnableJpaRepositories(basePackages = "dev.mosaicast.core.blob")
 // Where the entities are, now that this class no longer sits beside them.
@@ -71,6 +67,14 @@ public class BlobMigratorApplication {
             System.exit(2);
             return;
         }
+        // Schema migration belongs to the app, at a moment the operator chose — not as a side effect of
+        // moving files. A system property rather than SpringApplication#setDefaultProperties, which is the
+        // *lowest* precedence source there is: application.yml wins over it, and Flyway ran anyway.
+        //
+        // Set here rather than on the class, because the annotation would also apply to a test that boots
+        // this context — and such a test has no other way to get a schema. This is the CLI's decision, so
+        // it lives on the CLI's path.
+        System.setProperty("spring.flyway.enabled", "false");
         SpringApplication application = new SpringApplication(BlobMigratorApplication.class);
         application.setWebApplicationType(WebApplicationType.NONE);
         // Not a server: the exit code is the result, so a wrapper script can act on it.
