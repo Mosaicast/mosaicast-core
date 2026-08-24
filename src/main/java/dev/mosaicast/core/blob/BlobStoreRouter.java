@@ -177,4 +177,20 @@ public class BlobStoreRouter implements BlobStore {
         // v1: a single backend for all namespaces.
         return defaultStore.capabilities();
     }
+
+    /**
+     * Routed like any other write — but note what this means for a migration: through the router, source
+     * and target of a move would be the <em>same</em> backend, since routing is by namespace and the
+     * namespace does not change. {@code BlobMigrator} therefore addresses backends directly, which is why
+     * it takes their names rather than a direction.
+     */
+    @Override
+    public BlobRef putVerbatim(BlobMetadata metadata, InputStream data) {
+        return route(metadata.ref().namespace()).putVerbatim(metadata, data);
+    }
+
+    @Override
+    public java.util.List<String> namespacesUnder(String prefix) {
+        return route(prefix).namespacesUnder(prefix);
+    }
 }

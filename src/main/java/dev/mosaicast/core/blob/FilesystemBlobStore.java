@@ -141,6 +141,59 @@ public class FilesystemBlobStore implements NamedBlobStore {
         }
     }
 
+    /**
+     * Writes an object keeping its id — the migration path (§11, #105).
+     *
+     * <p>Cheap here by construction: the id <em>is</em> the filename, so carrying one across from another
+     * backend is the ordinary write with the id supplied instead of minted.
+     */
+    @Override
+    public BlobRef putVerbatim(BlobMetadata metadata, InputStream data) {
+        String namespace = metadata.ref().namespace();
+        requireSafeNamespace(namespace);
+        requireSafeSegment(metadata.key(), "key");
+        UUID id = metadata.ref().id();
+        Path objects = directory(namespace, OBJECTS);
+        Path keys = directory(namespace, KEYS);
+        try {
+            long size = writeAtomically(objects.resolve(id.toString()), data);
+            Instant updatedAt = metadata.updatedAt() == null ? Instant.now() : metadata.updatedAt();
+            writeAtomically(objects.resolve(id + SIDECAR_SUFFIX),
+                    json.writeValueAsBytes(new Sidecar(metadata.key(), metadata.mime(), size,
+                            updatedAt.toString(), metadata.filename(), null)));
+            writeAtomically(keys.resolve(metadata.key()),
+                    id.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return new BlobRef(id, namespace);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot store blob " + id + " in " + namespace, e);
+        }
+    }
+
+    /**
+     * The namespaces under a prefix: the directories that hold an {@code objects/} folder.
+     *
+     * <p>A directory with no {@code objects/} is not a namespace — it is the parent of some, which is what
+     * {@code plugin/} is on an install with two plugins.
+     */
+    @Override
+    public List<String> namespacesUnder(String prefix) {
+        Path base = root.resolve(prefix).normalize();
+        requireInsideRoot(base);
+        if (!Files.isDirectory(base)) {
+            return List.of();
+        }
+        List<String> found = new ArrayList<>();
+        try (Stream<Path> walk = Files.walk(base)) {
+            walk.filter(path -> Files.isDirectory(path.resolve(OBJECTS)))
+                    .map(path -> root.relativize(path).toString())
+                    .sorted()
+                    .forEach(found::add);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Cannot enumerate namespaces under " + prefix, e);
+        }
+        return found;
+    }
+
     @Override
     public Optional<BlobMetadata> stat(String namespace, String key) {
         requireSafeNamespace(namespace);

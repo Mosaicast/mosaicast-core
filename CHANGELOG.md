@@ -14,24 +14,25 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
-- **`scripts/migrate-blobs.py` — moving blobs between backends (`0.6.21`, §11).** With a second backend
+- **Moving blobs between backends: `./gradlew migrateBlobs` (`0.6.21`, §11).** With a second backend
   routable, flipping `mosaicast.blobs.namespaces.plugin` on a namespace that already holds data was a quiet
   breakage: the old bytes stay where they were, every existing ref 404s, and the plugin's quota reads as
-  zero while the source is still full. This is the other half of that switch — Python 3 and `psql`, no
-  other dependency, in both directions.
-  - **A script rather than a flag on the app, and that is what makes ids preservable.** A blob id is the
-    identity a plugin stores, and every backend's `put` mints its own — so a copy *through the interface*
-    would renumber every object and orphan every ref a plugin ever saved. Writing the file named by the id
-    that already exists sidesteps it, and the `BlobStore` interface stays as it is.
-  - Copy → verify by SHA-256 → *then* optionally delete: `--delete-source` is off by default, so a botched
-    run is undone by flipping the routing back. Re-running skips what already matches, so an interrupted
-    run is resumable rather than something to unpick.
-  - **`branding` is refused outright** — `site_config.*_asset_id` are foreign keys into the Postgres `blob`
-    table and `BrandingStorageCheck` fails startup if that namespace is routed elsewhere, so moving it
-    would produce an install that cannot boot.
-  - The sidecar format now tolerates unknown fields on the Java side: the file has two writers, and a field
-    added on either side must not stop the other reading an object. A test pins the exact bytes the script
-    produces, including a field the app does not know.
+  zero while the source is still full. This is the other half of that switch.
+  - **A separate entry point, not a switch on the running app** — it wants the app stopped, takes a while
+    and deletes things — but it runs the **same `BlobStore` implementations the app uses**. An external
+    script would have to re-describe each backend's layout from outside, and that copy stays correct only
+    until someone adds a backend or changes a field. Here a new backend is migratable the day it implements
+    the interface.
+  - Two additions to the (host-side, non-SDK) `BlobStore` contract make that possible: `putVerbatim`, which
+    writes an object **keeping its id** — an id is the identity a plugin stores, so a copy that renumbered
+    would orphan every ref it ever saved — and `namespacesUnder`, so `--namespace plugin` can mean every
+    `plugin/<id>` the backend happens to hold. Both are required rather than defaulted, so a backend cannot
+    be added that quietly cannot be migrated.
+  - Copy → verify by SHA-256 → *then* optionally delete. `--delete-source` is off by default, re-running
+    skips what already matches, and `--dry-run` prints the plan. **`branding` is refused outright** — its
+    ids are foreign keys from `site_config`, and the app refuses to start when it is routed elsewhere.
+  - The tool's context is the blob package alone: no web server, no plugin loader, and **Flyway excluded**,
+    because schema migration is the app's decision and not a side effect of moving files.
 
 - **A filesystem blob backend (`0.6.20`, §11).** The seam has had one backend since it was built, so
   "one backend per namespace" was a shape rather than a setting anyone could use. `filesystem` registers

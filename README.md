@@ -237,27 +237,35 @@ image resolves prebuilt tarballs only; it has no git or JDK, and says so rather 
 
 **Moving plugin files between backends.** Routing a namespace at a different backend does nothing to what
 is already stored — the old backend keeps the bytes, the new one starts empty, so every existing ref 404s
-and the plugin's quota reads as zero while the old data still occupies the source.
-[`scripts/migrate-blobs.py`](scripts/migrate-blobs.py) is the other half of that switch (Python 3 and
-`psql`, nothing else):
+and the plugin's quota reads as zero while the old data still occupies the source. `migrateBlobs` is the
+other half of that switch:
 
 ```bash
 # 1. app stopped, routing still pointing at the source
-scripts/migrate-blobs.py --direction pg-to-fs --namespace plugin --root /var/lib/mosaicast/blobs
-#    Postgres in a container? point the script at it:
-#    --psql 'docker exec -i mosaicast-db psql'
+./gradlew migrateBlobs --args="--from=postgres --to=filesystem --namespace=plugin --dry-run"
+./gradlew migrateBlobs --args="--from=postgres --to=filesystem --namespace=plugin"
+
+# on a server, the same class out of the image that is already there:
+java -cp app.jar -Dloader.main=dev.mosaicast.tools.blob.BlobMigratorApplication \
+     org.springframework.boot.loader.launch.PropertiesLauncher \
+     --from=postgres --to=filesystem --namespace=plugin
 
 # 2. flip mosaicast.blobs.namespaces.plugin to `filesystem`, restart, look at the app
-
-# 3. once you believe it, reclaim the space
-scripts/migrate-blobs.py --direction pg-to-fs --namespace plugin --root /var/lib/mosaicast/blobs --delete-source
+# 3. once you believe it, reclaim the space with --delete-source
 ```
 
-Ids are preserved, which is the point — a plugin stores the ref, so a copy that renumbered objects would
-orphan every reference it ever saved. Copies are verified by SHA-256 before anything is deleted, re-running
-skips what already matches, and `--dry-run` prints the plan. `--direction fs-to-pg` goes back. **`branding`
-is refused**: `site_config.*_asset_id` are foreign keys into the Postgres `blob` table, so moving it would
-produce an install that will not start.
+It is a **separate entry point, not a switch on the running app** — it wants the app stopped, takes a
+while and deletes things — but it runs the *same* `BlobStore` implementations the app stores blobs with, so
+a new backend is migratable the day it implements the interface and no format is described twice. The
+context it boots is the blob package alone: no web server, no plugin loader, and Flyway excluded, because
+schema migration is the app's decision and not a side effect of moving files.
+
+`--from`/`--to` name backends (the same names a `namespaces` rule uses), so this grows an S3 option when an
+S3 backend exists. Ids are preserved — a plugin stores the ref, so a copy that renumbered objects would
+orphan every reference it ever saved. Every object is verified by SHA-256 before anything is deleted,
+re-running skips what already matches, and `--dry-run` prints the plan. **`branding` is refused**:
+`site_config.*_asset_id` are foreign keys into the Postgres `blob` table, so moving it would produce an
+install that will not start.
 
 **Publishing a plugin:** copy [`dev/templates/release-plugin.yml`](dev/templates/release-plugin.yml) into
 the plugin repo as `.github/workflows/release.yml`. On a published release it builds, attaches `plugin.tgz`,
