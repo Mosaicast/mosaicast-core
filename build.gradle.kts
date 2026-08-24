@@ -168,6 +168,13 @@ tasks.withType<Test>().configureEach {
 //   ./gradlew migrateBlobs --args="--from=postgres --to=filesystem --namespace=plugin --dry-run"
 //
 // On a server, run the same class out of the image that is already there (see the class javadoc).
+// Two classes in this source set have a `main`, so Boot cannot guess which one the jar should start —
+// and its guess is what `bootJar` and `bootRun` depend on. The app is the answer; the migration tool is
+// reached explicitly, through the Gradle task below or PropertiesLauncher on a server.
+springBoot {
+    mainClass.set("dev.mosaicast.core.MosaicastApplication")
+}
+
 tasks.register<JavaExec>("migrateBlobs") {
     group = "application"
     description = "Move blobs between storage backends (--from, --to, --namespace, [--delete-source], [--dry-run])"
