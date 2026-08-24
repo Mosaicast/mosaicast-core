@@ -391,7 +391,13 @@ public class FilesystemBlobStore implements NamedBlobStore {
     /**
      * The sidecar's shape. Timestamps are strings so the file stays readable and portable — an operator
      * looking at this directory during an incident should not need the app to interpret it.
+     *
+     * <p>Unknown fields are ignored, because this file has a second writer: {@code scripts/migrate-blobs.py}
+     * produces these when moving a namespace between backends. A field added on either side must not make
+     * the other refuse to read an object, which is the difference between a forward-compatible format and
+     * a version lock between a script and the app that happens to be deployed.
      */
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
     record Sidecar(String key, String mime, long size, String updatedAt, String filename, String uploader) {
 
         Instant updatedAtInstant() {

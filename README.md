@@ -235,6 +235,30 @@ image resolves prebuilt tarballs only; it has no git or JDK, and says so rather 
 > control this model offers, which is why `dev/templates/release-plugin.yml` publishes the digest into every
 > release's notes: copy the line it prints.
 
+**Moving plugin files between backends.** Routing a namespace at a different backend does nothing to what
+is already stored — the old backend keeps the bytes, the new one starts empty, so every existing ref 404s
+and the plugin's quota reads as zero while the old data still occupies the source.
+[`scripts/migrate-blobs.py`](scripts/migrate-blobs.py) is the other half of that switch (Python 3 and
+`psql`, nothing else):
+
+```bash
+# 1. app stopped, routing still pointing at the source
+scripts/migrate-blobs.py --direction pg-to-fs --namespace plugin --root /var/lib/mosaicast/blobs
+#    Postgres in a container? point the script at it:
+#    --psql 'docker exec -i mosaicast-db psql'
+
+# 2. flip mosaicast.blobs.namespaces.plugin to `filesystem`, restart, look at the app
+
+# 3. once you believe it, reclaim the space
+scripts/migrate-blobs.py --direction pg-to-fs --namespace plugin --root /var/lib/mosaicast/blobs --delete-source
+```
+
+Ids are preserved, which is the point — a plugin stores the ref, so a copy that renumbered objects would
+orphan every reference it ever saved. Copies are verified by SHA-256 before anything is deleted, re-running
+skips what already matches, and `--dry-run` prints the plan. `--direction fs-to-pg` goes back. **`branding`
+is refused**: `site_config.*_asset_id` are foreign keys into the Postgres `blob` table, so moving it would
+produce an install that will not start.
+
 **Publishing a plugin:** copy [`dev/templates/release-plugin.yml`](dev/templates/release-plugin.yml) into
 the plugin repo as `.github/workflows/release.yml`. On a published release it builds, attaches `plugin.tgz`,
 checks the tag against the manifest version, and appends the SHA-256 to the notes. No registry is involved —

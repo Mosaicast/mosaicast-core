@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -141,6 +142,36 @@ class FilesystemBlobStoreTest {
         // missing an entry nothing can read anyway.
         assertThat(store.list("plugin/wiki", 0, 10)).singleElement()
                 .satisfies(meta -> assertThat(meta.key()).isEqualTo("good"));
+    }
+
+    @Test
+    void readsAnObjectWrittenByTheMigrationScript() throws IOException {
+        // The layout has a second writer — scripts/migrate-blobs.py, which moves a namespace between
+        // backends without linking against this class. This is that contract, pinned: the exact files the
+        // script produces, including a null filename and a field this version does not know about.
+        UUID id = UUID.randomUUID();
+        Path objects = root.resolve("plugin/wiki/objects");
+        Path keys = root.resolve("plugin/wiki/keys");
+        Files.createDirectories(objects);
+        Files.createDirectories(keys);
+        Files.write(objects.resolve(id.toString()), "migrated".getBytes(StandardCharsets.UTF_8));
+        Files.writeString(objects.resolve(id + ".json"), """
+                {"key": "k1", "mime": "image/png", "size": 8, "updatedAt": "2026-08-24T13:09:36.138Z",
+                 "filename": null, "uploader": null, "somethingNewer": 1}
+                """);
+        Files.writeString(keys.resolve("k1"), id.toString());
+
+        BlobRef ref = new BlobRef(id, "plugin/wiki");
+        assertThat(store.stat(ref)).hasValueSatisfying(meta -> {
+            assertThat(meta.mime()).isEqualTo("image/png");
+            assertThat(meta.size()).isEqualTo(8);
+            assertThat(meta.updatedAt()).isEqualTo(Instant.parse("2026-08-24T13:09:36.138Z"));
+        });
+        assertThat(read(store.get(ref))).isEqualTo("migrated");
+        // And by key, which is the pointer file the script writes separately.
+        assertThat(store.stat("plugin/wiki", "k1")).hasValueSatisfying(
+                meta -> assertThat(meta.ref().id()).isEqualTo(id));
+        assertThat(store.usedBytes("plugin/wiki")).isEqualTo(8);
     }
 
     @Test

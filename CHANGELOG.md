@@ -14,6 +14,25 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **`scripts/migrate-blobs.py` — moving blobs between backends (`0.6.21`, §11).** With a second backend
+  routable, flipping `mosaicast.blobs.namespaces.plugin` on a namespace that already holds data was a quiet
+  breakage: the old bytes stay where they were, every existing ref 404s, and the plugin's quota reads as
+  zero while the source is still full. This is the other half of that switch — Python 3 and `psql`, no
+  other dependency, in both directions.
+  - **A script rather than a flag on the app, and that is what makes ids preservable.** A blob id is the
+    identity a plugin stores, and every backend's `put` mints its own — so a copy *through the interface*
+    would renumber every object and orphan every ref a plugin ever saved. Writing the file named by the id
+    that already exists sidesteps it, and the `BlobStore` interface stays as it is.
+  - Copy → verify by SHA-256 → *then* optionally delete: `--delete-source` is off by default, so a botched
+    run is undone by flipping the routing back. Re-running skips what already matches, so an interrupted
+    run is resumable rather than something to unpick.
+  - **`branding` is refused outright** — `site_config.*_asset_id` are foreign keys into the Postgres `blob`
+    table and `BrandingStorageCheck` fails startup if that namespace is routed elsewhere, so moving it
+    would produce an install that cannot boot.
+  - The sidecar format now tolerates unknown fields on the Java side: the file has two writers, and a field
+    added on either side must not stop the other reading an object. A test pins the exact bytes the script
+    produces, including a field the app does not know.
+
 - **A filesystem blob backend (`0.6.20`, §11).** The seam has had one backend since it was built, so
   "one backend per namespace" was a shape rather than a setting anyone could use. `filesystem` registers
   once `mosaicast.blobs.filesystem.root` is set, and `mosaicast.blobs.namespaces.plugin=filesystem` moves
