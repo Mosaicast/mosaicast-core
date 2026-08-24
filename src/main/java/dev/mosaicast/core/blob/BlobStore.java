@@ -141,4 +141,39 @@ public interface BlobStore {
 
     /** What this backend can do — queried instead of the concrete type. */
     BlobCapabilities capabilities();
+
+    // ---- migration (ARCHITECTURE §11, issue #105) ----
+    //
+    // Moving a namespace between backends is the one operation that has to write an object *as it already
+    // is*, and enumerate what exists without being told. Both are here rather than in a migration tool
+    // because the alternative is a tool that re-implements each backend's layout from outside — which
+    // works exactly until someone adds a backend, or changes a field, and nothing tells the copy.
+
+    /**
+     * Writes an object exactly as given, <strong>id included</strong>.
+     *
+     * <p>The difference from {@link #put} is the whole point: {@code put} mints an id, and an id is the
+     * identity a plugin stores ({@code BlobInfo.ref}). A migration that renumbered objects would orphan
+     * every reference a plugin ever saved, so a copy between backends has to carry the id across.
+     *
+     * <p>Required rather than defaulted, so a backend cannot be added that quietly cannot be migrated
+     * <em>to</em> — which would be discovered by an operator halfway through moving their files.
+     *
+     * @param metadata the object's identity and attributes, from the source backend
+     * @param data     the bytes
+     * @return the ref, whose id equals {@code metadata.ref().id()}
+     */
+    BlobRef putVerbatim(BlobMetadata metadata, InputStream data);
+
+    /**
+     * The namespaces this backend holds at or below {@code prefix}.
+     *
+     * <p>{@code list} needs an exact namespace, and a migration is asked to move {@code plugin} — which is
+     * every {@code plugin/<id>} the install happens to have, a set only the backend knows. The same
+     * prefix rule {@link BlobStoreRouter} routes by, from the other direction.
+     *
+     * @param prefix a namespace or a {@code /}-separated prefix of one
+     * @return the namespaces found, never null, possibly empty
+     */
+    List<String> namespacesUnder(String prefix);
 }

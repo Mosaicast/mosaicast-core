@@ -40,6 +40,17 @@ public interface BlobRepository extends JpaRepository<Blob, UUID> {
     long countByNamespace(String namespace);
 
     /**
+     * The namespaces present at or below a prefix — what a migration is asked to move when it is given
+     * {@code plugin} rather than {@code plugin/wiki} (§11, #105).
+     */
+    @Query("""
+            SELECT DISTINCT b.namespace FROM Blob b
+            WHERE b.namespace = :prefix OR b.namespace LIKE :like
+            ORDER BY b.namespace
+            """)
+    List<String> namespacesUnder(@Param("prefix") String prefix, @Param("like") String like);
+
+    /**
      * The total size of a namespace's blobs — what a per-plugin quota is checked against.
      *
      * @param namespace the namespace to total

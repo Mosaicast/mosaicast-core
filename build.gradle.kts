@@ -155,3 +155,31 @@ tasks.withType<Test>().configureEach {
     // ephemeral so per-container reaping is unnecessary. Overridable via the environment.
     environment("TESTCONTAINERS_RYUK_DISABLED", System.getenv("TESTCONTAINERS_RYUK_DISABLED") ?: "true")
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Blob migration (ARCHITECTURE §11, issue #105)
+// ---------------------------------------------------------------------------------------------------
+//
+// Moving a namespace between storage backends is a separate entry point rather than a switch on the
+// running app: it wants the app stopped, it takes a while, and it deletes things. It is the *same* code
+// the app stores blobs with, so a new backend is migratable the day it implements `BlobStore` — which is
+// the property an external script could never have.
+//
+//   ./gradlew migrateBlobs --args="--from=postgres --to=filesystem --namespace=plugin --dry-run"
+//
+// On a server, run the same class out of the image that is already there (see the class javadoc).
+// Two classes in this source set have a `main`, so Boot cannot guess which one the jar should start —
+// and its guess is what `bootJar` and `bootRun` depend on. The app is the answer; the migration tool is
+// reached explicitly, through the Gradle task below or PropertiesLauncher on a server.
+springBoot {
+    mainClass.set("dev.mosaicast.core.MosaicastApplication")
+}
+
+tasks.register<JavaExec>("migrateBlobs") {
+    group = "application"
+    description = "Move blobs between storage backends (--from, --to, --namespace, [--delete-source], [--dry-run])"
+    mainClass.set("dev.mosaicast.tools.blob.BlobMigratorApplication")
+    classpath = sourceSets["main"].runtimeClasspath
+    // Nothing to do with the frontend, and an operator moving files should not wait for a bundle.
+    dependsOn("compileJava", "processResources")
+}

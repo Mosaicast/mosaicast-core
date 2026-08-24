@@ -151,6 +151,28 @@ public class InMemoryBlobStore implements NamedBlobStore {
         return CAPABILITIES;
     }
 
+    /** Keeps the id it is handed, as a migration target must (§11, #105). */
+    @Override
+    public synchronized BlobRef putVerbatim(BlobMetadata metadata, InputStream data) {
+        byte[] bytes = readAll(data);
+        UUID id = metadata.ref().id();
+        byId.remove(id);
+        byId.put(id, new Stored(new BlobMetadata(metadata.ref(), metadata.key(), metadata.mime(),
+                bytes.length, metadata.updatedAt() == null ? java.time.Instant.now() : metadata.updatedAt(),
+                metadata.filename()), bytes));
+        return metadata.ref();
+    }
+
+    @Override
+    public synchronized java.util.List<String> namespacesUnder(String prefix) {
+        return byId.values().stream()
+                .map(stored -> stored.meta().ref().namespace())
+                .filter(namespace -> namespace.equals(prefix) || namespace.startsWith(prefix + "/"))
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
     /** Everything stored so far, for a test asserting the bytes really did not go to Postgres. */
     public synchronized int size() {
         return byId.size();

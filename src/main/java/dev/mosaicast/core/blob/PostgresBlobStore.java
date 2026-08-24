@@ -61,6 +61,35 @@ public class PostgresBlobStore implements NamedBlobStore {
         return new BlobRef(blob.getId(), blob.getNamespace());
     }
 
+    /**
+     * Writes an object keeping its id — the migration path (§11, #105).
+     *
+     * <p>Matched on the id rather than on {@code (namespace, key)}: the id is what a plugin holds, and an
+     * object arriving from another backend has to land on it even if some other row happens to occupy that
+     * key. Idempotent, so a re-run of an interrupted migration overwrites rather than duplicates.
+     */
+    @Override
+    @Transactional
+    public BlobRef putVerbatim(BlobMetadata metadata, InputStream data) {
+        byte[] bytes = readAll(data);
+        Blob blob = blobs.findById(metadata.ref().id())
+                .map(existing -> {
+                    existing.replace(metadata.mime(), bytes);
+                    return existing;
+                })
+                .orElseGet(() -> new Blob(metadata.ref().id(), metadata.ref().namespace(), metadata.key(),
+                        metadata.mime(), bytes));
+        blob.attribute(metadata.filename(), null);
+        blobs.save(blob);
+        return new BlobRef(blob.getId(), blob.getNamespace());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> namespacesUnder(String prefix) {
+        return blobs.namespacesUnder(prefix, prefix + "/%");
+    }
+
     @Override
     @Transactional(readOnly = true)
     public Optional<BlobMetadata> stat(String namespace, String key) {
