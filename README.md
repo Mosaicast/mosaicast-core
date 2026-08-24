@@ -146,7 +146,7 @@ plugins/sample/
   assets/sample.es.js # the frontend Web Component bundle
 ```
 
-At boot the host validates each manifest (the declared `platformApi` must match the host's `0.6.x`; config
+At boot the host validates each manifest (the declared `platformApi` must match the host's `0.9.x`; config
 fields must be renderable), loads the JAR, and calls `register(ctx)`. A bad manifest, an incompatible
 `platformApi`, an unusable `schema` declaration, or a thrown exception
 **disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
@@ -165,6 +165,15 @@ GET    /api/plugins/{id}/schema/{entity}?where=&orderBy=&page=&size=      # decl
 GET    /api/plugins/{id}/schema/{entity}/search?field=&q=&where=&page=&size=  # full-text, on the GIN index
 GET    /api/plugins/{id}/schema/{entity}/count?where=          # how many match
 GET    /api/plugins/{id}/schema/{entity}/{rowId}               # one row; 404 if absent
+GET    /api/plugins/{id}/episodes?slugs=a,b,c                  # display snapshots, host-filtered (ctx.feeds)
+GET    /api/plugins/{id}/tags                                  # the site vocabulary + reach (ctx.tags)
+GET    /api/plugins/{id}/tags/{tag}/episodes|subjects|similar  # who carries a tag; what co-occurs with it
+GET    /api/plugins/{id}/episodes/{slug}/tags                  # the tags on one episode
+GET    /api/plugins/{id}/subjects/{subjectKey}/tags            # the tags on one of the plugin's subjects
+PUT    /api/plugins/{id}/tags/{tag}/subjects/{subjectKey}      # tag your own subject (writableBy)
+DELETE /api/plugins/{id}/tags/{tag}/subjects/{subjectKey}      # idempotent; the vocabulary entry stays
+PUT    /api/plugins/{id}/tags/{tag}/episodes/{slug}            # needs `tags.writesEpisodes`; else 403
+DELETE /api/plugins/{id}/tags/{tag}/episodes/{slug}            # removes only this plugin's own row
 GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
 GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags)
@@ -183,6 +192,13 @@ server-side, so another person's partition is unnameable rather than merely forb
 `"data": { "backendOwned": ["stats", "agg:*"] }` reserves the keys a plugin's backend authors — clients read
 them, a client `PUT`/`DELETE` is a 403 with its own problem type. Data is hard-scoped by plugin id — a plugin
 can never see another's.
+
+The tag surface adds one declaration on top of those floors: `"tags": { "readsVocabulary", "writesEpisodes" }`.
+Absent means **no tag surface at all** — `ctx.tags` is `null` and the endpoints 404, the same shape as
+`blobs` and `schema`. Tagging a plugin's own subjects needs only the write floor; tagging an **episode**
+changes the shell's filter options and what core recommends beside that episode, so it is a separate,
+declared capability. `/api/plugins/{id}/episodes` is the one plugin surface with no floor of its own: it
+returns host data the same visitor can read from `/api/episodes/*`, filtered to what they may see.
 
 ### Installing a plugin
 
@@ -546,11 +562,16 @@ Key API: `POST /api/admin/feeds` (add + preview + refresh, **PODCASTER/ADMIN**),
 (review/confirm/dismiss fuzzy PLANNED bindings, §5.3, **PODCASTER/ADMIN**),
 `GET /api/feeds` (public catalog), `GET /api/feeds/{slug}` (feed detail for the panel),
 `GET /api/episodes?feedId=&season=&tag=&order=` (unified site-scope feed),
-`GET /api/tags?feedId=` (tag filter options), `GET /api/feeds/{slug}/episodes?season=`,
+`GET /api/tags?feedId=` (tag filter options: `{ tag, label }`), `GET /api/feeds/{slug}/episodes?season=`,
 `GET /api/feeds/{slug}/seasons`, `GET /api/episodes/{id}`, `GET /api/episodes/{id}/adjacent`,
-`GET /api/episodes/{slug}/related?limit=` (§6.3), `GET /api/episodes/search?q=` (public read);
+`GET /api/episodes/{slug}/related?limit=` (§6.3), `GET /api/episodes/search?q=` (episodes only),
+`GET /api/search?q=` (site-wide: episodes **plus** what plugins contribute about their own content, in
+sections per source — see `SearchProvider` below);
 `GET/POST/DELETE /api/admin/episodes/{slug}/pins` (curate related, **PODCASTER/ADMIN**);
-`GET /api/me`, `GET/DELETE /api/me/identities`,
+`GET /api/me`, `DELETE /api/me` (delete the account: core's own data, plus every plugin's
+`UserDataHandler`; the answer names any plugin that has not finished, §12),
+`GET /api/admin/erasures` + `POST /api/admin/erasures/retry` (**ADMIN**: what a plugin still owes),
+`GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.
 

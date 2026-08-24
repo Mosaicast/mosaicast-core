@@ -17,6 +17,9 @@ public interface LinkedIdentityRepository extends JpaRepository<LinkedIdentity, 
     /** All identities of a user (for the settings provider list and lockout check, §8.4). */
     List<LinkedIdentity> findByUserId(UUID userId);
 
+    /** Every identity of a user — deleted with the account, which is what cuts the link to a person (§12). */
+    void deleteByUserId(UUID userId);
+
     /** A user's identity for a given provider, if linked. */
     Optional<LinkedIdentity> findByUserIdAndProvider(UUID userId, String provider);
 

@@ -36,6 +36,15 @@ public class FixturePlugin implements PluginBackend, SitemapProvider {
      */
     private PluginContext registered;
 
+    /**
+     * The same context, reachable from the plugin's other extensions.
+     *
+     * <p>Static because PF4J builds one instance per extension <em>class</em>, so {@link FixtureUserData}
+     * has no way to see the instance field above. A real plugin would do the same thing — its handler needs
+     * the store its backend was given.
+     */
+    static volatile PluginContext shared;
+
     @Override
     public void register(PluginContext ctx) {
         int refresh = ctx.config().get("refreshIntervalMinutes", Integer.class, 30);
@@ -50,6 +59,7 @@ public class FixturePlugin implements PluginBackend, SitemapProvider {
             // Nothing to do on tick in the fixture; registering it proves onSchedule accepts the task.
         });
         this.registered = ctx;
+        shared = ctx;
         seedSchema(ctx);
     }
 

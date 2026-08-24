@@ -22,7 +22,7 @@ class PluginManifestValidationTest {
     @Test
     void compatibleManifestValidates() throws Exception {
         PluginManifest manifest = parse("""
-                {"id":"sample","version":"1.0.0","platformApi":"0.8.0","name":"Sample",
+                {"id":"sample","version":"1.0.0","platformApi":"0.9.0","name":"Sample",
                  "backend":{"basePath":"/api/plugins/sample","extensions":["X"]},
                  "frontend":{"entry":"s.js","elements":["s-card"]},
                  "slots":[{"scope":"site","element":"s-card","placement":"sidebar","visibleTo":"anonymous"}],
@@ -34,8 +34,8 @@ class PluginManifestValidationTest {
 
     @Test
     void patchDifferenceIsCompatible() throws Exception {
-        // Same major.minor as the host (0.7.x), different patch — accepted.
-        assertThatCode(parse(base("0.8.9", "doc", "sidebar"))::validate).doesNotThrowAnyException();
+        // Same major.minor as the host (0.9.x), different patch — accepted.
+        assertThatCode(parse(base("0.9.9", "doc", "sidebar"))::validate).doesNotThrowAnyException();
     }
 
     @Test
@@ -47,14 +47,14 @@ class PluginManifestValidationTest {
 
     @Test
     void declaredSchemaStorageIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.8.0", "schema", "sidebar"))::validate)
+        assertThatThrownBy(parse(base("0.9.0", "schema", "sidebar"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("schema");
     }
 
     @Test
     void unknownSlotPlacementIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.8.0", "doc", "nowhere"))::validate)
+        assertThatThrownBy(parse(base("0.9.0", "doc", "nowhere"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("placement");
     }
@@ -159,11 +159,40 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void aTagsBlockThatAsksForNothingIsRejected() throws Exception {
+        // ctx.tags would be non-null, because the block is there, and every call through it would refuse.
+        // Omitting the block is how a plugin declares no tag surface, and it is already the default.
+        assertThatThrownBy(parse("""
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]},
+                 "tags":{"readsVocabulary":false,"writesEpisodes":false}}
+                """)::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("tags");
+    }
+
+    @Test
+    void theTagFlagsDefaultToReadingButNotWritingEpisodes() throws Exception {
+        // Declaring the block at all is asking for the read surface; tagging an episode changes the shell's
+        // filters and what core recommends, so that half stays opt-in.
+        PluginManifest manifest = parse("""
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]},
+                 "tags":{}}
+                """);
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.declaresTags()).isTrue();
+        assertThat(manifest.readsTagVocabulary()).isTrue();
+        assertThat(manifest.writesEpisodeTags()).isFalse();
+    }
+
+    @Test
     void navEntriesNeedAPageToLinkInto() throws Exception {
         // Every entry would be a link into a 404. Failing at load names the contradiction; the alternative
         // is a menu item that is broken for as long as nobody clicks it.
         assertThatThrownBy(parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "nav":[{"path":"","label":"P"}]}
                 """)::validate)
@@ -230,7 +259,7 @@ class PluginManifestValidationTest {
     /** A manifest that declares a `page` slot, plus whatever extra top-level JSON the case needs. */
     private static String withPage(String extra) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "slots":[{"scope":"site","element":"p-page","placement":"page"}]
                  %s}
@@ -244,7 +273,7 @@ class PluginManifestValidationTest {
         // only added a line to an About page. And an unparseable licence string is still a working plugin,
         // so `validate()` deliberately says nothing about any of them.
         PluginManifest bare = parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]}}
                 """);
 
@@ -255,7 +284,7 @@ class PluginManifestValidationTest {
         assertThat(bare.attribution()).isNull();
 
         PluginManifest credited = parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "license":"not-an-spdx-id","author":"A Person",
                  "homepage":"https://example.test/p","attribution":"https://example.test/thanks"}
@@ -272,7 +301,7 @@ class PluginManifestValidationTest {
     void declaringNoConsentAtAllIsFine() throws Exception {
         // The banner-free default: a plugin that contacts no third party says nothing.
         assertThatCode(parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "slots":[],"storage":"doc","config":{}}
                 """)::validate).doesNotThrowAnyException();
     }
@@ -329,7 +358,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code config} block, to isolate config validation. */
     private static String withConfig(String config) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "slots":[{"scope":"site","element":"e","placement":"sidebar","visibleTo":"anonymous"}],
                  "storage":"doc","config":%s,"consent":{"services":[]}}
                 """.formatted(config);
@@ -338,7 +367,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code consent} block, to isolate consent validation. */
     private static String withConsent(String consent) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "slots":[],"storage":"doc","config":{},"consent":%s}
                 """.formatted(consent);
     }
@@ -346,7 +375,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code data} block, to isolate data validation. */
     private static String withData(String data) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.8.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
                  "slots":[],"storage":"doc","config":{},"data":%s}
                 """.formatted(data);
     }

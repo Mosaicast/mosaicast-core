@@ -23,13 +23,17 @@ const USERS = [
   },
 ];
 
-function stubFetch() {
+/** Unfinished erasures, as `/api/admin/erasures` reports them; empty is the normal state. */
+const NO_ERASURES: unknown[] = [];
+
+function stubFetch(erasures: unknown[] = NO_ERASURES) {
   const calls: Array<{ url: string; method: string; body?: string }> = [];
   vi.stubGlobal(
     'fetch',
     vi.fn((url: string, init?: RequestInit) => {
       calls.push({ url, method: init?.method ?? 'GET', body: init?.body as string | undefined });
-      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(USERS)) });
+      const body = url.includes('/erasures') ? erasures : USERS;
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(body)) });
     }),
   );
   return calls;
@@ -37,6 +41,29 @@ function stubFetch() {
 
 describe('AdminUsers', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('shows an unfinished account erasure by plugin and reason', async () => {
+    stubFetch([
+      { id: 'x1', userId: 'u9', pluginId: 'bingo', status: 'PENDING', attempts: 1, lastError: 'plugin is not active' },
+    ]);
+    render(<AdminUsers />);
+
+    // The plugin and the reason, not the person: their account is already gone, and re-attaching a name to
+    // it in an admin list would undo part of what the deletion was for (§12).
+    expect(await screen.findByText('bingo')).toBeInTheDocument();
+    expect(screen.getByText(/plugin is not active/)).toBeInTheDocument();
+    expect(screen.queryByText('u9')).not.toBeInTheDocument();
+
+  });
+
+  it('says nothing at all when no erasure is outstanding', async () => {
+    stubFetch();
+    render(<AdminUsers />);
+
+    // The empty state is silence: a heading with nothing under it would read as a surface to check.
+    expect(await screen.findByText('Fan Bob')).toBeInTheDocument();
+    expect(screen.queryByText(/Unfinished account erasures/i)).not.toBeInTheDocument();
+  });
 
   it('lists users, disables the current admin, and PUTs a role change', async () => {
     const calls = stubFetch();

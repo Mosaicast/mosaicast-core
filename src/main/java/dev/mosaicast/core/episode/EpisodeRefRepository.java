@@ -43,6 +43,17 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             """)
     Optional<EpisodeRef> findVisibleBySlug(@Param("slug") String slug);
 
+    /**
+     * Publicly visible refs for a batch of slugs — the plugin {@code ctx.feeds} read, and the reason it is a
+     * batch: a plugin drawing twenty cards should cost one query, not twenty.
+     */
+    @Query("""
+            select e from EpisodeRef e
+            where e.slug in :slugs and e.status <> 'WITHDRAWN'
+              and e.feedId in (select f.id from Feed f where f.enabled = true)
+            """)
+    List<EpisodeRef> findVisibleBySlugIn(@Param("slugs") List<String> slugs);
+
     /** Whether a slug is already taken (uniqueness guard when minting a new slug). */
     boolean existsBySlug(String slug);
 

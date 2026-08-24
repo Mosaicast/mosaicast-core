@@ -12,6 +12,8 @@ import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeTagRepository;
 import dev.mosaicast.core.episode.EpisodeTag;
 import dev.mosaicast.core.episode.RelatedProvider;
+import dev.mosaicast.core.tag.TagService;
+import dev.mosaicast.core.tag.TagSource;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,13 +45,15 @@ public class Reconciler {
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
     private final EpisodeTagRepository tags;
+    private final TagService vocabulary;
     private final RelatedProvider related;
 
     public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
-                      EpisodeTagRepository tags, RelatedProvider related) {
+                      EpisodeTagRepository tags, TagService vocabulary, RelatedProvider related) {
         this.refs = refs;
         this.displays = displays;
         this.tags = tags;
+        this.vocabulary = vocabulary;
         this.related = related;
     }
 
@@ -178,11 +182,22 @@ public class Reconciler {
         upsertTags(refId, raw.tags());
     }
 
-    /** Replaces an episode's tags with the current feed set (overwrite semantics, §6.1). */
+    /**
+     * Replaces the tags <strong>this feed owns</strong> on an episode with its current set (§6.1).
+     *
+     * <p>Overwrite semantics still, because the feed's keywords are presentation and the feed is their only
+     * authority — but scoped to {@code source = feed}. The unqualified wipe this replaced meant a tag a
+     * podcaster or a plugin added lasted until the next poll, which is to say it did not last at all.
+     *
+     * <p>Values go through {@link TagService#ensureAll} rather than being stored verbatim: the vocabulary is
+     * shared, and one normalised on the plugin path only would fragment on the path that produces most of
+     * it.
+     */
     private void upsertTags(UUID refId, List<String> tagValues) {
-        tags.deleteByEpisodeRefId(refId);
-        for (String tag : tagValues) {
-            tags.save(new EpisodeTag(refId, tag));
+        List<String> canonical = vocabulary.ensureAll(tagValues);
+        tags.deleteByEpisodeRefIdAndSource(refId, TagSource.FEED);
+        for (String tag : canonical) {
+            tags.save(new EpisodeTag(refId, tag, TagSource.FEED));
         }
     }
 }

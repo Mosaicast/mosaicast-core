@@ -36,6 +36,17 @@ export interface PublicPlugin {
    */
   hasBlobs?: boolean;
   /**
+   * Whether the plugin declares a `tags` block. Decides `ctx.tags` vs `null`, the third repetition of the
+   * rule `hasSchema` and `hasBlobs` already state (§6.1).
+   */
+  hasTags?: boolean;
+  /**
+   * Whether it declared `tags.writesEpisodes` — the capability half. Public because it is one: what a plugin
+   * may change about the site's own filter options and recommendations is not a secret from the visitor
+   * looking at the result.
+   */
+  tagsWriteEpisodes?: boolean;
+  /**
    * Credit, as the plugin declared it — all optional, all shown on `/about`.
    *
    * Never validated by the host: a plugin written before these existed, or one that spells its licence

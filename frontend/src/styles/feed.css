@@ -435,3 +435,68 @@
   gap: var(--mc-space-4);
   margin-top: var(--mc-space-5);
 }
+
+/* ---- site search (§6) ----
+   Sections per source, because ranking across sources is not solvable — so the page's job is to make the
+   boundaries between them legible rather than to hide them. */
+.mc-search {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-5);
+}
+.mc-search__heading {
+  margin: 0;
+  font-size: var(--mc-text-2xl);
+}
+.mc-search__form {
+  display: flex;
+  gap: var(--mc-space-3);
+  align-items: center;
+}
+.mc-search__field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mc-search__field input {
+  width: 100%;
+}
+.mc-search__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-4);
+}
+.mc-search__group-heading {
+  margin: 0;
+  padding-bottom: var(--mc-space-2);
+  border-bottom: 1px solid var(--mc-border);
+  font-size: var(--mc-text-lg);
+}
+.mc-search__hits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.mc-search__hit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-1);
+  padding: var(--mc-space-3) var(--mc-space-4);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-surface);
+  color: inherit;
+  text-decoration: none;
+}
+.mc-search__hit:hover,
+.mc-search__hit:focus-visible {
+  border-color: var(--mc-accent);
+}
+.mc-search__hit-title {
+  font-weight: 600;
+}
+.mc-search__hit-snippet {
+  font-size: var(--mc-text-sm);
+}

@@ -5,7 +5,14 @@ import type { PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-
 
 import { api } from '../api/client';
 import type { MeView, ThemeTokenSet } from '../api/types';
-import { makePluginApi, makePluginBlobs, makePluginSchema } from './pluginApi';
+import {
+  makePluginApi,
+  makePluginBlobs,
+  makePluginDocs,
+  makePluginFeeds,
+  makePluginSchema,
+  makePluginTags,
+} from './pluginApi';
 import { coreLinks } from './coreLinks';
 
 /**
@@ -31,10 +38,21 @@ export interface CtxInputs {
   playerSeekTo: (seconds: number) => void;
   /** The subpath below `/p/{pluginId}/` when the plugin is rendered as a deep-link page; else empty. */
   routePath?: string;
+  /**
+   * The query string of that page URL, leading `?` included or not — read back as `ctx.route.query`.
+   *
+   * Only a page mount has one. A card in a slot region sits on a core route whose query is the shell's
+   * filter state, which is `ctx.filter`'s job to expose and not this one's.
+   */
+  routeQuery?: string;
+  /** The fragment of that page URL, leading `#` optional — read back as `ctx.route.hash`. */
+  routeHash?: string;
   /** Whether the plugin declares `storage.schema` — decides `ctx.schema` vs `null` (§7.6). */
   hasSchema?: boolean;
   /** Whether the plugin declares a `blobs` block — decides `ctx.blobs` vs `null` (§11). */
   hasBlobs?: boolean;
+  /** Whether the plugin declares a `tags` block — decides `ctx.tags` vs `null` (§6.1). */
+  hasTags?: boolean;
   /**
    * Navigates the shell to an absolute path. Supplied by {@link PluginMount} from the router; absent in
    * tests and in any mount with no router above it, where `navigate` degrades to a no-op rather than
@@ -79,12 +97,19 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     episodeLabels: inputs.episodeLabels,
     user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
     api: makePluginApi(inputs.pluginId),
+    // Non-nullable, both of them: every plugin has a doc store, and `feeds` reads host data the same
+    // visitor can already read from /api/episodes/* — neither is something a manifest declares (§7.5).
+    docs: makePluginDocs(inputs.pluginId),
+    feeds: makePluginFeeds(inputs.pluginId),
     // Null for a doc-store plugin, mirroring the backend's `ctx.schema()`. Handing every plugin a client
     // would mean one that 404s on every call — a worse answer than saying there is nothing here.
     schema: inputs.hasSchema ? makePluginSchema(inputs.pluginId) : null,
     // Null unless the manifest declared file storage, for the same reason `schema` is: a client that 404s on
     // every call is a worse answer than saying there is nothing here (§11).
     blobs: inputs.hasBlobs ? makePluginBlobs(inputs.pluginId) : null,
+    // Null unless the manifest declared a tag surface — the third repetition of the same rule, and for the
+    // same reason: what a plugin may touch is decided in the manifest and nowhere else (§6.1).
+    tags: inputs.hasTags ? makePluginTags(inputs.pluginId) : null,
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
     consent: {
       // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
@@ -101,6 +126,11 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     },
     route: {
       path: inputs.routePath ?? '',
+      // `navigate` has always accepted a `?query#hash` and there was no way to read back what it wrote, so
+      // the only route to shareable filter or pagination state was `location.search` — which is the one
+      // thing the navigate docs tell plugins not to reach for (§6.4).
+      query: new URLSearchParams(inputs.routeQuery ?? ''),
+      hash: (inputs.routeHash ?? '').replace(/^#/, ''),
       onChange: noUnsubscribe,
       navigate: (subpath: string, opts?: { replace?: boolean }) =>
         inputs.navigateTo?.(pluginPath(inputs.pluginId, subpath), opts),

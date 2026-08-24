@@ -1,7 +1,7 @@
 {
   "id": "good",
   "version": "1.0.0",
-  "platformApi": "0.8.0",
+  "platformApi": "0.9.0",
   "name": "Good Fixture",
   "license": "Apache-2.0",
   "author": "The Mosaicast Authors",
@@ -12,7 +12,9 @@
     "extensions": [
       "dev.mosaicast.plugin.fixture.FixturePlugin",
       "dev.mosaicast.plugin.fixture.FixtureShareMetadata",
-      "dev.mosaicast.plugin.fixture.FixtureSitemap"
+      "dev.mosaicast.plugin.fixture.FixtureSitemap",
+      "dev.mosaicast.plugin.fixture.FixtureSearch",
+      "dev.mosaicast.plugin.fixture.FixtureUserData"
     ]
   },
   "frontend": {
@@ -61,7 +63,8 @@
     "writableBy": "podcaster",
     "backendOwned": [
       "episode-count",
-      "agg:*"
+      "agg:*",
+      "erased:*"
     ]
   },
   "config": {
@@ -73,6 +76,11 @@
     "apiToken": {
       "type": "string",
       "default": "",
+      "editableBy": "admin"
+    },
+    "failErasure": {
+      "type": "boolean",
+      "default": false,
       "editableBy": "admin"
     }
   },

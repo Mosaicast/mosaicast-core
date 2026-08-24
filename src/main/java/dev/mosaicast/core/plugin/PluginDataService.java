@@ -165,6 +165,23 @@ public class PluginDataService {
     /**
      * @throws IllegalArgumentException if {@code key} does not match {@link DocStore#KEY_PATTERN}
      */
+    /** Whether this plugin has ever stored a document — see {@code AccountErasureService} for why. */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    public boolean hasStoredData(String pluginId) {
+        return repository.existsByIdPluginId(pluginId);
+    }
+
+    /**
+     * Drops every plugin's documents in one user's partition — the host-owned half of an account deletion
+     * (§12). A plugin's own tables and files are its own to erase; see {@code UserDataHandler}.
+     *
+     * @return how many documents were removed
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public int deleteUserScope(String userId) {
+        return repository.deleteUserScope(userId);
+    }
+
     public static void requireValidKey(String key) {
         if (key == null || !KEY.matcher(key).matches()) {
             throw new IllegalArgumentException("invalid doc key: " + key);

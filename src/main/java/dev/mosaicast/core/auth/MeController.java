@@ -28,9 +28,12 @@ public class MeController {
     private static final List<String> SUPPORTED_PROVIDERS = List.of("discord");
 
     private final AccountService accounts;
+    private final dev.mosaicast.core.erasure.AccountErasureService erasures;
 
-    public MeController(AccountService accounts) {
+    public MeController(AccountService accounts,
+                        dev.mosaicast.core.erasure.AccountErasureService erasures) {
         this.accounts = accounts;
+        this.erasures = erasures;
     }
 
     @GetMapping
@@ -54,6 +57,41 @@ public class MeController {
     public ResponseEntity<Void> unlink(@PathVariable String provider, Authentication authentication) {
         accounts.unlink(currentUserId(authentication), provider);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Deletes the caller's account (ARCHITECTURE §12).
+     *
+     * <p>Core drops what it owns — identities, tokens, listening progress and the {@code USER}-scope
+     * documents it holds on plugins' behalf — and asks every installed plugin to erase or pseudonymise
+     * what it holds in its own tables and files, because core provisioned those without ever learning
+     * which column is a person.
+     *
+     * <p><strong>The answer says what is outstanding.</strong> A plugin whose handler threw, or one an
+     * operator had switched off, leaves a recorded debt that is retried; reporting the deletion as complete
+     * when it is not would be the lie the whole flow exists to avoid. The session ends either way: the
+     * account is gone, whatever is still owed.
+     */
+    @DeleteMapping
+    public DeletionReceipt delete(Authentication authentication,
+                                  jakarta.servlet.http.HttpServletRequest request) {
+        UUID userId = currentUserId(authentication);
+        List<String> outstanding = erasures.erase(userId);
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+        org.springframework.security.core.context.SecurityContextHolder.clearContext();
+        return new DeletionReceipt(outstanding.isEmpty(), outstanding);
+    }
+
+    /**
+     * What actually happened, rather than a bare 204.
+     *
+     * @param complete    whether every plugin finished its part
+     * @param outstanding the plugins that have not — retried by the host, and visible to an admin
+     */
+    public record DeletionReceipt(boolean complete, List<String> outstanding) {
     }
 
     private static UUID currentUserId(Authentication authentication) {

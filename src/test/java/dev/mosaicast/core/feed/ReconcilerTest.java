@@ -6,6 +6,8 @@ package dev.mosaicast.core.feed;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import dev.mosaicast.core.episode.EpisodeDisplay;
@@ -13,8 +15,10 @@ import dev.mosaicast.core.episode.EpisodeDisplayRepository;
 import dev.mosaicast.core.episode.EpisodeRef;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
 import dev.mosaicast.core.episode.EpisodeStatus;
+import dev.mosaicast.core.episode.EpisodeTag;
 import dev.mosaicast.core.episode.EpisodeTagRepository;
 import dev.mosaicast.core.episode.RelatedProvider;
+import dev.mosaicast.core.tag.TagSource;
 import dev.mosaicast.plugin.api.Access;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Instant;
@@ -24,6 +28,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,6 +51,10 @@ class ReconcilerTest {
     @Mock
     private EpisodeTagRepository tags;
 
+    /** The shared vocabulary the feed's raw values are canonicalised through (§6.1). */
+    @Mock
+    private dev.mosaicast.core.tag.TagService vocabulary;
+
     /** Reconciling changes the episode set, which is what invalidates the related cache (§6.3). */
     @Mock
     private RelatedProvider related;
@@ -54,7 +63,16 @@ class ReconcilerTest {
 
     @BeforeEach
     void setUp() {
-        reconciler = new Reconciler(refs, displays, tags, related);
+        reconciler = new Reconciler(refs, displays, tags, vocabulary, related);
+        // The real service canonicalises and extends the vocabulary; here only the canonical keys matter.
+        lenient().when(vocabulary.ensureAll(any())).thenAnswer(inv -> {
+            List<?> raw = inv.getArgument(0);
+            return raw == null ? List.of() : raw.stream()
+                    .map(value -> dev.mosaicast.core.tag.TagKeys.canonical((String) value))
+                    .filter(tag -> !tag.isEmpty())
+                    .distinct()
+                    .toList();
+        });
         lenient().when(refs.save(any(EpisodeRef.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(displays.save(any(EpisodeDisplay.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(displays.findById(any(UUID.class))).thenReturn(Optional.empty());
@@ -76,6 +94,29 @@ class ReconcilerTest {
         assertThat(result.updated()).isZero();
         assertThat(result.withdrawn()).isZero();
         assertThat(result.bound()).isZero();
+    }
+
+    @Test
+    void aPollRewritesOnlyTheTagsTheFeedOwns() {
+        EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11, "test-s02e11");
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(known));
+
+        reconciler.reconcile(FEED, "Test Feed", List.of(
+                new RawEpisode("g1", "Pigeons", "desc", "https://audio/g1",
+                        Instant.parse("2026-06-21T00:00:00Z"), 2, 12, null, null, null, null, null,
+                        List.of("Maritime Lore", "maritime lore ", "Kraken"), Access.PUBLIC)));
+
+        // Narrowed to the feed's own rows. The unqualified delete this replaced took a podcaster's manual
+        // tag and a plugin's assignment with it at every poll — minutes, in practice.
+        verify(tags).deleteByEpisodeRefIdAndSource(known.getId(), TagSource.FEED);
+
+        // And the values are the vocabulary's canonical keys, deduplicated: three raw spellings, two tags.
+        ArgumentCaptor<EpisodeTag> written = ArgumentCaptor.forClass(EpisodeTag.class);
+        verify(tags, times(2)).save(written.capture());
+        assertThat(written.getAllValues()).extracting(EpisodeTag::getTag)
+                .containsExactlyInAnyOrder("maritime lore", "kraken");
+        assertThat(written.getAllValues()).allSatisfy(
+                tag -> assertThat(tag.getSource()).isEqualTo(TagSource.FEED));
     }
 
     @Test

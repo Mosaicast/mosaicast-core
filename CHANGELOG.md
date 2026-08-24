@@ -14,6 +14,82 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Account deletion, and the half of it core does not own (`0.6.19`, §12, SDK `UserDataHandler`).** §12
+  promised that deleting an account **pseudonymises** a plugin's public contributions rather than hard
+  deleting them — and bingo is a plugin, so core could not keep that promise: it provisioned those tables
+  without ever learning which column is a person, and cannot know that pseudonymising is right where
+  deleting is not. `DELETE /api/me` now asks every plugin, and the account page has the control.
+  - **Every plugin's part is recorded before it is asked.** A handler that throws, or a plugin an operator
+    switched off before the deletion ran, would otherwise be a log line — while the person has been told
+    their data is gone and it is still there. Open rows are retried hourly, settled immediately when a
+    switched-off plugin is switched back on, and listed under Admin → Users.
+  - **The receipt says what is outstanding.** Reporting a deletion as complete when a plugin has not
+    finished would be exactly the lie the record exists to prevent.
+  - Core drops what it owns in the same pass: identities, personal access tokens, listening progress, and
+    the `USER`-scope documents the host holds on plugins' behalf (host-owned since contract 0.5.0, which is
+    why core may drop them without asking).
+  - A **rejected** plugin is asked only if it has ever stored something. It did not run this boot, so it
+    cannot have written anything this boot — but "rejected" is also what a working plugin becomes after a
+    bad upgrade, and the rows it wrote last week do not disappear because its manifest stopped parsing.
+
+- **Site-wide search, and a plugin's content in it (`0.6.18`, §6, SDK `SearchProvider`).** Core searched
+  episodes and nothing else, so a plugin with searchable content could only grow a **second search box on
+  the same site** — right for its own data, wrong for the visitor, who then had two places to type the same
+  query and no way to learn the answer was in the other one. `GET /api/search?q=` now asks every active
+  plugin that implements `SearchProvider`, and `/search` renders the answer.
+  - **Sections per source, never one merged ranking.** A plugin's `score` and Postgres `ts_rank` are not on
+    one scale; interleaving them produces an order nobody can explain and that silently changes meaning when
+    a plugin changes its scoring. Grouping stays honest and survives that.
+  - **A provider gets a budget (800 ms) and its own failure.** Search is the first extension point that runs
+    on a visitor's request rather than on a render the host controls, so a hanging plugin would hang the
+    page. A section that runs out of time comes back **marked** rather than dropped — "found nothing" and
+    "did not answer" are different answers, and a visitor given the first concludes the content is not here.
+  - **The host resolves the URL; a hit names only a subpath.** Segments are cleaned exactly as
+    `ctx.route.navigate` cleans them, so a hit aiming at `../../admin/feeds` lands inside the plugin's own
+    subtree instead of at a core route.
+  - **Access is the plugin's job here, unusually** — the host has no model of a plugin's objects, so it
+    cannot know that a row is a draft. The caller's role is passed through (`null` for anonymous) and the
+    SDK says plainly that a provider returning a draft to an anonymous visitor is a leak nothing else
+    catches.
+
+- **The host side of plugin contract `0.9.0` (`0.6.17`, §6.1/§7.5).** The SDK settled a release's worth of
+  contract ahead of implementation — `ctx.tags`, `ctx.feeds`, `ctx.docs`, typed API errors — and this is the
+  half that makes it real. Every piece came from the same observation: **the host held something a plugin
+  could only re-implement badly on its own**, so each plugin did, slightly differently.
+  - **Tags are now a site-wide vocabulary with provenance.** `episode_tag` gains a `source`
+    (`feed` · `manual` · `plugin:<id>`) and the reconciler's per-poll wipe narrows to the rows the feed owns
+    — before this, **a podcaster's or a plugin's tag survived exactly until the next poll**, which is
+    minutes. A `tag` table holds the canonical key every writer converges on (trim, collapse whitespace,
+    casefold) plus the display label kept from first use, so `Maritime`, `maritime` and `maritime ` stop
+    being three tags without lower-casing what a visitor reads. `plugin_tag` holds a plugin's assignments
+    against its own opaque subject keys.
+  - **What a plugin may never do, the host now enforces rather than asks:** remove another writer's
+    assignment (including the feed's), delete a word from the shared vocabulary, or rename one. Tagging an
+    **episode** is a declared capability (`"tags": { "writesEpisodes": true }`), separate from tagging its
+    own subjects, because it changes the shell's filter options *and* what `DefaultRelatedProvider`
+    recommends. Without the declaration the two episode endpoints are a 403 with a reason, never a silently
+    dropped write.
+  - **`GET /api/plugins/{id}/episodes?slugs=` — display snapshots for the frontend.** The Java contract
+    could read one and the frontend could not, so `mosaicast-plugin-wiki` projected episode titles and
+    artwork into its own doc store on a schedule and said so in a comment. The host filters the answer, so a
+    withdrawn episode is **absent rather than redacted** — and indistinguishable from a slug nobody minted,
+    because telling those apart would confirm an episode the visitor was not shown. Batched (200, clamped)
+    and ISO-8601 on the wire, which is why it projects rather than serialising the contract type.
+  - **`ctx.docs`, `ctx.route.query`/`hash`, `getOrNull` and typed refusals in the shell.** Rejections now
+    carry `status` and the whole RFC-7807 body, so the two 403s the host words differently — the read floor
+    refused you, versus this key is `backendOwned` — are finally distinguishable by the plugin they were
+    written for. `getOrNull` gives "nothing saved yet" a name: every plugin wrote `catch(() => undefined)`
+    around a missing doc and swallowed the 500, the 403 and the network failure with it.
+  - **`blobs.upload` normalises the declared type.** Firefox reads `File.type` from the OS MIME database and
+    hands over `''` where that lookup fails, so `FormData` sent `application/octet-stream` and §11.1 refused
+    on the declared type before sniffing the bytes: **a valid PNG rejected in one browser only**. Guessing is
+    safe here precisely because the host still reads the leading bytes.
+  - `/api/tags` now returns `{ tag, label }` rather than bare strings, and the shell's tag filter shows the
+    label while filtering by the key. A `?tag=` written in any spelling is canonicalised, so old links and
+    `ctx.links.feed(slug, { tag })` keep matching.
+  - Purging a plugin's data now takes its tag assignments with it; the vocabulary entries stay, because a
+    word other episodes still carry is not the departing plugin's to take.
+
 - **A site navigation menu, and plugin-declared entry points (`0.6.16`, §7.3).** A `page` plugin owned
   `/p/{id}/*` and nothing linked to it, so the only way in was to type the URL — a fresh wiki was invisible
   by construction. The gap was wider than plugins: `FeedTabs` renders only inside the episode feed, so from

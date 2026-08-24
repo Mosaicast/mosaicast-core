@@ -19,4 +19,7 @@ public interface PersonalAccessTokenRepository extends JpaRepository<PersonalAcc
     List<PersonalAccessToken> findByUserIdOrderByCreatedAtDesc(UUID userId);
 
     Optional<PersonalAccessToken> findByIdAndUserId(UUID id, UUID userId);
+
+    /** Every token of a user — deleted with the account (§12). */
+    void deleteByUserId(UUID userId);
 }

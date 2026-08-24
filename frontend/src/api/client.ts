@@ -10,16 +10,34 @@
 
 const UNSAFE = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-/** An API call that returned a non-2xx status. `status` is the HTTP code; `detail` is the problem detail. */
+/** The RFC-7807 body the host sends with a refusal, as far as anything here cares about it. */
+export interface ProblemBody {
+  type?: string;
+  title?: string;
+  detail?: string;
+  instance?: string;
+}
+
+/**
+ * An API call that returned a non-2xx status. `status` is the HTTP code; `detail` is the problem detail.
+ *
+ * Also the host's half of the SDK's `PluginApiError` (§7.5): a plugin catches this across a bundle
+ * boundary, so the SDK's guard is structural — `Error` plus a numeric `status` — and `problem` carries the
+ * body whole rather than flattened to one string. Two of the host's 403s differ only in their wording (the
+ * read floor refused you vs this key is `backendOwned`), and before this a plugin could not tell them
+ * apart.
+ */
 export class ApiError extends Error {
   readonly status: number;
   readonly detail?: string;
+  readonly problem?: ProblemBody;
 
-  constructor(status: number, message: string, detail?: string) {
+  constructor(status: number, message: string, detail?: string, problem?: ProblemBody) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.detail = detail;
+    this.problem = problem;
   }
 }
 
@@ -49,17 +67,17 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (!response.ok) {
     // Prefer the problem+json detail/title; fall back to the status text.
-    let detail: string | undefined;
+    let problem: ProblemBody | undefined;
     try {
-      const problem = (await response.json()) as { detail?: string; title?: string };
-      detail = problem.detail ?? problem.title;
+      problem = (await response.json()) as ProblemBody;
     } catch {
       /* no/!json body */
     }
+    const detail = problem?.detail ?? problem?.title;
     // statusText is empty under HTTP/2, and bodiless errors (401/403 from the security filters) carry no
     // problem+json — always fall back to a non-empty message so the UI never shows a blank error.
     const message = detail || response.statusText || `HTTP ${response.status}`;
-    throw new ApiError(response.status, message, detail);
+    throw new ApiError(response.status, message, detail, problem);
   }
 
   // Tolerate empty bodies (204, or a 201/200 with no content) — only parse JSON when there is a body.
@@ -86,14 +104,19 @@ async function uploadFor<T>(path: string, formData: FormData): Promise<T> {
   }
   const response = await fetch(path, { method: 'POST', headers, credentials: 'include', body: formData });
   if (!response.ok) {
-    let detail: string | undefined;
+    let problem: ProblemBody | undefined;
     try {
-      const problem = (await response.json()) as { detail?: string; title?: string };
-      detail = problem.detail ?? problem.title;
+      problem = (await response.json()) as ProblemBody;
     } catch {
       /* no/!json body */
     }
-    throw new ApiError(response.status, detail || response.statusText || `HTTP ${response.status}`, detail);
+    const detail = problem?.detail ?? problem?.title;
+    throw new ApiError(
+      response.status,
+      detail || response.statusText || `HTTP ${response.status}`,
+      detail,
+      problem,
+    );
   }
   if (response.status === 204) {
     return undefined as T;

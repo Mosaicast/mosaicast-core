@@ -1,0 +1,29 @@
+{
+  "id": "tagger",
+  "version": "1.0.0",
+  "platformApi": "0.9.0",
+  "name": "Tagger Fixture",
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "tagger-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "tagger-card",
+      "placement": "sidebar",
+      "visibleTo": "anonymous"
+    }
+  ],
+  "storage": "doc",
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster"
+  },
+  "tags": {
+    "readsVocabulary": true,
+    "writesEpisodes": true
+  }
+}

@@ -114,6 +114,7 @@ export function SlotRegion({
             routePath={routePath}
             hasSchema={mount.hasSchema}
             hasBlobs={mount.hasBlobs}
+            hasTags={mount.hasTags}
           />
         </SlotErrorBoundary>
       ))}

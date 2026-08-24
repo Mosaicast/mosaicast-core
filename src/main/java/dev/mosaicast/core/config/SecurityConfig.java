@@ -142,7 +142,8 @@ public class SecurityConfig {
                         // Public read API (ARCHITECTURE §10 — v1 everything PUBLIC), GET-only so a non-GET
                         // hits the /api/** deny-by-default below instead of a handler-level 405.
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**", "/api/tags").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/feeds/**", "/api/episodes/**", "/api/tags",
+                                "/api/search").permitAll()
                         // Plugin manifest + doc-store reads are public at the filter (the controller enforces
                         // the plugin's visibleTo read floor); writes require a signed-in user, and the
                         // controller enforces the write-role floor (§7.5/§7.6).

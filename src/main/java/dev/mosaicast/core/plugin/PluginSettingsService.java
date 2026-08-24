@@ -34,6 +34,8 @@ public class PluginSettingsService {
     private final PluginDataRepository data;
     private final PluginSchemaMigrator schemaMigrator;
     private final PluginBlobService blobs;
+    private final dev.mosaicast.core.tag.TagService tags;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     /** pluginId → explicit admin decision. Absent = never toggled = enabled. */
     private final Map<String, Boolean> enabledCache = new ConcurrentHashMap<>();
@@ -45,12 +47,16 @@ public class PluginSettingsService {
                                  PluginConfigValueRepository configValues,
                                  PluginDataRepository data,
                                  PluginSchemaMigrator schemaMigrator,
-                                 PluginBlobService blobs) {
+                                 PluginBlobService blobs,
+                                 dev.mosaicast.core.tag.TagService tags,
+                                 org.springframework.context.ApplicationEventPublisher events) {
         this.activations = activations;
         this.configValues = configValues;
         this.data = data;
         this.schemaMigrator = schemaMigrator;
         this.blobs = blobs;
+        this.tags = tags;
+        this.events = events;
     }
 
     /**
@@ -72,6 +78,13 @@ public class PluginSettingsService {
         enabledCache.put(pluginId, enabled);
         log.info("Plugin '{}' {} by an admin{}", pluginId, enabled ? "enabled" : "disabled",
                 enabled ? " — its backend starts at the next restart" : " — it stops serving immediately");
+        if (enabled) {
+            // A plugin switched off when an account was deleted could not be asked to erase that user's
+            // data, and the debt was recorded rather than skipped (§12). Switching it back on is the moment
+            // it can be settled. Published rather than called: the erasure service reaches the plugin
+            // loader, which reaches this class, and a direct call would close that circle.
+            events.publishEvent(new PluginEnabledEvent(pluginId));
+        }
     }
 
     /** Every admin-set override of one plugin, keyed by field name. Never null. */
@@ -131,9 +144,14 @@ public class PluginSettingsService {
         // the half-purge the schema work already called out: an admin who asked for the data to be gone
         // would still be hosting the uploads.
         int files = blobs.purge(pluginId);
+        // And the fourth: the assignments it made against the shared tag vocabulary (§6.1). The vocabulary
+        // entries themselves stay — they are the site's, and a word other episodes still carry is not the
+        // purged plugin's to take with it.
+        int assignments = tags.purgePlugin(pluginId);
         // Irreversible and admin-initiated: worth a permanent record of how much went.
-        log.info("Purged {} stored document(s), {} schema table(s) and {} file(s) of plugin '{}'; "
-                        + "its config and on/off state were kept", removed, tables, files, pluginId);
+        log.info("Purged {} stored document(s), {} schema table(s), {} file(s) and {} tag assignment(s) of "
+                        + "plugin '{}'; its config and on/off state were kept",
+                removed, tables, files, assignments, pluginId);
         return removed;
     }
 }

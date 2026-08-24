@@ -20,7 +20,7 @@
 #        cases a mask genuinely cannot serve: a name that varies at runtime
 #        (`<Icon name={playing ? 'pause' : 'play'} />`), an icon that carries meaning and so needs
 #        `aria-label` (a pseudo-element is invisible to assistive tech), or standalone markup with
-#        no element to hang a pseudo-element off. Sixteen icons qualify today.
+#        no element to hang a pseudo-element off. Eighteen icons qualify today.
 #
 #   (none) Bundled but not published — core-internal, not a contract. Unused today; it exists so a
 #        future core-only icon need not become permanent public API.
@@ -49,7 +49,7 @@
 # Navigation & chrome
 # ---------------------------------------------------------------------------
 house                     = home             +
-search                    = search           +
+search                    = search           *
 x-lg                      = close            +
 list                      = menu             *
 chevron-up                = chevron-up       +

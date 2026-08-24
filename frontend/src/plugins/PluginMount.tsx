@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 import type { Scope } from '@mosaicast/plugin-sdk';
 
@@ -31,6 +31,7 @@ interface PluginMountProps {
   /** Whether the plugin declares `storage.schema`; decides `ctx.schema` vs `null` (§7.6). */
   hasSchema?: boolean;
   hasBlobs?: boolean;
+  hasTags?: boolean;
 }
 
 export function PluginMount({
@@ -42,7 +43,15 @@ export function PluginMount({
   routePath,
   hasSchema,
   hasBlobs,
+  hasTags,
 }: PluginMountProps) {
+  // Only a page mount is addressed by the URL, so only a page mount reads the query and hash off it. On a
+  // card in a slot region that query belongs to the shell's own filters (`ctx.filter`), and subscribing to
+  // it here would rebuild every mounted plugin's ctx on a navigation that had nothing to do with it.
+  const location = useLocation();
+  const routeQuery = routePath == null ? '' : location.search;
+  const routeHash = routePath == null ? '' : location.hash;
+
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
   const { user } = useUser();
@@ -75,8 +84,11 @@ export function PluginMount({
         playerCurrentTime: () => player.currentTime,
         playerSeekTo: player.seek,
         routePath,
+        routeQuery,
+        routeHash,
         hasSchema,
         hasBlobs,
+        hasTags,
         navigateTo,
         consentHas: consent.has,
         consentGranted: consent.granted,
@@ -94,8 +106,11 @@ export function PluginMount({
       i18n.language,
       player,
       routePath,
+      routeQuery,
+      routeHash,
       hasSchema,
       hasBlobs,
+      hasTags,
       navigateTo,
       consent.has,
       consent.granted,
