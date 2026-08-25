@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
 import type { LegalAdminPage } from '../../api/types';
-import { availableLocales, localeName } from '../../i18n';
+import { contentLocales, localeName } from '../../i18n';
 
 const ROLE_MARKERS = ['', 'privacy', 'imprint', 'terms'];
 
@@ -19,8 +19,9 @@ function messageOf(error: unknown, fallback: string): string {
 }
 
 /**
- * Editor for one legal page: role marker + sort order, and a **tabbed** title/markdown body per available UI
- * language (§12.6). Tabs come from the registered i18n locales, so a new language needs no change here.
+ * Editor for one legal page: role marker + sort order, and a **tabbed** title/markdown body per language
+ * (§12.6). Tabs come from the site's *content* languages, not the shell's — an operator can require a Dutch
+ * imprint without offering a Dutch UI, and the tab strip is the surface where that difference is visible.
  */
 function PageEditor({
   page,
@@ -32,7 +33,7 @@ function PageEditor({
   onError: (message: string | null) => void;
 }) {
   const { t } = useTranslation();
-  const locales = availableLocales();
+  const locales = contentLocales();
   const [roleMarker, setRoleMarker] = useState(page.roleMarker ?? '');
   const [sortOrder, setSortOrder] = useState(page.sortOrder);
   const [activeLocale, setActiveLocale] = useState(locales[0] ?? 'en');

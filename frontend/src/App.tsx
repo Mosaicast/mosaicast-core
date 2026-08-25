@@ -22,6 +22,7 @@ import { CookiesPage } from './routes/CookiesPage';
 import { AdminConsent } from './routes/admin/AdminConsent';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
+import { AdminLanguages } from './routes/admin/AdminLanguages';
 import { AdminLegal } from './routes/admin/AdminLegal';
 import { AdminLogs } from './routes/admin/AdminLogs';
 import { AdminNavigation } from './routes/admin/AdminNavigation';
@@ -96,6 +97,14 @@ export default function App() {
                       element={
                         <RequireRole roles={['admin']}>
                           <AdminSite />
+                        </RequireRole>
+                      }
+                    />
+                    <Route
+                      path="languages"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminLanguages />
                         </RequireRole>
                       }
                     />
