@@ -49,6 +49,14 @@ public class PluginPageController {
                     .body(indexHtml.plain());
         }
         String subpath = subpathOf(request.getRequestURI(), pluginId);
+        // And the same question one level down: the plugin declares a page, but is *this* subpath one?
+        // Only the plugin knows, so it is asked (§6.6). A plugin that does not implement the interface
+        // answers yes by omission, which is what every plugin written before it did.
+        if (!extensions.rendersRoute(pluginId, subpath)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .contentType(MediaType.TEXT_HTML)
+                    .body(indexHtml.plain());
+        }
         IndexHtmlService.Meta meta = extensions.shareMetadata(pluginId, subpath)
                 .map(PluginPageController::toMeta)
                 .orElseGet(indexHtml::siteMeta);

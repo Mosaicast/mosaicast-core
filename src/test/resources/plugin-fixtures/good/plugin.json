@@ -14,7 +14,8 @@
       "dev.mosaicast.plugin.fixture.FixtureShareMetadata",
       "dev.mosaicast.plugin.fixture.FixtureSitemap",
       "dev.mosaicast.plugin.fixture.FixtureSearch",
-      "dev.mosaicast.plugin.fixture.FixtureUserData"
+      "dev.mosaicast.plugin.fixture.FixtureUserData",
+      "dev.mosaicast.plugin.fixture.FixturePageRoutes"
     ]
   },
   "frontend": {

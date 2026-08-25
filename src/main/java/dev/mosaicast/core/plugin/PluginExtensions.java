@@ -5,6 +5,7 @@ package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.core.search.SearchResults;
 import dev.mosaicast.plugin.api.OgMeta;
+import dev.mosaicast.plugin.api.PageRouteProvider;
 import dev.mosaicast.plugin.api.Role;
 import dev.mosaicast.plugin.api.SearchHit;
 import dev.mosaicast.plugin.api.SearchProvider;
@@ -212,6 +213,39 @@ public class PluginExtensions {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Whether a plugin renders anything at {@code subpath} — the status line of a deep link (§6.4/§6.6).
+     *
+     * <p>Core knows a plugin declared a {@code page} slot; it cannot know that {@code /p/wiki/nowhere} is
+     * not a page, so every subpath answered 200 and crawlers indexed a wiki's typos and its deleted pages.
+     * Only the plugin can answer, and this is it asking.
+     *
+     * <p><strong>Absent means yes</strong>, which keeps the previous behaviour for every plugin that does
+     * not implement the interface — including every plugin built before it existed. A provider that throws
+     * is logged and skipped, the same posture the other extension points have, and for a sharper reason
+     * here: a broken plugin must not be able to turn its working pages into 404s.
+     *
+     * <p>Not folded into {@link #shareMetadata}, though it is tempting: a plugin's subtree legitimately
+     * holds views with nothing to describe — a search result page should not claim to be a shareable
+     * document — so "no share metadata" would 404 routes that work.
+     *
+     * @param pluginId the plugin owning the deep link
+     * @param subpath  the path below {@code /p/{pluginId}/}; never null, empty at the plugin root
+     */
+    public boolean rendersRoute(String pluginId, String subpath) {
+        for (PageRouteProvider provider : plugins.extensions(PageRouteProvider.class, pluginId)) {
+            try {
+                if (!provider.hasRoute(subpath == null ? "" : subpath)) {
+                    return false;
+                }
+            } catch (Exception e) {
+                log.warn("PageRouteProvider of plugin '{}' failed for '{}': {}",
+                        pluginId, subpath, e.getMessage());
+            }
+        }
+        return true;
     }
 
     /**

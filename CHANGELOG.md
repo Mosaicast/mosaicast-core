@@ -12,6 +12,25 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unknown plugin subpaths are a real 404 (`0.6.22`, §6.6).** `/p/<id>/<anything>` answered **200** for
+  every subpath once a plugin declared a `page` slot, so a wiki page that does not exist, a mistyped slug
+  and a URL from a deleted page all rendered the plugin's not-found view inside a `200 OK`. That is the
+  soft-404 §6.6 rules out for core's own routes — crawlers index a plugin's typos and its deleted pages,
+  `sitemap.xml` and the status line disagree about what exists, and link checkers are useless against
+  plugin routes.
+  - Core cannot fix this alone: it knows a plugin declared a page, not whether *this* subpath is one. The
+    SDK's new **`PageRouteProvider`** (`platformApi` 0.9.1) is the plugin answering, and core now asks.
+  - **Absent means yes.** A plugin that does not implement it answers 200 exactly as before — which is
+    every plugin built before 0.9.1. A provider that throws is logged and the route stays 200: a broken
+    plugin must not be able to turn its own working pages into 404s.
+  - Deliberately **not** folded into `ShareMetadataProvider`, though it is one line away: a plugin's
+    subtree legitimately holds views with nothing to describe — a search result page should not claim to be
+    a shareable document — so "no OpenGraph" would have 404'd routes that work.
+  - Ships as a **patch** of the contract (0.9.0 → 0.9.1) because the host matches `major.minor` exactly and
+    lets the patch float, so no installed plugin is rejected by the upgrade.
+
 ### Added
 
 - **Moving blobs between backends: `./gradlew migrateBlobs` (`0.6.21`, §11).** With a second backend
