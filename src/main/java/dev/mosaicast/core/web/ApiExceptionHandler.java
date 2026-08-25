@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
@@ -121,6 +122,42 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Too Many Requests");
         problem.setType(URI.create("https://mosaicast.dev/problems/too-many-requests"));
         return problem;
+    }
+
+    /**
+     * Every external-service refusal (ARCHITECTURE §12.7), each keeping its own status and {@code type}.
+     *
+     * <p>One handler rather than six, because the mapping is entirely mechanical — the exception knows its
+     * slug and the switch knows its status. What is <em>not</em> collapsed is the set of statuses: a caller
+     * that cannot tell 409 "nobody configured this" from 503 "we are full" from 429 "you asked too often"
+     * cannot act on any of them, and each has a different fix.
+     *
+     * <p>{@code Retry-After} rides along where there is a real answer to "when, then".
+     */
+    @ExceptionHandler(dev.mosaicast.core.external.error.ExternalServiceException.class)
+    public ResponseEntity<ProblemDetail> handleExternalService(
+            dev.mosaicast.core.external.error.ExternalServiceException ex, WebRequest request) {
+        HttpStatus status = switch (ex) {
+            case dev.mosaicast.core.external.error.NoProviderConfiguredException ignored -> HttpStatus.CONFLICT;
+            case dev.mosaicast.core.external.error.ProviderMisconfiguredException ignored -> HttpStatus.CONFLICT;
+            case dev.mosaicast.core.external.error.ExternalBusyException ignored -> HttpStatus.SERVICE_UNAVAILABLE;
+            case dev.mosaicast.core.external.error.ExternalRateLimitedException ignored ->
+                    HttpStatus.TOO_MANY_REQUESTS;
+            case dev.mosaicast.core.external.error.ExternalTimeoutException ignored -> HttpStatus.GATEWAY_TIMEOUT;
+            default -> HttpStatus.BAD_GATEWAY;
+        };
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        problem.setTitle(status.getReasonPhrase());
+        problem.setType(URI.create("https://mosaicast.dev/problems/" + ex.problemType()));
+
+        ResponseEntity.BodyBuilder response = ResponseEntity.status(status);
+        if (ex instanceof dev.mosaicast.core.external.error.ExternalRateLimitedException limited
+                && limited.retryAfter() != null) {
+            response.header("Retry-After", String.valueOf(Math.max(1, limited.retryAfter().toSeconds())));
+        } else if (ex instanceof dev.mosaicast.core.external.error.ExternalBusyException) {
+            response.header("Retry-After", "5");
+        }
+        return response.body(problem);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
