@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import type { PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-sdk';
+import type { LocaleInfo, PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-sdk';
 
 import { api } from '../api/client';
 import type { MeView, ThemeTokenSet } from '../api/types';
@@ -34,6 +34,10 @@ export interface CtxInputs {
   user: MeView | null;
   theme: ThemeTokenSet | undefined;
   locale: string;
+  /** The languages the shell can render in, from `/api/i18n/locales` (§12.7). */
+  uiLocales: LocaleInfo[];
+  /** The languages the admin permits content to be authored in — what a plugin's editor should offer. */
+  contentLocales: LocaleInfo[];
   playerCurrentTime: () => number;
   playerSeekTo: (seconds: number) => void;
   /** The subpath below `/p/{pluginId}/` when the plugin is rendered as a deep-link page; else empty. */
@@ -138,7 +142,18 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // Pure string builders over the host's own routes. Not a capability — a plugin can already write any
     // href — but the URL shapes belong to the host that serves them (§6.4).
     links: coreLinks,
-    locale: { current: () => inputs.locale, onChange: noUnsubscribe },
+    // `available` and `content` are different lists on purpose (§12.7): a site can require a Dutch imprint
+    // with an English-only UI, so an editor built from `available` would offer the wrong languages.
+    locale: {
+      current: () => inputs.locale,
+      onChange: noUnsubscribe,
+      available: () => inputs.uiLocales,
+      content: () => inputs.contentLocales,
+    },
+    // Declared by the SDK in 0.10.0, implemented by core in the external-services milestone. `null` is the
+    // contract's value for "this site does not do that", which is also what an operator who configures no
+    // provider will produce permanently — so a plugin has to handle it either way.
+    translation: null,
     progress: {
       get: (episodeId: string) => {
         const stored = localStorage.getItem(`mc.progress.${episodeId}`);

@@ -30,6 +30,8 @@ describe('buildCtx', () => {
     user: null,
     theme: undefined,
     locale: 'de',
+    uiLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
+    contentLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
     playerCurrentTime: () => 12,
     playerSeekTo: () => {},
   };
@@ -42,6 +44,29 @@ describe('buildCtx', () => {
     expect(ctx.locale.current()).toBe('de');
     expect(typeof ctx.api.get).toBe('function');
     expect(typeof ctx.api.put).toBe('function');
+  });
+
+  it('hands over the two language lists separately (§12.7)', () => {
+    // The asymmetry is the point: a site can require a Dutch imprint with an English-only shell, so a
+    // plugin editor built from `available()` would offer the wrong languages.
+    const ctx = buildCtx({
+      ...base,
+      uiLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
+      contentLocales: [
+        { code: 'en', nativeName: 'English', isDefault: true },
+        { code: 'nl', nativeName: 'Nederlands', isDefault: false },
+      ],
+    });
+
+    expect(ctx.locale.available().map((l) => l.code)).toEqual(['en']);
+    expect(ctx.locale.content().map((l) => l.code)).toEqual(['en', 'nl']);
+    expect(ctx.locale.content()[1].nativeName).toBe('Nederlands');
+  });
+
+  it('has no translator, because core does not implement one yet', () => {
+    // `null` is the SDK's value for "this site does not do that", and it is also what an operator who
+    // configures no provider produces permanently — so a plugin must handle it either way.
+    expect(buildCtx(base).translation).toBeNull();
   });
 
   it('maps the user, or null when anonymous', () => {

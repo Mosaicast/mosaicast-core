@@ -141,6 +141,20 @@ export function contentLocales(): string[] {
 }
 
 /**
+ * The full language records, for handing to a plugin as `ctx.locale.available()` / `.content()`.
+ *
+ * The code lists above are what the shell itself uses; a plugin gets the names too, because it has to
+ * render a language picker without a catalog of its own to look names up in.
+ */
+export function uiLocaleInfos(): LocaleInfo[] {
+  return registry.ui;
+}
+
+export function contentLocaleInfos(): LocaleInfo[] {
+  return registry.content;
+}
+
+/**
  * A human, native-language label for a locale code.
  *
  * The host's own name for the language wins; otherwise `Intl.DisplayNames` answers, which means a language
