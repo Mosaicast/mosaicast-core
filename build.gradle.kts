@@ -103,6 +103,14 @@ tasks.processResources {
     filesMatching("build-metadata.properties") {
         expand("coreVersion" to project.version.toString())
     }
+    // The shipped message catalogs (ARCHITECTURE §12.7) are the frontend's files, but the backend serves them
+    // too: it owns the language registry, and /api/i18n/catalog/{code} has to answer for a bundled language
+    // just as it does for one dropped into MOSAICAST_LOCALES_DIR. Copied rather than duplicated so the shell
+    // bundle and the API cannot drift — there is one file per language, and it lives with the strings.
+    from("frontend/src/locales") {
+        into("i18n/bundled")
+        include("*.json")
+    }
 }
 
 // Stage the fixture plugin JAR + its checked-in manifests/assets into

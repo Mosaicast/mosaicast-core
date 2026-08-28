@@ -9,7 +9,7 @@ import { useMeta } from '../api/MetaContext';
 import type { Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { useLegalEntries } from '../hooks/useLegalEntries';
-import { availableLocales, localeName } from '../i18n';
+import { availableLocales, ensureCatalog, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
 import { Dropdown } from './Dropdown';
 import { Icon } from './Icon';
@@ -42,7 +42,9 @@ export function TopBar() {
   const locales = availableLocales();
   const currentLocale = i18n.language.slice(0, 2);
   const changeLocale = (code: string) => {
-    void i18n.changeLanguage(code);
+    // A drop-in language has no compiled-in catalog, so fetch it before switching — otherwise the first
+    // render in that language is entirely fallback English and only corrects itself on the next keystroke.
+    void ensureCatalog(code).then(() => i18n.changeLanguage(code));
     localStorage.setItem('mc.locale', code);
   };
 

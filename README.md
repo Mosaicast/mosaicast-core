@@ -107,7 +107,8 @@ needs real `DISCORD_CLIENT_ID`/`SECRET` and gets a one-time manual browser test 
 The **Dockerfile** is multi-stage (Vite build → Gradle `bootJar` → slim JRE, shell baked in). The frontend
 resolves the SDK from public npm; the backend needs a GitHub Packages token passed as a BuildKit secret —
 see the header of `Dockerfile` for the `docker buildx build --secret …` invocation.
-Plugins folder via `MOSAICAST_PLUGINS_DIR` (in the container `/app/plugins`, volume `./plugins`).
+Plugins folder via `MOSAICAST_PLUGINS_DIR` (in the container `/app/plugins`, volume `./plugins`);
+languages folder via `MOSAICAST_LOCALES_DIR` (`/app/locales`, volume `./locales`) — see **Languages** below.
 Layout reference for the shell: `docs/reference/mosaicast-mockup.jsx` (NOT the real architecture).
 
 ## Versioning & releases
@@ -626,6 +627,43 @@ with `authorization_request_not_found` — the shell shows a generic "Login fail
 - **Plain-http local run:** set `MOSAICAST_SECURITY_SECURE_COOKIE=false` (see `.env.example`). Never do this
   on a real deployment. Also register the matching redirect URI (`<MOSAICAST_BASE_URL>/login/oauth2/code/discord`)
   in the Discord portal.
+
+## Languages
+
+The languages an instance has are decided at **runtime**, not at build time (ARCHITECTURE §12.7). The host
+scans two places and `GET /api/i18n/locales` is the answer the shell and every plugin read:
+
+| Source | Where | Notes |
+|---|---|---|
+| Shipped | `frontend/src/locales/*.json`, copied to the classpath at build time | English and German today |
+| Drop-in | `MOSAICAST_LOCALES_DIR/*.json` | added by the operator, read at startup and on each admin page load |
+
+A file is named after its language code — `nl.json`, `pt-br.json`. **Drop-in wins key by key**, so a
+partial `en.json` containing one key overrides exactly that string and leaves the rest of English alone;
+that is how you rename "Podcast" to "Show" site-wide without forking a catalog you then have to maintain
+against every release. A malformed file is skipped with a warning, never fatal.
+
+Nothing is offered until an admin says so. **Admin → Languages** lists everything found, with its origin
+and how many strings it is missing against English, and has two independent switches per language:
+
+- **Shell** — the language appears in the switcher. Needs a catalog.
+- **Content** — text may be *authored* in it: legal pages, the About blurb, per-locale plugin content.
+  Needs no catalog at all, because a Dutch imprint on an English-only site is a real thing to want.
+
+The **default language** lives on that page too (it must be one of the content languages) — it is the last
+fallback for anything served per locale. English can never be switched off: it is the source language and
+what everything else falls back to.
+
+Adding a language, end to end:
+
+```bash
+mkdir -p ./locales
+cp frontend/src/locales/en.json ./locales/nl.json   # translate it
+# → Admin → Languages → tick Shell and/or Content for Nederlands → Save
+```
+
+No restart: the admin page rescans on load, and the shell fetches `/api/i18n/catalog/nl` the first time
+anyone selects it.
 
 ## Branding assets
 

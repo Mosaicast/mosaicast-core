@@ -6,7 +6,6 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
 import type { ModePolicy, SiteView } from '../../api/types';
-import { availableLocales, localeName } from '../../i18n';
 import { useSite } from '../../theme/SiteContext';
 
 const BRANDING_KEYS = ['logo', 'favicon', 'dark-logo'] as const;
@@ -14,6 +13,9 @@ const BRANDING_KEYS = ['logo', 'favicon', 'dark-logo'] as const;
 /**
  * Site & branding admin (ARCHITECTURE §12.1/§12.2, ADMIN only): the site name, mode policy and accent seed
  * (saving applies the server-generated theme live), plus logo / favicon / dark-logo upload and clear.
+ *
+ * Languages live on their own page (§12.7): the default language has to be checked against the languages
+ * content may be authored in, and that check belongs where the lists are edited.
  */
 export function AdminSite() {
   const { t } = useTranslation();
@@ -22,7 +24,6 @@ export function AdminSite() {
   const [siteName, setSiteName] = useState(site?.name ?? '');
   const [modePolicy, setModePolicy] = useState<ModePolicy>(site?.modePolicy ?? 'system');
   const [accentSeed, setAccentSeed] = useState(site?.accentSeed ?? '#c8553d');
-  const [defaultLocale, setDefaultLocale] = useState(site?.defaultLocale ?? 'en');
   const [saved, setSaved] = useState(false);
   const [bust, setBust] = useState(0);
 
@@ -33,13 +34,12 @@ export function AdminSite() {
       setSiteName(site.name);
       setModePolicy(site.modePolicy);
       setAccentSeed(site.accentSeed);
-      setDefaultLocale(site.defaultLocale);
     }
   }, [site]);
 
   const save = async () => {
     setSaved(false);
-    await api.put<SiteView>('/api/admin/site', { siteName, accentSeed, modePolicy, defaultLocale });
+    await api.put<SiteView>('/api/admin/site', { siteName, accentSeed, modePolicy });
     // Refresh the shared site payload so the whole shell (and this form) reflects the saved theme live.
     await refresh();
     setSaved(true);
@@ -71,17 +71,6 @@ export function AdminSite() {
           <option value="light">{t('admin.site.light')}</option>
           <option value="dark">{t('admin.site.dark')}</option>
           <option value="system">{t('admin.site.system')}</option>
-        </select>
-      </label>
-
-      <label className="mc-field">
-        <span>{t('admin.site.defaultLang')}</span>
-        <select value={defaultLocale} onChange={(e) => setDefaultLocale(e.target.value)}>
-          {availableLocales().map((code) => (
-            <option key={code} value={code}>
-              {localeName(code)}
-            </option>
-          ))}
         </select>
       </label>
 

@@ -5,7 +5,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { api } from '../api/client';
 import type { Mode, SiteView } from '../api/types';
-import i18n, { availableLocales } from '../i18n';
+import i18n, { availableLocales, loadLocales } from '../i18n';
 import { applyTheme, resolveMode } from './applyTheme';
 
 /**
@@ -67,8 +67,11 @@ export function SiteProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  // Languages first, then the site payload. `applyDefaultLocale` asks which languages this instance offers,
+  // and that answer now comes from the host (§12.7) — asking before it has arrived would only ever see the
+  // two compiled-in catalogs and ignore a site default an operator dropped in.
   useEffect(() => {
-    void refresh();
+    void loadLocales().then(() => refresh());
   }, [refresh]);
 
   // When the policy is `system`, re-apply as the OS light/dark preference changes.
