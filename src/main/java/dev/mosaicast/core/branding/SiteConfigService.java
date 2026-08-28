@@ -121,6 +121,46 @@ public class SiteConfigService {
         return saved;
     }
 
+    /**
+     * Replaces the language policy: which languages the shell offers, which content may be authored in, and
+     * which is the default (ARCHITECTURE §12.7).
+     *
+     * <p>Its own method rather than three more parameters on {@link #update}, for the reason
+     * {@link #updateCrawlerPolicy} gives: that one is the branding/theme editor, and this is a different
+     * decision made on a different page. <strong>Validation lives in the caller</strong> — deciding whether a
+     * code names a real catalog needs the locale registry, and the registry needs this service, so the check
+     * belongs on the side of that edge that can see both.
+     *
+     * @param uiLocales      languages offered in the shell
+     * @param contentLocales languages content may be authored in
+     * @param defaultLocale  the site default, or {@code null} to leave it unchanged
+     * @return the saved config
+     */
+    @Transactional
+    public SiteConfig updateLocales(List<String> uiLocales, List<String> contentLocales, String defaultLocale) {
+        SiteConfig config = get();
+        List<String> changes = new ArrayList<>();
+        if (uiLocales != null && !uiLocales.equals(config.getUiLocales())) {
+            changes.add("shell languages %s → %s".formatted(config.getUiLocales(), uiLocales));
+            config.setUiLocales(uiLocales);
+        }
+        if (contentLocales != null && !contentLocales.equals(config.getContentLocales())) {
+            changes.add("content languages %s → %s".formatted(config.getContentLocales(), contentLocales));
+            config.setContentLocales(contentLocales);
+        }
+        if (defaultLocale != null && !defaultLocale.isBlank()
+                && !defaultLocale.trim().equalsIgnoreCase(config.getDefaultLocale())) {
+            changes.add("default language %s → %s"
+                    .formatted(config.getDefaultLocale(), defaultLocale.trim().toLowerCase()));
+            config.setDefaultLocale(defaultLocale.trim().toLowerCase());
+        }
+        SiteConfig saved = configs.save(config);
+        if (!changes.isEmpty()) {
+            log.info("Site settings changed: {}", String.join(", ", changes));
+        }
+        return saved;
+    }
+
     /** Points a branding slot at a stored blob (or {@code null} to fall back to the bundled default). */
     @Transactional
     public void setAsset(BrandingAsset asset, UUID blobId) {

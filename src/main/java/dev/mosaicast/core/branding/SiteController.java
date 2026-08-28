@@ -23,8 +23,15 @@ public class SiteController {
         this.site = site;
     }
 
-    /** Admin edit of name / accent / mode / default language. Any omitted field is left unchanged. */
-    public record UpdateSite(String siteName, String accentSeed, String modePolicy, String defaultLocale) {
+    /**
+     * Admin edit of name / accent / mode. Any omitted field is left unchanged.
+     *
+     * <p>The default language is <em>not</em> here: it moved to {@code PUT /api/admin/i18n} when languages
+     * became a runtime registry (§12.7). It has to be validated against the languages content may be authored
+     * in, and two endpoints writing one setting with only one of them checking it is how a site ends up with a
+     * default nobody can write a legal page in.
+     */
+    public record UpdateSite(String siteName, String accentSeed, String modePolicy) {
     }
 
     @GetMapping("/api/site")
@@ -35,7 +42,7 @@ public class SiteController {
     @PutMapping("/api/admin/site")
     public SiteView update(@RequestBody UpdateSite request) {
         ModePolicy mode = parseMode(request.modePolicy());
-        site.update(request.siteName(), request.accentSeed(), mode, request.defaultLocale());
+        site.update(request.siteName(), request.accentSeed(), mode, null);
         return SiteView.of(site.get(), site.theme());
     }
 

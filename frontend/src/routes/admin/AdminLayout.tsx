@@ -40,6 +40,11 @@ export function AdminLayout() {
             </NavLink>
           )}
           {isAdmin && (
+            <NavLink to="/admin/languages" className={tab}>
+              {t('admin.nav.languages')}
+            </NavLink>
+          )}
+          {isAdmin && (
             <NavLink to="/admin/legal" className={tab}>
               {t('admin.nav.legal')}
             </NavLink>

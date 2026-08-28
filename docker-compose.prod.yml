@@ -34,6 +34,8 @@ services:
       MOSAICAST_DB_USER: ${POSTGRES_USER:-mosaicast}
       MOSAICAST_DB_PASSWORD: ${POSTGRES_PASSWORD:?}
       MOSAICAST_PLUGINS_DIR: /app/plugins
+      # Extra language catalogs, read at runtime (§12.7). Empty directory = shipped languages only.
+      MOSAICAST_LOCALES_DIR: /app/locales
       # Plugins to fetch at boot (see .env.example). Empty by default: an install that wants none downloads
       # nothing. Prebuilt release tarballs only in the container — no git or JDK in the runtime image.
       MOSAICAST_PLUGINS: ${MOSAICAST_PLUGINS:-}
@@ -51,6 +53,7 @@ services:
       - "${APP_PORT:-8080}:8080"
     volumes:
       - ./plugins:/app/plugins
+      - ./locales:/app/locales
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
       interval: 30s

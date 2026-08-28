@@ -14,6 +14,33 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Host on `platformApi` 0.10.0.** `ctx.locale.available()` / `.content()` (and `ctx.locales()` on the
+  backend) hand plugins the site's language lists, so a plugin authoring per-locale content can ask which
+  languages exist instead of hardcoding them. `ctx.translation` is **`null` on every host** for now — the
+  SDK ships the contract ahead of the implementation, and `null` is also what an operator who configures no
+  provider produces permanently, so a plugin has to handle it either way.
+  - Manifests must re-declare `platformApi` as `0.10.0`; `plugins/wiki` and `plugins/sample` are updated
+    (the sample was stale at `0.8.0` and had been rejected since 0.9.0).
+  - `PluginManifestValidationTest` no longer writes the host version into its fixtures by hand — a literal
+    there went stale with this bump and took 26 of the class's 27 cases down with it.
+
+- **Languages are a runtime registry (§12.7).** The language list used to be two static imports in
+  `frontend/src/i18n.ts` — a build-time constant no operator could change and no plugin could read. The host
+  now scans the shipped catalogs plus `MOSAICAST_LOCALES_DIR`, and `GET /api/i18n/locales` is the answer.
+  - **Drop-in merges, it does not replace.** `nl.json` adds Dutch; a partial `en.json` overrides exactly the
+    keys it declares. Operators get per-string overrides ("Podcast" → "Show") without forking a catalog.
+  - **Shell and content are separate switches.** A language needs a catalog to be *offered* in the UI and
+    nothing at all to be one content is *authored* in — a Dutch imprint on an English-only site is a real
+    thing to want, and one switch could not express it. New `site_config.ui_locales` / `content_locales`
+    (`V30`), a new **Admin → Languages** page, and `PUT /api/admin/legal/{slug}/translations/{locale}` now
+    **400s** for a locale that is not a content language, because a page saved under one is invisible to
+    every reader and to the editor's own tab strip.
+  - The **default language moved** from Admin → Site & branding to Admin → Languages, and out of
+    `PUT /api/admin/site`. It has to be checked against the content languages, and two endpoints writing one
+    setting with only one of them checking it is how a site ends up with a default nobody can write in.
+  - **Deviates from ARCHITECTURE §12.7 as written** ("copy `en.json`, translate, PR"), which describes a
+    build-time flow. Flagged for amendment, not amended here — the spec is read-only in this repo.
+
 - **External services — the kind-agnostic skeleton (§12.7).** A generic surface for admin-configured
   third-party services, so an operator selects one provider per *kind* (or none) and core plus, later,
   plugins consume it. Translation is the first kind; transcription, TTS and embeddings are the shapes it is

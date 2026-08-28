@@ -68,6 +68,28 @@ export interface SeoView {
   known: AiCrawler[];
 }
 
+/** One language on the admin languages page (`i18n/LocaleViews.java`), `GET /api/admin/i18n`. */
+export interface AdminLocale {
+  code: string;
+  nativeName: string;
+  /** Where the catalog came from: shipped, dropped in, or missing entirely. */
+  origin: 'BUNDLED' | 'DROP_IN' | 'NONE';
+  uiEnabled: boolean;
+  contentEnabled: boolean;
+  isDefault: boolean;
+  keyCount: number;
+  /** How many of English's keys this catalog lacks — the translation debt. */
+  missingKeys: number;
+}
+
+/** The admin languages payload, `GET|PUT /api/admin/i18n`. */
+export interface AdminLocalesView {
+  sourceLocale: string;
+  /** The configured drop-in directory, or null when the operator set none. */
+  dropInDir: string | null;
+  locales: AdminLocale[];
+}
+
 /** A feed in the public catalog (`feed/PublicFeedView.java`), `GET /api/feeds`. */
 export interface PublicFeed {
   id: string;

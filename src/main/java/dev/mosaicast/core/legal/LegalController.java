@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.legal;
 
+import dev.mosaicast.core.i18n.LocaleRegistry;
 import dev.mosaicast.core.legal.LegalViews.FooterEntry;
 import dev.mosaicast.core.legal.LegalViews.RenderedPage;
 import jakarta.validation.Valid;
@@ -28,9 +29,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class LegalController {
 
     private final LegalService legal;
+    private final LocaleRegistry locales;
 
-    public LegalController(LegalService legal) {
+    public LegalController(LegalService legal, LocaleRegistry locales) {
         this.legal = legal;
+        this.locales = locales;
+    }
+
+    /**
+     * Refuses a locale the admin has not enabled for content (ARCHITECTURE §12.7).
+     *
+     * <p>Only on the write path. Reads stay tolerant on purpose — {@code resolveTranslation} already falls back
+     * to the site default, so a stale bookmark in a language that was switched off should serve the page rather
+     * than 404. A <em>write</em> is different: an imprint saved under a locale nobody offers is invisible to
+     * every reader and to the editor's own tab strip, which is a page that quietly does not exist.
+     */
+    private void requireContentLocale(String locale) {
+        if (!locales.isContentLocale(locale)) {
+            throw new IllegalArgumentException(
+                    "'%s' is not one of this site's content languages".formatted(locale));
+        }
     }
 
     /** Create/update a page's metadata. */
@@ -82,6 +100,7 @@ public class LegalController {
     @PutMapping("/api/admin/legal/{slug}/translations/{locale}")
     public ResponseEntity<Void> putTranslation(
             @PathVariable String slug, @PathVariable String locale, @Valid @RequestBody TranslationRequest request) {
+        requireContentLocale(locale);
         legal.putTranslation(slug, locale, request.title(), request.markdown() == null ? "" : request.markdown());
         return ResponseEntity.noContent().build();
     }

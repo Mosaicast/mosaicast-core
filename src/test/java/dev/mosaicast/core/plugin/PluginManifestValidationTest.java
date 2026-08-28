@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.mosaicast.plugin.api.PlatformApi;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,7 @@ class PluginManifestValidationTest {
     @Test
     void compatibleManifestValidates() throws Exception {
         PluginManifest manifest = parse("""
-                {"id":"sample","version":"1.0.0","platformApi":"0.9.0","name":"Sample",
+                {"id":"sample","version":"1.0.0","platformApi":"HOST_API","name":"Sample",
                  "backend":{"basePath":"/api/plugins/sample","extensions":["X"]},
                  "frontend":{"entry":"s.js","elements":["s-card"]},
                  "slots":[{"scope":"site","element":"s-card","placement":"sidebar","visibleTo":"anonymous"}],
@@ -34,8 +35,11 @@ class PluginManifestValidationTest {
 
     @Test
     void patchDifferenceIsCompatible() throws Exception {
-        // Same major.minor as the host (0.9.x), different patch — accepted.
-        assertThatCode(parse(base("0.9.9", "doc", "sidebar"))::validate).doesNotThrowAnyException();
+        // Same major.minor as the host, different patch — accepted. Derived rather than written out, so the
+        // next SDK minor does not turn this case into a silent duplicate of the rejection test below.
+        String otherPatch =
+                PlatformApi.VERSION.substring(0, PlatformApi.VERSION.lastIndexOf('.')) + ".99";
+        assertThatCode(parse(base(otherPatch, "doc", "sidebar"))::validate).doesNotThrowAnyException();
     }
 
     @Test
@@ -47,14 +51,14 @@ class PluginManifestValidationTest {
 
     @Test
     void declaredSchemaStorageIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.9.0", "schema", "sidebar"))::validate)
+        assertThatThrownBy(parse(base(PlatformApi.VERSION, "schema", "sidebar"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("schema");
     }
 
     @Test
     void unknownSlotPlacementIsRejected() throws Exception {
-        assertThatThrownBy(parse(base("0.9.0", "doc", "nowhere"))::validate)
+        assertThatThrownBy(parse(base(PlatformApi.VERSION, "doc", "nowhere"))::validate)
                 .isInstanceOf(PluginValidationException.class)
                 .hasMessageContaining("placement");
     }
@@ -163,7 +167,7 @@ class PluginManifestValidationTest {
         // ctx.tags would be non-null, because the block is there, and every call through it would refuse.
         // Omitting the block is how a plugin declares no tag surface, and it is already the default.
         assertThatThrownBy(parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "tags":{"readsVocabulary":false,"writesEpisodes":false}}
                 """)::validate)
@@ -176,7 +180,7 @@ class PluginManifestValidationTest {
         // Declaring the block at all is asking for the read surface; tagging an episode changes the shell's
         // filters and what core recommends, so that half stays opt-in.
         PluginManifest manifest = parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "tags":{}}
                 """);
@@ -192,7 +196,7 @@ class PluginManifestValidationTest {
         // Every entry would be a link into a 404. Failing at load names the contradiction; the alternative
         // is a menu item that is broken for as long as nobody clicks it.
         assertThatThrownBy(parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "nav":[{"path":"","label":"P"}]}
                 """)::validate)
@@ -259,7 +263,7 @@ class PluginManifestValidationTest {
     /** A manifest that declares a `page` slot, plus whatever extra top-level JSON the case needs. */
     private static String withPage(String extra) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "slots":[{"scope":"site","element":"p-page","placement":"page"}]
                  %s}
@@ -273,7 +277,7 @@ class PluginManifestValidationTest {
         // only added a line to an About page. And an unparseable licence string is still a working plugin,
         // so `validate()` deliberately says nothing about any of them.
         PluginManifest bare = parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]}}
                 """);
 
@@ -284,7 +288,7 @@ class PluginManifestValidationTest {
         assertThat(bare.attribution()).isNull();
 
         PluginManifest credited = parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "backend":{"basePath":"/api/plugins/p","extensions":[]},
                  "license":"not-an-spdx-id","author":"A Person",
                  "homepage":"https://example.test/p","attribution":"https://example.test/thanks"}
@@ -301,7 +305,7 @@ class PluginManifestValidationTest {
     void declaringNoConsentAtAllIsFine() throws Exception {
         // The banner-free default: a plugin that contacts no third party says nothing.
         assertThatCode(parse("""
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "slots":[],"storage":"doc","config":{}}
                 """)::validate).doesNotThrowAnyException();
     }
@@ -343,8 +347,17 @@ class PluginManifestValidationTest {
         assertThat(manifest.data().backendOwnedOrEmpty()).isEmpty();
     }
 
+    /**
+     * Parses a fixture manifest, substituting the host's own {@code platformApi} for the {@code HOST_API}
+     * token.
+     *
+     * <p>A literal version in a text block goes stale on the next SDK minor and takes every test in this
+     * class down with it — which is exactly what 0.10.0 did to the hardcoded {@code 0.9.0}. These cases are
+     * about slots, storage and config; only {@link #incompatiblePlatformApiIsRejected()} is about the
+     * version, and it states its own.
+     */
     private PluginManifest parse(String json) throws Exception {
-        return mapper.readValue(json, PluginManifest.class);
+        return mapper.readValue(json.replace("HOST_API", PlatformApi.VERSION), PluginManifest.class);
     }
 
     private static String base(String platformApi, String storage, String placement) {
@@ -358,7 +371,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code config} block, to isolate config validation. */
     private static String withConfig(String config) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "slots":[{"scope":"site","element":"e","placement":"sidebar","visibleTo":"anonymous"}],
                  "storage":"doc","config":%s,"consent":{"services":[]}}
                 """.formatted(config);
@@ -367,7 +380,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code consent} block, to isolate consent validation. */
     private static String withConsent(String consent) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "slots":[],"storage":"doc","config":{},"consent":%s}
                 """.formatted(consent);
     }
@@ -375,7 +388,7 @@ class PluginManifestValidationTest {
     /** A valid manifest carrying the given {@code data} block, to isolate data validation. */
     private static String withData(String data) {
         return """
-                {"id":"p","version":"1.0.0","platformApi":"0.9.0","name":"P",
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "slots":[],"storage":"doc","config":{},"data":%s}
                 """.formatted(data);
     }

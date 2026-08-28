@@ -9,6 +9,7 @@ import type { Scope } from '@mosaicast/plugin-sdk';
 
 import { useUser } from '../auth/UserContext';
 import { useConsent } from '../consent/ConsentContext';
+import { contentLocaleInfos, uiLocaleInfos } from '../i18n';
 import { usePlayer } from '../player/PlayerContext';
 import { useSite } from '../theme/SiteContext';
 import { buildCtx } from './buildCtx';
@@ -81,6 +82,8 @@ export function PluginMount({
         user,
         theme: site?.theme[mode],
         locale: i18n.language,
+        uiLocales: uiLocaleInfos(),
+        contentLocales: contentLocaleInfos(),
         playerCurrentTime: () => player.currentTime,
         playerSeekTo: player.seek,
         routePath,

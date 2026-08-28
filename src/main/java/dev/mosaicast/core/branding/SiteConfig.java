@@ -57,6 +57,23 @@ public class SiteConfig {
     @Column(name = "default_locale", nullable = false)
     private String defaultLocale = "en";
 
+    /**
+     * The languages the shell offers (ARCHITECTURE §12.7). A subset of the catalogs actually installed —
+     * an operator may ship twelve and want three in the menu.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "ui_locales", nullable = false)
+    private List<String> uiLocales = new ArrayList<>();
+
+    /**
+     * The languages content may be <em>authored</em> in: legal pages, the About blurb, and whatever a plugin
+     * stores per locale. Deliberately separate from {@link #uiLocales} — a Dutch imprint on an English-only
+     * site is a real thing to want, and so is shipping a catalog nobody is allowed to write pages in yet.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "content_locales", nullable = false)
+    private List<String> contentLocales = new ArrayList<>();
+
     /** What {@code robots.txt} says to AI crawlers (ARCHITECTURE §6.6) — the operator's call, not ours. */
     @Enumerated(EnumType.STRING)
     @Column(name = "ai_crawler_policy", nullable = false)
@@ -118,6 +135,18 @@ public class SiteConfig {
         touch();
     }
 
+    /** Replaces the offered-language list wholesale — the languages page edits it as one form. */
+    public void setUiLocales(List<String> uiLocales) {
+        this.uiLocales = uiLocales == null ? new ArrayList<>() : new ArrayList<>(uiLocales);
+        touch();
+    }
+
+    /** Replaces the authoring-language list wholesale. */
+    public void setContentLocales(List<String> contentLocales) {
+        this.contentLocales = contentLocales == null ? new ArrayList<>() : new ArrayList<>(contentLocales);
+        touch();
+    }
+
     /** Replaces the block list wholesale — it is edited as one form field, not entry by entry. */
     public void setAiCrawlerBlocked(List<String> aiCrawlerBlocked) {
         this.aiCrawlerBlocked = aiCrawlerBlocked == null ? new ArrayList<>() : new ArrayList<>(aiCrawlerBlocked);
@@ -150,6 +179,14 @@ public class SiteConfig {
 
     public String getDefaultLocale() {
         return defaultLocale;
+    }
+
+    public List<String> getUiLocales() {
+        return uiLocales == null ? List.of() : uiLocales;
+    }
+
+    public List<String> getContentLocales() {
+        return contentLocales == null ? List.of() : contentLocales;
     }
 
     public AiCrawlerPolicy getAiCrawlerPolicy() {
