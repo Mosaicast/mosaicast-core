@@ -74,6 +74,8 @@ function Probe() {
     user: null,
     theme: undefined,
     locale: 'en',
+    uiLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
+    contentLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
     playerCurrentTime: () => 0,
     playerSeekTo: () => {},
     consentHas: consent.has,

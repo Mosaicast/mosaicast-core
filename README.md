@@ -61,12 +61,13 @@ from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 
 Core builds against the published **`@mosaicast/plugin-sdk`** — the TypeScript package on **npm** (public)
 and the Java artifacts (`dev.mosaicast:plugin-api` / `plugin-testkit`) in **GitHub Packages**. Pin the
-version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.6.0`).
+version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.10.0`).
 
 - **Frontend:** resolves from public npm — nothing extra, just `npm install`.
 - **Backend:** GitHub Packages requires authentication even for reads. Either
   - set `gpr.user` / `gpr.key` in `~/.gradle/gradle.properties` (a PAT with `read:packages`), or export
-    `GITHUB_ACTOR` / `GITHUB_TOKEN`; **or**
+    `GITHUB_ACTOR` / `GITHUB_TOKEN`. Note that a `gh auth token` does **not** carry `read:packages` by
+    default, so borrowing one gets you a `401 Unauthorized` from Gradle rather than a clear message; **or**
   - for offline/local work, publish the SDK to your Maven Local from the sibling repo
     (`../mosaicast-plugin-sdk`): `./gradlew publishToMavenLocal` — Gradle checks `mavenLocal()` first, so
     no token is needed.

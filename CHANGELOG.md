@@ -14,6 +14,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Host on `platformApi` 0.10.0.** `ctx.locale.available()` / `.content()` (and `ctx.locales()` on the
+  backend) hand plugins the site's language lists, so a plugin authoring per-locale content can ask which
+  languages exist instead of hardcoding them. `ctx.translation` is **`null` on every host** for now — the
+  SDK ships the contract ahead of the implementation, and `null` is also what an operator who configures no
+  provider produces permanently, so a plugin has to handle it either way.
+  - Manifests must re-declare `platformApi` as `0.10.0`; `plugins/wiki` and `plugins/sample` are updated
+    (the sample was stale at `0.8.0` and had been rejected since 0.9.0).
+  - `PluginManifestValidationTest` no longer writes the host version into its fixtures by hand — a literal
+    there went stale with this bump and took 26 of the class's 27 cases down with it.
+
 - **Languages are a runtime registry (§12.7).** The language list used to be two static imports in
   `frontend/src/i18n.ts` — a build-time constant no operator could change and no plugin could read. The host
   now scans the shipped catalogs plus `MOSAICAST_LOCALES_DIR`, and `GET /api/i18n/locales` is the answer.

@@ -75,6 +75,8 @@ describe('Plugin deep links (M5 E5c)', () => {
       user: null,
       theme: undefined,
       locale: 'en',
+      uiLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
+      contentLocales: [{ code: 'en', nativeName: 'English', isDefault: true }],
       playerCurrentTime: () => 0,
       playerSeekTo: () => {},
       routePath: 'some/page',

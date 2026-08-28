@@ -29,12 +29,14 @@ public class PluginContextImpl implements PluginContext {
     private final Tags tags;
     private final PluginConfig config;
     private final FeedAccess feeds;
+    private final dev.mosaicast.plugin.api.Locales locales;
     private final PluginScheduler scheduler;
     private int scheduleCount;
 
     public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
                              dev.mosaicast.plugin.api.PluginBlobs blobs, Tags tags, PluginConfig config,
-                             FeedAccess feeds, PluginScheduler scheduler) {
+                             FeedAccess feeds, dev.mosaicast.plugin.api.Locales locales,
+                             PluginScheduler scheduler) {
         this.pluginId = pluginId;
         this.store = store;
         this.schema = schema;
@@ -42,12 +44,37 @@ public class PluginContextImpl implements PluginContext {
         this.tags = tags;
         this.config = config;
         this.feeds = feeds;
+        this.locales = locales;
         this.scheduler = scheduler;
     }
 
     @Override
     public DocStore store() {
         return store;
+    }
+
+    /**
+     * Which languages this site has (§12.7). Never {@code null}: a site always has at least English.
+     *
+     * <p>Reads through to the registry on every call rather than handing over a snapshot, because an admin
+     * edits this policy on a page and a plugin holds its context for the life of the process.
+     */
+    @Override
+    public dev.mosaicast.plugin.api.Locales locales() {
+        return locales;
+    }
+
+    /**
+     * Machine translation — {@code null} on every host until core implements the external-services
+     * subsystem (§12.7).
+     *
+     * <p>The SDK ships a contract ahead of its implementation on purpose, and {@code null} is the documented
+     * value for "this site does not do that". A plugin written against 0.10.0 already has to handle it,
+     * because an operator who configures no provider produces the same answer permanently.
+     */
+    @Override
+    public dev.mosaicast.plugin.api.Translation translation() {
+        return null;
     }
 
     /**

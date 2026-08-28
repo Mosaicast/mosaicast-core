@@ -64,6 +64,14 @@ public class PluginLoaderService implements ApplicationRunner {
      */
     private final Map<String, SchemaStoreImpl> schemaStores = new LinkedHashMap<>();
 
+    /**
+     * The site's language registry, shared by every plugin (§12.7).
+     *
+     * <p>One instance for all of them, unlike the per-plugin stores above: which languages a site has is a
+     * property of the site, not of who is asking.
+     */
+    private final dev.mosaicast.plugin.api.Locales locales;
+
     /** The PF4J manager, kept after boot so optional extension points can be resolved on demand (§7.4). */
     private MosaicastPluginManager manager;
 
@@ -72,6 +80,7 @@ public class PluginLoaderService implements ApplicationRunner {
                                PluginSettingsService settings, ObjectMapper objectMapper,
                                PluginSchemaMigrator schemaMigrator, PluginBlobService blobService,
                                dev.mosaicast.core.tag.TagService tagService,
+                               dev.mosaicast.plugin.api.Locales locales,
                                org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.properties = properties;
         this.dataService = dataService;
@@ -82,6 +91,7 @@ public class PluginLoaderService implements ApplicationRunner {
         this.schemaMigrator = schemaMigrator;
         this.blobService = blobService;
         this.tagService = tagService;
+        this.locales = locales;
         this.jdbc = jdbc;
     }
 
@@ -178,7 +188,8 @@ public class PluginLoaderService implements ApplicationRunner {
         PluginBlobsImpl blobs = manifest.declaresBlobs() ? new PluginBlobsImpl(manifest, blobService) : null;
         // Same rule again for the shared tag vocabulary (§6.1): declared or absent, never inferred.
         TagsImpl tags = manifest.declaresTags() ? new TagsImpl(manifest, tagService) : null;
-        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, config, feedAccess, scheduler);
+        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, config, feedAccess, locales,
+                scheduler);
     }
 
     /**
