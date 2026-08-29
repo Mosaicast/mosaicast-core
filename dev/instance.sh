@@ -2,27 +2,57 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 #
-# Stands up an isolated, disposable stack for capturing README screenshots (assets/screenshots/*),
-# seeded ONLY with the fictional sample feed (assets/sample/sample-feed.xml) — never your real dev data.
+# Stands up an isolated, disposable Mosaicast instance for any local work that wants a running site:
+# capturing README screenshots, checking a change by hand, exercising an admin flow, pointing a plugin at
+# a real host. Seeded ONLY with the fictional sample feed (assets/sample/sample-feed.xml) — never your real
+# dev data, and never a real podcast.
 #
-#   dev/screenshots.sh up     # fleeting Postgres + local feed server + dev-profile app, seeded
-#   dev/screenshots.sh down   # tear it all down
+#   dev/instance.sh up [--plugins|--no-plugins] [--admin]   # Postgres + feed server + dev-profile app
+#   dev/instance.sh status                                  # is it up, and what is loaded
+#   dev/instance.sh logs [-f]                               # the app log
+#   dev/instance.sh psql                                    # a shell on the fleeting database
+#   dev/instance.sh down                                    # tear it all down
 #
-# After `up`, capture with the browser tools (light + dark, ~1280px wide):
-#   - http://localhost:8081/                      -> home-light.png / home-dark.png
-#   - an episode from GET /api/episodes           -> detail-light.png / detail-dark.png
-# then `down`. The fleeting Postgres uses host port 5433 so it never touches a 5432 dev DB.
+# Ports are deliberately off the usual ones so this never collides with, or writes to, a normal dev setup:
+# Postgres on 5433 (not 5432) and the app on 8081 (not 8080).
+#
+# --no-plugins is the default for screenshots: with plugins loaded the sample plugin renders its demo card
+# and placeholder artwork, which is not what the README should show. Pass --plugins when the thing you are
+# checking IS a plugin.
+#
+# For screenshots, capture light + dark at ~1280px:
+#   - /                                  -> home-{light,dark}.png
+#   - /episodes/<slug>                   -> detail-{light,dark}.png
+#   - /account                           -> account-{light,dark}.png   (needs --admin)
+#   - /admin/<page>                      -> admin-{light,dark}.png     (needs --admin)
+# Switch theme with the browser's colour-scheme emulation and RELOAD — setting data-theme by hand produces
+# an image that looks right and is not (the accent tokens come from the site payload, not from CSS alone).
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PG_NAME="mosaicast-shots"
+PG_NAME="mosaicast-dev"
 PG_PORT=5433
 FEED_PORT=8099
 APP_PORT=8081   # distinct from a dev :8080 so this never collides with a running app
 APP_URL="http://localhost:$APP_PORT"
-RUN_DIR="${TMPDIR:-/tmp}/mosaicast-shots"
+RUN_DIR="${TMPDIR:-/tmp}/mosaicast-dev"
 mkdir -p "$RUN_DIR"
+
+# Whether the app loads ./plugins, and whether a browser session is logged in as admin afterwards.
+WITH_PLUGINS=0
+AS_ADMIN=0
+
+login() {  # login <role> — echoes the cookie jar path
+  local jar="$RUN_DIR/cookies-$1.txt" xsrf
+  # dev-login is CSRF-protected like every other mutation, so prime a token first and echo it back — the
+  # same two steps the SPA takes. Re-read afterwards: the login response may re-set the cookie.
+  curl -s -c "$jar" "$APP_URL/api/meta" >/dev/null
+  xsrf=$(awk '/XSRF-TOKEN/{print $7}' "$jar")
+  curl -s -b "$jar" -c "$jar" -H "X-XSRF-TOKEN: $xsrf" \
+    -X POST "$APP_URL/api/auth/dev-login?role=$1" >/dev/null
+  echo "$jar"
+}
 
 up() {
   echo "▶ fleeting Postgres ($PG_NAME) on :$PG_PORT"
@@ -35,6 +65,15 @@ up() {
   echo "▶ serving the sample feed on :$FEED_PORT"
   python3 -m http.server "$FEED_PORT" --directory assets/sample >/dev/null 2>&1 &
   echo $! > "$RUN_DIR/feed.pid"
+
+  local plugins_dir="$RUN_DIR/noplugins"
+  mkdir -p "$plugins_dir"
+  if [ "$WITH_PLUGINS" = 1 ]; then
+    plugins_dir="./plugins"
+    echo "▶ loading plugins from ./plugins"
+  else
+    echo "▶ no plugins (pass --plugins to load ./plugins)"
+  fi
 
   echo "▶ booting the app (dev profile) against the fleeting DB"
   # The sample feed is served from loopback, which the outbound filter refuses by default — and it takes
@@ -80,8 +119,27 @@ down() {
   echo "✅ down"
 }
 
-case "${1:-}" in
+cmd="${1:-}"
+shift || true
+FOLLOW=""
+for arg in "$@"; do
+  case "$arg" in
+    --plugins) WITH_PLUGINS=1 ;;
+    --no-plugins) WITH_PLUGINS=0 ;;
+    --admin) AS_ADMIN=1 ;;
+    -f) FOLLOW="-f" ;;
+    *) echo "unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
+
+case "$cmd" in
   up) up ;;
   down) down ;;
-  *) echo "usage: dev/screenshots.sh {up|down}" >&2; exit 2 ;;
+  status) status ;;
+  logs) logs "$FOLLOW" ;;
+  psql) psql_shell ;;
+  *)
+    echo "usage: dev/instance.sh {up|down|status|logs|psql} [--plugins|--no-plugins] [--admin]" >&2
+    exit 2
+    ;;
 esac

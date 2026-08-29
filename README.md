@@ -72,6 +72,22 @@ version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0
     (`../mosaicast-plugin-sdk`): `./gradlew publishToMavenLocal` — Gradle checks `mavenLocal()` first, so
     no token is needed.
 
+## A disposable dev instance
+
+`dev/instance.sh` stands up a throwaway Mosaicast — its own Postgres on :5433 and the app on :8081, so it
+never touches a normal dev setup — seeded only with the fictional sample feed.
+
+```bash
+dev/instance.sh up --admin      # + --plugins to load ./plugins
+dev/instance.sh status          # up? how many plugins?
+dev/instance.sh logs -f
+dev/instance.sh psql            # a shell on the fleeting database
+dev/instance.sh down
+```
+
+Use it to check a change by hand, exercise an admin flow, point a plugin at a real host, or refresh the
+README screenshots.
+
 ## Build & test
 
 ```bash
