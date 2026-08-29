@@ -148,6 +148,14 @@ tasks.withType<Test>().configureEach {
             layout.buildDirectory.dir("test-plugins").get().asFile.absolutePath)
     }
     useJUnitPlatform()
+    // Opt-in live checks against a real external service (LibreTranslateLiveTest). Gradle does not pass
+    // -D through to the test JVM, so a developer running
+    //   ./gradlew test -Dmosaicast.test.libretranslate-url=http://localhost:5000
+    // would otherwise watch every case skip and read that as a pass. Forwarded only when set, so CI —
+    // which can reach no such service — still skips them.
+    System.getProperty("mosaicast.test.libretranslate-url")?.let {
+        systemProperty("mosaicast.test.libretranslate-url", it)
+    }
     // Rate limiting (ARCHITECTURE §13) buckets by client address, and every test in the suite is the same
     // client — 127.0.0.1 — so a class that logs in as a dozen different users spends one budget and starts
     // getting 429s that have nothing to do with what it is testing. Off by default here; RateLimitIntegrationTest
