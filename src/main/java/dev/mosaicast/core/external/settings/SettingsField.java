@@ -160,14 +160,33 @@ public record SettingsField(
 
     /** A credential the admin types, stored in the database. Prefer {@link #envSecret}. */
     public static SettingsField secret(String key, String label, String description) {
+        return secret(key, label, description, true);
+    }
+
+    /**
+     * A credential the admin types, which the provider may or may not need.
+     *
+     * <p><strong>Optional is a real case, not a convenience.</strong> A self-hosted LibreTranslate runs with
+     * {@code keyRequired: false} by default and needs no credential at all; the same image behind a public
+     * URL usually enforces one. A provider that declared its key mandatory would be unusable on the first
+     * instance, and one that declared it absent would be unusable on the second. The field is the same
+     * either way — what changes is whether the readiness check refuses without it.
+     */
+    public static SettingsField secret(String key, String label, String description, boolean required) {
         return new SettingsField(key, SettingsFieldType.SECRET, label, description, null,
-                true, null, null, List.of(), null, null);
+                required, null, null, List.of(), null, null);
     }
 
     /** A credential read from a host-derived environment variable. The recommended shape. */
     public static SettingsField envSecret(String key, String label, String description, String envVarSuffix) {
+        return envSecret(key, label, description, envVarSuffix, true);
+    }
+
+    /** An environment-supplied credential the provider may or may not need. See {@link #secret}. */
+    public static SettingsField envSecret(String key, String label, String description,
+                                          String envVarSuffix, boolean required) {
         return new SettingsField(key, SettingsFieldType.ENV_SECRET, label, description, null,
-                true, null, null, List.of(), envVarSuffix, null);
+                required, null, null, List.of(), envVarSuffix, null);
     }
 
     public static SettingsField integer(String key, String label, String description,

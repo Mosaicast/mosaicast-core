@@ -14,6 +14,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **External services: persistence, the admin API and Admin → External services (§12.7).** The second
+  slice. An admin picks one provider per kind (or none) and fills in what it declares; nothing is selected
+  by default, because a service nobody configured must make no outbound call.
+  - **A credential is never read back.** `value` is `null` for every `SECRET`/`ENV_SECRET` *by
+    construction* — the mapper has no path that reads one — and the API says only `set: true|false`.
+    A blank box on save means "I did not retype it", not "clear it", so saving an unrelated field cannot
+    wipe a working key.
+  - **Optional credentials are a first-class case.** A self-hosted LibreTranslate runs `keyRequired: false`
+    and needs no token; the same image behind a public URL enforces one. `SettingsField.secret(…, required)`
+    covers both, and readiness only blocks on what a provider actually said it needs.
+  - **The field renderer is now shared.** `ConfigInput`/`toJsonValue` moved out of `AdminPlugins.tsx` into
+    `components/SettingsFieldInput.tsx` with bounds, selects, info rows and the two credential kinds;
+    plugin config consumes it with unchanged behaviour, guarded by its existing tests.
+  - Writes are all-or-nothing and report **every** bad field, so one round trip annotates the whole form.
+    New `external_service_selection` / `external_provider_setting` (`V31`).
+
 - **Host on `platformApi` 0.10.0.** `ctx.locale.available()` / `.content()` (and `ctx.locales()` on the
   backend) hand plugins the site's language lists, so a plugin authoring per-locale content can ask which
   languages exist instead of hardcoding them. `ctx.translation` is **`null` on every host** for now — the

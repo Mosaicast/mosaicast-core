@@ -66,8 +66,15 @@ public class EnvProbe {
         return value(kind, providerId, suffix).isPresent();
     }
 
-    /** The credential itself. Deliberately not public: only the provider pipeline has any business here. */
-    Optional<String> value(ExternalServiceKind kind, String providerId, String suffix) {
+    /**
+     * The credential itself — for the provider pipeline, and nothing else.
+     *
+     * <p>Package-private would be tidier but would put {@code ProviderConfig}'s implementation in this
+     * package for no other reason. The protection that actually matters is structural and lives elsewhere:
+     * the admin payload has no field a credential could travel in, so there is no branch to forget. If you
+     * are writing code that calls this from anywhere near the admin surface, that is the bug.
+     */
+    public Optional<String> value(ExternalServiceKind kind, String providerId, String suffix) {
         String raw = environment.getProperty(varName(kind, providerId, suffix));
         return raw == null || raw.isBlank() ? Optional.empty() : Optional.of(raw);
     }

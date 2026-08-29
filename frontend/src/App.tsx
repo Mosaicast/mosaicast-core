@@ -20,6 +20,7 @@ import { SearchPage } from './routes/SearchPage';
 import { AccountPage } from './routes/AccountPage';
 import { CookiesPage } from './routes/CookiesPage';
 import { AdminConsent } from './routes/admin/AdminConsent';
+import { AdminExternal } from './routes/admin/AdminExternal';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLanguages } from './routes/admin/AdminLanguages';
@@ -154,6 +155,14 @@ export default function App() {
                       element={
                         <RequireRole roles={['admin']}>
                           <AdminPlugins />
+                        </RequireRole>
+                      }
+                    />
+                    <Route
+                      path="external"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminExternal />
                         </RequireRole>
                       }
                     />

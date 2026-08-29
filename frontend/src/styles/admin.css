@@ -693,3 +693,29 @@
     min-height: 2.75rem;
   }
 }
+
+/* External services: one block per kind, so several sections on one page stay visually separable. */
+.mc-extkind {
+  padding: var(--mc-space-4) 0;
+  border-top: 1px solid var(--mc-border);
+}
+.mc-extkind__notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2);
+  align-items: center;
+}
+/* "set" is a statement about a credential's presence, never its value — the same weight as the level
+   chips above, and deliberately not green-only: the word carries the meaning. */
+.mc-chip--ok {
+  background: color-mix(in srgb, #4c9a6a 22%, transparent);
+}
+/* An env-backed field has no input, so its row is a description list rather than a label + control. */
+.mc-field--env {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-1);
+}
+.mc-settingsinfo {
+  margin: var(--mc-space-2) 0;
+}
