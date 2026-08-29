@@ -359,6 +359,8 @@
   "admin.legal.order": "Order",
   "admin.legal.pageTitle": "Title",
   "admin.legal.saveLang": "Save {{lang}}",
+  "admin.legal.prefill": "Draft from translation ({{lang}})",
+  "admin.legal.draftWarning": "This is an unsaved machine translation. Read it before saving \u2014 markdown links and formatting often come back damaged, and a legal page nobody has read is not safer for being automatic.",
   "admin.legal.noLangs": "no translations",
   "admin.legal.loadFailed": "Could not load the legal pages.",
   "admin.legal.createFailed": "Could not create the page.",

@@ -78,11 +78,6 @@ export function AdminLayout() {
             </NavLink>
           )}
           {isAdmin && (
-            <NavLink to="/admin/external" className={tab}>
-              {t('admin.nav.external')}
-            </NavLink>
-          )}
-          {isAdmin && (
             <NavLink to="/admin/seo" className={tab}>
               {t('admin.nav.seo')}
             </NavLink>

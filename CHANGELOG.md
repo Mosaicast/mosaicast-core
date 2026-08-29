@@ -14,6 +14,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Legal pages can be machine-drafted, never machine-published (§12.6/§12.7).**
+  `POST /api/admin/legal/{slug}/translations/{locale}/prefill` returns an unsaved draft and writes nothing;
+  the editor fills the form, labels it, and the admin saves it or discards it. §12.6 ships the mechanism and
+  no legal texts because a policy nobody read is false safety — an automatic one is that with extra steps.
+- **`./gradlew draftCatalog`** drafts a translated UI catalog. A CLI rather than a button, like
+  `migrateBlobs`: it takes a while, costs money on a metered provider, and produces something a human must
+  read. `{{placeholders}}` are masked before the call and restored after, a string whose placeholders did
+  not survive is left in the source language and listed, plural keys are **never** machine-generated (the
+  target language decides which forms exist), and `--out` is required so it cannot overwrite a reviewed
+  catalog by accident.
+
+### Fixed
+
+- **The admin nav listed "External services" twice.** Introduced two commits earlier by an edit that landed
+  both a scripted and a manual insertion; caught by refreshing the screenshots, which is the sort of thing
+  screenshots are for.
+
 - **The call pipeline: cache, rate limit, bulkhead (§12.7).** Wrapped around every provider of every kind,
   so a provider stays "shape the request, speak HTTP, shape the response" and nobody has to ask whether it
   remembered to cache.

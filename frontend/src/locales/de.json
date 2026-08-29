@@ -359,6 +359,8 @@
   "admin.legal.order": "Reihenfolge",
   "admin.legal.pageTitle": "Titel",
   "admin.legal.saveLang": "{{lang}} speichern",
+  "admin.legal.prefill": "Aus \u00dcbersetzung entwerfen ({{lang}})",
+  "admin.legal.draftWarning": "Dies ist eine ungespeicherte maschinelle \u00dcbersetzung. Vor dem Speichern pr\u00fcfen \u2014 Markdown-Links und Formatierung kommen h\u00e4ufig besch\u00e4digt zur\u00fcck, und eine rechtliche Seite, die niemand gelesen hat, wird durch Automatik nicht sicherer.",
   "admin.legal.noLangs": "keine Übersetzungen",
   "admin.legal.loadFailed": "Rechtliche Seiten konnten nicht geladen werden.",
   "admin.legal.createFailed": "Seite konnte nicht erstellt werden.",
