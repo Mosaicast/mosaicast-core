@@ -15,6 +15,7 @@ import dev.mosaicast.core.external.admin.AdminExternalViews.AdminProvider;
 import dev.mosaicast.core.external.admin.AdminExternalViews.AdminSettingsField;
 import dev.mosaicast.core.external.admin.AdminExternalViews.FieldError;
 import dev.mosaicast.core.external.admin.AdminExternalViews.SelectProviderRequest;
+import dev.mosaicast.core.external.cache.ExternalCacheStore;
 import dev.mosaicast.core.external.settings.EnvProbe;
 import dev.mosaicast.core.external.settings.SettingsField;
 import dev.mosaicast.core.external.settings.SettingsFieldType;
@@ -23,11 +24,13 @@ import dev.mosaicast.core.web.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.JsonNode;
 
@@ -45,14 +48,17 @@ public class AdminExternalServiceController {
     private final ExternalServiceSettingsService settings;
     private final ExternalServices services;
     private final EnvProbe env;
+    private final ExternalCacheStore cache;
 
     public AdminExternalServiceController(ExternalServiceRegistry registry,
                                           ExternalServiceSettingsService settings,
-                                          ExternalServices services, EnvProbe env) {
+                                          ExternalServices services, EnvProbe env,
+                                          ExternalCacheStore cache) {
         this.registry = registry;
         this.settings = settings;
         this.services = services;
         this.env = env;
+        this.cache = cache;
     }
 
     @GetMapping("/api/admin/external")
@@ -120,6 +126,25 @@ public class AdminExternalServiceController {
         ExternalProvider.ProbeResult result = resolved.provider().probe(resolved.config());
         long millis = (System.nanoTime() - started) / 1_000_000;
         return new AdminProbeResult(result.ok(), result.detail(), millis);
+    }
+
+    /** How much this kind's cache is holding, and what it has saved. */
+    @GetMapping("/api/admin/external/{kind}/cache")
+    public ExternalCacheStore.Stats cacheStats(@PathVariable String kind) {
+        return cache.stats(parseKind(kind));
+    }
+
+    /**
+     * Drops this kind's cached results, optionally for one provider only.
+     *
+     * <p>Manual because it is rarely right: a changed setting already makes old entries unreachable through
+     * the fingerprint, so the button is for the case an operator knows the upstream itself changed under a
+     * URL that did not.
+     */
+    @DeleteMapping("/api/admin/external/{kind}/cache")
+    public java.util.Map<String, Long> purgeCache(@PathVariable String kind,
+                                                  @RequestParam(required = false) String providerId) {
+        return java.util.Map.of("removed", cache.purge(parseKind(kind), providerId));
     }
 
     // ---- mapping ----

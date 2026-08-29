@@ -5,6 +5,7 @@ package dev.mosaicast.core.external;
 
 import dev.mosaicast.core.external.error.NoProviderConfiguredException;
 import dev.mosaicast.core.external.error.ProviderMisconfiguredException;
+import dev.mosaicast.core.external.pipeline.ExternalCallPipeline;
 import dev.mosaicast.core.external.settings.EnvProbe;
 import dev.mosaicast.core.external.settings.ProviderConfig;
 import dev.mosaicast.core.external.settings.SettingsField;
@@ -26,12 +27,14 @@ public class ExternalServices {
     private final ExternalServiceRegistry registry;
     private final ExternalServiceSettingsService settings;
     private final EnvProbe env;
+    private final ExternalCallPipeline pipeline;
 
     public ExternalServices(ExternalServiceRegistry registry, ExternalServiceSettingsService settings,
-                            EnvProbe env) {
+                            EnvProbe env, ExternalCallPipeline pipeline) {
         this.registry = registry;
         this.settings = settings;
         this.env = env;
+        this.pipeline = pipeline;
     }
 
     /** A selected provider with its settings resolved. */
@@ -39,12 +42,26 @@ public class ExternalServices {
                            ProviderConfig config) {
     }
 
-    /** The selected provider for a kind, settings resolved, or empty when none is selected. */
+    /**
+     * The selected provider for a kind, settings resolved and <strong>wrapped</strong>, or empty when none
+     * is selected.
+     *
+     * <p>Callers get the pipeline's view — cache, rate limit, bulkhead — never the raw bean. That is what
+     * makes those guarantees a property of the system rather than of each provider remembering.
+     */
     public Optional<Resolved> resolve(ExternalServiceKind kind) {
         return settings.selected(kind)
                 .flatMap(providerId -> registry.provider(kind, providerId))
-                .map(provider -> new Resolved(provider.descriptor(), provider,
-                        configFor(kind, provider.descriptor())));
+                .map(provider -> {
+                    ProviderConfig config = configFor(kind, provider.descriptor());
+                    return new Resolved(provider.descriptor(), wrap(kind, provider, config), config);
+                });
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private ExternalProvider<?, ?> wrap(ExternalServiceKind kind, ExternalProvider<?, ?> provider,
+                                        ProviderConfig config) {
+        return pipeline.wrap(kind, (ExternalProvider) provider, config);
     }
 
     /**
