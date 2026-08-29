@@ -41,6 +41,33 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - **Deviates from ARCHITECTURE §12.7 as written** ("copy `en.json`, translate, PR"), which describes a
     build-time flow. Flagged for amendment, not amended here — the spec is read-only in this repo.
 
+- **External services — the kind-agnostic skeleton (§12.7).** A generic surface for admin-configured
+  third-party services, so an operator selects one provider per *kind* (or none) and core plus, later,
+  plugins consume it. Translation is the first kind; transcription, TTS and embeddings are the shapes it is
+  built to take next. No persistence, no UI and no provider in this change — interfaces, the settings model
+  and startup validation only.
+  - **Providers are compile-time Spring beans, not PF4J plugins.** They ship with the host, hold operator
+    credentials and speak to paid APIs — precisely the capabilities the plugin sandbox exists to withhold.
+    Installing a plugin must never mean trusting it with a billing relationship.
+  - **A bad descriptor fails the boot.** A broken *plugin* manifest is skipped so the site survives a
+    third party; a provider descriptor is first-party code, so a wrong one is a bug that should never reach
+    a running instance.
+  - **Two credential types.** `ENV_SECRET` is host-derived from
+    `MOSAICAST_EXTERNAL_<KIND>_<PROVIDER>_<SUFFIX>` and never stored — a value that does not exist cannot be
+    echoed by an endpoint or leaked by a backup. The name is derived rather than declared because the admin
+    API answers "is this variable set?", and a descriptor free to name any variable would make that endpoint
+    an oracle over `MOSAICAST_DB_PASSWORD` and everything else in the environment. `SECRET` is the
+    admin-typed, database-stored alternative for operators who cannot restart to add a variable; the docs
+    and the admin page both push toward `ENV_SECRET`.
+  - **`MOSAICAST_ENCRYPTION_KEY` is finally wired**, via AES-GCM with a per-value nonce. Absent key means
+    plaintext plus one startup WARN and a badge on every stored secret: refusing to start would take a site
+    down over a feature it may not use, and storing a credential in the clear *silently* would be worse than
+    either.
+  - Six problem `type` codes (`external-no-provider`, `external-provider-misconfigured`, `external-busy`,
+    `external-rate-limited`, `external-timeout`, `external-provider-failed`) with distinct statuses. A caller
+    that cannot tell "nobody configured this" from "we are full" from "you asked too often" cannot act on
+    any of them, and each has a different fix.
+
 ### Fixed
 
 - **Unknown plugin subpaths are a real 404 (`0.6.22`, §6.6).** `/p/<id>/<anything>` answered **200** for
