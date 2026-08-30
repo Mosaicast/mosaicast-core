@@ -1,7 +1,7 @@
 {
   "id": "good",
   "version": "1.0.0",
-  "platformApi": "0.10.0",
+  "platformApi": "0.11.0",
   "name": "Good Fixture",
   "license": "Apache-2.0",
   "author": "The Mosaicast Authors",
