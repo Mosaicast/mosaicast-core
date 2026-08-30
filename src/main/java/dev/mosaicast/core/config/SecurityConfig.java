@@ -151,6 +151,13 @@ public class SecurityConfig {
                         // the plugin's visibleTo read floor); writes require a signed-in user, and the
                         // controller enforces the write-role floor (§7.5/§7.6).
                         .requestMatchers(HttpMethod.GET, "/api/plugins/**").permitAll()
+                        // External-service calls are the one plugin write that may legitimately be
+                        // anonymous: §16 allows `external.usedBy: "anonymous"`, which is what a site running
+                        // a self-hosted LibreTranslate needs for a public translate button. Public at the
+                        // filter for that reason and gated in the controller by the declared floor — the same
+                        // split the doc-store reads above use. A plugin that declared no `external` block is
+                        // a 404 there, so this widens nothing for anyone who did not ask.
+                        .requestMatchers(HttpMethod.POST, "/api/plugins/*/external/**").permitAll()
                         .requestMatchers("/api/plugins/**").authenticated()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()

@@ -1,0 +1,26 @@
+{
+  "id": "translator",
+  "version": "1.0.0",
+  "platformApi": "0.11.0",
+  "name": "Translator Fixture",
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "translator-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "translator-card",
+      "placement": "sidebar",
+      "visibleTo": "anonymous"
+    }
+  ],
+  "storage": "doc",
+  "external": {
+    "kinds": [
+      "translation"
+    ]
+  }
+}

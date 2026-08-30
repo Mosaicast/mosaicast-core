@@ -222,6 +222,18 @@ describe('buildCtx', () => {
     expect(typeof tags?.tagEpisode).toBe('function');
   });
 
+  it('hands a plugin no translation client unless the host granted one', () => {
+    // One flag for two conditions, and that is the contract rather than a shortcut: the SDK makes "your
+    // manifest did not ask" and "this site has no provider" deliberately indistinguishable, so the host
+    // collapses them and the shell is told the answer.
+    expect(buildCtx(base).translation).toBeNull();
+
+    const translation = buildCtx({ ...base, hasTranslation: true }).translation;
+    expect(typeof translation?.translate).toBe('function');
+    // Non-null is not permission: `external.usedBy` is enforced at the endpoint, so this can still 403.
+    expect(translation?.available()).toBe(true);
+  });
+
   it('always has a doc client and a feeds client', () => {
     // Neither is declared in a manifest: every plugin has a doc store, and `feeds` reads host data the same
     // visitor can already read from /api/episodes/*.

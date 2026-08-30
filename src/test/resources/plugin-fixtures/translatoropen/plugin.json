@@ -1,0 +1,27 @@
+{
+  "id": "translatoropen",
+  "version": "1.0.0",
+  "platformApi": "0.11.0",
+  "name": "Open Translator Fixture",
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "translatoropen-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "translatoropen-card",
+      "placement": "sidebar",
+      "visibleTo": "anonymous"
+    }
+  ],
+  "storage": "doc",
+  "external": {
+    "kinds": [
+      "translation"
+    ],
+    "usedBy": "anonymous"
+  }
+}

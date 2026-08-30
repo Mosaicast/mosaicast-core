@@ -109,6 +109,28 @@ final class PluginAccessPolicy {
         return role.map(PluginAccessPolicy::rank).orElse(ANONYMOUS);
     }
 
+    /**
+     * Whether the (possibly absent) role meets a declared role-name floor — {@code external.usedBy} (§16).
+     *
+     * <p>Its own method rather than a reuse of the {@code visibleTo} mapping right below, which is private
+     * for the reason this comment exists: the two policies differ on an unrecognised value, and this one has
+     * no unrecognised value to differ about. {@code usedBy} is checked against a closed vocabulary at load,
+     * so a manifest that reached here spelled a real role, and an unknown name arriving anyway is a bug in
+     * validation rather than a floor to silently read as {@code anonymous}.
+     *
+     * @throws IllegalArgumentException if the floor is not a known role name
+     */
+    static boolean meetsFloor(String floor, Optional<Role> role) {
+        int required = switch (floor == null ? "" : floor.toLowerCase()) {
+            case "anonymous" -> ANONYMOUS;
+            case "fan" -> FAN;
+            case "podcaster" -> PODCASTER;
+            case "admin" -> ADMIN;
+            default -> throw new IllegalArgumentException("not a role name: " + floor);
+        };
+        return rankOf(role) >= required;
+    }
+
     private static int rank(Role role) {
         return switch (role) {
             case ADMIN -> ADMIN;

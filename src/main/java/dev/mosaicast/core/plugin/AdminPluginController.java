@@ -173,7 +173,23 @@ public class AdminPluginController {
                 settings.enabled(r.id()),
                 config,
                 manifest == null ? null : manifest.consent(),
-                blobsOf(manifest, role));
+                blobsOf(manifest, role),
+                externalOf(manifest));
+    }
+
+    /**
+     * What the plugin declared about the instance's external services, or {@code null} when it declared none.
+     *
+     * <p>Unredacted, like {@code consent} beside it and unlike {@code blobs}: this is the manifest's own text
+     * rather than anything about the install, and §16 puts the point of the declaration exactly here — what a
+     * plugin may spend should be readable by whoever is deciding to run it. The floor is resolved to its
+     * effective value, so an admin reads what the host will enforce rather than what the file left out.
+     */
+    private static AdminExternal externalOf(PluginManifest manifest) {
+        if (manifest == null || !manifest.declaresExternal()) {
+            return null;
+        }
+        return new AdminExternal(manifest.external().kindsOrEmpty(), manifest.externalUsedBy());
     }
 
     /**
@@ -229,7 +245,18 @@ public class AdminPluginController {
      */
     public record AdminPlugin(String id, String status, String reason, String name, String version,
                               boolean enabled, Map<String, AdminConfigField> config, Consent consent,
-                              AdminBlobs blobs) {
+                              AdminBlobs blobs, AdminExternal external) {
+    }
+
+    /**
+     * The external services a plugin declared it uses (§16), with the role floor resolved.
+     *
+     * @param kinds  the declared kinds, lower-cased
+     * @param usedBy the lowest role that may set off a call from the plugin's UI — the effective value, so
+     *               a manifest that omitted it reads as {@code podcaster} here, which is what the host
+     *               enforces
+     */
+    public record AdminExternal(java.util.List<String> kinds, String usedBy) {
     }
 
     /** One declared config field, its default and the value currently in effect — the form's row model. */

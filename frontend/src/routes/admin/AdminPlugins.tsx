@@ -150,6 +150,33 @@ export function AdminPlugins() {
                 </div>
               </div>
 
+              {/* What this plugin may spend, read straight off its manifest (§16). Here rather than only in
+                  plugin.json because the decision it informs — whether to run this plugin at all — is made
+                  on this page, and the floor is the effective one the host enforces, not the file's. */}
+              {plugin.external && (
+                <div className="mc-pluginrow__external">
+                  <p className="mc-pluginrow__storageTitle">{t('admin.plugins.external.title')}</p>
+                  <p className="mc-muted">
+                    {t('admin.plugins.external.uses', {
+                      kinds: plugin.external.kinds
+                        .map((kind) => t(`admin.external.kind.${kind}`, kind))
+                        .join(', '),
+                    })}
+                  </p>
+                  {plugin.external.usedBy === 'anonymous' ? (
+                    // The same treatment the plaintext-credentials note on the external-services page gets:
+                    // an anonymous floor in front of a metered provider is an open spending endpoint (§16).
+                    <p className="mc-error">{t('admin.plugins.external.usedByAnyone')}</p>
+                  ) : (
+                    <p className="mc-muted">
+                      {t('admin.plugins.external.usedBy', {
+                        role: t(`role.${plugin.external.usedBy}`, plugin.external.usedBy),
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {plugin.blobs && (
                 <PluginStorage
                   blobs={plugin.blobs}

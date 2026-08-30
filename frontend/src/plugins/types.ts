@@ -47,6 +47,19 @@ export interface PublicPlugin {
    */
   tagsWriteEpisodes?: boolean;
   /**
+   * Whether the shell should hand this plugin a `ctx.translation` client (§16).
+   *
+   * **Not pure declaration**, unlike the three flags above: the host sets it when the manifest declares
+   * `external.kinds: ['translation']` *and* an admin has configured a provider. The SDK makes those two
+   * reasons for `null` deliberately indistinguishable, so the host collapses them rather than the shell
+   * reconstructing them. It also goes stale like activation does — an admin removing the provider is picked
+   * up on the next manifest fetch, which is why the SDK tells plugins not to cache the handle.
+   *
+   * Independent of the visitor's role: `external.usedBy` is enforced at the endpoint, so a below-floor
+   * visitor holds a client whose `translate()` is a 403.
+   */
+  hasTranslation?: boolean;
+  /**
    * Credit, as the plugin declared it — all optional, all shown on `/about`.
    *
    * Never validated by the host: a plugin written before these existed, or one that spells its licence
@@ -155,4 +168,17 @@ export interface AdminPlugin {
   config: Record<string, AdminConfigField>;
   consent: { services: ConsentServiceDeclaration[] | null } | null;
   blobs: AdminBlobs | null;
+  /** What the plugin declared about the instance's external services (§16); `null` when it declared none. */
+  external: AdminExternal | null;
+}
+
+/**
+ * A plugin's declared use of the instance's external services, as the admin API reports it.
+ *
+ * `usedBy` is the effective floor, not the raw manifest value: a plugin that omitted it reads as
+ * `podcaster` here, which is what the host actually enforces.
+ */
+export interface AdminExternal {
+  kinds: string[];
+  usedBy: string;
 }

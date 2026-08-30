@@ -18,6 +18,9 @@ import type {
   SchemaQuery,
   TagInfo,
   TagsClient,
+  TranslationClient,
+  TranslationRequest,
+  TranslationResult,
 } from '@mosaicast/plugin-sdk';
 import { DISPLAY_BATCH_LIMIT, DOC_KEY_PATTERN, declaredTypeFor } from '@mosaicast/plugin-sdk';
 
@@ -308,6 +311,30 @@ export function makePluginTags(pluginId: string): TagsClient {
       api.put<void>(`${tagPath(tag)}/episodes/${encodeURIComponent(episodeSlug)}`).then(() => undefined),
     untagEpisode: (episodeSlug: string, tag: string) =>
       api.del<void>(`${tagPath(tag)}/episodes/${encodeURIComponent(episodeSlug)}`).then(() => undefined),
+  };
+}
+
+/**
+ * Builds the {@link TranslationClient} the host sets on `ctx.translation` for a plugin that declares
+ * `external.kinds: ['translation']` on a site with a provider configured (ARCHITECTURE §16) — `null` when
+ * either half is missing, decided in {@link buildCtx} from the single flag the host sends.
+ *
+ * The thinnest of these clients, because everything that matters happens on the other end: the provider,
+ * the credentials, the cache, the rate limit and the concurrency bound are the host's, and a plugin never
+ * speaks to a translation service itself.
+ *
+ * **`translate()` can reject with a 403** for a visitor below the plugin's declared `external.usedBy`. That
+ * is the host refusing a capability, not a transient failure — a non-null client is not permission, and an
+ * external call spends the operator's money.
+ */
+export function makePluginTranslation(pluginId: string): TranslationClient {
+  return {
+    translate: (request: TranslationRequest) =>
+      api.post<TranslationResult>(`/api/plugins/${pluginId}/external/translation`, request),
+    // The host only hands over this client when a provider is configured, so there is nothing left to ask.
+    // The contract calls `available()` advisory for exactly this reason: an admin can remove the provider
+    // between the shell's manifest fetch and the click, and the call is what finds out (409).
+    available: () => true,
   };
 }
 
