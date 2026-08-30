@@ -30,12 +30,14 @@ public class PluginContextImpl implements PluginContext {
     private final PluginConfig config;
     private final FeedAccess feeds;
     private final dev.mosaicast.plugin.api.Locales locales;
+    private final dev.mosaicast.plugin.api.Translation translation;
     private final PluginScheduler scheduler;
     private int scheduleCount;
 
     public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
                              dev.mosaicast.plugin.api.PluginBlobs blobs, Tags tags, PluginConfig config,
                              FeedAccess feeds, dev.mosaicast.plugin.api.Locales locales,
+                             dev.mosaicast.plugin.api.Translation translation,
                              PluginScheduler scheduler) {
         this.pluginId = pluginId;
         this.store = store;
@@ -45,6 +47,7 @@ public class PluginContextImpl implements PluginContext {
         this.config = config;
         this.feeds = feeds;
         this.locales = locales;
+        this.translation = translation;
         this.scheduler = scheduler;
     }
 
@@ -65,16 +68,17 @@ public class PluginContextImpl implements PluginContext {
     }
 
     /**
-     * Machine translation — {@code null} on every host until core implements the external-services
-     * subsystem (§12.7).
+     * Machine translation, or {@code null} when this plugin's manifest declares no {@code external} block
+     * naming the translation kind (§16).
      *
-     * <p>The SDK ships a contract ahead of its implementation on purpose, and {@code null} is the documented
-     * value for "this site does not do that". A plugin written against 0.10.0 already has to handle it,
-     * because an operator who configures no provider produces the same answer permanently.
+     * <p>Gated on the manifest alone, unlike the browser half. An operator who has selected no provider
+     * still gets a handle here, whose {@code available()} is false and whose {@code translate} throws
+     * {@code NO_PROVIDER} — a backend calls this on a timer and can act on the difference, where a browser
+     * would only have a button that fails.
      */
     @Override
     public dev.mosaicast.plugin.api.Translation translation() {
-        return null;
+        return translation;
     }
 
     /**

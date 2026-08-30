@@ -36,6 +36,8 @@ import java.util.Set;
  *                    default and nothing reserved
  * @param tags        what the plugin may do with the site's shared tag vocabulary (§6.1); absent means no
  *                    tag surface at all
+ * @param external    which of the instance's external services the plugin uses, and the lowest role that may
+ *                    trigger a call from its UI (§16); absent means no external surface at all
  * @param consent     declared consent categories / external sources
  * @param nav         ways into a {@code page} plugin, offered to the shell's navigation menu (§7.3). Absent
  *                    on a page plugin means one default entry at its root; absent on any other plugin means
@@ -64,6 +66,7 @@ public record PluginManifest(
         DataAccess data,
         Blobs blobs,
         TagAccess tags,
+        External external,
         Consent consent,
         List<NavEntry> nav,
         // Credit, not contract. Boxed and unvalidated on purpose: Jackson 3 refuses to map a missing value
@@ -87,7 +90,7 @@ public record PluginManifest(
                           Frontend frontend, List<Slot> slots, PluginStorage storage,
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, null,
-                consent, null, null, null, null, null);
+                null, consent, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares a {@code tags} block (§7.2). */
@@ -96,7 +99,16 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                consent, null, null, null, null, null);
+                null, consent, null, null, null, null, null);
+    }
+
+    /** As above, for a plugin that declares an {@code external} block (§7.2/§16). */
+    public PluginManifest(String id, String version, String platformApi, String name, Backend backend,
+                          Frontend frontend, List<Slot> slots, PluginStorage storage,
+                          Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
+                          External external, Consent consent) {
+        this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
+                external, consent, null, null, null, null, null);
     }
 
     /** The declared nav entries, or an empty list — callers never have to null-check. */
@@ -315,6 +327,65 @@ public record PluginManifest(
         return tags != null && tags.readsVocabularyOrDefault();
     }
 
+    /**
+     * Which of the instance's external services a plugin uses, and who may set one off (ARCHITECTURE §16).
+     *
+     * <p>Declared, never derived — the fourth repetition of the rule {@code data}, {@code blobs} and
+     * {@code tags} already follow, and the one with the sharpest reason. A call here spends the operator's
+     * money on somebody else's metered API, and the call pipeline's rate limit keys on kind and provider, so
+     * an undeclared caller would exhaust a site's budget with nothing recording which plugin did it. An
+     * absent block means no external surface at all: {@code ctx.translation} is null on both sides and the
+     * endpoint answers 404 — and it answers that <em>whether or not</em> a provider is configured, because
+     * the manifest is checked first and a plugin that never asked must not be able to read off an error code
+     * whether this instance pays for translation.
+     *
+     * @param kinds  the kinds it uses. A list although translation is the only member today, so a plugin that
+     *               later wants transcription adds an entry rather than a second block. An unknown name is
+     *               refused at load: within one {@code platformApi} the vocabulary is closed, so a kind
+     *               nothing answers to is a typo, not a service this host has yet to grow
+     * @param usedBy the lowest role that may trigger a call <strong>from the plugin's UI</strong>; absent
+     *               means {@code podcaster}, matching {@code data.writableBy}'s floor. One floor per plugin
+     *               rather than per kind: with one kind the two are the same thing spelled differently, and a
+     *               later per-kind value can only narrow this one. It has no meaning on the backend, where
+     *               {@code register} and {@code onSchedule} have no caller to have a role
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record External(List<String> kinds, String usedBy) {
+
+        /** The declared kinds, lower-cased and never null. */
+        public List<String> kindsOrEmpty() {
+            return kinds == null ? List.of()
+                    : kinds.stream().filter(java.util.Objects::nonNull)
+                            .map(kind -> kind.trim().toLowerCase(java.util.Locale.ROOT)).toList();
+        }
+
+        /** The UI floor; the default is {@code podcaster}. */
+        public String usedByOrDefault() {
+            return usedBy == null || usedBy.isBlank()
+                    ? EDITABLE_BY_PODCASTER : usedBy.trim().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
+    /** Whether this plugin declared any external-service use at all. */
+    public boolean declaresExternal() {
+        return external != null;
+    }
+
+    /**
+     * Whether this plugin declared the given kind — false for a plugin that declared no block.
+     *
+     * <p>The single question every gate on this surface asks, which is why it takes the enum rather than a
+     * string: a caller that had to spell {@code "translation"} could spell it wrong and get a silent no.
+     */
+    public boolean usesExternalKind(dev.mosaicast.core.external.ExternalServiceKind kind) {
+        return external != null && kind != null && external.kindsOrEmpty().contains(kind.id());
+    }
+
+    /** The role floor for a UI-triggered external call; {@code podcaster} for a plugin that declared none. */
+    public String externalUsedBy() {
+        return external == null ? EDITABLE_BY_PODCASTER : external.usedByOrDefault();
+    }
+
     /** Backend entry points. */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Backend(String basePath, List<String> extensions) {
@@ -492,6 +563,7 @@ public record PluginManifest(
         validateData();
         validateBlobs();
         validateTags();
+        validateExternal();
         validateConsent();
         validateNav();
     }
@@ -601,6 +673,50 @@ public record PluginManifest(
             throw new PluginValidationException(
                     "tags block asks for nothing (readsVocabulary and writesEpisodes are both false) — "
                             + "omit the block to declare no tag surface");
+        }
+    }
+
+    /**
+     * Validates the declared external-service use (§16).
+     *
+     * <p>An empty {@code kinds} is refused for the reason a {@code tags} block asking for nothing is: it
+     * would produce a surface that exists and grants nothing, and a plugin wanting no external surface omits
+     * the block, which is already the default.
+     *
+     * <p>An unknown kind is refused rather than dropped. {@code platformApi} is an exact {@code major.minor}
+     * match, so within one contract version the vocabulary is closed and a name nothing answers to is a typo
+     * — and dropping it is the worst available outcome, the one where the manifest claims a capability and
+     * the host silently grants none of it. The same reasoning {@code data.backendOwned} is refused under.
+     *
+     * <p><strong>{@code anonymous} is accepted here</strong>, unlike {@code data.writableBy}. §16 calls it
+     * legal and almost always wrong — a self-hosted LibreTranslate on the same machine costs nothing, and an
+     * operator who chose that should be able to run a public translate button. It is warned about at load
+     * instead, once, where an operator can see it, because behind a metered provider it is an open spending
+     * endpoint.
+     */
+    private void validateExternal() {
+        if (external == null) {
+            return;
+        }
+        if (external.kindsOrEmpty().isEmpty()) {
+            throw new PluginValidationException(
+                    "external block declares no kinds — omit the block to declare no external surface");
+        }
+        for (String kind : external.kindsOrEmpty()) {
+            if (dev.mosaicast.core.external.ExternalServiceKind.byId(kind).isEmpty()) {
+                throw new PluginValidationException("external kind '%s' is not one of %s".formatted(kind,
+                        java.util.Arrays.stream(dev.mosaicast.core.external.ExternalServiceKind.values())
+                                .map(dev.mosaicast.core.external.ExternalServiceKind::id).toList()));
+            }
+        }
+        if (!KNOWN_DATA_ACCESS.contains(external.usedByOrDefault())) {
+            throw new PluginValidationException("external.usedBy '%s' is not one of %s"
+                    .formatted(external.usedBy(), KNOWN_DATA_ACCESS));
+        }
+        if (ACCESS_ANONYMOUS.equals(external.usedByOrDefault())) {
+            org.slf4j.LoggerFactory.getLogger(PluginManifest.class).warn(
+                    "Plugin '{}' declares external.usedBy: anonymous — anyone who can load a page it renders "
+                            + "can spend this site's external-service budget (§16)", id);
         }
     }
 

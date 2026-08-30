@@ -1,7 +1,7 @@
 {
   "id": "nopage",
   "version": "1.0.0",
-  "platformApi": "0.10.0",
+  "platformApi": "0.11.0",
   "name": "No Page Fixture",
   "backend": {
     "basePath": "/api/plugins/nopage",

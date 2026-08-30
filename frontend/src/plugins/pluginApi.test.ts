@@ -8,6 +8,7 @@ import {
   makePluginFeeds,
   makePluginSchema,
   makePluginTags,
+  makePluginTranslation,
 } from './pluginApi';
 
 /**
@@ -229,6 +230,48 @@ describe('makePluginTags', () => {
       '/api/plugins/wiki/tags/Maritime%20Lore/subjects/page%3Akraken',
       '/api/plugins/wiki/tags/kraken/similar?limit=5',
     ]);
+  });
+});
+
+/**
+ * The `ctx.translation` client (§16). Thin on purpose — the provider, the credentials, the cache and the
+ * rate limit are all the host's — so what this pins is the one thing the browser owns: the request goes to
+ * the plugin's own namespace, and the plugin's fields reach the wire unchanged.
+ */
+describe('makePluginTranslation', () => {
+  let seen: { url: string; body: unknown } | null = null;
+
+  beforeEach(() => {
+    seen = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: { body?: string }) => {
+        seen = { url, body: init?.body == null ? null : JSON.parse(init.body) };
+        return reply({ text: 'Der Leuchtturm', detectedSourceLanguage: 'en', providerId: 'libretranslate', fromCache: false });
+      }),
+    );
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('posts the request to the plugin’s own external endpoint', async () => {
+    const translation = makePluginTranslation('wiki');
+
+    const result = await translation.translate({ text: 'The lighthouse', to: 'de', format: 'text' });
+
+    expect(seen?.url).toBe('/api/plugins/wiki/external/translation');
+    expect(seen?.body).toEqual({ text: 'The lighthouse', to: 'de', format: 'text' });
+    // The provider and the cache flag come back with the text: an admin can change the provider, so a
+    // plugin storing a translation stores which one produced it.
+    expect(result.providerId).toBe('libretranslate');
+    expect(result.fromCache).toBe(false);
+  });
+
+  it('reports availability without asking, because the host already decided', () => {
+    // The client only exists when a provider is configured. `available()` is advisory in the contract for
+    // exactly this reason — the admin can remove one between the manifest fetch and the click, and the call
+    // is what finds out.
+    expect(makePluginTranslation('wiki').available()).toBe(true);
   });
 });
 

@@ -71,6 +71,7 @@ public class PluginLoaderService implements ApplicationRunner {
      * property of the site, not of who is asking.
      */
     private final dev.mosaicast.plugin.api.Locales locales;
+    private final dev.mosaicast.core.external.translation.TranslationService translations;
 
     /** The PF4J manager, kept after boot so optional extension points can be resolved on demand (§7.4). */
     private MosaicastPluginManager manager;
@@ -81,6 +82,7 @@ public class PluginLoaderService implements ApplicationRunner {
                                PluginSchemaMigrator schemaMigrator, PluginBlobService blobService,
                                dev.mosaicast.core.tag.TagService tagService,
                                dev.mosaicast.plugin.api.Locales locales,
+                               dev.mosaicast.core.external.translation.TranslationService translations,
                                org.springframework.jdbc.core.JdbcTemplate jdbc) {
         this.properties = properties;
         this.dataService = dataService;
@@ -92,6 +94,7 @@ public class PluginLoaderService implements ApplicationRunner {
         this.blobService = blobService;
         this.tagService = tagService;
         this.locales = locales;
+        this.translations = translations;
         this.jdbc = jdbc;
     }
 
@@ -188,8 +191,14 @@ public class PluginLoaderService implements ApplicationRunner {
         PluginBlobsImpl blobs = manifest.declaresBlobs() ? new PluginBlobsImpl(manifest, blobService) : null;
         // Same rule again for the shared tag vocabulary (§6.1): declared or absent, never inferred.
         TagsImpl tags = manifest.declaresTags() ? new TagsImpl(manifest, tagService) : null;
+        // And once more for external services (§16). Only the manifest is consulted here: whether a provider
+        // is selected is an operator's decision that changes under a running plugin, so a backend gets the
+        // handle and asks `available()`, rather than being handed null and having to restart to notice.
+        PluginTranslationImpl translation =
+                manifest.usesExternalKind(dev.mosaicast.core.external.ExternalServiceKind.TRANSLATION)
+                        ? new PluginTranslationImpl(translations) : null;
         return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, config, feedAccess, locales,
-                scheduler);
+                translation, scheduler);
     }
 
     /**

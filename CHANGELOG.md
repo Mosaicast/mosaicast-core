@@ -25,6 +25,34 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   target language decides which forms exist), and `--out` is required so it cannot overwrite a reviewed
   catalog by accident.
 
+### Changed
+
+- **Host on `platformApi` 0.11.0, and a plugin now declares the external services it uses (§7.2/§16).**
+  The pin moves in `gradle/libs.versions.toml` and `frontend/package.json`, and every manifest re-declares —
+  `plugins/wiki`, `plugins/sample` and the loader fixtures — because `platformApi` matches on `major.minor`,
+  so a 0.10.0 manifest is rejected at load.
+  - **`ctx.translation` is live**, on both sides, for a plugin whose manifest declares
+    `external: { "kinds": ["translation"] }`. 0.10.0 shipped the handle as `null` on every host; it now
+    reaches the same call pipeline core's own legal-page prefill uses, so two plugins translating the same
+    paragraph cost one call.
+  - **Two gates, and their order is the point.** An undeclared kind is `null` on the context and **404** at
+    the endpoint, checked *before* anything asks whether a provider is selected — a plugin that never asked
+    must not be able to read off an error code whether this instance pays for translation. Deliberately not
+    `external-no-provider` (409), which would send an author to their admin about something no admin can
+    grant. Past that, `external.usedBy` is a **403**: a non-null handle is not permission.
+  - **The floor is a property of the browser endpoint only.** A backend call happens in `register` or on a
+    timer and has nobody to have a role, so `ctx.translation()` in Java is gated on the manifest alone.
+    `usedBy: "anonymous"` is accepted — unlike `data.writableBy`, because a self-hosted LibreTranslate costs
+    nothing per call — and warned about at load, since in front of a metered provider it is an open spending
+    endpoint. It is also the one plugin write that is public at the security filter for that reason.
+  - **The browser is told one flag, not two.** `hasTranslation` on the manifest endpoint is "declared *and* a
+    provider is configured", because the SDK makes those two reasons for `null` deliberately
+    indistinguishable. It goes stale the way activation does — hence the SDK telling authors not to cache the
+    handle.
+  - Each call logs the plugin id: the rate limiter keys on kind and provider, so without it nothing records
+    which plugin spent the site's budget. The admin plugin row now shows the declared kinds and the floor,
+    which is where the decision to run a plugin at all is actually made.
+
 ### Fixed
 
 - **The admin nav listed "External services" twice.** Introduced two commits earlier by an edit that landed

@@ -1,29 +1,27 @@
 {
-  "id": "tagger",
+  "id": "translatoropen",
   "version": "1.0.0",
   "platformApi": "0.11.0",
-  "name": "Tagger Fixture",
+  "name": "Open Translator Fixture",
   "frontend": {
     "entry": "fixture.js",
     "elements": [
-      "tagger-card"
+      "translatoropen-card"
     ]
   },
   "slots": [
     {
       "scope": "site",
-      "element": "tagger-card",
+      "element": "translatoropen-card",
       "placement": "sidebar",
       "visibleTo": "anonymous"
     }
   ],
   "storage": "doc",
-  "data": {
-    "readableBy": "anonymous",
-    "writableBy": "podcaster"
-  },
-  "tags": {
-    "readsVocabulary": true,
-    "writesEpisodes": true
+  "external": {
+    "kinds": [
+      "translation"
+    ],
+    "usedBy": "anonymous"
   }
 }

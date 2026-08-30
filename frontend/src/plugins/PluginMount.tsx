@@ -33,6 +33,11 @@ interface PluginMountProps {
   hasSchema?: boolean;
   hasBlobs?: boolean;
   hasTags?: boolean;
+  /**
+   * Whether the host said this plugin gets a `ctx.translation` client — its manifest declared the kind *and*
+   * a provider is configured (§16). The shell never reconstructs those two halves; it is told the answer.
+   */
+  hasTranslation?: boolean;
 }
 
 export function PluginMount({
@@ -45,6 +50,7 @@ export function PluginMount({
   hasSchema,
   hasBlobs,
   hasTags,
+  hasTranslation,
 }: PluginMountProps) {
   // Only a page mount is addressed by the URL, so only a page mount reads the query and hash off it. On a
   // card in a slot region that query belongs to the shell's own filters (`ctx.filter`), and subscribing to
@@ -92,6 +98,7 @@ export function PluginMount({
         hasSchema,
         hasBlobs,
         hasTags,
+        hasTranslation,
         navigateTo,
         consentHas: consent.has,
         consentGranted: consent.granted,
@@ -114,6 +121,7 @@ export function PluginMount({
       hasSchema,
       hasBlobs,
       hasTags,
+      hasTranslation,
       navigateTo,
       consent.has,
       consent.granted,

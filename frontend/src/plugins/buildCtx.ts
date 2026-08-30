@@ -12,6 +12,7 @@ import {
   makePluginFeeds,
   makePluginSchema,
   makePluginTags,
+  makePluginTranslation,
 } from './pluginApi';
 import { coreLinks } from './coreLinks';
 
@@ -57,6 +58,12 @@ export interface CtxInputs {
   hasBlobs?: boolean;
   /** Whether the plugin declares a `tags` block — decides `ctx.tags` vs `null` (§6.1). */
   hasTags?: boolean;
+  /**
+   * Whether the host granted a `ctx.translation` client (§16) — the manifest declared the kind *and* an
+   * admin configured a provider. One flag rather than two on purpose: the SDK makes those two reasons for
+   * `null` indistinguishable, so the shell is told the answer instead of reconstructing it.
+   */
+  hasTranslation?: boolean;
   /**
    * Navigates the shell to an absolute path. Supplied by {@link PluginMount} from the router; absent in
    * tests and in any mount with no router above it, where `navigate` degrades to a no-op rather than
@@ -150,10 +157,10 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
       available: () => inputs.uiLocales,
       content: () => inputs.contentLocales,
     },
-    // Declared by the SDK in 0.10.0, implemented by core in the external-services milestone. `null` is the
-    // contract's value for "this site does not do that", which is also what an operator who configures no
-    // provider will produce permanently — so a plugin has to handle it either way.
-    translation: null,
+    // Null unless the manifest declared the kind *and* this site has a provider — the fourth repetition of
+    // the rule, with the one gate whose second half moves under a running plugin, which is why the SDK tells
+    // authors to read `ctx.translation` at the point of use rather than caching the handle (§16).
+    translation: inputs.hasTranslation ? makePluginTranslation(inputs.pluginId) : null,
     progress: {
       get: (episodeId: string) => {
         const stored = localStorage.getItem(`mc.progress.${episodeId}`);

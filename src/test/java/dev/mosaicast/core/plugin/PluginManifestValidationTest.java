@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.mosaicast.core.external.ExternalServiceKind;
 import dev.mosaicast.plugin.api.PlatformApi;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -192,6 +193,76 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void anExternalBlockDeclaresItsKindsAndDefaultsTheFloorToPodcaster() throws Exception {
+        PluginManifest manifest = parse(withExternal("""
+                "kinds":["translation"]
+                """));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.declaresExternal()).isTrue();
+        assertThat(manifest.usesExternalKind(ExternalServiceKind.TRANSLATION)).isTrue();
+        // The same floor `data.writableBy` defaults to: an external call spends money, so it is not a thing
+        // an unspecified manifest gets to hand to everybody.
+        assertThat(manifest.externalUsedBy()).isEqualTo("podcaster");
+    }
+
+    @Test
+    void aPluginThatDeclaredNoExternalBlockUsesNoKind() throws Exception {
+        PluginManifest manifest = parse(base(PlatformApi.VERSION, "doc", "sidebar"));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.declaresExternal()).isFalse();
+        assertThat(manifest.usesExternalKind(ExternalServiceKind.TRANSLATION)).isFalse();
+        // Still answers the floor question, so a caller never has to null-check before comparing.
+        assertThat(manifest.externalUsedBy()).isEqualTo("podcaster");
+    }
+
+    @Test
+    void anExternalBlockThatDeclaresNoKindsIsRejected() throws Exception {
+        // The same call the `tags` block asking for nothing gets: it would produce a surface that exists and
+        // grants nothing, and omitting the block already means no external surface.
+        assertThatThrownBy(parse(withExternal("""
+                "kinds":[]
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("no kinds");
+    }
+
+    @Test
+    void anUnknownExternalKindIsRejected() throws Exception {
+        // Refused rather than dropped. `platformApi` is an exact major.minor match, so within one contract
+        // version the vocabulary is closed — a name nothing answers to is a typo, and dropping it would let
+        // the manifest claim a capability the host silently grants none of.
+        assertThatThrownBy(parse(withExternal("""
+                "kinds":["transcription"]
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("transcription");
+    }
+
+    @Test
+    void anExternalFloorThatIsNotARoleIsRejected() throws Exception {
+        assertThatThrownBy(parse(withExternal("""
+                "kinds":["translation"], "usedBy":"editor"
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("usedBy");
+    }
+
+    @Test
+    void anAnonymousExternalFloorIsLegal() throws Exception {
+        // Unlike `data.writableBy`, which refuses it outright. §16 calls this legal and almost always wrong:
+        // a self-hosted LibreTranslate costs nothing per call, and an operator running one should be able to
+        // put a translate button in front of visitors. It is warned about at load, not refused.
+        PluginManifest manifest = parse(withExternal("""
+                "kinds":["translation"], "usedBy":"anonymous"
+                """));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.externalUsedBy()).isEqualTo("anonymous");
+    }
+
+    @Test
     void navEntriesNeedAPageToLinkInto() throws Exception {
         // Every entry would be a link into a 404. Failing at load names the contradiction; the alternative
         // is a menu item that is broken for as long as nobody clicks it.
@@ -366,6 +437,15 @@ class PluginManifestValidationTest {
                  "slots":[{"scope":"site","element":"e","placement":"%s","visibleTo":"anonymous"}],
                  "storage":"%s","config":{},"consent":{"services":[]}}
                 """.formatted(platformApi, placement, storage);
+    }
+
+    /** A valid manifest carrying the given {@code external} body, to isolate external validation. */
+    private static String withExternal(String external) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
+                 "backend":{"basePath":"/api/plugins/p","extensions":[]},
+                 "external":{%s}}
+                """.formatted(external);
     }
 
     /** A valid manifest carrying the given {@code config} block, to isolate config validation. */

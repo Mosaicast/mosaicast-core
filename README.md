@@ -61,7 +61,7 @@ from the running shell during UI work — see the note in `CLAUDE.md`.</sub>
 
 Core builds against the published **`@mosaicast/plugin-sdk`** — the TypeScript package on **npm** (public)
 and the Java artifacts (`dev.mosaicast:plugin-api` / `plugin-testkit`) in **GitHub Packages**. Pin the
-version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.10.0`).
+version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0.11.0`).
 
 - **Frontend:** resolves from public npm — nothing extra, just `npm install`.
 - **Backend:** GitHub Packages requires authentication even for reads. Either

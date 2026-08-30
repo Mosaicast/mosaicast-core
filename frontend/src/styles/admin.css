@@ -245,9 +245,11 @@
   display: grid;
   gap: 0.6rem;
 }
-/* The per-plugin storage panel (§11.1) — same divided-block treatment as the config form above it, so a
-   plugin row reads as one card with sections rather than as stacked widgets. */
-.mc-pluginrow__storage {
+/* The per-plugin storage panel (§11.1) and the external-services declaration (§16) — same divided-block
+   treatment as the config form above them, so a plugin row reads as one card with sections rather than as
+   stacked widgets. */
+.mc-pluginrow__storage,
+.mc-pluginrow__external {
   margin-top: 0.85rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--mc-border);
@@ -258,6 +260,10 @@
   margin: 0;
   font-size: var(--mc-text-sm);
   font-weight: var(--mc-weight-medium);
+}
+/* The declaration is read, never edited, so its lines sit tighter than the storage form's. */
+.mc-pluginrow__external p {
+  margin: 0;
 }
 .mc-pluginrow__storageFields {
   display: flex;
