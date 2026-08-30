@@ -5,7 +5,7 @@
 # everything it manages; only libraries outside the BOM pin an explicit version here.
 
 [versions]
-springBoot = "4.1.0"
+springBoot = "4.1.1"
 # The plugin contract this host builds against. MUST match the published SDK
 # (dev.mosaicast:plugin-api / @mosaicast/plugin-sdk) and the manifest platformApi.
 mosaicastSdk = "0.10.0"
