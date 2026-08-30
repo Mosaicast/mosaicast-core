@@ -191,6 +191,19 @@ springBoot {
     mainClass.set("dev.mosaicast.core.MosaicastApplication")
 }
 
+// Draft a translated UI catalog with the site's configured translation provider (ARCHITECTURE §12.7).
+// A CLI rather than an admin button for the same reasons as the migration above: it takes a while, it costs
+// money on a metered provider, and what it produces is a draft a human has to read.
+//
+//   ./gradlew draftCatalog --args="--target=nl --out=./locales/nl.draft.json"
+tasks.register<JavaExec>("draftCatalog") {
+    group = "application"
+    description = "Draft a translated UI catalog (--target, --out, [--source], [--force])"
+    mainClass.set("dev.mosaicast.tools.i18n.CatalogDraftApplication")
+    classpath = sourceSets["main"].runtimeClasspath
+    dependsOn("compileJava", "processResources")
+}
+
 tasks.register<JavaExec>("migrateBlobs") {
     group = "application"
     description = "Move blobs between storage backends (--from, --to, --namespace, [--delete-source], [--dry-run])"

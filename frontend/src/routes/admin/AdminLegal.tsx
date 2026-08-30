@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
-import type { LegalAdminPage } from '../../api/types';
+import type { AdminKindSection, LegalAdminPage, LegalDraft } from '../../api/types';
 import { contentLocales, localeName } from '../../i18n';
 
 const ROLE_MARKERS = ['', 'privacy', 'imprint', 'terms'];
@@ -27,16 +27,21 @@ function PageEditor({
   page,
   onChanged,
   onError,
+  canPrefill,
 }: {
   page: LegalAdminPage;
   onChanged: () => void;
   onError: (message: string | null) => void;
+  /** Whether the site has a translation provider configured at all. */
+  canPrefill: boolean;
 }) {
   const { t } = useTranslation();
   const locales = contentLocales();
   const [roleMarker, setRoleMarker] = useState(page.roleMarker ?? '');
   const [sortOrder, setSortOrder] = useState(page.sortOrder);
   const [activeLocale, setActiveLocale] = useState(locales[0] ?? 'en');
+  /** Which tab currently holds an unsaved machine translation. */
+  const [drafted, setDrafted] = useState<string | null>(null);
   const [bodies, setBodies] = useState<Record<string, { title: string; markdown: string }>>(() => {
     const map: Record<string, { title: string; markdown: string }> = {};
     for (const locale of locales) {
@@ -73,6 +78,23 @@ function PageEditor({
     }
     void run(() => api.del(`/api/admin/legal/${page.slug}`));
   };
+
+  /**
+   * Fills the editor with a machine translation — into the form, never into the database.
+   *
+   * §12.6 ships the mechanism and no legal texts because a policy nobody read is false safety; writing a
+   * machine translation straight through would be that with extra steps. So this is a draft the admin
+   * reads, edits and saves themselves, and it is labelled as one until they do.
+   */
+  const runPrefill = () =>
+    run(async () => {
+      const draft = await api.post<LegalDraft>(
+        `/api/admin/legal/${page.slug}/translations/${activeLocale}/prefill`,
+        {},
+      );
+      setBodies({ ...bodies, [activeLocale]: { title: draft.title, markdown: draft.markdown } });
+      setDrafted(activeLocale);
+    });
 
   const body = bodies[activeLocale] ?? { title: '', markdown: '' };
   const hasTranslation = (locale: string) => page.translations.some((x) => x.locale === locale);
@@ -138,9 +160,25 @@ function PageEditor({
           value={body.markdown}
           onChange={(e) => setBodies({ ...bodies, [activeLocale]: { ...body, markdown: e.target.value } })}
         />
-        <button type="button" className="mc-btn mc-btn--accent" onClick={() => saveTranslation(activeLocale)}>
-          {t('admin.legal.saveLang', { lang: localeName(activeLocale) })}
-        </button>
+        <div className="mc-form__actions">
+          <button
+            type="button"
+            className="mc-btn mc-btn--accent"
+            onClick={() => saveTranslation(activeLocale)}
+          >
+            {t('admin.legal.saveLang', { lang: localeName(activeLocale) })}
+          </button>
+          {canPrefill && (
+            <button type="button" className="mc-btn" onClick={runPrefill}>
+              {t('admin.legal.prefill', { lang: localeName(activeLocale) })}
+            </button>
+          )}
+        </div>
+        {drafted === activeLocale && (
+          // Stays until they save or switch tabs: an admin who walked away mid-review should not come back
+          // to something that looks like their own writing.
+          <p className="mc-error">{t('admin.legal.draftWarning')}</p>
+        )}
       </div>
     </div>
   );
@@ -153,6 +191,18 @@ export function AdminLegal() {
   const [newSlug, setNewSlug] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [canPrefill, setCanPrefill] = useState(false);
+
+  // Asked once, not per page: whether the site has a translation provider is a property of the site.
+  useEffect(() => {
+    api
+      .get<AdminKindSection[]>('/api/admin/external')
+      .then((sections) =>
+        setCanPrefill(sections.some((section) => section.kind === 'translation' && section.ready)),
+      )
+      // Absent-tolerant: no provider, or no permission to ask, simply means no button.
+      .catch(() => setCanPrefill(false));
+  }, []);
 
   const load = () =>
     api
@@ -225,6 +275,7 @@ export function AdminLegal() {
                   void load();
                 }}
                 onError={setError}
+                canPrefill={canPrefill}
               />
             )}
           </li>

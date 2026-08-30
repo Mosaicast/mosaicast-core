@@ -30,10 +30,12 @@ public class LegalController {
 
     private final LegalService legal;
     private final LocaleRegistry locales;
+    private final LegalPrefillService prefill;
 
-    public LegalController(LegalService legal, LocaleRegistry locales) {
+    public LegalController(LegalService legal, LocaleRegistry locales, LegalPrefillService prefill) {
         this.legal = legal;
         this.locales = locales;
+        this.prefill = prefill;
     }
 
     /**
@@ -103,6 +105,20 @@ public class LegalController {
         requireContentLocale(locale);
         legal.putTranslation(slug, locale, request.title(), request.markdown() == null ? "" : request.markdown());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Machine-translates a page into a <strong>draft</strong> (§12.6/§12.7).
+     *
+     * <p>Returns text and writes nothing. The admin edits it and saves through the ordinary
+     * {@code PUT} above, or discards it. §12.6 ships the mechanism and no legal texts precisely because a
+     * legal page nobody read is false safety — and an automatic one is that with extra steps.
+     */
+    @PostMapping("/api/admin/legal/{slug}/translations/{locale}/prefill")
+    public LegalPrefillService.Draft prefillTranslation(
+            @PathVariable String slug, @PathVariable String locale,
+            @RequestParam(required = false) String from) {
+        return prefill.prefill(slug, locale, from);
     }
 
     @DeleteMapping("/api/admin/legal/{slug}/translations/{locale}")

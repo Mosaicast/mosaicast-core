@@ -142,6 +142,21 @@ export interface AdminProbeResult {
   millis: number;
 }
 
+/**
+ * An unsaved machine translation of a legal page (`legal/LegalPrefillService.java`).
+ *
+ * Nothing is stored server-side: the admin reads it, edits it and saves through the ordinary translation
+ * endpoint, or discards it.
+ */
+export interface LegalDraft {
+  title: string;
+  markdown: string;
+  /** Always true — carried so the UI cannot render this as if a person wrote it. */
+  machineTranslated: boolean;
+  providerId: string;
+  sourceLocale: string;
+}
+
 /** A feed in the public catalog (`feed/PublicFeedView.java`), `GET /api/feeds`. */
 export interface PublicFeed {
   id: string;
