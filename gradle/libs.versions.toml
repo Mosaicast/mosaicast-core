@@ -12,7 +12,7 @@ mosaicastSdk = "0.10.0"
 rome = "2.1.0"
 pf4j = "3.15.0"
 shedlock = "7.9.0"
-jsoup = "1.23.1"
+jsoup = "1.23.2"
 commonsText = "1.15.0"
 commonmark = "0.30.0"
 
