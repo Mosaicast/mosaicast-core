@@ -12,13 +12,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+## [0.6.23] — 2026-08-30
+
+> Closes everything accumulated since `0.6.15`. Each entry keeps the `(0.6.x)` label of the
+> version it actually shipped in — that is the fine-grained record; this heading is the
+> release that draws a line under all of it.
+
 ### Added
 
-- **Legal pages can be machine-drafted, never machine-published (§12.6/§12.7).**
+- **Legal pages can be machine-drafted, never machine-published (`0.6.23`, §12.6/§12.7).**
   `POST /api/admin/legal/{slug}/translations/{locale}/prefill` returns an unsaved draft and writes nothing;
   the editor fills the form, labels it, and the admin saves it or discards it. §12.6 ships the mechanism and
   no legal texts because a policy nobody read is false safety — an automatic one is that with extra steps.
-- **`./gradlew draftCatalog`** drafts a translated UI catalog. A CLI rather than a button, like
+- **`./gradlew draftCatalog` (`0.6.23`)** drafts a translated UI catalog. A CLI rather than a button, like
   `migrateBlobs`: it takes a while, costs money on a metered provider, and produces something a human must
   read. `{{placeholders}}` are masked before the call and restored after, a string whose placeholders did
   not survive is left in the source language and listed, plural keys are **never** machine-generated (the
@@ -27,7 +33,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
-- **Host on `platformApi` 0.11.0, and a plugin now declares the external services it uses (§7.2/§16).**
+- **Host on `platformApi` 0.11.0, and a plugin now declares the external services it uses (`0.6.23`, §7.2/§16).**
   The pin moves in `gradle/libs.versions.toml` and `frontend/package.json`, and every manifest re-declares —
   `plugins/wiki`, `plugins/sample` and the loader fixtures — because `platformApi` matches on `major.minor`,
   so a 0.10.0 manifest is rejected at load.
@@ -55,11 +61,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
-- **The admin nav listed "External services" twice.** Introduced two commits earlier by an edit that landed
+- **The admin nav listed "External services" twice (`0.6.23`).** Introduced two commits earlier by an edit that landed
   both a scripted and a manual insertion; caught by refreshing the screenshots, which is the sort of thing
   screenshots are for.
 
-- **The call pipeline: cache, rate limit, bulkhead (§12.7).** Wrapped around every provider of every kind,
+- **The call pipeline: cache, rate limit, bulkhead (`0.6.23`, §12.7).** Wrapped around every provider of every kind,
   so a provider stays "shape the request, speak HTTP, shape the response" and nobody has to ask whether it
   remembered to cache.
   - **Order is the design**: cache outermost, then the rate limit, then the concurrency bound. A cache hit
@@ -79,7 +85,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     different fixes. Admin gets cache stats and a purge button; a settings change does **not** auto-purge,
     since the fingerprint already makes old entries unreachable.
 
-- **Translation, and LibreTranslate (§12.7).** The first external-service *kind* and its first provider.
+- **Translation, and LibreTranslate (`0.6.23`, §12.7).** The first external-service *kind* and its first provider.
   `TranslationService.translate(...)` is what core and, later, plugins call; `TranslationRequest`/`Result`
   are provider-independent, so switching provider does not change a caller.
   - **`ExternalTargetPolicy` is a narrower control beside the feed one, not a widening of it.** A
@@ -102,7 +108,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     the test JVM, so `build.gradle.kts` now passes it through — without that, the live cases skipped and
     the build still reported success.
 
-- **External services: persistence, the admin API and Admin → External services (§12.7).** The second
+- **External services: persistence, the admin API and Admin → External services (`0.6.23`, §12.7).** The second
   slice. An admin picks one provider per kind (or none) and fills in what it declares; nothing is selected
   by default, because a service nobody configured must make no outbound call.
   - **A credential is never read back.** `value` is `null` for every `SECRET`/`ENV_SECRET` *by
@@ -118,7 +124,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Writes are all-or-nothing and report **every** bad field, so one round trip annotates the whole form.
     New `external_service_selection` / `external_provider_setting` (`V31`).
 
-- **Host on `platformApi` 0.10.0.** `ctx.locale.available()` / `.content()` (and `ctx.locales()` on the
+- **Host on `platformApi` 0.10.0 (`0.6.23`).** `ctx.locale.available()` / `.content()` (and `ctx.locales()` on the
   backend) hand plugins the site's language lists, so a plugin authoring per-locale content can ask which
   languages exist instead of hardcoding them. `ctx.translation` is **`null` on every host** for now — the
   SDK ships the contract ahead of the implementation, and `null` is also what an operator who configures no
@@ -128,7 +134,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - `PluginManifestValidationTest` no longer writes the host version into its fixtures by hand — a literal
     there went stale with this bump and took 26 of the class's 27 cases down with it.
 
-- **Languages are a runtime registry (§12.7).** The language list used to be two static imports in
+- **Languages are a runtime registry (`0.6.23`, §12.7).** The language list used to be two static imports in
   `frontend/src/i18n.ts` — a build-time constant no operator could change and no plugin could read. The host
   now scans the shipped catalogs plus `MOSAICAST_LOCALES_DIR`, and `GET /api/i18n/locales` is the answer.
   - **Drop-in merges, it does not replace.** `nl.json` adds Dutch; a partial `en.json` overrides exactly the
@@ -145,7 +151,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - **Deviates from ARCHITECTURE §12.7 as written** ("copy `en.json`, translate, PR"), which describes a
     build-time flow. Flagged for amendment, not amended here — the spec is read-only in this repo.
 
-- **External services — the kind-agnostic skeleton (§12.7).** A generic surface for admin-configured
+- **External services — the kind-agnostic skeleton (`0.6.23`, §12.7).** A generic surface for admin-configured
   third-party services, so an operator selects one provider per *kind* (or none) and core plus, later,
   plugins consume it. Translation is the first kind; transcription, TTS and embeddings are the shapes it is
   built to take next. No persistence, no UI and no provider in this change — interfaces, the settings model
@@ -1745,7 +1751,8 @@ First milestone: the host boots, serves the shell, and ingests RSS feeds.
   the shell alongside the plugin SDK version.
 - **i18n:** English (source) + German, with an anonymous language switcher.
 
-[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.15...HEAD
+[Unreleased]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.23...HEAD
+[0.6.23]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.15...v0.6.23
 [0.6.15]: https://github.com/Mosaicast/mosaicast-core/compare/v0.6.14...v0.6.15
 [0.6.14]: https://github.com/Mosaicast/mosaicast-core/compare/v0.4.2...v0.6.14
 [0.4.2]: https://github.com/Mosaicast/mosaicast-core/compare/v0.1.0...v0.4.2
