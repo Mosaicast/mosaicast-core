@@ -10,7 +10,7 @@ springBoot = "4.1.0"
 # (dev.mosaicast:plugin-api / @mosaicast/plugin-sdk) and the manifest platformApi.
 mosaicastSdk = "0.10.0"
 rome = "2.1.0"
-pf4j = "3.15.0"
+pf4j = "3.15.1"
 shedlock = "7.9.0"
 jsoup = "1.23.1"
 commonsText = "1.15.0"
