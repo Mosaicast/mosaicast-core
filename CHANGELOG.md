@@ -14,6 +14,29 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Translation, and LibreTranslate (§12.7).** The first external-service *kind* and its first provider.
+  `TranslationService.translate(...)` is what core and, later, plugins call; `TranslationRequest`/`Result`
+  are provider-independent, so switching provider does not change a caller.
+  - **`ExternalTargetPolicy` is a narrower control beside the feed one, not a widening of it.** A
+    self-hosted translator is a private address, and `mosaicast.feed.allow-private-targets` is the wrong
+    lever — it disables the SSRF filter on the podcaster-writable feed path, whose preview endpoint reads
+    responses back to the caller. `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` allow-lists **exact origins**:
+    `http://libretranslate:5000` permits one service on one port, not Redis beside it and not the cloud
+    metadata endpoint. Every refusal returns one identical message, because a settings form that explained
+    *why* would be an internal port scanner.
+  - **The LibreTranslate API key is optional in both shapes** (environment, preferred; or stored). The
+    default self-hosted instance runs `keyRequired: false` and needs none; the same image behind a public
+    URL enforces one. No key means no `api_key` field in the request at all, not an empty one.
+  - `ExternalHttpClient` tightens the feed client twice: **a 3xx is an error, not a hop**, and the body cap
+    is 2 MB. The timeout is a wall-clock budget over the whole exchange, because `HttpRequest.timeout`
+    bounds only the wait for a response — a host that answers and then dribbles satisfies it forever.
+  - Upstream error bodies are never forwarded: a LibreTranslate error echoes the request, `api_key`
+    included. Tests pin that, plus the credential never appearing in a URL.
+  - `LibreTranslateLiveTest` runs against a real instance when
+    `-Dmosaicast.test.libretranslate-url=...` is given, and skips in CI. Gradle does not forward `-D` to
+    the test JVM, so `build.gradle.kts` now passes it through — without that, the live cases skipped and
+    the build still reported success.
+
 - **External services: persistence, the admin API and Admin → External services (§12.7).** The second
   slice. An admin picks one provider per kind (or none) and fills in what it declares; nothing is selected
   by default, because a service nobody configured must make no outbound call.

@@ -81,7 +81,10 @@ class AdminExternalServiceIntegrationTest {
         // make no outbound call at all.
         assertThat(translation.get("selectedProviderId")).isNull();
         assertThat(translation.get("ready")).isEqualTo(false);
-        assertThat((List<?>) translation.get("providers")).hasSize(1);
+        // The stub plus whatever real providers ship; the count is not the point, the stub's presence is.
+        assertThat((List<Map<String, Object>>) translation.get("providers"))
+                .extracting(provider -> provider.get("id"))
+                .contains(StubProviderConfig.ID);
     }
 
     @Test
@@ -232,8 +235,12 @@ class AdminExternalServiceIntegrationTest {
     @SuppressWarnings("unchecked")
     private static Map<String, Object> field(Map<String, Object> section, String key) {
         List<Map<String, Object>> providers = (List<Map<String, Object>>) section.get("providers");
-        List<Map<String, Object>> fields =
-                (List<Map<String, Object>>) providers.getFirst().get("fields");
+        // By id, not position: real providers (LibreTranslate) share this section, and `getFirst()` silently
+        // read the wrong one's fields the moment one shipped.
+        Map<String, Object> stub = providers.stream()
+                .filter(provider -> StubProviderConfig.ID.equals(provider.get("id")))
+                .findFirst().orElseThrow();
+        List<Map<String, Object>> fields = (List<Map<String, Object>>) stub.get("fields");
         return fields.stream().filter(f -> key.equals(f.get("key"))).findFirst().orElseThrow();
     }
 
