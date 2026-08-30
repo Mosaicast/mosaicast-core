@@ -5,7 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
-import type { AdminConfigField, AdminPlugin } from '../../plugins/types';
+import { SettingsFieldInput, toJsonValue, type DraftValue } from '../../components/SettingsFieldInput';
+import type { AdminPlugin } from '../../plugins/types';
 import { PluginStorage } from './PluginStorage';
 
 /**
@@ -68,7 +69,7 @@ export function AdminPlugins() {
       if (draft === undefined) {
         continue;
       }
-      body[field] = toJsonValue(draft, declared);
+      body[field] = toJsonValue(draft, declared.type);
     }
     void run(async () => {
       await api.put(`/api/admin/plugins/${plugin.id}/config`, body);
@@ -161,17 +162,20 @@ export function AdminPlugins() {
               {Object.keys(plugin.config ?? {}).length > 0 && (
                 <div className="mc-pluginrow__config">
                   {Object.entries(plugin.config).map(([field, declared]) => (
-                    <ConfigInput
+                    <SettingsFieldInput
                       key={field}
-                      field={field}
-                      declared={declared}
-                      draft={drafts[draftKey(plugin.id, field)]}
+                      field={{
+                        key: field,
+                        type: declared.type,
+                        overridden: declared.overridden,
+                      }}
+                      value={drafts[draftKey(plugin.id, field)] ?? (declared.value as DraftValue) ?? ''}
                       onChange={(value) =>
                         setDrafts((current) => ({ ...current, [draftKey(plugin.id, field)]: value }))
                       }
                       onReset={() => resetField(plugin, field)}
                       resetLabel={t('admin.plugins.resetField')}
-                      editableByLabel={t('admin.plugins.editableBy', { role: declared.editableBy })}
+                      hint={t('admin.plugins.editableBy', { role: declared.editableBy })}
                     />
                   ))}
                   <div className="mc-form__actions">
@@ -194,64 +198,8 @@ export function AdminPlugins() {
   );
 }
 
-/** One generated form row; the input kind follows the field's declared type. */
-function ConfigInput({
-  field,
-  declared,
-  draft,
-  onChange,
-  onReset,
-  resetLabel,
-  editableByLabel,
-}: {
-  field: string;
-  declared: AdminConfigField;
-  draft: string | boolean | undefined;
-  onChange: (value: string | boolean) => void;
-  onReset: () => void;
-  resetLabel: string;
-  editableByLabel: string;
-}) {
-  const current = draft ?? declared.value ?? '';
-
-  return (
-    <label className="mc-field">
-      <span>
-        {field} <span className="mc-muted">{editableByLabel}</span>
-      </span>
-      {declared.type === 'boolean' ? (
-        <input type="checkbox" checked={Boolean(current)} onChange={(e) => onChange(e.target.checked)} />
-      ) : (
-        <input
-          className={declared.type === 'number' ? 'mc-input mc-input--num' : 'mc-input'}
-          type={declared.type === 'number' ? 'number' : 'text'}
-          value={String(current)}
-          onChange={(e) => onChange(e.target.value)}
-        />
-      )}
-      {declared.overridden && (
-        <button type="button" className="mc-btn" onClick={onReset}>
-          {resetLabel}
-        </button>
-      )}
-    </label>
-  );
-}
-
 function draftKey(pluginId: string, field: string) {
   return `${pluginId} ${field}`;
-}
-
-/** Form input is text; the declared type decides what JSON the endpoint receives. */
-function toJsonValue(draft: string | boolean, declared: AdminConfigField): string | number | boolean | null {
-  if (declared.type === 'boolean') {
-    return Boolean(draft);
-  }
-  if (declared.type === 'number') {
-    const parsed = Number(draft);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return String(draft);
 }
 
 function statusKey(plugin: AdminPlugin) {

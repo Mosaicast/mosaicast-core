@@ -90,6 +90,58 @@ export interface AdminLocalesView {
   locales: AdminLocale[];
 }
 
+/** One declared setting of an external-service provider (`external/admin/AdminExternalViews.java`). */
+export interface AdminSettingsField {
+  key: string;
+  type: 'STRING' | 'SECRET' | 'ENV_SECRET' | 'INTEGER' | 'DECIMAL' | 'BOOLEAN' | 'SELECT' | 'INFO';
+  label: string;
+  description: string;
+  defaultValue: unknown;
+  /** The admin's override. Always null for a credential — the API never reads one back. */
+  value: unknown;
+  overridden: boolean;
+  required: boolean;
+  /** Whether a credential has a value, wherever it lives. The only thing said about one. */
+  set: boolean;
+  min: number | null;
+  max: number | null;
+  options: { value: string; label: string }[];
+  /** The derived environment variable name, for an env-backed field. */
+  envVar: string | null;
+  placeholder: string | null;
+}
+
+/** One provider on offer for a kind. */
+export interface AdminProvider {
+  id: string;
+  name: string;
+  description: string;
+  homepage: string | null;
+  privacyUrl: string | null;
+  selfHosted: boolean;
+  paid: boolean;
+  thirdCountryTransfer: boolean;
+  fields: AdminSettingsField[];
+}
+
+/** One external-service kind, `GET /api/admin/external`. */
+export interface AdminKindSection {
+  kind: string;
+  selectedProviderId: string | null;
+  ready: boolean;
+  missingSettings: string[];
+  /** Whether stored credentials are encrypted at rest, so the page can say when they are not. */
+  encryptsSecrets: boolean;
+  providers: AdminProvider[];
+}
+
+/** The result of the admin's "Test" button. */
+export interface AdminProbeResult {
+  ok: boolean;
+  detail: string;
+  millis: number;
+}
+
 /** A feed in the public catalog (`feed/PublicFeedView.java`), `GET /api/feeds`. */
 export interface PublicFeed {
   id: string;
