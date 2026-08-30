@@ -14,6 +14,26 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **The call pipeline: cache, rate limit, bulkhead (§12.7).** Wrapped around every provider of every kind,
+  so a provider stays "shape the request, speak HTTP, shape the response" and nobody has to ask whether it
+  remembered to cache.
+  - **Order is the design**: cache outermost, then the rate limit, then the concurrency bound. A cache hit
+    therefore costs no permit and no token — which is the point of caching something metered, and is the
+    one behaviour with a test written specifically to pin it.
+  - **A decorator, not a base class.** Inheritance would put the cache in the provider's own type
+    hierarchy, let a provider lose caching silently by forgetting to extend it (failure mode: a bill), drag
+    Postgres into unit tests that only assert request shapes, and burn the single inheritance slot three
+    REST providers will want.
+  - **The cache is in the database** (`V32`), deliberately *not* the in-memory pattern `PluginSettingsService`
+    uses: that one holds tiny, cheap-to-recompute values where loss costs nothing, and a translation is the
+    opposite on all three counts. The provider id and the non-secret config fingerprint are part of the key;
+    credentials are not, because rotating a key must not discard paid work.
+  - **Hit accounting does not write on every read** — `hits`/`last_read_at` update at most daily, so a cache
+    read stays a read. Daily ShedLock sweep drops expired rows then trims to `cacheMaxEntries`, LRU first.
+  - "We are full" (503) and "they did not answer" (504) stay distinct exceptions: different causes,
+    different fixes. Admin gets cache stats and a purge button; a settings change does **not** auto-purge,
+    since the fingerprint already makes old entries unreachable.
+
 - **Translation, and LibreTranslate (§12.7).** The first external-service *kind* and its first provider.
   `TranslationService.translate(...)` is what core and, later, plugins call; `TranslationRequest`/`Result`
   are provider-independent, so switching provider does not change a caller.
