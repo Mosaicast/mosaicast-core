@@ -40,6 +40,33 @@ public class ExternalServices {
     /** A selected provider with its settings resolved. */
     public record Resolved(ProviderDescriptor descriptor, ExternalProvider<?, ?> provider,
                            ProviderConfig config) {
+
+        /**
+         * The provider as the kind's own input and output types — <strong>the only correct way to call it</strong>.
+         *
+         * <p>{@link #provider()} is the <em>wrapped</em> provider, and the wrappers implement
+         * {@link ExternalProvider} and nothing else: a {@code BoundedCallProvider} around a
+         * {@code RateLimitedProvider} around, sometimes, a {@code CachingExternalProvider}. Casting it to a
+         * kind's own interface — {@code (TranslationProvider) resolved.provider()} — therefore throws
+         * {@link ClassCastException} on <em>every</em> call, and does so at runtime, where the compiler has
+         * already been told the cast is fine. That is not a hypothetical: it is the bug this method exists
+         * to make unspellable, and it made machine translation fail on every path that reached a configured
+         * provider.
+         *
+         * <p>Nothing is lost by not having the kind interface. It exists so a provider <em>implementation</em>
+         * can bind the generics and share defaults; a <em>caller</em> only ever needs {@code call}, and
+         * {@code call} is on {@link ExternalProvider}.
+         *
+         * <p>Unchecked, and it has to be: {@link ExternalServiceKind} is an enum rather than a typed token,
+         * so the pairing of kind to {@code <I, O>} lives in {@link ExternalKindSupport} and cannot be proven
+         * here. A caller asking for the wrong types gets a {@link ClassCastException} at the call — the same
+         * failure as before, but now confined to one line with this comment above it rather than repeated
+         * once per kind.
+         */
+        @SuppressWarnings("unchecked")
+        public <I, O> ExternalProvider<I, O> callable() {
+            return (ExternalProvider<I, O>) provider;
+        }
     }
 
     /**

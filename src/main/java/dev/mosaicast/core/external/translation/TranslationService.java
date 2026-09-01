@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.external.translation;
 
+import dev.mosaicast.core.external.ExternalProvider;
 import dev.mosaicast.core.external.ExternalServiceKind;
 import dev.mosaicast.core.external.ExternalServices;
 import dev.mosaicast.core.external.ProviderDescriptor;
@@ -45,10 +46,12 @@ public class TranslationService {
      *                                  falling back to the untranslated string, which a reader cannot tell
      *                                  apart from a real translation
      */
-    @SuppressWarnings("unchecked")
     public TranslationResult translate(TranslationRequest request) {
         ExternalServices.Resolved resolved = services.require(ExternalServiceKind.TRANSLATION);
-        TranslationProvider provider = (TranslationProvider) resolved.provider();
+        // Never `(TranslationProvider) resolved.provider()`. What comes back is the *wrapped* provider —
+        // the bulkhead around the rate limiter around, sometimes, the cache — and those implement
+        // ExternalProvider and nothing else, so that cast threw on every call. See Resolved#callable.
+        ExternalProvider<TranslationRequest, TranslationResult> provider = resolved.callable();
         return provider.call(request, resolved.config());
     }
 

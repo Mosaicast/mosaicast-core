@@ -12,6 +12,32 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **Machine translation threw on every call (§12.7).** `TranslationService` cast the resolved provider to
+  `TranslationProvider`, but what `ExternalServices` hands back is the *wrapped* provider — the bulkhead
+  around the rate limiter around, sometimes, the cache — and those implement `ExternalProvider` and nothing
+  else. So the cast was a `ClassCastException` on every path that reached a configured provider: the plugin
+  endpoint, a plugin's backend `ctx.translation`, the legal-page prefill and `draftCatalog` alike. Reported
+  against 0.6.23 by a plugin author, who hit it the moment they configured a provider.
+  - **Nothing caught it because nothing tested this class.** The provider tests call the raw bean, which is
+    exactly the object the bug is not about, and every other check ran on an instance with no provider
+    configured — where the call is refused with `external-no-provider` long before the cast. The new
+    `TranslationServiceTest` resolves a provider that has been *through the pipeline*, which is the only
+    shape the service is ever handed one in; against the old code its first case fails with the
+    `ClassCastException`.
+  - **The wrong cast no longer has an obvious spelling.** `Resolved.callable()` returns the provider as the
+    kind's `<I, O>`, which is all a caller ever needs — a kind interface exists so an *implementation* can
+    bind the generics, not so a caller can name it. The unchecked cast now lives on one line with the
+    reasoning above it instead of being repeated once per kind, which matters because §16 advertises adding
+    a kind as "one enum constant, one support bean, an input and an output type".
+- **The pipeline decorators dropped the kind's unit accounting.** `estimateUnits` / `actualUnits` were
+  inherited from `ExternalProvider`'s defaults rather than delegated, so the wrapper every caller holds
+  reported a 5,000-character translation as one unit instead of asking `TranslationProvider`, which counts
+  code points. No consumer reserves budget yet, so nothing was mis-billed — but the next one to wire it up
+  would have got a silent undercount rather than a loud failure. Same root cause as above: a decorator that
+  forwards an incomplete surface.
+
 ## [0.6.23] — 2026-08-30
 
 > Closes everything accumulated since `0.6.15`. Each entry keeps the `(0.6.x)` label of the
