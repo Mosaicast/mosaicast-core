@@ -4,6 +4,7 @@
 package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.core.web.IndexHtmlService;
+import dev.mosaicast.core.web.PageView;
 import dev.mosaicast.plugin.api.OgMeta;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
@@ -30,16 +31,22 @@ public class PluginPageController {
     private final PluginLoaderService plugins;
     private final PluginExtensions extensions;
     private final IndexHtmlService indexHtml;
+    private final dev.mosaicast.core.i18n.LocaleRegistry locales;
 
-    public PluginPageController(PluginLoaderService plugins, PluginExtensions extensions,
+    public PluginPageController(dev.mosaicast.core.i18n.LocaleRegistry locales,
+                                PluginLoaderService plugins, PluginExtensions extensions,
                                 IndexHtmlService indexHtml) {
         this.plugins = plugins;
         this.extensions = extensions;
         this.indexHtml = indexHtml;
+        this.locales = locales;
     }
 
     @GetMapping(path = {"/p/{pluginId}", "/p/{pluginId}/**"}, produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> page(@PathVariable String pluginId, HttpServletRequest request) {
+    public ResponseEntity<String> page(@PathVariable String pluginId, HttpServletRequest request,
+                                       @org.springframework.web.bind.annotation.RequestParam(
+                                               required = false) String lang) {
+        String requested = locales.resolveUiLocale(lang);
         // The status has to match what the shell will actually render: a plugin that is unknown, switched off,
         // or simply declares no `page` slot has no page here, and the shell shows its not-found view. Answering
         // 200 for those would be the soft-404 §6.6 rules out.
@@ -57,10 +64,16 @@ public class PluginPageController {
                     .contentType(MediaType.TEXT_HTML)
                     .body(indexHtml.plain());
         }
-        IndexHtmlService.Meta meta = extensions.shareMetadata(pluginId, subpath)
-                .map(PluginPageController::toMeta)
-                .orElseGet(indexHtml::siteMeta);
-        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(indexHtml.render(meta));
+        Optional<OgMeta> og = extensions.shareMetadata(pluginId, subpath);
+        IndexHtmlService.Meta meta = og.map(PluginPageController::toMeta).orElseGet(indexHtml::siteMeta);
+        // A plugin may state the language its own page is written in, and then that is the answer whoever
+        // asked (SDK 0.12.0): a German article stays German for an English visitor, so announcing it as
+        // English would be the install-wide `og:locale` bug over again, one level down. Saying nothing —
+        // the common case, and the pre-0.12.0 shape — leaves the request's own resolved locale in place.
+        String locale = og.map(OgMeta::locale).filter(code -> code != null && !code.isBlank())
+                .orElse(requested);
+        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML)
+                .body(indexHtml.render(PageView.metaOnly(meta), locale));
     }
 
     /** Whether an active plugin actually opted into the deep-link page by declaring a {@code page} slot. */

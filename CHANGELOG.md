@@ -14,6 +14,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Host on `platformApi` 0.12.0 — a plugin can now say what language its pages are in (§6.4/§6.6).**
+  The host half of per-locale URLs shipped without the plugin half, because `OgMeta` and `SitemapUrl` had
+  nowhere to put the answer. Core deliberately emitted *no* `hreflang` for a plugin's sitemap entries rather
+  than assume the site's UI languages applied to content it cannot read; now it asks.
+  - **`SitemapUrl.alternates` is a map of locale → path, and the host takes it as given.** That shape exists
+    for the case a list of locale codes cannot express: a wiki whose German article lives at
+    `/p/wiki/artikel` and whose English one lives at `/p/wiki/article` is one translation group at two
+    paths. The host still owns URL shape — it appends `?lang=`, leaves the site default on the bare URL,
+    and points `x-default` there.
+  - **Every alternate is confined to the plugin's own `/p/{id}/` namespace**, exactly as `loc` always was.
+    Without it a plugin could have the host tell crawlers that `/episodes/x` is the German translation of
+    one of its pages — a claim about somebody else's page, made in the site's own sitemap. An escaping
+    alternate is dropped and the page kept; if that leaves nothing naming the language of `loc`, the whole
+    group goes, because a set that no longer says what its own page is written in says nothing emittable.
+  - **`OgMeta.locale` overrides the request's locale for that page.** A German article stays German for an
+    English visitor, so announcing it as English would be the install-wide `og:locale` bug one level down.
+    Saying nothing — the common case, and the pre-0.12.0 shape — keeps the host's resolved locale.
+  - Manifests re-declare `platformApi` as `0.12.0`.
 - **A URL can now ask for a language: `?lang=de` (§6.4/§12.7).** The server had no notion of a request's
   language at all — resolution was client-side, in `localStorage`, which a crawler neither sets nor reveals.
   So there was no URL that promised a particular language, which is precisely what an `hreflang` alternate

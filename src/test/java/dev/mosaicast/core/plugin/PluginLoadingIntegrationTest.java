@@ -657,6 +657,45 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void aPluginsTranslationGroupIsTakenFromThePluginAndNotAssumed() {
+        // The case a list of locale codes could not express: one group, two paths. The host appends `?lang=`
+        // and leaves the site default on the bare URL, which is why only the German one carries a parameter.
+        String sitemap = rest.getForEntity("/sitemap.xml", String.class).getBody();
+
+        assertThat(sitemap).contains("hreflang=\"de\"").contains("/p/good/geteilt?lang=de");
+        assertThat(sitemap).contains("hreflang=\"en\"").contains("/p/good/shared\" />");
+    }
+
+    @Test
+    void anAlternateAimedOutsideThePluginIsDroppedButThePageSurvives() {
+        // Naming paths buys expressiveness, not reach: without this a plugin could tell crawlers that a core
+        // episode is the German translation of one of its own pages — a claim about somebody else's page,
+        // made in the site's own sitemap. The page itself is legitimate, so it stays listed.
+        String sitemap = rest.getForEntity("/sitemap.xml", String.class).getBody();
+
+        assertThat(sitemap).contains("/p/good/reaching");
+        assertThat(sitemap).doesNotContain("/episodes/not-mine");
+        // Nothing is left naming the language of `loc`, so the whole group goes rather than a half one.
+        assertThat(sitemap).doesNotContain("/p/good/reaching?lang=");
+    }
+
+    @Test
+    void aPluginPageIsAnnouncedInTheLanguageThePluginSaysItIsWrittenIn() {
+        // The install-wide og:locale bug one level down: a German article stays German for an English
+        // visitor, so the host's request-resolved locale must not overwrite what the plugin declared.
+        String html = rest.getForEntity("/p/good/geteilt", String.class).getBody();
+
+        assertThat(html).contains("<html lang=\"de\"");
+        assertThat(html).contains("property=\"og:locale\" content=\"de_DE\"");
+
+        // A plugin that says nothing keeps the request's locale — the common case and the pre-0.12.0 shape.
+        assertThat(rest.getForEntity("/p/good/shared", String.class).getBody())
+                .contains("<html lang=\"en\"");
+        assertThat(rest.getForEntity("/p/good/shared?lang=de", String.class).getBody())
+                .contains("<html lang=\"de\"");
+    }
+
+    @Test
     void anExtensionPointRunsOnTheSameInstanceThatWasRegistered() {
         // FixturePlugin implements both PluginBackend and SitemapProvider and stores its context in a plain
         // instance field, contributing this URL only if register(ctx) ran on the same object.

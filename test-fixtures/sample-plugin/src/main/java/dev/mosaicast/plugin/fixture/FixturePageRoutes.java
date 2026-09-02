@@ -20,10 +20,11 @@ public class FixturePageRoutes implements PageRouteProvider {
     /**
      * The routes this fixture claims.
      *
-     * <p>Deliberately a superset of what it advertises elsewhere — its sitemap entry ({@code shared},
-     * {@code ctx-seen}) and its nav entry ({@code _secret}) are all here. A plugin whose sitemap lists a
-     * URL its route provider denies would make the two disagree about what exists, which is the
-     * contradiction §6.6 is about in the first place.
+     * <p>Deliberately a superset of what it advertises elsewhere — its sitemap entries ({@code shared} and
+     * its German twin {@code geteilt}, {@code reaching}, {@code plain}, {@code ctx-seen}) and its nav entry
+     * ({@code _secret}) are all here. A plugin whose sitemap lists a URL its route provider denies would
+     * make the two disagree about what exists, which is the contradiction §6.6 is about in the first place —
+     * and a translation group makes that easy to get wrong, since every path in the group is a page.
      */
     @Override
     public boolean hasRoute(String subpath) {
@@ -34,6 +35,9 @@ public class FixturePageRoutes implements PageRouteProvider {
                 || "known".equals(subpath)
                 || "_secret".equals(subpath)
                 || "shared".equals(subpath)
+                || "geteilt".equals(subpath)
+                || "reaching".equals(subpath)
+                || "plain".equals(subpath)
                 || "ctx-seen".equals(subpath);
     }
 }

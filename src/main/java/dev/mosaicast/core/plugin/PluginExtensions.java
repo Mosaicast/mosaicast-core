@@ -265,8 +265,8 @@ public class PluginExtensions {
                     }
                     provided.stream()
                             .filter(url -> url != null && url.loc() != null)
-                            .filter(url -> url.loc().equals(prefix.substring(0, prefix.length() - 1))
-                                    || url.loc().startsWith(prefix))
+                            .filter(url -> confined(url.loc(), prefix))
+                            .map(url -> withConfinedAlternates(url, prefix))
                             .forEach(urls::add);
                 } catch (Exception e) {
                     log.warn("SitemapProvider of plugin '{}' failed: {}", pluginId, e.getMessage());
@@ -274,5 +274,46 @@ public class PluginExtensions {
             }
         }
         return urls;
+    }
+
+    /** Whether a path is this plugin's own root or something below it. */
+    private static boolean confined(String path, String prefix) {
+        return path.equals(prefix.substring(0, prefix.length() - 1)) || path.startsWith(prefix);
+    }
+
+    /**
+     * The same entry with any out-of-namespace alternate dropped (§6.6, SDK 0.12.0).
+     *
+     * <p>{@code loc} has always been confined to {@code /p/<pluginId>/}; 0.12.0 lets a plugin name a
+     * <em>path per language</em>, and every one of those is reach in exactly the way {@code loc} is. Without
+     * this a plugin could aim an alternate at a core URL and have the host tell crawlers that
+     * {@code /episodes/x} is the German translation of one of its own pages — a claim about somebody else's
+     * page, made in the site's own sitemap. Naming paths buys expressiveness, not reach, and the SDK's own
+     * Javadoc promises the host enforces exactly this.
+     *
+     * <p>The bad entry is dropped rather than the whole URL rejected: the page itself is legitimate and
+     * discoverable, and losing it from the sitemap over a mistake in its translation group would be a
+     * larger punishment than the mistake. If dropping leaves nothing pointing at {@code loc} the group is
+     * discarded entirely — a set that no longer names the language of its own page says nothing the host
+     * can honestly emit.
+     */
+    private static SitemapUrl withConfinedAlternates(SitemapUrl url, String prefix) {
+        if (url.alternates().isEmpty()) {
+            return url;
+        }
+        java.util.Map<String, String> kept = new java.util.LinkedHashMap<>();
+        url.alternates().forEach((locale, path) -> {
+            if (confined(path, prefix)) {
+                kept.put(locale, path);
+            } else {
+                log.warn("SitemapProvider of '{}' aimed the '{}' alternate of {} at '{}', outside its own "
+                        + "namespace; dropping that alternate",
+                        prefix.substring(3, prefix.length() - 1), locale, url.loc(), path);
+            }
+        });
+        if (!kept.containsValue(url.loc())) {
+            return new SitemapUrl(url.loc(), url.lastModified());
+        }
+        return new SitemapUrl(url.loc(), url.lastModified(), kept);
     }
 }
