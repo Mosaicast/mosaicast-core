@@ -32,18 +32,23 @@ public class ShellController {
 
     private final OgResolver og;
     private final IndexHtmlService indexHtml;
+    private final dev.mosaicast.core.i18n.LocaleRegistry locales;
 
-    public ShellController(OgResolver og, IndexHtmlService indexHtml) {
+    public ShellController(OgResolver og, IndexHtmlService indexHtml,
+                           dev.mosaicast.core.i18n.LocaleRegistry locales) {
         this.og = og;
         this.indexHtml = indexHtml;
+        this.locales = locales;
     }
 
     /** The site root — the "All" tab, with the §6.1 filters applied to the preview it produces. */
     @GetMapping(path = "/", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> home(@RequestParam(required = false) String season,
                                        @RequestParam(required = false) String tag,
-                                       @RequestParam(required = false) String order) {
-        return ok(og.home(season, tag, order));
+                                       @RequestParam(required = false) String order,
+                                       @RequestParam(required = false) String lang) {
+        String locale = locales.resolveUiLocale(lang);
+        return ok(og.home(locale, season, tag, order), locale);
     }
 
     /** One feed tab. */
@@ -51,8 +56,10 @@ public class ShellController {
     public ResponseEntity<String> feed(@PathVariable String slug,
                                        @RequestParam(required = false) String season,
                                        @RequestParam(required = false) String tag,
-                                       @RequestParam(required = false) String order) {
-        return render(() -> og.feed(slug, season, tag, order));
+                                       @RequestParam(required = false) String order,
+                                       @RequestParam(required = false) String lang) {
+        String locale = locales.resolveUiLocale(lang);
+        return render(() -> og.feed(locale, slug, season, tag, order), locale);
     }
 
     /**
@@ -64,36 +71,46 @@ public class ShellController {
      */
     @GetMapping(path = "/episodes/{slug}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> episode(@PathVariable String slug,
-                                          @RequestParam(required = false) String t) {
-        return render(() -> og.episode(slug, t));
+                                          @RequestParam(required = false) String t,
+                                          @RequestParam(required = false) String lang) {
+        String locale = locales.resolveUiLocale(lang);
+        return render(() -> og.episode(locale, slug, t), locale);
     }
 
     /**
      * One legal page (§12.6).
      *
-     * <p>Rendered in the site's <em>default</em> locale, not the visitor's: locale resolution is
-     * client-side (§12.7 — an explicit choice in {@code localStorage}, then the browser), and the server
-     * cannot see that. The shell re-renders in the visitor's locale on mount; a crawler, which is who this
-     * block is for, gets the default. That is also the right answer for a crawler, since the default locale
-     * is what the canonical URL represents.
+     * <p>This used to be served in the site's default locale unconditionally, because locale resolution was
+     * client-side — an explicit choice in {@code localStorage}, then the browser — and the server could not
+     * see it. That reasoning is what {@code ?lang=} retires: a legal page is the one core surface whose text
+     * genuinely differs per language (§12.6), so it is also the one where serving the default to every
+     * crawler meant a translated imprint was never indexed at all.
+     *
+     * <p>The shell still re-renders in the visitor's own locale on mount. What changed is that there is now
+     * a URL a crawler can be pointed at which promises a particular language, which is the whole content of
+     * an {@code hreflang} alternate.
      */
     @GetMapping(path = "/legal/{slug}", produces = MediaType.TEXT_HTML_VALUE)
-    public ResponseEntity<String> legal(@PathVariable String slug) {
-        return render(() -> og.legal(slug, null));
+    public ResponseEntity<String> legal(@PathVariable String slug,
+                                        @RequestParam(required = false) String lang) {
+        String locale = locales.resolveUiLocale(lang);
+        return render(() -> og.legal(slug, locale), locale);
     }
 
     /** Renders a view, turning a missing resource into a real 404 that still carries the shell. */
-    private ResponseEntity<String> render(java.util.function.Supplier<PageView> resolve) {
+    private ResponseEntity<String> render(java.util.function.Supplier<PageView> resolve, String locale) {
         try {
-            return ok(resolve.get());
+            return ok(resolve.get(), locale);
         } catch (NotFoundException e) {
+            // The 404 shell is served in the requested language too: a crawler following a dead alternate
+            // should still be told what it is looking at, in the language it asked for.
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .contentType(MediaType.TEXT_HTML)
-                    .body(indexHtml.render(PageView.metaOnly(indexHtml.siteMeta())));
+                    .body(indexHtml.render(PageView.metaOnly(indexHtml.siteMeta()), locale));
         }
     }
 
-    private ResponseEntity<String> ok(PageView view) {
-        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(indexHtml.render(view));
+    private ResponseEntity<String> ok(PageView view, String locale) {
+        return ResponseEntity.ok().contentType(MediaType.TEXT_HTML).body(indexHtml.render(view, locale));
     }
 }

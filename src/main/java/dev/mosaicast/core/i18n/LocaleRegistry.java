@@ -152,6 +152,36 @@ public class LocaleRegistry {
         return current().defaultLocale();
     }
 
+    /**
+     * The UI language a request asked for with {@code ?lang=}, or the site default (ARCHITECTURE §6.4/§12.7).
+     *
+     * <p>The server had no notion of a request's language at all until this: locale resolution is
+     * client-side, in {@code localStorage}, which a crawler neither sets nor reveals. So every page was
+     * served — and described to scrapers — in the site default, and there was no URL that promised a
+     * particular language. {@code hreflang} is exactly such a promise, hence the parameter.
+     *
+     * <p><strong>An unknown value resolves to the default rather than 404.</strong> A stale alternate, a
+     * hand-typed code or a language an admin has since switched off must not mint a page that does not
+     * exist; it must serve the site's own language, and — see {@link SiteUrls#canonicalQuery} — canonicalise
+     * to the bare URL, so nothing indexable is created by guessing at the query string.
+     *
+     * <p>Checked against {@link #uiLocales()}, not {@link #contentLocales()}: this decides what the
+     * <em>shell</em> renders in. A language content may be authored in without having a catalog is a real
+     * case (§12.7), and offering it here would promise a translated page that cannot be drawn.
+     */
+    public String resolveUiLocale(String requested) {
+        if (requested == null || requested.isBlank()) {
+            return defaultLocale();
+        }
+        String wanted = normalize(requested);
+        return isUiLocale(wanted) ? wanted : defaultLocale();
+    }
+
+    /** Whether a code names the site default — what decides if it belongs in a canonical URL. */
+    public boolean isDefaultLocale(String code) {
+        return normalize(code).equals(normalize(defaultLocale()));
+    }
+
     /** The configured drop-in directory as text, or {@code null} when there is none. */
     public String dropInDir() {
         return catalogs.dropInDir() == null ? null : catalogs.dropInDir().toString();

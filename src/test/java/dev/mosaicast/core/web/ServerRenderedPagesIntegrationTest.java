@@ -230,6 +230,57 @@ class ServerRenderedPagesIntegrationTest {
         assertThat(html).contains("https://podcast.test/episodes/seo-cast-s02e07");
     }
 
+    @Test
+    void aPageAnnouncesTheLanguageItWasAskedFor() {
+        // Both of these were fixed strings before: `lang` is baked into the built index.html and og:locale
+        // was the install's default on every URL, so a German page told every crawler it was English.
+        String german = body("/episodes/seo-cast-s02e07?lang=de");
+
+        assertThat(german).contains("<html lang=\"de\"");
+        assertThat(german).contains("property=\"og:locale\" content=\"de_DE\"");
+        // And it names itself: without this the German rendering has no URL of its own and an hreflang
+        // alternate would be pointing at a page that claims to be the English one.
+        assertThat(german).contains("rel=\"canonical\" href=\"https://podcast.test/episodes/"
+                + "seo-cast-s02e07?lang=de\"");
+    }
+
+    @Test
+    void theDefaultLanguageLeavesNoTraceInTheCanonicalUrl() {
+        // The cost that made locale URLs get deferred in the first place: if `lang` were carried always,
+        // every page on the site would have two canonical forms instead of one.
+        assertThat(body("/episodes/seo-cast-s02e07?lang=en"))
+                .contains("rel=\"canonical\" href=\"https://podcast.test/episodes/seo-cast-s02e07\"")
+                .contains("<html lang=\"en\"");
+        assertThat(body("/episodes/seo-cast-s02e07"))
+                .contains("rel=\"canonical\" href=\"https://podcast.test/episodes/seo-cast-s02e07\"");
+    }
+
+    @Test
+    void anUnknownLanguageServesTheDefaultAndMintsNoUrl() {
+        // A stale alternate, a typo, or a language an admin switched off. It must not 404 — and it must not
+        // produce a second indexable URL by echoing whatever was in the query string.
+        String html = body("/episodes/seo-cast-s02e07?lang=klingon");
+
+        assertThat(html).contains("<html lang=\"en\"");
+        assertThat(html).contains("rel=\"canonical\" href=\"https://podcast.test/episodes/seo-cast-s02e07\"");
+        assertThat(html).doesNotContain("klingon");
+    }
+
+    @Test
+    void theSitemapOffersEveryPageInEveryLanguageTheShellHas() {
+        String xml = body("/sitemap.xml");
+
+        assertThat(xml).contains("xmlns:xhtml=\"http://www.w3.org/1999/xhtml\"");
+        assertThat(xml).contains("<xhtml:link rel=\"alternate\" hreflang=\"de\" "
+                + "href=\"https://podcast.test/episodes/seo-cast-s02e07?lang=de\" />");
+        // Self-referential and reciprocal, or a crawler will not believe the set.
+        assertThat(xml).contains("<xhtml:link rel=\"alternate\" hreflang=\"en\" "
+                + "href=\"https://podcast.test/episodes/seo-cast-s02e07\" />");
+        // x-default is the bare URL: no `lang`, so the site's own default answers.
+        assertThat(xml).contains("<xhtml:link rel=\"alternate\" hreflang=\"x-default\" "
+                + "href=\"https://podcast.test/episodes/seo-cast-s02e07\" />");
+    }
+
     private String body(String path) {
         ResponseEntity<String> response = rest.getForEntity(path, String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

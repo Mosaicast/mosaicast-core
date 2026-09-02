@@ -12,6 +12,28 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **A URL can now ask for a language: `?lang=de` (§6.4/§12.7).** The server had no notion of a request's
+  language at all — resolution was client-side, in `localStorage`, which a crawler neither sets nor reveals.
+  So there was no URL that promised a particular language, which is precisely what an `hreflang` alternate
+  is, and the August decision to defer per-locale URLs rested on that. This is the query-param form that
+  decision named as its fallback; path prefixes stay rejected.
+  - **The default language is dropped from the canonical**, exactly as `order=newest` already is in
+    `SiteUrls.canonicalQuery` and for the same reason: a parameter whose value is what its absence already
+    means would make one view canonicalise two ways. That was the budgeted cost of choosing a query
+    parameter, and dropping the default keeps it to one extra URL per translated view rather than doubling
+    every URL on the site.
+  - **An unknown `lang` serves the default and mints nothing.** A stale alternate, a typo or a language an
+    admin has since switched off must not 404, and must not become a second indexable URL by echoing
+    whatever was in the query string.
+  - Validated against the *UI* locales, not the content ones: a language content may be authored in without
+    having a catalog is a real case (§12.7), and offering it would promise a page the shell cannot draw.
+  - The shell honours the parameter over `localStorage` for that page load and **never writes it** — a link
+    someone was sent must not silently change the language of the whole site for them.
+- **`hreflang` alternates in `sitemap.xml` (§6.6).** Every core URL lists every language it is reachable in,
+  self-referentially and reciprocally, plus `x-default` on the bare URL.
+
 ### Fixed
 
 - **Machine translation threw on every call (§12.7).** `TranslationService` cast the resolved provider to
@@ -45,6 +67,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   loaded however it was invoked. It exits non-zero when anything is missing, so it composes into an
   `until … do sleep` wait. `logs` tails the last 200 lines, or follows with `-f`. `psql` opens an
   interactive shell in the container. Each says what to do when the stack is down instead of failing bare.
+- **`<html lang>` was hardcoded to `en`** in the built shell and in the SSR fallback, so a German-default
+  install mislabelled every page it served — to screen readers and translation prompts as much as to
+  crawlers. It now follows the language actually being served.
+- **`og:locale` was the install's default on every page**, by an explicit decision in the code that locale
+  "is a property of the install rather than of a URL". That was true only while no URL could carry one.
+- **Legal pages were in the sitemap in the default locale only**, so a translated imprint was never
+  indexed. They are now listed with the locales they are *actually* translated into — read from the
+  translation rows, not from `footer()`, whose fallback to the default language is right for a visitor and
+  would be a lie to a crawler.
+
+> **Not covered:** a plugin still cannot declare its page's language or its translation group.
+> `OgMeta` and `SitemapUrl` are SDK records, so that needs a `platformApi` minor; plugin sitemap entries
+> deliberately carry no alternates rather than have the host invent a claim the plugin never made.
 
 ## [0.6.23] — 2026-08-30
 

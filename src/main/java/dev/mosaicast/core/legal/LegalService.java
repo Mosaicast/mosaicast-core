@@ -101,6 +101,27 @@ public class LegalService {
         return entries;
     }
 
+    /**
+     * The locales a page is <strong>actually</strong> translated into, for {@code hreflang} (§6.6/§12.7).
+     *
+     * <p>Deliberately not derived from {@link #footer(String)}, which falls back to the site default: that
+     * fallback is right for a visitor, who would rather read the imprint in English than see nothing, and
+     * wrong for a crawler, which would be told a German version exists and be handed the English text. An
+     * alternate is a claim about content, so it is answered from the translation rows and nothing else.
+     *
+     * @return the locales with a row of their own, ordered; empty when the page has no content at all
+     */
+    @Transactional(readOnly = true)
+    public List<String> translatedLocales(String slug) {
+        return pages.findBySlug(slug)
+                .map(page -> translations.findByPageId(page.getId()).stream()
+                        .map(LegalPageTranslation::getLocale)
+                        .filter(locale -> locale != null && !locale.isBlank())
+                        .sorted()
+                        .toList())
+                .orElseGet(List::of);
+    }
+
     /** Renders a page in the locale (with fallback), or 404. */
     @Transactional(readOnly = true)
     public RenderedPage render(String slug, String locale) {
