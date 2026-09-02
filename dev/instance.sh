@@ -119,6 +119,65 @@ down() {
   echo "✅ down"
 }
 
+# The three commands the usage line has always advertised. They were dispatched but never written, so each
+# exited 127 with a bash "command not found" — which reads like a broken PATH rather than a missing feature.
+status() {
+  local running=0
+
+  if docker inspect -f '{{.State.Running}}' "$PG_NAME" 2>/dev/null | grep -q true; then
+    echo "▶ postgres  up   :$PG_PORT ($PG_NAME)"
+  else
+    echo "▶ postgres  down"
+    running=1
+  fi
+
+  if curl -sf "$APP_URL/actuator/health" >/dev/null 2>&1; then
+    echo "▶ app       up   $APP_URL"
+    # What is actually mounted, asked of the running app rather than remembered from the `up` flags: a
+    # plugin that failed to load is not loaded, however it was invoked.
+    local plugins
+    plugins=$(curl -sf "$APP_URL/api/plugins/manifest" 2>/dev/null \
+      | grep -o '"id":"[^"]*"' | cut -d'"' -f4 | paste -sd' ' -)
+    echo "  plugins   ${plugins:-none}"
+  else
+    echo "▶ app       down"
+    running=1
+  fi
+
+  if curl -sf "http://localhost:$FEED_PORT/sample-feed.xml" >/dev/null 2>&1; then
+    echo "▶ feed      up   :$FEED_PORT"
+  else
+    echo "▶ feed      down"
+    running=1
+  fi
+
+  # Exit non-zero when anything is missing, so this composes: `until dev/instance.sh status; do sleep 2; done`.
+  return $running
+}
+
+logs() {  # logs [-f]
+  local follow="$1"
+  if [ ! -f "$RUN_DIR/app.log" ]; then
+    echo "no app log at $RUN_DIR/app.log — is it up?" >&2
+    return 1
+  fi
+  # Bounded by default: the log carries a whole Spring boot sequence, and the interesting part is the end.
+  if [ -n "$follow" ]; then
+    tail -f "$RUN_DIR/app.log"
+  else
+    tail -n 200 "$RUN_DIR/app.log"
+  fi
+}
+
+psql_shell() {
+  if ! docker inspect -f '{{.State.Running}}' "$PG_NAME" 2>/dev/null | grep -q true; then
+    echo "postgres is not running — dev/instance.sh up first" >&2
+    return 1
+  fi
+  # -it, so this is a real interactive shell; the container is the only place the port needs to be known.
+  docker exec -it "$PG_NAME" psql -U mosaicast mosaicast
+}
+
 cmd="${1:-}"
 shift || true
 FOLLOW=""

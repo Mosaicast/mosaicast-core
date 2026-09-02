@@ -37,6 +37,14 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   code points. No consumer reserves budget yet, so nothing was mis-billed — but the next one to wire it up
   would have got a silent undercount rather than a loud failure. Same root cause as above: a decorator that
   forwards an incomplete surface.
+- **`dev/instance.sh status`, `logs` and `psql` did not exist.** All three were dispatched by the `case` and
+  documented in the script's own usage line and in `CLAUDE.md`, but no function was ever written, so each
+  exited 127 with a bash `command not found` — which reads like a broken shell rather than a missing
+  feature. `status` reports Postgres, the app and the sample-feed server, and lists the plugins the running
+  app actually loaded rather than the ones `up` was asked for, because a plugin that failed to load is not
+  loaded however it was invoked. It exits non-zero when anything is missing, so it composes into an
+  `until … do sleep` wait. `logs` tails the last 200 lines, or follows with `-f`. `psql` opens an
+  interactive shell in the container. Each says what to do when the stack is down instead of failing bare.
 
 ## [0.6.23] — 2026-08-30
 
