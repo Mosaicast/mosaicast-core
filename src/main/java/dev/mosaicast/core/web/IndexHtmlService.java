@@ -96,15 +96,67 @@ public class IndexHtmlService {
      * that never mounts anything reads it as the page.
      */
     public String render(PageView view) {
-        String html = index();
+        return render(view, null);
+    }
+
+    /**
+     * The same, rendered as a particular UI language (§6.4/§12.7).
+     *
+     * <p>{@code locale} is what {@code ?lang=} resolved to, already validated by {@code LocaleRegistry};
+     * {@code null} means the site default. It is a render input rather than part of {@link PageView}
+     * because it is a property of the <em>request</em>, not of the view: the same episode is one page,
+     * described in whichever language was asked for.
+     *
+     * <p>It reaches two things a crawler reads and a visitor's browser does not: the document's
+     * {@code lang} attribute and {@code og:locale}. Both were fixed strings before — {@code lang="en"} is
+     * baked into the built {@code index.html}, and {@code og:locale} was the install's default on every
+     * page — so a German page announced itself as English to everything that does not run JS.
+     */
+    public String render(PageView view, String locale) {
+        // Null resolves to the install's default rather than to "leave it alone": the built shell says
+        // lang="en" whatever the site is, so a German-default install was mislabelled on every page long
+        // before any `?lang=` existed.
+        String resolved = locale == null || locale.isBlank()
+                ? siteConfig.get().getDefaultLocale() : locale.trim();
+        String html = withLangAttribute(index(), resolved);
         int headEnd = html.indexOf(HEAD_END);
         if (headEnd < 0) {
             // No head to inject into (a stripped or unexpected build) — serve the shell unchanged rather
             // than corrupting it; the page still works, only the preview is generic.
             return html;
         }
-        String withHead = html.substring(0, headEnd) + headTags(view) + html.substring(headEnd);
+        String withHead = html.substring(0, headEnd) + headTags(view, resolved) + html.substring(headEnd);
         return injectContent(withHead, view.noJsHtml());
+    }
+
+    /**
+     * Rewrites the shell's {@code <html lang="…">} to the language actually being served.
+     *
+     * <p>The attribute is a build artifact — Vite emits whatever {@code frontend/index.html} says, which is
+     * {@code en} — so it cannot be right for a site whose default is German, let alone for a per-request
+     * language. It matters beyond tidiness: it is what a screen reader picks a voice from and what a
+     * translation prompt keys on, and both are wrong in the same direction as the OG tags were.
+     *
+     * <p>Matched narrowly on the opening tag rather than by parsing: a shell without one is served
+     * unchanged, which is the same failure posture the head and mount-point injections take.
+     */
+    private String withLangAttribute(String html, String locale) {
+        String tag = locale == null || locale.isBlank() ? null : locale.trim();
+        if (tag == null) {
+            return html;
+        }
+        int open = html.indexOf("<html ");
+        int close = open < 0 ? -1 : html.indexOf('>', open);
+        if (open < 0 || close < 0) {
+            return html;
+        }
+        String opening = html.substring(open, close);
+        if (!opening.contains("lang=\"")) {
+            return html;
+        }
+        return html.substring(0, open)
+                + opening.replaceFirst("lang=\"[^\"]*\"", "lang=\"" + escape(tag) + "\"")
+                + html.substring(close);
     }
 
     /**
@@ -140,8 +192,8 @@ public class IndexHtmlService {
      * precisely the link someone did not send. {@link PageView#shareUrl()} falls back to the canonical URL,
      * so every view that has nothing extra to say still emits the two identically.
      */
-    private String headTags(PageView view) {
-        StringBuilder tags = new StringBuilder(ogTags(view.meta()));
+    private String headTags(PageView view, String locale) {
+        StringBuilder tags = new StringBuilder(ogTags(view.meta(), locale));
         if (view.canonicalUrl() != null && !view.canonicalUrl().isBlank()) {
             tags.append("    <link rel=\"canonical\" href=\"")
                     .append(escape(view.canonicalUrl())).append("\" />\n");
@@ -160,7 +212,7 @@ public class IndexHtmlService {
         return index();
     }
 
-    private String ogTags(Meta meta) {
+    private String ogTags(Meta meta, String locale) {
         StringBuilder tags = new StringBuilder("\n");
         tags.append(meta("og:title", meta.title()));
         tags.append(meta("og:type", meta.type() == null || meta.type().isBlank() ? "website" : meta.type()));
@@ -172,7 +224,9 @@ public class IndexHtmlService {
         if (siteName != null && !siteName.isBlank()) {
             tags.append(meta("og:site_name", siteName));
         }
-        String ogLocale = ogLocale(siteConfig.get().getDefaultLocale());
+        // The language this response is actually in, not the install's default. They agree on most
+        // requests and differ on exactly the ones this tag exists to describe.
+        String ogLocale = ogLocale(locale);
         if (ogLocale != null) {
             tags.append(meta("og:locale", ogLocale));
         }

@@ -83,9 +83,9 @@ public class OgResolver {
      * @param order  the ordering from the query string, or null
      * @return the view for this URL; never {@code null}
      */
-    public PageView home(String season, String tag, String order) {
+    public PageView home(String locale, String season, String tag, String order) {
         String siteName = siteName();
-        String query = SiteUrls.canonicalQuery(season, tag, order);
+        String query = SiteUrls.canonicalQuery(canonicalLang(locale), season, tag, order);
         String title = seasonSuffix(siteName, season);
 
         List<EpisodeSummary> listed = episodes
@@ -110,10 +110,10 @@ public class OgResolver {
      * @return the view for this URL; never {@code null}
      * @throws NotFoundException if no public feed is addressed by {@code slugOrId}
      */
-    public PageView feed(String slugOrId, String season, String tag, String order) {
+    public PageView feed(String locale, String slugOrId, String season, String tag, String order) {
         FeedDetailView feed = feeds.detail(slugOrId);
         String path = "/feeds/" + feed.slug();
-        String query = SiteUrls.canonicalQuery(season, tag, order);
+        String query = SiteUrls.canonicalQuery(canonicalLang(locale), season, tag, order);
         String title = seasonSuffix(feed.title(), season);
         String description = plainText(feed.description());
 
@@ -145,10 +145,10 @@ public class OgResolver {
      * @return the view for this URL; never {@code null}
      * @throws NotFoundException if no visible episode has that slug
      */
-    public PageView episode(String slug, String t) {
+    public PageView episode(String locale, String slug, String t) {
         EpisodeDetail episode = episodes.detailBySlug(slug);
         String path = "/episodes/" + episode.slug();
-        String canonical = urls.absolute(path);
+        String canonical = urls.absolute(path, SiteUrls.canonicalQuery(canonicalLang(locale), null, null, null));
         java.util.OptionalInt at = TimestampParam.parse(t);
         String shareUrl = at.isPresent() ? urls.absolute(path, TimestampParam.query(at.getAsInt())) : canonical;
 
@@ -214,10 +214,12 @@ public class OgResolver {
      * @throws NotFoundException if no page with that slug renders in the requested or default locale
      */
     public PageView legal(String slug, String locale) {
-        RenderedPage page = legal.render(slug, locale == null ? defaultLocale() : locale);
+        String resolved = locale == null ? defaultLocale() : locale;
+        RenderedPage page = legal.render(slug, resolved);
         return new PageView(
                 new IndexHtmlService.Meta(page.title(), "", siteImageUrl()),
-                urls.absolute("/legal/" + page.slug()),
+                urls.absolute("/legal/" + page.slug(),
+                        SiteUrls.canonicalQuery(canonicalLang(resolved), null, null, null)),
                 null,
                 "<h1>" + IndexHtmlService.escape(page.title()) + "</h1>\n" + page.html());
     }
@@ -353,6 +355,19 @@ public class OgResolver {
     private String siteName() {
         String name = siteConfig.get().getSiteName();
         return name == null || name.isBlank() ? "Mosaicast" : name;
+    }
+
+    /**
+     * The {@code lang} a canonical URL should carry for this view, or {@code null} when it should carry none.
+     *
+     * <p>The site default is deliberately dropped, exactly as {@code order=newest} is in
+     * {@link SiteUrls#canonicalQuery}: a parameter whose value is what its absence already means would make
+     * one view canonicalise two ways, and doubling every URL on the site is the cost that made the August
+     * decision defer locale URLs in the first place. Carrying it only for a non-default language keeps the
+     * addition to one extra URL per translated view.
+     */
+    private String canonicalLang(String locale) {
+        return locale == null || locale.isBlank() || locale.equalsIgnoreCase(defaultLocale()) ? null : locale;
     }
 
     private String defaultLocale() {

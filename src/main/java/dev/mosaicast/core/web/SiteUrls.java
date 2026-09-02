@@ -79,7 +79,31 @@ public class SiteUrls {
      * @return the normalized query string without a leading {@code ?}; empty when nothing is filtered
      */
     public static String canonicalQuery(String season, String tag, String order) {
+        return canonicalQuery(null, season, tag, order);
+    }
+
+    /**
+     * The same, carrying the requested language (§6.4/§12.7).
+     *
+     * <p>{@code lang} comes first because it is the coarsest axis: it selects which rendering of a view is
+     * being named, where the filters select which slice. Fixed order is the whole point of this method, so
+     * the position is part of the contract rather than a preference.
+     *
+     * <p><strong>Pass {@code null} for the site default.</strong> Deciding that is the caller's job because
+     * only it holds {@code LocaleRegistry} — see {@code LocaleRegistry#isDefaultLocale} — and this method
+     * stays static and free of site state, which is what lets it be tested as a pure function of its inputs.
+     * The rule it enforces is the same one {@code order=newest} gets right above: a value that is what the
+     * absent parameter already means must not appear, or one view canonicalises two ways. That was the
+     * budgeted cost of choosing a query parameter for locale, and dropping the default is what keeps it to
+     * one extra URL per non-default language rather than doubling every URL on the site.
+     *
+     * @param lang a UI locale to carry, or {@code null}/blank when the view is in the site default
+     */
+    public static String canonicalQuery(String lang, String season, String tag, String order) {
         Map<String, String> params = new LinkedHashMap<>();
+        if (lang != null && !lang.isBlank()) {
+            params.put("lang", lang.trim());
+        }
         if (season != null && !season.isBlank()) {
             params.put("season", season.trim());
         }

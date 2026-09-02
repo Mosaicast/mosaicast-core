@@ -9,7 +9,7 @@ import en from './locales/en.json';
 
 /**
  * i18n bootstrap (ARCHITECTURE §12.7). English is the source language; German ships in v1. Locale
- * resolution order — explicit choice (persisted, works anonymously) → browser → site default.
+ * resolution order — `?lang=` → explicit choice (persisted, works anonymously) → browser → site default.
  *
  * The languages an instance *has* are no longer decided here. The backend scans the shipped catalogs and
  * whatever an operator dropped into `MOSAICAST_LOCALES_DIR`, and `GET /api/i18n/locales` is the answer.
@@ -19,12 +19,26 @@ import en from './locales/en.json';
 const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('mc.locale') : null;
 const browser = typeof navigator !== 'undefined' ? navigator.language.split('-')[0] : 'en';
 
+/**
+ * The language this URL asks for (§6.4). It exists so a crawler can be handed a URL that promises a
+ * particular language, and it wins here so that following such a URL shows a human the same page the
+ * crawler was promised — otherwise a German search result would open in English.
+ *
+ * **Read, never written.** Persisting it would let a link someone was sent silently change the language
+ * of the whole site for them, on every later visit, with no action they would recognise as a choice. The
+ * language switcher stays the only thing that writes `mc.locale`.
+ */
+const requested =
+  typeof window !== 'undefined'
+    ? new URLSearchParams(window.location.search).get('lang')?.trim().toLowerCase() || null
+    : null;
+
 void i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     de: { translation: de },
   },
-  lng: stored ?? browser,
+  lng: requested ?? stored ?? browser,
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 });
