@@ -59,32 +59,33 @@ public class SitemapController {
     public String sitemap() {
         String base = urls.base();
         List<Entry> entries = new ArrayList<>();
-        entries.add(new Entry("/", null, uiLocaleCodes()));
+        entries.add(Entry.samePath("/", null, uiLocaleCodes()));
 
         for (FeedView feed : feeds.list()) {
             // The public URL is the slug; a feed still awaiting its boot backfill has none and is skipped
             // rather than advertised under an id that is no longer its address.
             if (feed.enabled() && feed.slug() != null) {
-                entries.add(new Entry("/feeds/" + feed.slug(), null, uiLocaleCodes()));
+                entries.add(Entry.samePath("/feeds/" + feed.slug(), null, uiLocaleCodes()));
             }
         }
         episodes.listSite(null, null, null, true, PageRequest.of(0, MAX_EPISODES)).getContent().stream()
                 .map(EpisodeSummary::slug)
                 .filter(slug -> slug != null && !slug.isBlank())
-                .forEach(slug -> entries.add(new Entry("/episodes/" + slug, null, uiLocaleCodes())));
+                .forEach(slug -> entries.add(Entry.samePath("/episodes/" + slug, null, uiLocaleCodes())));
 
         // Every legal page once, with its own alternates: these are the one core surface whose *text*
         // differs per language, and listing only the default locale's set is why a German-only imprint was
         // never in the sitemap at all.
         for (FooterEntry page : legal.footer(siteConfig.get().getDefaultLocale())) {
-            entries.add(new Entry("/legal/" + page.slug(), null,
+            entries.add(Entry.samePath("/legal/" + page.slug(), null,
                     uiSubset(legal.translatedLocales(page.slug()))));
         }
         for (SitemapUrl url : extensions.sitemapUrls()) {
-            // No alternates: a plugin has no way to declare its translation group yet — SitemapUrl carries
-            // only a loc and a timestamp. Emitting the site's UI locales here would be the host inventing a
-            // claim about a plugin's content that the plugin never made.
-            entries.add(new Entry(url.loc(), url.lastModified(), List.of()));
+            // Taken from the plugin, never assumed. A plugin's pages may be one path rendered per language
+            // or a translated slug per language, and only the plugin knows which — hence a map of paths
+            // rather than a list of codes (SDK 0.12.0). An empty map stays empty: a plugin with nothing
+            // translated makes no claim, which is what the host assumed before it could ask.
+            entries.add(new Entry(url.loc(), url.lastModified(), url.alternates()));
         }
 
         StringBuilder xml = new StringBuilder(
@@ -101,9 +102,8 @@ public class SitemapController {
             // group lists every URL in the group, itself included. Emitting them on the bare URL only, as
             // one block per entry, satisfies that without listing each translation as its own <url> — which
             // would be the same page indexed n times.
-            for (String locale : entry.alternates()) {
-                xml.append(alternate(locale, base + entry.path(), locale));
-            }
+            entry.alternates().forEach((locale, path) ->
+                    xml.append(alternate(locale, base + path, locale)));
             if (!entry.alternates().isEmpty()) {
                 // x-default is what a crawler serves someone whose language is not in the set. The bare URL
                 // is exactly that: no `lang`, so the site's own default answers.
@@ -148,9 +148,17 @@ public class SitemapController {
      * One sitemap entry: a root-relative path, an optional last-modified stamp, and the languages this URL
      * is reachable in.
      *
-     * @param alternates UI locale codes for {@code hreflang}; empty for a URL that makes no such claim
+     * @param alternates locale code → the path that page is written in that language, including an entry
+     *                   for {@code path} itself; empty for a URL that makes no such claim
      */
-    private record Entry(String path, Instant lastModified, List<String> alternates) {
+    private record Entry(String path, Instant lastModified, java.util.Map<String, String> alternates) {
+
+        /** A core page: the same path rendered in every language the shell has. */
+        static Entry samePath(String path, Instant lastModified, List<String> locales) {
+            java.util.Map<String, String> alternates = new java.util.LinkedHashMap<>();
+            locales.forEach(locale -> alternates.put(locale, path));
+            return new Entry(path, lastModified, alternates);
+        }
     }
 
     private static String escape(String value) {

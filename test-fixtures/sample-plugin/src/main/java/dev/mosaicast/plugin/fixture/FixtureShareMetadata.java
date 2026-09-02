@@ -21,6 +21,11 @@ public class FixtureShareMetadata implements ShareMetadataProvider {
         if ("shared".equals(subpath)) {
             return Optional.of(new OgMeta("Fixture shared page", "A page shared from the fixture", null));
         }
+        // A page written in one fixed language whoever asks for it (SDK 0.12.0) — the case where the host's
+        // request-resolved locale would be wrong, and the plugin says so.
+        if ("geteilt".equals(subpath)) {
+            return Optional.of(new OgMeta("Geteilte Fixture-Seite", "Eine Seite aus dem Fixture", null, "de"));
+        }
         return Optional.empty();
     }
 }
