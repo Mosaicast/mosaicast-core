@@ -65,4 +65,24 @@ public final class RateLimitedProvider<I, O> implements ExternalProvider<I, O> {
         }
         return delegate.probe(config);
     }
+
+    /**
+     * Delegated, not inherited.
+     *
+     * <p>{@link ExternalProvider}'s defaults are "one unit per call" and "the estimate"; a kind overrides
+     * them with what it actually costs — a translation counts code points. A decorator that let the default
+     * stand would report a 5,000-character call as one unit, and it is the decorator that every caller
+     * reaches, so the override would never be consulted by anyone. Silent, and in the direction of
+     * understating a bill.
+     */
+    @Override
+    public long estimateUnits(I input) {
+        return delegate.estimateUnits(input);
+    }
+
+    @Override
+    public long actualUnits(I input, O output) {
+        return delegate.actualUnits(input, output);
+    }
+
 }
