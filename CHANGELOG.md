@@ -12,6 +12,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
+  `.env.example` has documented it since external services landed, and both files read that same `.env`, so
+  an operator pointing their instance at a self-hosted LibreTranslate set the value, saw no error, and had
+  the container never receive it. The provider then failed with the deliberately opaque "this URL is not
+  permitted" — which by design does not say why, because that message is rendered back to the admin who
+  supplied the URL and an explaining one would be an internal port scanner. Both files now pass it through,
+  empty by default, which grants nothing.
+  - `docker-compose.prod.yml` is the one that mattered: it pulls the released image, so it is what a real
+    install runs, and a self-hosted provider is exactly the case it was missing.
+
 ## [0.6.24] — 2026-09-02
 
 > Everything since `0.6.23`, which is all of it: nothing in this bucket had shipped, so every
