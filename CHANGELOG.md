@@ -46,6 +46,20 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   name, so an account spelt with a Cyrillic character to imitate somebody is found by typing the name it
   imitates — which is the search a moderator actually runs.
 
+- **Everybody has an avatar, and the host serves it (§8.7).** Everyone starts with a generated picture —
+  an initial over a colour derived from their user id — and may instead pull one from a single chosen
+  linked identity. `GET /api/users/{id}/avatar` always answers bytes.
+  - **It never redirects.** The stored Discord URL contained the snowflake that `external_id` deliberately
+    keeps server-side, so a `302` would publish it to anyone reading the page source and hand the CDN a hit
+    from every visitor's browser. The URL is now composed in code from a constant host, so there is no SSRF
+    to filter rather than a filter to get right.
+  - **Cached in memory, never stored.** A picture the host keeps a copy of is one it has to moderate,
+    retain and erase — which is why there are still no uploads. Bounded by total bytes rather than entry
+    count, failures cached briefly so one 404 behind a leaderboard is not an outbound request per page
+    view, and evicted the moment a user changes or unlinks their source.
+  - Unlinking the chosen identity falls back to the generated picture rather than leaving a setting
+    pointing at something that is gone.
+
 ### Fixed
 
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
