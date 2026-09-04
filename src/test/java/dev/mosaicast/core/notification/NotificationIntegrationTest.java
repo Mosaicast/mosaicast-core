@@ -121,6 +121,34 @@ class NotificationIntegrationTest {
     }
 
     @Test
+    void anAdminSeesWhetherTheirWarningWasRead() {
+        // The point of a warning is that somebody was told, so an admin who cannot see whether it was
+        // opened is carrying that obligation blind (§17).
+        rest.exchange("/api/admin/users/" + fanId + "/warn", HttpMethod.POST,
+                admin.write("{\"text\":\"Please keep it civil.\"}"), String.class);
+
+        ResponseEntity<String> before = rest.exchange("/api/admin/users/" + fanId + "/warnings",
+                HttpMethod.GET, admin.read(), String.class);
+        assertThat(before.getBody()).contains("keep it civil").contains("\"readAt\":null");
+
+        rest.exchange("/api/me/notifications/read", HttpMethod.POST, fan.write("{}"), String.class);
+
+        ResponseEntity<String> after = rest.exchange("/api/admin/users/" + fanId + "/warnings",
+                HttpMethod.GET, admin.read(), String.class);
+        assertThat(after.getBody()).doesNotContain("\"readAt\":null");
+    }
+
+    @Test
+    void onlyAnAdminCanReadWhatWasSentToSomebodyElse() {
+        rest.exchange("/api/admin/users/" + fanId + "/warn", HttpMethod.POST,
+                admin.write("{\"text\":\"private\"}"), String.class);
+        Session podcaster = devLogin("podcaster");
+        ResponseEntity<String> response = rest.exchange("/api/admin/users/" + fanId + "/warnings",
+                HttpMethod.GET, podcaster.read(), String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
     void aPodcasterCannotWarnAnyone() {
         Session podcaster = devLogin("podcaster");
         ResponseEntity<String> response = rest.exchange("/api/admin/users/" + fanId + "/warn",

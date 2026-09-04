@@ -4,10 +4,12 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+
 import { ApiError, api } from '../../api/client';
 import type { Paged, Role, UserAdminView } from '../../api/types';
 import { useUser } from '../../auth/UserContext';
 import { Avatar } from '../../components/Avatar';
+import { formatDate } from '../../util/format';
 
 const ROLES: Role[] = ['fan', 'podcaster', 'admin'];
 
@@ -17,7 +19,7 @@ const ROLES: Role[] = ['fan', 'podcaster', 'admin'];
  * errors are surfaced inline. Role changes take effect on the user's next request.
  */
 export function AdminUsers() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user: me } = useUser();
   const [users, setUsers] = useState<UserAdminView[]>([]);
   const [erasures, setErasures] = useState<ErasureView[]>([]);
@@ -27,6 +29,10 @@ export function AdminUsers() {
   const [draftQuery, setDraftQuery] = useState('');
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
+  /** Which user's warning panel is open, and what has been sent to them (ARCHITECTURE §17). */
+  const [warnFor, setWarnFor] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<WarningView[]>([]);
+  const [warnText, setWarnText] = useState('');
 
   const load = () => {
     const params = new URLSearchParams({ page: String(page), size: '50' });
@@ -74,6 +80,33 @@ export function AdminUsers() {
       load();
     } catch (e) {
       setError(e instanceof ApiError ? (e.detail ?? e.message) : t('admin.users.revertFailed'));
+    }
+  };
+
+  /**
+   * Opens (or closes) one user's warning panel.
+   *
+   * Fetched per user on demand rather than counted into the list: opening the admin page should not cost a
+   * query per row for a surface most visits never look at.
+   */
+  const toggleWarnings = async (u: UserAdminView) => {
+    if (warnFor === u.id) {
+      setWarnFor(null);
+      return;
+    }
+    setWarnFor(u.id);
+    setWarnText('');
+    setWarnings(await api.get<WarningView[]>(`/api/admin/users/${u.id}/warnings`).catch(() => []));
+  };
+
+  const sendWarning = async (u: UserAdminView) => {
+    setError(null);
+    try {
+      await api.post(`/api/admin/users/${u.id}/warn`, { text: warnText.trim() });
+      setWarnText('');
+      setWarnings(await api.get<WarningView[]>(`/api/admin/users/${u.id}/warnings`));
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.detail ?? e.message) : t('admin.users.warnFailed'));
     }
   };
 
@@ -142,6 +175,14 @@ export function AdminUsers() {
               >
                 {t('admin.users.revertName')}
               </button>
+              <button
+                type="button"
+                className="mc-btn"
+                aria-expanded={warnFor === u.id}
+                onClick={() => toggleWarnings(u)}
+              >
+                {t('admin.users.warn')}
+              </button>
               <label className="mc-userlist__role">
                 <span className="mc-muted">{t('admin.users.role')}</span>
                 <select
@@ -157,6 +198,47 @@ export function AdminUsers() {
                   ))}
                 </select>
               </label>
+              {warnFor === u.id && (
+                <div className="mc-warnpanel">
+                  <label className="mc-field">
+                    <span>{t('admin.users.warnLabel')}</span>
+                    <textarea
+                      className="mc-textarea"
+                      rows={3}
+                      maxLength={500}
+                      value={warnText}
+                      onChange={(e) => setWarnText(e.target.value)}
+                    />
+                  </label>
+                  <p className="mc-muted">{t('admin.users.warnHelp')}</p>
+                  <button
+                    type="button"
+                    className="mc-btn mc-btn--accent"
+                    disabled={!warnText.trim()}
+                    onClick={() => sendWarning(u)}
+                  >
+                    {t('admin.users.warnSend')}
+                  </button>
+                  {warnings.length > 0 && (
+                    <ul className="mc-list mc-warnpanel__sent">
+                      {warnings.map((w) => (
+                        <li key={w.id} className="mc-list__row">
+                          <span>{w.text}</span>
+                          {/*
+                            The point of the panel. A warning exists so that somebody was told, and an
+                            admin who cannot see whether it was opened is carrying that blind (§17).
+                          */}
+                          <span className="mc-muted">
+                            {w.readAt
+                              ? t('admin.users.warnRead', { when: formatDate(w.readAt, i18n.language) })
+                              : t('admin.users.warnUnread')}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </li>
           );
         })}
@@ -208,6 +290,14 @@ export function AdminUsers() {
       )}
     </div>
   );
+}
+
+/** One warning an admin sent, with whether it has been opened (ARCHITECTURE §17). */
+interface WarningView {
+  id: string;
+  text: string;
+  createdAt: string;
+  readAt: string | null;
 }
 
 /** One unfinished account erasure, as `/api/admin/erasures` reports it. */

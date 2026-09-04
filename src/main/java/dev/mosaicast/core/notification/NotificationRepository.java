@@ -33,6 +33,14 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
     @Query("update Notification n set n.readAt = :now where n.userId = :userId and n.readAt is null")
     int markAllRead(@Param("userId") UUID userId, @Param("now") Instant now);
 
+    /**
+     * The warnings one user has been sent, newest first (§17).
+     *
+     * <p>Read state is meaningful here in a way it is not elsewhere: a warning exists so that somebody was
+     * told, and an admin who cannot see whether it was opened is carrying that obligation blind.
+     */
+    List<Notification> findByUserIdAndSourceOrderByCreatedAtDesc(UUID userId, String source);
+
     /** Everything addressed to one user, dropped when the account is erased (§17.2, §12.8). */
     @Transactional
     long deleteByUserId(UUID userId);

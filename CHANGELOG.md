@@ -82,7 +82,9 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     wording and translates it, because an admin who may not choose the name must not be able to author the
     message about it either.
   - **Admin warnings** are the one place an admin's own words reach another user, because a warning that
-    cannot say what it is about is not a warning. Attributable and logged like a role change (§8.5).
+    cannot say what it is about is not a warning. Attributable and logged like a role change (§8.5), sent
+    from the admin user list, and **shown there with whether they were read** — the point of a warning is
+    that somebody was told, and an admin who cannot see that is carrying the obligation blind.
   - **Rendered as text, never HTML**, whoever sent it.
   - Bounded (§17.2): read notifications expire, unread ones are capped per user, and past the cap the
     *oldest* unread are trimmed — someone who has stopped reading their bell should still see what just
