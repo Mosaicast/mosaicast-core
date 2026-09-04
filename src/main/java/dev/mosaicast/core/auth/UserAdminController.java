@@ -18,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -45,12 +46,15 @@ public class UserAdminController {
     private final UserRepository users;
     private final LinkedIdentityRepository identities;
     private final DisplayNameService displayNames;
+    private final dev.mosaicast.core.notification.NotificationService notifications;
 
     public UserAdminController(UserRepository users, LinkedIdentityRepository identities,
-                               DisplayNameService displayNames) {
+                               DisplayNameService displayNames,
+                               dev.mosaicast.core.notification.NotificationService notifications) {
         this.users = users;
         this.identities = identities;
         this.displayNames = displayNames;
+        this.notifications = notifications;
     }
 
     /** A provider linked to the user, with the captured email (for the admin list). */
@@ -107,6 +111,28 @@ public class UserAdminController {
         UUID adminId = CurrentUser.id(authentication).orElseThrow();
         displayNames.revert(id, adminId);
         return MeView.of(users.findById(id).orElseThrow(() -> new NotFoundException("No such user: " + id)));
+    }
+
+    /** The warning body — free text, unlike a system message (§17). */
+    public record WarningRequest(@NotBlank String text) {
+    }
+
+    /**
+     * Sends a user a warning (ARCHITECTURE §17).
+     *
+     * <p><strong>Free text, deliberately.</strong> A warning that cannot say what it is about is not a
+     * warning, so this is the one place an admin's own words reach another user — and the difference from
+     * §8.6.1 is worth stating: an admin may explain, and may still not choose somebody's name. The message
+     * is attributable and logged like a role change (§8.5), because "they were told" is the point of it and
+     * that needs a record outside the row the recipient can mark read.
+     */
+    @PostMapping("/{id}/warn")
+    public ResponseEntity<Void> warn(@PathVariable UUID id, @Valid @RequestBody WarningRequest request,
+                                     Authentication authentication) {
+        User user = users.findById(id).orElseThrow(() -> new NotFoundException("No such user: " + id));
+        UUID adminId = CurrentUser.id(authentication).orElseThrow();
+        notifications.adminWarning(user.getId(), request.text(), adminId);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/{id}/role")

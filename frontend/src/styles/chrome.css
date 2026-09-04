@@ -367,3 +367,70 @@
     min-width: min(16rem, calc(100vw - var(--mc-space-4) * 2));
   }
 }
+
+/* ---- the notification bell and its panel (ARCHITECTURE §17) ---- */
+.mc-bell {
+  position: relative;
+}
+/*
+ * The unread count rides on the bell rather than sitting beside it, so the control keeps the width of an
+ * icon button whether or not there is anything to say — a header that reflows when a notification arrives
+ * moves everything next to it.
+ */
+.mc-bell__count {
+  position: absolute;
+  top: 0.1rem;
+  inset-inline-end: 0.1rem;
+  min-width: 1.1em;
+  padding: 0 0.25em;
+  border-radius: 999px;
+  background: var(--mc-accent);
+  color: var(--mc-accent-contrast);
+  font-size: var(--mc-text-xs);
+  line-height: 1.35;
+  text-align: center;
+}
+.mc-inbox {
+  min-width: 20rem;
+  max-width: min(26rem, 90vw);
+}
+.mc-inbox__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mc-space-3);
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-bottom: 1px solid var(--mc-border);
+  font-weight: var(--mc-weight-medium);
+}
+.mc-inbox__empty {
+  padding: var(--mc-space-3);
+  margin: 0;
+}
+.mc-inbox__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* A long inbox scrolls inside the panel rather than growing it past the viewport. */
+  max-height: 24rem;
+  overflow-y: auto;
+}
+.mc-inbox__row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-inbox__row:last-child {
+  border-bottom: none;
+}
+/* Unread is carried by weight and a marker, not by colour alone — the difference has to survive both
+   themes and a reader who cannot tell the two backgrounds apart. */
+.mc-inbox__row--unread {
+  font-weight: var(--mc-weight-medium);
+  border-inline-start: 3px solid var(--mc-accent);
+}
+.mc-inbox__when {
+  font-size: var(--mc-text-xs);
+}

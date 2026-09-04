@@ -20,6 +20,7 @@ export function Dropdown({
   trigger,
   triggerClassName,
   ariaLabel,
+  onOpen,
   align = 'end',
   children,
 }: {
@@ -29,6 +30,13 @@ export function Dropdown({
   triggerClassName?: string;
   /** Accessible label for the trigger when its content is not text (e.g. an icon). */
   ariaLabel?: string;
+  /**
+   * Called the first time the menu opens and on every open after.
+   *
+   * For a menu whose contents cost a request: most page loads never open one, so fetching on mount would
+   * buy latency nobody spends. The callback is responsible for not re-fetching what it already has.
+   */
+  onOpen?: () => void;
   /**
    * Which edge the panel hangs from. `end` (the default) is right-aligned, which is right for every trigger
    * in the header's action cluster; `start` is for a trigger at the left edge, where a right-aligned panel
@@ -131,6 +139,7 @@ export function Dropdown({
     if (event.key === 'ArrowDown' && !open) {
       event.preventDefault();
       focusFirstOnOpen.current = true;
+      onOpen?.();
       setOpen(true);
     }
   };
@@ -144,7 +153,12 @@ export function Dropdown({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={ariaLabel}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          if (!open) {
+            onOpen?.();
+          }
+          setOpen((v) => !v);
+        }}
         onKeyDown={onTriggerKeyDown}
       >
         {trigger}

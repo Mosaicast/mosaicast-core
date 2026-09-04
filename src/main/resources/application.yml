@@ -119,6 +119,19 @@ mosaicast:
     # per page view.
     failure-ttl: ${MOSAICAST_AVATAR_FAILURE_TTL:1m}
     timeout: ${MOSAICAST_AVATAR_TIMEOUT:5s}
+  # The notification inbox (ARCHITECTURE §17.2). An inbox nobody empties is not a feature, and an
+  # unbounded one is a table that only grows — so read notifications expire and unread ones are capped.
+  notifications:
+    # Only *read* notifications are swept. An unread one is something the site still has to say, however
+    # old; the backlog is bounded by the cap below instead.
+    read-retention: ${MOSAICAST_NOTIFICATION_RETENTION:30d}
+    purge-interval-ms: ${MOSAICAST_NOTIFICATION_PURGE_INTERVAL_MS:86400000}
+    # A backstop against an unbounded table, not a UX rule: a user who reaches it has a plugin behaving
+    # badly, and the per-plugin rate limits (§17.1) should have caught that first. Past the cap the
+    # *oldest* unread are trimmed, so someone who has stopped reading their bell still sees what just
+    # happened.
+    max-unread-per-user: ${MOSAICAST_NOTIFICATION_MAX_UNREAD:200}
+    max-text-length: ${MOSAICAST_NOTIFICATION_MAX_TEXT:500}
   # What a display name may be (ARCHITECTURE §8.6). The lists live in configuration and not in code because
   # an operator's language and jurisdiction are not ours to guess: a German-market install needs German
   # slurs, a self-hoster needs their own list, and neither should have to fork the host to get one.

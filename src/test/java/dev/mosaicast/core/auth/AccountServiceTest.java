@@ -44,6 +44,9 @@ class AccountServiceTest {
     @Mock
     private dev.mosaicast.core.auth.avatar.AvatarService avatars;
 
+    @Mock
+    private dev.mosaicast.core.notification.NotificationService notifications;
+
     private AccountService service;
 
     /**
@@ -55,7 +58,8 @@ class AccountServiceTest {
     @BeforeEach
     void setUp() {
         displayNames = new DisplayNameService(
-                users, nameHistory, new DisplayNameProperties(null, null, null, List.of(), List.of()));
+                users, nameHistory, new DisplayNameProperties(null, null, null, List.of(), List.of()),
+                notifications);
         service = new AccountService(users, identities, new AuthProperties("", ""), displayNames, avatars);
         lenient().when(users.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(identities.save(any(LinkedIdentity.class))).thenAnswer(inv -> inv.getArgument(0));

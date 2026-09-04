@@ -75,6 +75,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Undeclared is a 404 indistinguishable from an unknown plugin, so a page cannot probe which plugins on
     this install declared the directory.
 
+- **A notification inbox (ARCHITECTURE §17).** Three things needed to tell a user something and none of
+  them could. A bell in the header, `GET /api/me/notifications`, read state and an unread count.
+  - **The revert notice (§8.6.1).** Reverting a display name shipped without one, so the name changed
+    silently — which reads as a bug or a break-in. It is a fixed *kind*, not text: the shell owns the
+    wording and translates it, because an admin who may not choose the name must not be able to author the
+    message about it either.
+  - **Admin warnings** are the one place an admin's own words reach another user, because a warning that
+    cannot say what it is about is not a warning. Attributable and logged like a role change (§8.5).
+  - **Rendered as text, never HTML**, whoever sent it.
+  - Bounded (§17.2): read notifications expire, unread ones are capped per user, and past the cap the
+    *oldest* unread are trimmed — someone who has stopped reading their bell should still see what just
+    happened. Notifications are erased with the account.
+
 ### Changed
 
 - **The plugin contract moves to `platformApi` 0.13.0.** That check is an exact `major.minor` match, so

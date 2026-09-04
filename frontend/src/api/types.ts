@@ -350,6 +350,23 @@ export interface LegalAdminPage {
   translations: LegalTranslation[];
 }
 
+/**
+ * One notification (`notification/NotificationController.NotificationView`), ARCHITECTURE §17.
+ *
+ * `payload` is shaped by `source`, which is why it is not resolved server-side: a `system` row carries
+ * parameters for a key the shell owns, an `admin` row carries `text` somebody wrote, and a `plugin:<id>`
+ * row carries locale → sentence. Only the shell knows the reader's current language.
+ */
+export interface NotificationView {
+  id: string;
+  source: string;
+  kind: string | null;
+  payload: Record<string, string>;
+  link: string | null;
+  createdAt: string;
+  readAt: string | null;
+}
+
 /** The pagination envelope (`web/PagedResponse.java`) returned by list endpoints. */
 export interface Paged<T> {
   items: T[];
