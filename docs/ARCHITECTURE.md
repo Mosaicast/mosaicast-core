@@ -244,6 +244,7 @@ A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web
 - **`data`**: the access floor of the generic data surface (§7.6) — `readableBy` / `writableBy`, each `anonymous | fan | podcaster | admin`; `writableBy` may not be `anonymous`. **Declared, never derived:** the host does not infer it from slots. An absent block defaults `readableBy` to the *write* floor, not to anonymous — a **behaviour change**: a plugin that relied on an anonymous slot making its data anonymously readable must now declare `readableBy: "anonymous"` to keep it. A slot's `visibleTo` governs **rendering only**. Neither floor applies to the `USER` scope (§7.6). `backendOwned` names the keys only the plugin's **backend** may write — an exact key, a `*`-terminated prefix, or the bare `*`; clients may still read them (subject to `readableBy`) and a client `PUT`/`DELETE` is a **403** the host words apart from the role-floor one, so an author can tell which rule refused them. It is the only **per-key** rule on this surface; see §7.6 for why it is needed and what it does not do.
 - **`blobs`**: opt-in file storage (§11.1) — `maxFileBytes`, `quotaBytes`, `mimeTypes`. Declared, never derived, like `data`: what a plugin may write to disk should be readable off its manifest. Absent = no file storage at all. The operator caps every number and intersects the type list with the install's own, so a plugin is granted the smaller of the two rather than rejected for asking. `image/svg+xml` is refused at load — SVG is never storable (§12.2).
 - **`tags`**: opt-in access to the shared tag vocabulary (§6.1.1) — `{ "readsVocabulary": true, "writesEpisodes": false }`. Declared, never derived, like `data` and `blobs`; absent means **no tag surface at all** (`ctx.tags` is null, the endpoints 404). Two flags because the two acts are not alike: tagging a plugin's own subjects touches rows nobody else can name, while tagging an **episode** changes the shell's filter options and what core recommends beside that episode — a capability an operator should be able to read off a manifest before installing. A block declaring neither is refused at load, since it would produce a surface that exists and refuses everything.
+- **`identity`**: opt-in resolution of user UUIDs to a name and a picture (§8.8) — `{ "resolvesUsers": true }`. Declared, never derived, like `data`, `blobs` and `tags`; absent means `ctx.users` is null and the endpoint 404s. It is a declaration and not a derivation because a plugin already *holds* user ids — the doc store's `USER` scope and `queryAcrossUsers` both hand them over — so the capability being granted is not access to the ids but the turning of them into people, and that is the part an operator should be able to read off a manifest before installing.
 - **`external`**: opt-in use of the instance's external services (§16) — `kinds` names them, `usedBy` is the lowest role that may trigger a call from the plugin's **UI** (default `podcaster`, matching `data.writableBy`'s floor). Declared, never derived, like `data`, `blobs` and `tags`; absent means no external surface at all. `kinds` is a list although translation is the only member today, so a plugin that later wants transcription adds an entry rather than a second block.
 - **`consent`**: third-party services the plugin loads — one declaration each (`id`, `name`, `provider`, `category`, `privacyUrl`, `hosts`, `thirdCountryTransfer`, `storage[]`); the visitor decides per *category*, and `hosts` doubles as the CSP allow-list (§12.5). Omit the key entirely when the plugin loads nothing third-party.
 - **`config`**: declared fields are rendered by core as a **generic admin form** (respecting `editableBy`) — plugins never build their own config UI.
@@ -262,6 +263,7 @@ public interface PluginContext {
     SchemaStore  schema();   // only present if the manifest declares schema
     PluginBlobs  blobs();    // only present if the manifest declares `blobs` (§11.1); null otherwise
     Tags         tags();     // only present if the manifest declares `tags` (§6.1.1); null otherwise
+    Users        users();    // only present if the manifest declares `identity` (§8.8); null otherwise
     PluginConfig config();
     FeedAccess   feeds();
     void onSchedule(Duration every, Runnable task); // ShedLock-wrapped
@@ -314,7 +316,9 @@ interface PluginContext {
   scope:    { type: 'site'|'feed'|'season'|'episode'; id: string };
   episodes: string[];                 // EpisodeRef IDs in scope (resolved by the host)
   episode?: { status: 'PLANNED'|'PUBLISHED'|'WITHDRAWN' }; // on episode scope
-  user:     { id: string; role: Role } | null;
+  user:     { id: string; role: Role; displayName: string; avatarUrl: string } | null;
+  users:    UserDirectory | null;     // resolve(ids) → who the other UUIDs are; null unless the
+                                      // manifest declares `identity` (§8.8)
   api:      PluginApiClient;          // calls /api/plugins/<id>/* with auth token; rejections carry
                                       // `status` + the RFC-7807 body, and getOrNull resolves 404 to null
   docs:     DocClient;                // typed doc store over the same endpoints; never null (§7.6)
@@ -389,10 +393,13 @@ Spring Security `oauth2Login`, **social-only to start**: Discord (clean OAuth2),
 
 ### 8.2 Model
 ```
-User           (id UUID, display_name, avatar_url, role, created_at)
-  └─ LinkedIdentity (provider, external_id, email, email_verified, PK(provider, external_id))
+User           (id UUID, display_name, display_key, avatar_provider, role, created_at)
+  ├─ LinkedIdentity  (provider, external_id, email, email_verified, avatar_ref, PK(provider, external_id))
+  └─ UserNameHistory (user_id, name, set_at, set_by)
 ```
 The stable key is `(provider, external_id)`, **not** the email. Keep the Discord `external_id` (future: bot/role sync).
+
+`display_name` is what a reader sees and `display_key` its canonical form (§8.6); `avatar_provider` names the linked identity a picture is pulled from, or is null (§8.7). **Neither is identity.** A document, a log line, a plugin's rows and an erasure all key on the UUID, which never changes — the name is a label the person is free to replace.
 
 ### 8.3 Account merging (security rule)
 On login `(provider P, external_id E, email Q, verified V)`:
@@ -409,6 +416,50 @@ In short: **auto-link only with two verified emails or a logged-in user, otherwi
 - RBAC, `role` on the `User`: **ADMIN** (site config, users, plugin activation) · **PODCASTER** (bingos, wiki, episodes, feeds/Patreon sources, planned episodes) · **FAN** (fill in/view). Anonymous: read only.
 - Bootstrap admin via env on first start; afterwards the admin promotes fans → podcasters.
 - **Personal access tokens** (podcaster-scoped) for automation (e.g. MAT upload).
+
+### 8.6 Display name
+Prefilled from the provider at account creation and **never overwritten by a later login** — a name someone chose is not a cache of their Discord profile, and with several identities linked (§8.3) there is no non-arbitrary answer to which provider's name would win. From settings they may change it.
+
+- **The host owns the key.** `display_key` is the canonicalised form — NFKC, zero-width stripped, whitespace collapsed, confusables folded, casefolded — and uniqueness is enforced on *it*, while `display_name` keeps the spelling that was typed. The same rule as the tag vocabulary (§6.1.1) and for the same reason: converge the spellings without lower-casing what a visitor reads.
+- **Unique on the key**, because the display name is the only human-readable identity the site puts in front of other people, and a leaderboard where a fan can appear as the podcaster is worth an index. It is not a defence against lookalikes — folding confusables raises the cost, it does not close the class — which is why the answer to impersonation is §8.6.1 and not a better filter. Existing rows were prefilled from providers that never promised uniqueness, so the migration that adds the index **must resolve collisions first**.
+- Refused: reserved names (`admin`, `system`, `moderator`, the site's own), and a word list held **in configuration rather than code**, because an operator's language and jurisdiction are not ours to guess and self-hosters need their own. Matching runs on `display_key`, so the normalisation that serves uniqueness serves the filter too — one function, two callers. Treat it as a speed bump: word lists lose to leetspeak and to compounds, and they produce false positives. The control is §8.6.1.
+- Renames are **rate-limited** and recorded in `UserNameHistory`. That history is personal data: retention-capped and erased with the account, or the mechanism that lets someone shed a name becomes a permanent record of every name they tried to leave behind.
+
+#### 8.6.1 Moderation: revert, not rename
+An admin may **revert** a display name. An admin may not **set** one. The distinction is the whole design: an admin who never types the string cannot choose it, cannot use it to mock or to impersonate, and cannot be accused of having done either — and the act stays available to every operator without anyone having to write a policy about what an admin is allowed to type into someone else's profile.
+
+- Revert targets the previous **self-chosen** name in `UserNameHistory`, walking further back if that one was itself reverted. The floor is a **host-generated neutral name** derived from the UUID (`Listener 4f2a`), so there is always a terminal state and never an account without a name.
+- A revert **freezes renaming** for a period. Without that the user renames straight back and the act meant nothing.
+- **Admin only, not podcaster.** PODCASTER is a content role (§8.5); on an install with two of them, "every podcaster may rename any listener" is a grant nobody asked for and no boundary can express (§14, feed ownership). Podcasters report.
+- Reverts are logged like role changes (§8.5), and **the user is told** — a name that changes with no explanation reads as a bug or a break-in. The notice is a fixed system message rather than admin-authored text, for the same reason the admin does not type the name.
+
+### 8.7 Avatars
+Everyone starts with a **generated avatar**: an initial over a colour derived from the user UUID, drawn from the theme tokens so it is right in light and dark and re-themes with the site (§12.3). It costs no bytes, no storage and no CSP widening, and one mechanism covers every case that would otherwise each need an answer — a provider that has no avatars at all, a provider avatar that is simply absent, an account that has re-anonymised, and a user who has been deleted (§12.8).
+
+From settings a user may instead **pick one linked identity to pull their picture from** (§8.4). `LinkedIdentity.avatar_ref` holds that provider's own reference, refreshed on each login with it; `User.avatar_provider` names the chosen one, null meaning generated. Unlinking an identity — or erasing the account — **clears `avatar_provider`**, since a picture pulled from an identity that is gone is a dangling fetch.
+
+**The picture is always served by the host, never linked to.** `GET /api/users/{id}/avatar` answers bytes.
+
+- **A redirect would defeat the entire point.** Discord's avatar URL contains the Discord snowflake — the `external_id` §8.2 deliberately keeps server-side — so a `302` publishes the identifier social login was supposed to hold back, to anyone who reads the page source, and hands the CDN a hit from every visitor's browser. Proxy the bytes.
+- **Nothing attacker-influenced reaches the fetch.** The URL is composed in code from the provider and the stored ref, so the host is a constant per provider and there is no SSRF to filter rather than a filter to get right.
+- **Cached in memory, never stored.** A picture the host keeps a copy of is a picture the host must moderate, retain and erase. TTL, so a changed provider avatar propagates; the cache bounded by **total bytes, not entry count**; a per-image byte cap; and failures cached too, briefly, or a single 404 behind a leaderboard becomes one outbound fetch per page view. Changing or unlinking the source **evicts immediately**. An `ETag` over `(avatar_provider, avatar_ref)` makes a cold start after a restart cost revalidations instead of refetches.
+- Response content type whitelisted against an image list, `nosniff`, no provider headers passed through, no redirects followed.
+
+**Uploads are deliberately absent.** Accepting arbitrary images means owning image moderation — and one illegal upload is a legal event, not a support ticket — plus decode-and-re-encode, dimension and decompression-bomb guards, and inheriting all of it to every self-hoster. Generated avatars and provider pictures meet the need without opening that.
+
+### 8.8 What a plugin sees of a user
+§10 still holds: the host resolves access and `ctx.user` stays slim. But `queryAcrossUsers` (§7.4) hands a backend `OwnedDocEntry(userId, …)` and nothing more, so a plugin that aggregates across users — a bingo leaderboard, the case this is written for — holds UUIDs and has no way to render a person. The gap is filled with a **lookup, not a wider `ctx.user`**:
+
+```ts
+interface UserDirectory { resolve(ids: string[]): Promise<UserRef[]>; }
+type UserRef = { id: string; displayName: string; avatarUrl: string; role: Role };
+```
+`Users users()` is the backend twin (§7.4), and an `identity` block in the manifest gates both — declared, never derived, like `data`, `blobs`, `tags` and `external` (§7.2). Absent means `ctx.users` is null and the endpoint 404s.
+
+- **Never email, provider or `external_id`.** `avatarUrl` is the host's own `/api/users/{id}/avatar` (§8.7), which is the only reason a picture can be handed out here at all.
+- **It resolves, it does not enumerate.** There is no list endpoint. A plugin can ask only about ids it already holds, and it only comes by them through its own scope.
+- **Plugins store UUIDs and resolve at render; they do not store names.** A display name copied into a plugin's store survives the rename meant to shed it and the erasure meant to end it, and §12.8 cannot reach it — core provisioned those columns without ever learning which one is a person. The rule is written here because the host cannot enforce it.
+- **Absent rather than redacted** for an id that is unknown, erased or pseudonymised — the shape `ctx.feeds` already uses (§7.5). It is also what lets a leaderboard row outlive its author as §13 requires: the aggregate stays, the person becomes a placeholder the plugin renders.
 
 ---
 
@@ -572,7 +623,7 @@ Core owns what it stored: identities, tokens, listening progress, and the `USER`
 - **Scaling v3:** app instances **stateless** (Redis session, DB as the only truth), periodic jobs **ShedLock**. Moving to multiple instances behind an LB = config, not a rewrite.
 - **Observability:** Spring **Actuator** `health`/`info` (compose healthcheck + uptime monitoring hook), structured logging. Nothing fancier in v1.
 - **API conventions:** the REST API is **internal** in v1 — the SDK is the only public contract, so no API-versioning machinery. Errors as **RFC 7807** `application/problem+json` (stable `type` codes; the UI translates) — including the external-service vocabulary listed in §16. **List endpoints paginate from day one.**
-- **GDPR:** store minimal (provider, external_id, optional email/name/avatar), no passwords. On account deletion **pseudonymize** public bingo contributions (cut the identity link, aggregates/leaderboard stay correct), don't hard delete — the mechanism is §12.8, because bingo is a plugin and core cannot keep that promise on its own. Not a lawyer — have the privacy policy reviewed.
+- **GDPR:** store minimal (provider, external_id, optional email/name, and for the avatar a *reference* rather than a picture — §8.7), no passwords. Name history is retention-capped and dies with the account (§8.6). On account deletion **pseudonymize** public bingo contributions (cut the identity link, aggregates/leaderboard stay correct), don't hard delete — the mechanism is §12.8, because bingo is a plugin and core cannot keep that promise on its own. Not a lawyer — have the privacy policy reviewed.
 - **Security:** creator/OAuth tokens encrypted at rest — `MOSAICAST_ENCRYPTION_KEY` is wired and used for admin-entered external-service credentials (§16); absent, such values are stored in the clear with a startup warning and an admin badge, because refusing to boot would take a site down over a feature it may not use. Outbound requests to **admin-supplied service URLs** are gated by an exact-origin private allow-list, distinct from and **not** a widening of `mosaicast.feed.allow-private-targets`. SVG sanitizing. Presigned URLs for gated audio. **Baseline security headers** (CSP, X-Content-Type-Options, Referrer-Policy). **Upload limits** (max body size; archives additionally guarded against zip-slip and zip bombs — see the stats brief). **Basic rate limiting** on auth endpoints and uploads.
 - **Deployment:** Docker Compose (app, postgres, caddy/traefik; redis from v3). Secrets via `.env`, not committed. **Backups from day one:** nightly `pg_dump` of the database (host cron or sidecar) + keeping a copy off the VPS; test a restore once.
 
