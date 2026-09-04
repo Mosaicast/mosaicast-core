@@ -434,3 +434,64 @@
 .mc-inbox__when {
   font-size: var(--mc-text-xs);
 }
+
+/* The badge carries the whole count rather than clamping at "99+": a number that stops counting stops
+   being information, and this is the one place the size of a backlog is visible at a glance. */
+.mc-bell__count {
+  font-variant-numeric: tabular-nums;
+}
+.mc-inbox__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.mc-inbox__row {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mc-space-3);
+}
+/*
+ * Read is an explicit act, so it is a control rather than a side effect of scrolling past. Drawn from the
+ * published `--mc-icon-check` mask, which is why the button — not an inner icon — carries the label: a
+ * pseudo-element is invisible to assistive tech.
+ */
+.mc-inbox__read {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid var(--mc-border);
+  border-radius: 999px;
+  background: var(--mc-surface);
+  cursor: pointer;
+}
+.mc-inbox__read::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: currentColor;
+  mask-image: var(--mc-icon-check);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: 0.9rem;
+}
+.mc-inbox__read:hover {
+  border-color: var(--mc-accent);
+  color: var(--mc-accent);
+}
+.mc-inbox__more {
+  display: block;
+  padding: var(--mc-space-2) var(--mc-space-3);
+  border-top: 1px solid var(--mc-border);
+  font-size: var(--mc-text-sm);
+}
+/* On the page the list is the page: no inner scroll, and it may breathe. */
+.mc-inbox__list--page {
+  max-height: none;
+  overflow: visible;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  margin-top: var(--mc-space-3);
+}

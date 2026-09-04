@@ -86,6 +86,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     from the admin user list, and **shown there with whether they were read** — the point of a warning is
     that somebody was told, and an admin who cannot see that is carrying the obligation blind.
   - **Rendered as text, never HTML**, whoever sent it.
+  - **Read is an explicit act.** A control per row, or following the notification's link — never on scroll
+    or on render, because a glance at a bell is not having read a warning and read state is what an admin
+    later relies on. There is no delete: retention clears read ones on its own, and a user who could delete
+    an admin warning would erase the record that they received it.
+  - The bell's badge carries the whole unread count; the panel shows the newest and offers **the ones it
+    did not show** — not a total — as a link to `/notifications`, the full paged inbox.
   - Bounded (§17.2): read notifications expire, unread ones are capped per user, and past the cap the
     *oldest* unread are trimmed — someone who has stopped reading their bell should still see what just
     happened. Notifications are erased with the account.

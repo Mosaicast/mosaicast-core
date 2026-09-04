@@ -16,6 +16,7 @@ import { ConsentProvider } from './consent/ConsentContext';
 import { PlayerProvider } from './player/PlayerContext';
 import { PluginRegistryProvider } from './plugins/PluginRegistry';
 import { AboutPage } from './routes/AboutPage';
+import { NotificationsPage } from './routes/NotificationsPage';
 import { SearchPage } from './routes/SearchPage';
 import { AccountPage } from './routes/AccountPage';
 import { CookiesPage } from './routes/CookiesPage';
@@ -73,6 +74,7 @@ export default function App() {
                   {/* One query, sections per source — episodes plus whatever plugins say about their own
                       content (§6, SDK SearchProvider). The query lives in `?q=`, so a search is linkable. */}
                   <Route path="/search" element={<SearchPage />} />
+                  <Route path="/notifications" element={<NotificationsPage />} />
                   {/* Reserved for plugin deep links (§6.4): the subpath becomes ctx.route. */}
                   <Route path="/p/:pluginId/*" element={<PluginPage />} />
                   <Route path="/p/:pluginId" element={<PluginPage />} />
