@@ -4,10 +4,13 @@
 package dev.mosaicast.core.auth;
 
 import dev.mosaicast.core.auth.DisplayNameRejectedException.Reason;
+import dev.mosaicast.core.web.NotFoundException;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +31,15 @@ import org.springframework.transaction.annotation.Transactional;
 public class DisplayNameService {
 
     private static final Logger log = LoggerFactory.getLogger(DisplayNameService.class);
+
+    /**
+     * How far back a revert looks before giving up and taking the generated name.
+     *
+     * <p>Bounded rather than unbounded because the walk skips entries, and an account with a long history
+     * of refused names is exactly the account a moderator is dealing with when they reach for this. Twenty
+     * is well past any legitimate rename pattern given the cooldown.
+     */
+    private static final int REVERT_LOOKBACK = 20;
 
     private final UserRepository users;
     private final UserNameHistoryRepository history;
@@ -99,6 +111,71 @@ public class DisplayNameService {
         users.save(user);
         log.info("User {} renamed themselves", userId);
         return name.display();
+    }
+
+    /**
+     * Walks a user's display name back to the one before it (ARCHITECTURE §8.6.1).
+     *
+     * <p><strong>An admin reverts; an admin never sets.</strong> Nothing here takes a name as a parameter,
+     * and that is the design rather than an omission: an admin who cannot type the string cannot choose it,
+     * cannot use it to mock or impersonate, and cannot be accused of either. It also means no operator needs
+     * a policy about what they are allowed to write into somebody else's profile.
+     *
+     * <p>The target is the newest history entry that was not itself produced by a revert. Because
+     * {@link #apply} records the name being <em>left</em>, tagged with the action that left it, an
+     * {@code ADMIN_REVERT} row is exactly "the name a moderator already rejected" — skipping those is what
+     * makes a second revert walk further back instead of oscillating between two names.
+     *
+     * <p>The floor is a generated name (§8.6): a user whose every previous name was refused still ends up
+     * with one, so there is a terminal state rather than a loop or an account with no name.
+     *
+     * @param userId  whose name to walk back
+     * @param adminId the admin doing it, for the log
+     * @return the name the user now holds
+     */
+    @Transactional
+    public String revert(UUID userId, UUID adminId) {
+        User user = users.findById(userId)
+                .orElseThrow(() -> new NotFoundException("No such user: " + userId));
+
+        Name target = previousName(user);
+        String from = user.getDisplayName();
+        apply(user, target, UserNameHistory.SetBy.ADMIN_REVERT);
+        // The freeze is not punishment, it is what stops the name going straight back and making the
+        // revert meaningless. It reuses the ordinary rename cooldown rather than inventing a second number.
+        user.lockRenameUntil(Instant.now().plus(properties.renameCooldown()));
+        users.save(user);
+
+        // Named like the role-change log (§8.5): who did what to whom, with ids for correlation. The names
+        // are in the line because a moderation record nobody can read is not a record.
+        log.info("Display name of {} reverted '{}' -> '{}' by admin {}",
+                userId, from, target.display(), adminId);
+        return target.display();
+    }
+
+    /**
+     * The name to walk back to: the newest one this user held that a moderator has not already rejected and
+     * that is still free, or the generated floor.
+     */
+    private Name previousName(User user) {
+        List<UserNameHistory> recent =
+                history.findByUserIdOrderBySetAtDescIdDesc(user.getId(), PageRequest.of(0, REVERT_LOOKBACK));
+        for (UserNameHistory entry : recent) {
+            if (entry.getSetBy() == UserNameHistory.SetBy.ADMIN_REVERT) {
+                continue;
+            }
+            String key = DisplayNames.canonicalise(entry.getName());
+            // A name given up long enough ago may since have been taken by somebody else. Reverting into a
+            // collision would fail the unique index, so walk past it — the person now holding it did
+            // nothing wrong.
+            if (key.isEmpty() || key.equals(user.getDisplayKey())
+                    || users.existsByDisplayKeyAndIdNot(key, user.getId())) {
+                continue;
+            }
+            return new Name(DisplayNames.clean(entry.getName()), key);
+        }
+        String generated = DisplayNames.generatedFor(user.getId());
+        return new Name(generated, DisplayNames.canonicalise(generated));
     }
 
     /**

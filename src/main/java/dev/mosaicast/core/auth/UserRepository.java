@@ -21,4 +21,14 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     /** As {@link #existsByDisplayKey}, ignoring one user — a rename must not collide with itself. */
     boolean existsByDisplayKeyAndIdNot(String displayKey, UUID id);
+
+    /**
+     * The admin user list, filtered by a canonicalised name fragment (§8.5).
+     *
+     * <p>Matching on {@code display_key} rather than {@code display_name} is what makes the search useful
+     * to a moderator: someone reported for impersonation is found by typing the name they are imitating,
+     * even though the account spells it with a Cyrillic character precisely so that it does not match.
+     */
+    org.springframework.data.domain.Page<User> findByDisplayKeyContaining(
+            String fragment, org.springframework.data.domain.Pageable pageable);
 }
