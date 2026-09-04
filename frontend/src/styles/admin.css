@@ -725,3 +725,14 @@
 .mc-settingsinfo {
   margin: var(--mc-space-2) 0;
 }
+
+/* The user search sits above the list; the field takes the room and the button keeps its label. */
+.mc-userlist__search {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.mc-userlist__search .mc-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}

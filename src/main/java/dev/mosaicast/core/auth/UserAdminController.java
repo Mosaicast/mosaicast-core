@@ -11,13 +11,19 @@ import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import dev.mosaicast.core.web.PagedResponse;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,10 +44,13 @@ public class UserAdminController {
 
     private final UserRepository users;
     private final LinkedIdentityRepository identities;
+    private final DisplayNameService displayNames;
 
-    public UserAdminController(UserRepository users, LinkedIdentityRepository identities) {
+    public UserAdminController(UserRepository users, LinkedIdentityRepository identities,
+                               DisplayNameService displayNames) {
         this.users = users;
         this.identities = identities;
+        this.displayNames = displayNames;
     }
 
     /** A provider linked to the user, with the captured email (for the admin list). */
@@ -58,9 +67,46 @@ public class UserAdminController {
     public record RoleRequest(@NotBlank String role) {
     }
 
+    /**
+     * The user list, paged and searchable (§8.5, §13 — list endpoints paginate from day one).
+     *
+     * <p>The search runs on the canonical key (§8.6), which is what makes it useful for the job this page
+     * now does: an account reported for impersonation is found by typing the name it is imitating, even
+     * though it is spelt with a Cyrillic character exactly so that it would not match.
+     *
+     * @param q    a name fragment, canonicalised before matching; blank lists everyone
+     * @param page zero-based page index
+     * @param size page size, clamped by {@link PagedResponse#MAX_PAGE_SIZE}
+     */
     @GetMapping
-    public List<UserAdminView> list() {
-        return users.findAll(Sort.by(Sort.Direction.ASC, "createdAt")).stream().map(this::toView).toList();
+    public PagedResponse<UserAdminView> list(
+            @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        Pageable pageable = PageRequest.of(
+                PagedResponse.page(page), PagedResponse.size(size), Sort.by(Sort.Direction.ASC, "createdAt"));
+        String fragment = DisplayNames.canonicalise(q == null ? "" : q);
+        Page<User> found = fragment.isEmpty()
+                ? users.findAll(pageable)
+                : users.findByDisplayKeyContaining(fragment, pageable);
+        return PagedResponse.of(found, this::toView);
+    }
+
+    /**
+     * Walks a user's display name back to the previous one (ARCHITECTURE §8.6.1).
+     *
+     * <p>There is no endpoint that <em>sets</em> a name, and there is not meant to be. See
+     * {@link DisplayNameService#revert} for why the asymmetry is the point.
+     *
+     * <p>Self-revert is not blocked the way self-role-change is: the guard on roles exists to stop an admin
+     * locking themselves out of the site, and a name cannot do that. An admin walking back their own name
+     * is just an admin using the feature.
+     */
+    @PostMapping("/{id}/name/revert")
+    public MeView revertName(@PathVariable UUID id, Authentication authentication) {
+        UUID adminId = CurrentUser.id(authentication).orElseThrow();
+        displayNames.revert(id, adminId);
+        return MeView.of(users.findById(id).orElseThrow(() -> new NotFoundException("No such user: " + id)));
     }
 
     @PutMapping("/{id}/role")

@@ -31,6 +31,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Sign-up cannot fail over a name: a provider name that is rude, malformed or already taken falls back
     to a generated one. A naming policy that can block a login is a worse bug than a bad name.
 
+- **An admin can revert a display name; an admin cannot set one (§8.6.1).** There is deliberately no
+  endpoint that assigns a name. An admin who never types the string cannot choose it, cannot use it to mock
+  or impersonate, and cannot be accused of either — and no operator needs a policy about what they are
+  allowed to write into somebody else's profile.
+  - The walk skips names a moderator already rejected, so a *second* revert goes further back rather than
+    oscillating between two bad ones, and skips names since taken by somebody else, who did nothing wrong.
+    The floor is a generated name, so an account always ends up with one.
+  - Reverting freezes renaming for the usual cooldown. Without it the name goes straight back and the act
+    meant nothing.
+  - Admin only. PODCASTER is a content role (§8.5), and "every podcaster may rename any listener" is a
+    grant nobody asked for.
+- **The admin user list searches and pages.** Search matches the canonical key rather than the display
+  name, so an account spelt with a Cyrillic character to imitate somebody is found by typing the name it
+  imitates — which is the search a moderator actually runs.
+
 ### Fixed
 
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**

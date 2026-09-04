@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
-import type { Role, UserAdminView } from '../../api/types';
+import type { Paged, Role, UserAdminView } from '../../api/types';
 import { useUser } from '../../auth/UserContext';
 
 const ROLES: Role[] = ['fan', 'podcaster', 'admin'];
@@ -21,11 +21,23 @@ export function AdminUsers() {
   const [users, setUsers] = useState<UserAdminView[]>([]);
   const [erasures, setErasures] = useState<ErasureView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /** The submitted search, not the keystroke — typing must not fire a request per character. */
+  const [query, setQuery] = useState('');
+  const [draftQuery, setDraftQuery] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const load = () => {
+    const params = new URLSearchParams({ page: String(page), size: '50' });
+    if (query) {
+      params.set('q', query);
+    }
     api
-      .get<UserAdminView[]>('/api/admin/users')
-      .then(setUsers)
+      .get<Paged<UserAdminView>>(`/api/admin/users?${params}`)
+      .then((paged) => {
+        setUsers(paged.items);
+        setTotalPages(Math.max(1, paged.totalPages));
+      })
       .catch(() => setError(t('admin.users.loadFailed')));
     // Empty is the normal state and renders nothing; a row here is an obligation the operator is carrying
     // without having been told (§12).
@@ -34,7 +46,7 @@ export function AdminUsers() {
       .then(setErasures)
       .catch(() => setErasures([]));
   };
-  useEffect(load, [t]);
+  useEffect(load, [t, query, page]);
 
   const retryErasures = async () => {
     setError(null);
@@ -42,6 +54,25 @@ export function AdminUsers() {
       setErasures(await api.post<ErasureView[]>('/api/admin/erasures/retry'));
     } catch (e) {
       setError(e instanceof ApiError ? (e.detail ?? e.message) : t('admin.erasures.retryFailed'));
+    }
+  };
+
+  /**
+   * Walks a user's display name back (ARCHITECTURE §8.6.1).
+   *
+   * There is deliberately no way to *set* a name here — the confirmation therefore cannot show what the
+   * name will become, because the server decides that and an admin never gets to.
+   */
+  const revertName = async (u: UserAdminView) => {
+    setError(null);
+    if (!window.confirm(t('admin.users.confirmRevert', { name: u.displayName }))) {
+      return;
+    }
+    try {
+      await api.post(`/api/admin/users/${u.id}/name/revert`);
+      load();
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.detail ?? e.message) : t('admin.users.revertFailed'));
     }
   };
 
@@ -62,6 +93,30 @@ export function AdminUsers() {
     <div className="mc-form">
       <h2>{t('admin.users.title')}</h2>
       {error && <p className="mc-error">{error}</p>}
+      {/*
+        Searching on the canonical key, so an account spelt with a Cyrillic character to imitate somebody
+        is found by typing the name it is imitating — which is the search a moderator actually runs.
+      */}
+      <form
+        className="mc-userlist__search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setPage(0);
+          setQuery(draftQuery.trim());
+        }}
+      >
+        <input
+          className="mc-input"
+          type="search"
+          value={draftQuery}
+          placeholder={t('admin.users.searchPlaceholder')}
+          aria-label={t('admin.users.search')}
+          onChange={(e) => setDraftQuery(e.target.value)}
+        />
+        <button type="submit" className="mc-btn">
+          {t('admin.users.search')}
+        </button>
+      </form>
       <ul className="mc-userlist">
         {users.map((u) => {
           const isSelf = u.id === me?.id;
@@ -78,6 +133,14 @@ export function AdminUsers() {
                   </span>
                 </div>
               </div>
+              <button
+                type="button"
+                className="mc-btn"
+                title={t('admin.users.revertHelp')}
+                onClick={() => revertName(u)}
+              >
+                {t('admin.users.revertName')}
+              </button>
               <label className="mc-userlist__role">
                 <span className="mc-muted">{t('admin.users.role')}</span>
                 <select
@@ -97,6 +160,24 @@ export function AdminUsers() {
           );
         })}
       </ul>
+
+      {/* Only rendered when there is more than one page — a lone "1 of 1" is noise on a small install. */}
+      {totalPages > 1 && (
+        <div className="mc-logpanel__foot">
+          <button type="button" className="mc-btn" disabled={page === 0} onClick={() => setPage(page - 1)}>
+            {t('admin.users.previous')}
+          </button>
+          <span className="mc-muted">{t('admin.users.pageOf', { page: page + 1, pages: totalPages })}</span>
+          <button
+            type="button"
+            className="mc-btn"
+            disabled={page + 1 >= totalPages}
+            onClick={() => setPage(page + 1)}
+          >
+            {t('admin.users.next')}
+          </button>
+        </div>
+      )}
 
       {/*
         Only when there is something to say. An erasure a plugin never finished is a legal obligation the
