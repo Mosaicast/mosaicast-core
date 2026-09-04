@@ -16,6 +16,7 @@ export interface SlotMount {
   hasSchema: boolean;
   hasBlobs: boolean;
   hasTags: boolean;
+  hasIdentity: boolean;
   hasTranslation: boolean;
 }
 
@@ -42,6 +43,7 @@ export function selectMounts(
           hasSchema: plugin.hasSchema ?? false,
           hasBlobs: plugin.hasBlobs ?? false,
           hasTags: plugin.hasTags ?? false,
+          hasIdentity: plugin.hasIdentity ?? false,
           hasTranslation: plugin.hasTranslation ?? false,
         });
       }

@@ -40,6 +40,8 @@ export interface PublicPlugin {
    * rule `hasSchema` and `hasBlobs` already state (§6.1).
    */
   hasTags?: boolean;
+  /** Whether the plugin declares an `identity` block (§8.8). */
+  hasIdentity?: boolean;
   /**
    * Whether it declared `tags.writesEpisodes` — the capability half. Public because it is one: what a plugin
    * may change about the site's own filter options and recommendations is not a secret from the visitor

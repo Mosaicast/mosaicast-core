@@ -33,7 +33,7 @@ public class PluginManifestController {
                 .map(PluginRegistration::manifest)
                 .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), m.slots(),
                         !m.schemaEntities().isEmpty(), m.declaresBlobs(), m.declaresTags(),
-                        m.writesEpisodeTags(), hasTranslation(m),
+                        m.writesEpisodeTags(), m.declaresIdentity(), hasTranslation(m),
                         m.license(), m.author(), m.homepage(), m.attribution()))
                 .toList();
     }
@@ -73,6 +73,10 @@ public class PluginManifestController {
      *                  what a plugin may change about the site's own filters and recommendations is not a
      *                  secret from the visitor looking at the result, and the shell uses it to decide whether
      *                  to offer the write at all rather than to let it fail at the endpoint
+     * @param hasIdentity whether the plugin declares an {@code identity} block, the same pure-declaration
+     *                  signal again for {@code ctx.users} (§8.8). Public for the same reason
+     *                  {@code tagsWriteEpisodes} is: what a plugin may learn about the people on a page is
+     *                  not a secret from the people on it
      * @param hasTranslation whether the shell should hand this plugin a {@code ctx.translation} client (§16).
      *                  <strong>Unlike the three flags above it is not pure declaration</strong>: it is the
      *                  declaration <em>and</em> a configured provider, because the SDK makes those two
@@ -90,7 +94,7 @@ public class PluginManifestController {
      */
     public record PublicPlugin(String id, String name, String version, Frontend frontend, List<Slot> slots,
                                boolean hasSchema, boolean hasBlobs, boolean hasTags,
-                               boolean tagsWriteEpisodes, boolean hasTranslation,
+                               boolean tagsWriteEpisodes, boolean hasIdentity, boolean hasTranslation,
                                String license, String author, String homepage, String attribution) {
     }
 }

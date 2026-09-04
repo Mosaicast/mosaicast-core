@@ -1,7 +1,7 @@
 {
   "id": "translatoropen",
   "version": "1.0.0",
-  "platformApi": "0.12.0",
+  "platformApi": "0.13.0",
   "name": "Open Translator Fixture",
   "frontend": {
     "entry": "fixture.js",

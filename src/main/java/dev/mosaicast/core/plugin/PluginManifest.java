@@ -36,6 +36,8 @@ import java.util.Set;
  *                    default and nothing reserved
  * @param tags        what the plugin may do with the site's shared tag vocabulary (§6.1); absent means no
  *                    tag surface at all
+ * @param identity    whether the plugin may resolve user UUIDs to a name and a picture (§8.8); absent
+ *                    means no user directory at all
  * @param external    which of the instance's external services the plugin uses, and the lowest role that may
  *                    trigger a call from its UI (§16); absent means no external surface at all
  * @param consent     declared consent categories / external sources
@@ -66,6 +68,7 @@ public record PluginManifest(
         DataAccess data,
         Blobs blobs,
         TagAccess tags,
+        Identity identity,
         External external,
         Consent consent,
         List<NavEntry> nav,
@@ -90,7 +93,7 @@ public record PluginManifest(
                           Frontend frontend, List<Slot> slots, PluginStorage storage,
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, null,
-                null, consent, null, null, null, null, null);
+                null, null, consent, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares a {@code tags} block (§7.2). */
@@ -99,7 +102,7 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                null, consent, null, null, null, null, null);
+                null, null, consent, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares an {@code external} block (§7.2/§16). */
@@ -108,7 +111,7 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           External external, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                external, consent, null, null, null, null, null);
+                null, external, consent, null, null, null, null, null);
     }
 
     /** The declared nav entries, or an empty list — callers never have to null-check. */
@@ -299,6 +302,27 @@ public record PluginManifest(
      * @param writesEpisodes  whether the plugin may tag episodes; absent means no — the capability is opt-in
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
+    /**
+     * The {@code identity} block (ARCHITECTURE §8.8): may this plugin turn user UUIDs into people?
+     *
+     * <p>Declared, never derived — like {@code data}, {@code blobs} and {@code tags}. A plugin already
+     * <em>holds</em> user ids: the doc store's {@code USER} scope and {@code queryAcrossUsers} both hand
+     * them over. So the capability being granted here is not access to the ids, it is the turning of them
+     * into names and faces, and that is the part an operator should be able to read off a manifest before
+     * installing.
+     *
+     * @param resolvesUsers whether {@code ctx.users} exists at all; the default is yes, since a block that
+     *                      declared nothing would produce a surface that exists and refuses everything —
+     *                      the same reasoning {@code tags} uses
+     */
+    public record Identity(Boolean resolvesUsers) {
+
+        /** Whether the plugin may resolve users; the default is yes. */
+        public boolean resolvesUsersOrDefault() {
+            return !Boolean.FALSE.equals(resolvesUsers);
+        }
+    }
+
     public record TagAccess(Boolean readsVocabulary, Boolean writesEpisodes) {
 
         /** Whether the plugin reads the vocabulary; the default is yes. */
@@ -313,6 +337,17 @@ public record PluginManifest(
     }
 
     /** Whether this plugin declared any tag surface at all. */
+    /**
+     * Whether the plugin declares an {@code identity} block, i.e. whether it may resolve users (§8.8).
+     *
+     * <p>Absent means no user directory at all: {@code ctx.users} is null, {@code PluginContext.users()}
+     * is null, and the HTTP endpoint 404s — the same null-means-not-declared shape as {@code blobs} and
+     * {@code tags}.
+     */
+    public boolean declaresIdentity() {
+        return identity != null && identity.resolvesUsersOrDefault();
+    }
+
     public boolean declaresTags() {
         return tags != null;
     }

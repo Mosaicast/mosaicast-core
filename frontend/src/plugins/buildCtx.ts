@@ -12,6 +12,7 @@ import {
   makePluginFeeds,
   makePluginSchema,
   makePluginTags,
+  makePluginUsers,
   makePluginTranslation,
 } from './pluginApi';
 import { coreLinks } from './coreLinks';
@@ -58,6 +59,8 @@ export interface CtxInputs {
   hasBlobs?: boolean;
   /** Whether the plugin declares a `tags` block — decides `ctx.tags` vs `null` (§6.1). */
   hasTags?: boolean;
+  /** Whether the plugin declares an `identity` block — decides `ctx.users` vs `null` (§8.8). */
+  hasIdentity?: boolean;
   /**
    * Whether the host granted a `ctx.translation` client (§16) — the manifest declared the kind *and* an
    * admin configured a provider. One flag rather than two on purpose: the SDK makes those two reasons for
@@ -106,7 +109,17 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     scope: inputs.scope,
     episodes: inputs.episodes,
     episodeLabels: inputs.episodeLabels,
-    user: inputs.user ? { id: inputs.user.id, role: inputs.user.role as Role } : null,
+    // The visitor's own name and picture (§8.8). Not gated: telling a plugin who its own viewer is
+    // discloses nothing the viewer does not already know. Learning about anyone *else* takes `users`
+    // below, and a manifest declaration.
+    user: inputs.user
+      ? {
+          id: inputs.user.id,
+          role: inputs.user.role as Role,
+          displayName: inputs.user.displayName,
+          avatarUrl: inputs.user.avatarUrl,
+        }
+      : null,
     api: makePluginApi(inputs.pluginId),
     // Non-nullable, both of them: every plugin has a doc store, and `feeds` reads host data the same
     // visitor can already read from /api/episodes/* — neither is something a manifest declares (§7.5).
@@ -121,6 +134,10 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // Null unless the manifest declared a tag surface — the third repetition of the same rule, and for the
     // same reason: what a plugin may touch is decided in the manifest and nowhere else (§6.1).
     tags: inputs.hasTags ? makePluginTags(inputs.pluginId) : null,
+    // Null unless the manifest declared `identity` — the same rule again, and the reason it is declared
+    // rather than derived is that a plugin already holds user ids: what is granted here is turning them
+    // into people (§8.8).
+    users: inputs.hasIdentity ? makePluginUsers(inputs.pluginId) : null,
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
     consent: {
       // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).

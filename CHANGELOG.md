@@ -60,6 +60,30 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Unlinking the chosen identity falls back to the generated picture rather than leaving a setting
     pointing at something that is gone.
 
+- **A plugin can resolve user ids to people (§8.8).** `ctx.users.resolve(ids)` in the browser and
+  `PluginContext.users()` on the backend, both behind a new `identity` manifest block. `queryAcrossUsers`
+  hands a backend UUIDs and nothing else, so a plugin aggregating across users — a bingo leaderboard, the
+  case this was written for — could not render a person. Filled with a lookup rather than a wider
+  `ctx.user`: what a plugin learns about somebody else stays id, display name, host-relative avatar path
+  and role, never email, provider or `external_id`.
+  - **Absent, not redacted.** Unknown, erased and pseudonymised ids all produce the same missing row, so a
+    leaderboard row outlives its author (§12.8) and the answer cannot be used to tell the three apart.
+  - **It resolves; it does not enumerate.** No list call, ids only, batch clamped on both sides.
+  - Plugins are told — in the SDK docs and here — to store UUIDs and resolve at render. A display name
+    copied into a plugin's own store survives the rename meant to shed it and the erasure meant to end it,
+    and core cannot reach inside a plugin's tables to fix either.
+  - Undeclared is a 404 indistinguishable from an unknown plugin, so a page cannot probe which plugins on
+    this install declared the directory.
+
+### Changed
+
+- **The plugin contract moves to `platformApi` 0.13.0.** That check is an exact `major.minor` match, so
+  **every installed plugin must be rebuilt against SDK 0.13.0 or it will not load** — `plugins/bingo`,
+  `plugins/sample`, `plugins/wiki` and the loader fixtures included.
+- `GET /api/admin/users` answers a pagination envelope rather than a bare array.
+- `MeView.avatarUrl` is always the host's own `/api/users/{id}/avatar`, never a provider URL, and
+  `app_user.avatar_url` is gone.
+
 ### Fixed
 
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
