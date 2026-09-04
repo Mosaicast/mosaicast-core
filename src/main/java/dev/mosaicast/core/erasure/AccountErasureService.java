@@ -63,13 +63,15 @@ public class AccountErasureService {
     private final PersonalAccessTokenRepository tokens;
     private final ListeningProgressRepository progress;
     private final dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory;
+    private final dev.mosaicast.core.notification.NotificationService notifications;
 
     public AccountErasureService(PluginLoaderService plugins, PluginExtensions extensions,
                                  PluginDataService pluginData, UserDataErasureRepository erasures,
                                  UserRepository users, LinkedIdentityRepository identities,
                                  PersonalAccessTokenRepository tokens,
                                  ListeningProgressRepository progress,
-                                 dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory) {
+                                 dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory,
+                                 dev.mosaicast.core.notification.NotificationService notifications) {
         this.plugins = plugins;
         this.extensions = extensions;
         this.pluginData = pluginData;
@@ -79,6 +81,7 @@ public class AccountErasureService {
         this.tokens = tokens;
         this.progress = progress;
         this.nameHistory = nameHistory;
+        this.notifications = notifications;
     }
 
     /**
@@ -114,6 +117,7 @@ public class AccountErasureService {
         // outlived its account would be a record of names someone left behind, kept past the account they
         // left them in (§8.6).
         nameHistory.deleteByUserId(userId);
+        notifications.deleteForUser(userId);
         users.deleteById(userId);
 
         log.info("Erased account {}: {} user-scoped plugin document(s), {} plugin(s) still outstanding",

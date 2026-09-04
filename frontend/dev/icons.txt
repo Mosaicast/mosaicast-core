@@ -228,3 +228,4 @@ whatsapp                  = whatsapp         *
 telegram                  = telegram         *
 box-arrow-up              = share-native     *
 arrow-left-right          = swap             *
+bell                      = bell             *

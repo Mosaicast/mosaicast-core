@@ -9,6 +9,7 @@ import { useMeta } from '../api/MetaContext';
 import type { Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { Avatar } from './Avatar';
+import { NotificationBell } from './NotificationBell';
 import { useLegalEntries } from '../hooks/useLegalEntries';
 import { availableLocales, ensureCatalog, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
@@ -135,6 +136,9 @@ export function TopBar() {
               </Link>
             ))}
           </Dropdown>
+
+          {/* Signed in only: an anonymous visitor has no inbox and no endpoint to ask (§17). */}
+          {user && <NotificationBell />}
 
           {user ? (
             <Dropdown

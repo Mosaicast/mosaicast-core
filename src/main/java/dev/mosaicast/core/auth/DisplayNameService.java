@@ -44,12 +44,15 @@ public class DisplayNameService {
     private final UserRepository users;
     private final UserNameHistoryRepository history;
     private final DisplayNameProperties properties;
+    private final dev.mosaicast.core.notification.NotificationService notifications;
 
     public DisplayNameService(UserRepository users, UserNameHistoryRepository history,
-                              DisplayNameProperties properties) {
+                              DisplayNameProperties properties,
+                              dev.mosaicast.core.notification.NotificationService notifications) {
         this.users = users;
         this.history = history;
         this.properties = properties;
+        this.notifications = notifications;
     }
 
     /** A validated name and the key it is unique on. */
@@ -150,6 +153,13 @@ public class DisplayNameService {
         // are in the line because a moderation record nobody can read is not a record.
         log.info("Display name of {} reverted '{}' -> '{}' by admin {}",
                 userId, from, target.display(), adminId);
+
+        // §8.6.1 requires this and the feature shipped without it: a name that changes with no explanation
+        // reads as a bug or a break-in. A fixed kind, not text — the admin who may not choose the name must
+        // not be able to author the message that arrives with it either, or the restraint is undone in one
+        // sentence. The shell owns the wording and translates it (§12.7).
+        notifications.system(userId, dev.mosaicast.core.notification.NotificationKind.NAME_REVERTED,
+                java.util.Map.of("previous", from, "current", target.display()));
         return target.display();
     }
 
