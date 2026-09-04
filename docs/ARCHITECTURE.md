@@ -245,6 +245,7 @@ A plugin = **one folder**: backend JAR (PF4J extension) + `frontend/` (built Web
 - **`blobs`**: opt-in file storage (§11.1) — `maxFileBytes`, `quotaBytes`, `mimeTypes`. Declared, never derived, like `data`: what a plugin may write to disk should be readable off its manifest. Absent = no file storage at all. The operator caps every number and intersects the type list with the install's own, so a plugin is granted the smaller of the two rather than rejected for asking. `image/svg+xml` is refused at load — SVG is never storable (§12.2).
 - **`tags`**: opt-in access to the shared tag vocabulary (§6.1.1) — `{ "readsVocabulary": true, "writesEpisodes": false }`. Declared, never derived, like `data` and `blobs`; absent means **no tag surface at all** (`ctx.tags` is null, the endpoints 404). Two flags because the two acts are not alike: tagging a plugin's own subjects touches rows nobody else can name, while tagging an **episode** changes the shell's filter options and what core recommends beside that episode — a capability an operator should be able to read off a manifest before installing. A block declaring neither is refused at load, since it would produce a surface that exists and refuses everything.
 - **`identity`**: opt-in resolution of user UUIDs to a name and a picture (§8.8) — `{ "resolvesUsers": true }`. Declared, never derived, like `data`, `blobs` and `tags`; absent means `ctx.users` is null and the endpoint 404s. It is a declaration and not a derivation because a plugin already *holds* user ids — the doc store's `USER` scope and `queryAcrossUsers` both hand them over — so the capability being granted is not access to the ids but the turning of them into people, and that is the part an operator should be able to read off a manifest before installing.
+- **`notifications`**: opt-in ability to put a message in a user's inbox (§17) — `{ "sends": true, "perUserPerDay": n }`, the number being what the plugin *asks* for and the operator's cap what it gets. Declared, never derived, like the blocks around it; absent means `ctx.notify` is null and the endpoint 404s. This is the one plugin surface that **writes into another user's view of the site**, so it is the one an operator most needs to see before installing.
 - **`external`**: opt-in use of the instance's external services (§16) — `kinds` names them, `usedBy` is the lowest role that may trigger a call from the plugin's **UI** (default `podcaster`, matching `data.writableBy`'s floor). Declared, never derived, like `data`, `blobs` and `tags`; absent means no external surface at all. `kinds` is a list although translation is the only member today, so a plugin that later wants transcription adds an entry rather than a second block.
 - **`consent`**: third-party services the plugin loads — one declaration each (`id`, `name`, `provider`, `category`, `privacyUrl`, `hosts`, `thirdCountryTransfer`, `storage[]`); the visitor decides per *category*, and `hosts` doubles as the CSP allow-list (§12.5). Omit the key entirely when the plugin loads nothing third-party.
 - **`config`**: declared fields are rendered by core as a **generic admin form** (respecting `editableBy`) — plugins never build their own config UI.
@@ -264,6 +265,7 @@ public interface PluginContext {
     PluginBlobs  blobs();    // only present if the manifest declares `blobs` (§11.1); null otherwise
     Tags         tags();     // only present if the manifest declares `tags` (§6.1.1); null otherwise
     Users        users();    // only present if the manifest declares `identity` (§8.8); null otherwise
+    Notifier     notify();   // only present if the manifest declares `notifications` (§17); null otherwise
     PluginConfig config();
     FeedAccess   feeds();
     void onSchedule(Duration every, Runnable task); // ShedLock-wrapped
@@ -319,6 +321,8 @@ interface PluginContext {
   user:     { id: string; role: Role; displayName: string; avatarUrl: string } | null;
   users:    UserDirectory | null;     // resolve(ids) → who the other UUIDs are; null unless the
                                       // manifest declares `identity` (§8.8)
+  notify:   NotifyClient | null;      // send(userIds, message) to users this plugin already holds
+                                      // data for; null unless the manifest declares it (§17)
   api:      PluginApiClient;          // calls /api/plugins/<id>/* with auth token; rejections carry
                                       // `status` + the RFC-7807 body, and getOrNull resolves 404 to null
   docs:     DocClient;                // typed doc store over the same endpoints; never null (§7.6)
@@ -678,3 +682,37 @@ A generic surface for services this instance may use but does not run: **one *ki
 - **Machine output is a draft.** Anything stored from it is marked as such and confirmed by a person (§12.6).
 - **A plugin declares what it uses.** The manifest's `external` block (§7.2) names the kinds (`external.kinds`) and the lowest role that may trigger a call from the plugin's UI (`external.usedBy`, default `podcaster`). An undeclared kind is **`null` on the plugin's context and 404 on its endpoint** — the shape `blobs` and `tags` already have — and it is that **independently of whether a provider is configured**, because the manifest is checked first: a plugin that never asked must not be able to read off an error code whether this instance pays for translation. It is deliberately *not* `external-no-provider`, which tells a caller to go ask their admin about something no admin can grant. The declaration exists here and not only for storage because the browser half of this surface spends money: `translate()` in a page means anyone who can load that page can bill a metered API, and the pipeline's rate limit keys on kind and provider, so an undeclared caller would exhaust the site's budget with nothing recording which plugin did it. **The role floor is a property of the browser endpoint only** — a backend call happens in `register` or on a timer and has no caller to have a role. `usedBy: "anonymous"` is legal and almost always wrong; a metered provider behind an anonymous floor is an open spending endpoint.
 - **Failure vocabulary**, each with its own status and stable problem type, because a caller that cannot tell them apart cannot act on any of them: `external-no-provider` (409), `external-provider-misconfigured` (409), `external-busy` (503), `external-rate-limited` (429), `external-timeout` (504), `external-provider-failed` (502).
+
+---
+
+## 17. Notifications
+
+Three things need to tell a user something and none of them can: a display name reverted by an admin (§8.6.1) changes silently and reads as a break-in; an admin has no way to warn someone short of removing them; and a plugin that finishes a long-running thing a user took part in — a bingo resolving, the case this is written for — can only hope they come back and look. One inbox serves all three.
+
+**In-app only.** The emails in `LinkedIdentity` were collected to establish identity (§8.2), and sending to them is a *different purpose* — with opt-in, bounce handling, deliverability and an unsubscribe path behind it. Nothing here presumes it never happens; it is simply not this.
+
+```
+Notification (id, user_id, source, kind, payload JSONB, created_at, read_at)
+             source: system | admin | plugin:<id>
+```
+
+- **The user is the addressee, so the host is the sender.** A notification is written by core on behalf of a source, never handed to a delivery mechanism a plugin controls. Rate limits, caps and retention are therefore host properties and there is nowhere for a plugin to hold them.
+- **`system` messages are fixed kinds, not text.** The revert notice (§8.6.1) names a kind and the shell translates it. An admin who cannot type the name must not be able to type the explanation either, or the restraint in §8.6.1 is one message away from being undone.
+- **`admin` messages are free text**, because a warning that cannot say what it is about is not a warning. They are attributable and logged like role changes (§8.5), and read state is meaningful for them in a way it is not elsewhere: "they were told" is the point.
+
+### 17.1 What a plugin may do
+```ts
+interface NotifyClient { send(userIds: string[], msg: NotifyMessage): Promise<void>; }
+type NotifyMessage = { key: string; params?: Record<string, string>; link?: string };
+```
+`Notifier notify()` is the backend twin (§7.4) and is where nearly all real use lives — the thing worth announcing usually finishes on a timer, not in someone's browser.
+
+This is the **first plugin surface that writes into another user's experience**. Everything else a plugin touches is its own scope or the current visitor's (§7.6). Unbounded, it is a spam cannon pointed at the whole user list, so:
+
+- **A plugin may only notify users it already holds `USER`-scope data for.** Host-enforced against the same partitions `queryAcrossUsers` reads (§7.4), needing no new concept: bingo may write to its participants because participants have rows, and no plugin can reach a user who never touched it. The rule survives the surface it was written for — a comments plugin later notifies a thread's participants, who are exactly the users it stores rows for.
+- **Rate limits are the host's**, per plugin per recipient per window plus a ceiling across all recipients, both capped by the operator over what the manifest asked for. A limit a plugin enforces is a limit a plugin can drop.
+- **Text is third-party and user-visible.** A plugin sends a key and parameters resolved against its own locale bundle, never a rendered string, because a notification that exists in one language breaks §12.7 on the surface where it is most obviously wrong. Rendered as text, never HTML, with length caps.
+- **`link` is host-validated and internal** — a `ctx.links`-shaped target or a subpath under `/p/<pluginId>/` (§6.4). A notification is chrome the site is speaking through, and a plugin that can point it off-site is a plugin that can phish the site's own users with the site's own voice.
+
+### 17.2 Lifecycle
+Notifications are user data. They are erased with the account (§12.8) rather than left keyed to a UUID nobody can resolve, a plugin's notifications go when the plugin's data does, read ones are purged after a retention period and unread ones are capped per user — an inbox nobody empties is not a feature, and an unbounded one is a table that only grows.
