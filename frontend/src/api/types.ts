@@ -231,7 +231,10 @@ export interface AdjacentEpisodes {
 export interface MeView {
   id: string;
   displayName: string;
-  avatarUrl: string | null;
+  /** Always the host's own `/api/users/{id}/avatar` (ARCHITECTURE §8.7), never a provider URL. */
+  avatarUrl: string;
+  /** Which linked identity supplies the picture, or null for the generated avatar (§8.7). */
+  avatarProvider: string | null;
   role: Role;
 }
 
@@ -241,6 +244,8 @@ export interface Identity {
   linked: boolean;
   email: string | null;
   since: string | null;
+  /** Whether this identity currently offers a picture — the source picker only lists ones that do (§8.7). */
+  hasAvatar: boolean;
 }
 
 /** Personal access token metadata (`auth/pat/PatController.TokenView`), never the secret. */
@@ -309,7 +314,7 @@ export interface IdentityRef {
 export interface UserAdminView {
   id: string;
   displayName: string;
-  avatarUrl: string | null;
+  avatarUrl: string;
   role: Role;
   createdAt: string;
   identities: IdentityRef[];

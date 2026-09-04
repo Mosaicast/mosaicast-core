@@ -137,7 +137,7 @@ public class UserAdminController {
                 .map(i -> new IdentityRef(i.getProvider(), i.getEmail()))
                 .toList();
         return new UserAdminView(
-                user.getId(), user.getDisplayName(), user.getAvatarUrl(),
+                user.getId(), user.getDisplayName(), MeView.avatarUrlFor(user.getId()),
                 user.getRole().name().toLowerCase(), user.getCreatedAt(), refs);
     }
 

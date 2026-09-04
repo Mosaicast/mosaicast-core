@@ -14,14 +14,18 @@ import java.time.Instant;
  * @param linked   whether the current user has this provider linked
  * @param email    the captured email when linked, otherwise {@code null}
  * @param since    when it was linked, otherwise {@code null}
+ * @param hasAvatar whether this identity currently offers a picture (§8.7) — false for a provider that has
+ *                  none, so the settings UI can offer the choice only where there is something to choose
  */
-public record IdentityView(String provider, boolean linked, String email, Instant since) {
+public record IdentityView(
+        String provider, boolean linked, String email, Instant since, boolean hasAvatar) {
 
     static IdentityView linked(LinkedIdentity identity) {
-        return new IdentityView(identity.getProvider(), true, identity.getEmail(), identity.getCreatedAt());
+        return new IdentityView(identity.getProvider(), true, identity.getEmail(),
+                identity.getCreatedAt(), identity.getAvatarRef() != null);
     }
 
     static IdentityView notLinked(String provider) {
-        return new IdentityView(provider, false, null, null);
+        return new IdentityView(provider, false, null, null, false);
     }
 }

@@ -18,6 +18,9 @@ commonmark = "0.30.0"
 
 [libraries]
 # --- Mosaicast plugin SDK (consumed from mavenLocal — see README dev setup) ---
+# Version managed by the Spring Boot BOM. Used for the avatar proxy cache (ARCHITECTURE §8.7), which needs
+# bounding by total bytes rather than entry count — a hand-rolled map with that property is a leak waiting.
+caffeine = { module = "com.github.ben-manes.caffeine:caffeine" }
 mosaicast-plugin-api = { module = "dev.mosaicast:plugin-api", version.ref = "mosaicastSdk" }
 mosaicast-plugin-testkit = { module = "dev.mosaicast:plugin-testkit", version.ref = "mosaicastSdk" }
 

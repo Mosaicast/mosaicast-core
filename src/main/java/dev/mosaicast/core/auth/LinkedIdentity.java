@@ -38,6 +38,14 @@ public class LinkedIdentity {
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified;
 
+    /**
+     * The provider's own reference to this identity's picture — a Discord avatar hash, not a URL (§8.7).
+     * Refreshed on every login with this provider, so a changed picture propagates. Null when the provider
+     * has none, which is a normal state and not an error.
+     */
+    @Column(name = "avatar_ref")
+    private String avatarRef;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -46,25 +54,35 @@ public class LinkedIdentity {
     }
 
     private LinkedIdentity(UUID id, UUID userId, String provider, String externalId,
-                           String email, boolean emailVerified) {
+                           String email, boolean emailVerified, String avatarRef) {
         this.id = id;
         this.userId = userId;
         this.provider = provider;
         this.externalId = externalId;
         this.email = email;
         this.emailVerified = emailVerified;
+        this.avatarRef = avatarRef;
     }
 
     /** Links a provider identity to a user. */
     public static LinkedIdentity link(UUID userId, String provider, String externalId,
-                                      String email, boolean emailVerified) {
-        return new LinkedIdentity(UUID.randomUUID(), userId, provider, externalId, email, emailVerified);
+                                      String email, boolean emailVerified, String avatarRef) {
+        return new LinkedIdentity(
+                UUID.randomUUID(), userId, provider, externalId, email, emailVerified, avatarRef);
     }
 
-    /** Refreshes the email/verification captured from the provider on a later login. */
-    public void refresh(String email, boolean emailVerified) {
+    /**
+     * Refreshes what the provider asserts on a later login: email, verification, and the avatar reference.
+     *
+     * <p>The picture is refreshed here rather than fetched on demand because this is the only moment the
+     * host legitimately hears from the provider about this user. It is also why a changed Discord avatar
+     * shows up after the next login rather than instantly — the alternative is polling a third party about
+     * people who are not currently using the site.
+     */
+    public void refresh(String email, boolean emailVerified, String avatarRef) {
         this.email = email;
         this.emailVerified = emailVerified;
+        this.avatarRef = avatarRef;
     }
 
     public UUID getId() {
@@ -89,6 +107,10 @@ public class LinkedIdentity {
 
     public boolean isEmailVerified() {
         return emailVerified;
+    }
+
+    public String getAvatarRef() {
+        return avatarRef;
     }
 
     public Instant getCreatedAt() {

@@ -102,6 +102,23 @@ mosaicast:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
     bootstrap-external-id: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:}
+  # The avatar proxy (ARCHITECTURE §8.7). Pictures are fetched from the provider the user chose, served as
+  # bytes by the host, and held in memory only — a picture the host *stores* is a picture the host has to
+  # moderate, retain and erase, which is exactly what §8.7 declines to take on.
+  avatar:
+    # Asked of providers that support it, so the byte cap is not doing the work: Discord serves 1024px by
+    # default and the shell never renders more than a few dozen.
+    size-px: ${MOSAICAST_AVATAR_SIZE:128}
+    max-image-bytes: ${MOSAICAST_AVATAR_MAX_BYTES:262144}
+    # A ceiling on the whole cache in BYTES, not an entry count — 500 entries of unknown size is not a
+    # limit, it is a hope.
+    cache-bytes: ${MOSAICAST_AVATAR_CACHE_BYTES:33554432}
+    # Long enough to be a cache, short enough that a changed Discord picture appears the same day.
+    ttl: ${MOSAICAST_AVATAR_TTL:15m}
+    # Failures are cached too, briefly. Without this one 404 behind a leaderboard is an outbound request
+    # per page view.
+    failure-ttl: ${MOSAICAST_AVATAR_FAILURE_TTL:1m}
+    timeout: ${MOSAICAST_AVATAR_TIMEOUT:5s}
   # What a display name may be (ARCHITECTURE §8.6). The lists live in configuration and not in code because
   # an operator's language and jurisdiction are not ours to guess: a German-market install needs German
   # slurs, a self-hoster needs their own list, and neither should have to fork the host to get one.

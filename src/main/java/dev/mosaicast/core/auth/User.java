@@ -37,8 +37,13 @@ public class User {
     @Column(name = "display_key", nullable = false, unique = true)
     private String displayKey;
 
-    @Column(name = "avatar_url")
-    private String avatarUrl;
+    /**
+     * Which linked identity supplies this user's picture, or null for the generated avatar (§8.7). A
+     * provider name, not a URL: the URL is composed in code, so nothing attacker-influenced reaches the
+     * fetch, and the Discord snowflake it contains never leaves the server.
+     */
+    @Column(name = "avatar_provider")
+    private String avatarProvider;
 
     /**
      * When this user may next change their own name (§8.6) — the rename cooldown, and the freeze an admin
@@ -58,11 +63,11 @@ public class User {
         // for JPA
     }
 
-    private User(UUID id, String displayName, String displayKey, String avatarUrl, Role role) {
+    private User(UUID id, String displayName, String displayKey, String avatarProvider, Role role) {
         this.id = id;
         this.displayName = displayName;
         this.displayKey = displayKey;
-        this.avatarUrl = avatarUrl;
+        this.avatarProvider = avatarProvider;
         this.role = role;
     }
 
@@ -74,8 +79,9 @@ public class User {
      * {@link DisplayNames#generatedFor}, which needs a name that is unique without a lookup, and the id is
      * the only thing to hand that already is (§8.6).
      */
-    public static User create(UUID id, String displayName, String displayKey, String avatarUrl, Role role) {
-        return new User(id, displayName, displayKey, avatarUrl, role);
+    public static User create(UUID id, String displayName, String displayKey, String avatarProvider,
+                              Role role) {
+        return new User(id, displayName, displayKey, avatarProvider, role);
     }
 
     /** Changes the user's role (admin promotes fans → podcasters, §8.5). */
@@ -119,8 +125,18 @@ public class User {
         return renameLockedUntil;
     }
 
-    public String getAvatarUrl() {
-        return avatarUrl;
+    public String getAvatarProvider() {
+        return avatarProvider;
+    }
+
+    /**
+     * Chooses which linked identity supplies the picture; null selects the generated avatar (§8.7).
+     *
+     * <p>Callers must clear this when the named identity goes away — unlinking or erasure — or the user is
+     * left pointing at a source that can never answer.
+     */
+    public void useAvatarFrom(String provider) {
+        this.avatarProvider = provider;
     }
 
     public Role getRole() {

@@ -48,9 +48,10 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
         String email = attrs.get("email") == null ? null : String.valueOf(attrs.get("email"));
         boolean verified = Boolean.TRUE.equals(attrs.get("verified"));
         String displayName = displayName(attrs);
-        String avatarUrl = avatarUrl(externalId, attrs.get("avatar"));
+        String avatarRef = avatarRef(externalId, attrs.get("avatar"));
 
-        IdentityClaim claim = new IdentityClaim("discord", externalId, email, verified, displayName, avatarUrl);
+        IdentityClaim claim =
+                new IdentityClaim("discord", externalId, email, verified, displayName, avatarRef);
         // A logged-in user linking a new provider from settings (§8.3 case 2): the previous session's
         // authentication is still in the context during the callback.
         UUID currentUserId = CurrentUser.id(SecurityContextHolder.getContext().getAuthentication()).orElse(null);
@@ -89,10 +90,17 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
         return username != null ? String.valueOf(username) : "Discord user";
     }
 
-    private static String avatarUrl(String userId, Object avatarHash) {
+    /**
+     * Discord's avatar hash, or null when the account has no custom picture.
+     *
+     * <p>The hash, deliberately not a URL (§8.7). A stored URL contains the Discord snowflake, and every
+     * place that handled it was one `<img src>` away from publishing an identifier social login is meant to
+     * keep server-side. The host composes the URL when it fetches, from a constant host.
+     */
+    private static String avatarRef(String userId, Object avatarHash) {
         if (avatarHash == null || String.valueOf(avatarHash).isBlank()) {
             return null;
         }
-        return "https://cdn.discordapp.com/avatars/" + userId + "/" + avatarHash + ".png";
+        return String.valueOf(avatarHash);
     }
 }

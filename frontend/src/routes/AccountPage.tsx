@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import type { CreatedToken, Identity, Token } from '../api/types';
 import { useUser } from '../auth/UserContext';
+import { Avatar } from '../components/Avatar';
 import { ProgressPreference } from '../consent/ProgressPreference';
 import { formatDate } from '../util/format';
 
@@ -31,6 +32,9 @@ export function AccountPage() {
   /** The refusal, translated from the problem type rather than from the server's English (§8.6). */
   const [nameError, setNameError] = useState<string | null>(null);
   const [nameSaved, setNameSaved] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  /** Bumped after switching source, to defeat the browser's copy of the same URL. */
+  const [avatarVersion, setAvatarVersion] = useState(0);
 
   const loadIdentities = () => api.get<Identity[]>('/api/me/identities').then(setIdentities).catch(() => {});
   const loadTokens = () => api.get<Token[]>('/api/me/tokens').then(setTokens).catch(() => {});
@@ -75,6 +79,24 @@ export function AccountPage() {
       const reason = type.split('/').pop() ?? '';
       const known = ['display-name-invalid', 'display-name-refused', 'display-name-taken', 'display-name-locked'];
       setNameError(known.includes(reason) ? t(`account.name.${reason}`) : t('account.name.failed'));
+    }
+  };
+
+  /**
+   * Chooses where the avatar comes from (ARCHITECTURE §8.7).
+   *
+   * The cache key is the user, and the server evicts on change — but the browser is holding the old bytes
+   * under the same URL, so the image is re-requested with a cache-buster after the switch. Without it the
+   * setting appears not to have worked.
+   */
+  const chooseAvatar = async (provider: string | null) => {
+    setAvatarError(null);
+    try {
+      await api.put('/api/me/avatar', { provider });
+      await refresh();
+      setAvatarVersion((v) => v + 1);
+    } catch (e) {
+      setAvatarError(e instanceof ApiError ? (e.detail ?? e.message) : t('account.avatar.failed'));
     }
   };
 
@@ -131,7 +153,7 @@ export function AccountPage() {
       <h1 className="mc-page__title">{t('account.title')}</h1>
 
       <div className="mc-account__profile">
-        {user.avatarUrl && <img className="mc-avatar mc-avatar--lg" src={user.avatarUrl} alt="" aria-hidden="true" />}
+        <Avatar userId={user.id} size="lg" version={avatarVersion} />
         <div>
           <div className="mc-account__name">{user.displayName}</div>
           <div className="mc-muted">{t(`role.${user.role}`)}</div>
@@ -183,6 +205,44 @@ export function AccountPage() {
       */}
       <h2>{t('account.playback')}</h2>
       <ProgressPreference note={t('account.playbackDevice')} />
+
+      {/*
+        The picture source, offered as radios on the identity list because that is where the answer lives:
+        "which of these accounts supplies my picture" is a question about this list, not a separate setting.
+        Everyone has the generated option; a provider appears only when it actually has a picture to give,
+        since offering a source that cannot produce one is a setting that silently does nothing (§8.7).
+      */}
+      <h2>{t('account.avatar.heading')}</h2>
+      <p className="mc-muted">{t('account.avatar.help')}</p>
+      {avatarError && <p className="mc-error">{avatarError}</p>}
+      <ul className="mc-list mc-avatar-choice">
+        <li className="mc-list__row">
+          <label className="mc-avatar-choice__option">
+            <input
+              type="radio"
+              name="mc-avatar-source"
+              checked={user.avatarProvider === null}
+              onChange={() => chooseAvatar(null)}
+            />
+            <span>{t('account.avatar.generated')}</span>
+          </label>
+        </li>
+        {identities
+          .filter((identity) => identity.linked && identity.hasAvatar)
+          .map((identity) => (
+            <li key={identity.provider} className="mc-list__row">
+              <label className="mc-avatar-choice__option">
+                <input
+                  type="radio"
+                  name="mc-avatar-source"
+                  checked={user.avatarProvider === identity.provider}
+                  onChange={() => chooseAvatar(identity.provider)}
+                />
+                <span>{t('account.avatar.fromProvider', { provider: identity.provider })}</span>
+              </label>
+            </li>
+          ))}
+      </ul>
 
       <h2>{t('account.identities')}</h2>
       <ul className="mc-list">

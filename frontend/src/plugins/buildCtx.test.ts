@@ -71,7 +71,13 @@ describe('buildCtx', () => {
 
   it('maps the user, or null when anonymous', () => {
     expect(buildCtx(base).user).toBeNull();
-    const user: MeView = { id: 'u1', displayName: 'U', avatarUrl: null, role: 'podcaster' };
+    const user: MeView = {
+      id: 'u1',
+      displayName: 'U',
+      avatarUrl: '/api/users/u1/avatar',
+      avatarProvider: null,
+      role: 'podcaster',
+    };
     expect(buildCtx({ ...base, user }).user).toEqual({ id: 'u1', role: 'podcaster' });
   });
 
