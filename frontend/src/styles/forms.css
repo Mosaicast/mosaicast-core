@@ -327,3 +327,11 @@
   border: 1px solid var(--mc-danger);
   border-radius: var(--mc-radius-md);
 }
+
+/* The picture-source radios read as one list with the identities above them, so they borrow the row. */
+.mc-avatar-choice__option {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  cursor: pointer;
+}

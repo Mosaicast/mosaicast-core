@@ -74,6 +74,30 @@ public class MeController {
                 .toList();
     }
 
+    /**
+     * Which linked identity supplies the picture; {@code null} selects the generated avatar (§8.7).
+     *
+     * @param provider a linked provider key, or {@code null}
+     */
+    public record AvatarRequest(String provider) {
+    }
+
+    /**
+     * Chooses where the caller's avatar comes from (ARCHITECTURE §8.7).
+     *
+     * <p>A provider must actually be linked <em>and</em> actually have a picture. Accepting a source that
+     * cannot produce one would store a setting that silently does nothing — the user would see the
+     * generated avatar, having just told the site to use something else, and have no way to tell the
+     * difference between a bug and a provider with no picture.
+     */
+    @org.springframework.web.bind.annotation.PutMapping("/avatar")
+    public MeView setAvatarSource(@org.springframework.web.bind.annotation.RequestBody AvatarRequest request,
+                                  Authentication authentication) {
+        UUID userId = currentUserId(authentication);
+        accounts.chooseAvatarSource(userId, request.provider());
+        return MeView.of(accounts.requireUser(userId));
+    }
+
     @DeleteMapping("/identities/{provider}")
     public ResponseEntity<Void> unlink(@PathVariable String provider, Authentication authentication) {
         accounts.unlink(currentUserId(authentication), provider);

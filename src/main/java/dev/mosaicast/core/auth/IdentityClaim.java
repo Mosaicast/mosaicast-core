@@ -12,7 +12,8 @@ package dev.mosaicast.core.auth;
  * @param email         the asserted email, or {@code null} if the provider gave none
  * @param emailVerified whether the provider says the email is verified
  * @param displayName   a display name for a newly-created user; never {@code null}
- * @param avatarUrl     an avatar URL, or {@code null}
+ * @param avatarRef     the provider's own reference to the user's picture (a Discord avatar hash,
+ *                      never a URL — see §8.7), or {@code null} if the provider has none
  */
 public record IdentityClaim(
         String provider,
@@ -20,5 +21,5 @@ public record IdentityClaim(
         String email,
         boolean emailVerified,
         String displayName,
-        String avatarUrl) {
+        String avatarRef) {
 }

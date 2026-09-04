@@ -45,13 +45,16 @@ public class AccountService {
     private final LinkedIdentityRepository identities;
     private final AuthProperties auth;
     private final DisplayNameService displayNames;
+    private final dev.mosaicast.core.auth.avatar.AvatarService avatars;
 
     public AccountService(UserRepository users, LinkedIdentityRepository identities, AuthProperties auth,
-                          DisplayNameService displayNames) {
+                          DisplayNameService displayNames,
+                          dev.mosaicast.core.auth.avatar.AvatarService avatars) {
         this.users = users;
         this.identities = identities;
         this.auth = auth;
         this.displayNames = displayNames;
+        this.avatars = avatars;
     }
 
     /**
@@ -81,7 +84,9 @@ public class AccountService {
                 throw new ConflictException(
                         "This " + claim.provider() + " account is already linked to another user");
             }
-            identity.refresh(email, claim.emailVerified());
+            // The picture reference is refreshed with the email: this login is the one moment the host
+            // legitimately hears from the provider about this user (§8.7).
+            identity.refresh(email, claim.emailVerified(), claim.avatarRef());
             identities.save(identity);
             return users.findById(identity.getUserId())
                     .orElseThrow(() -> new IllegalStateException("Identity references a missing user"));
@@ -112,7 +117,9 @@ public class AccountService {
         // therefore falls back rather than refusing — a naming policy must never become a login failure.
         UUID id = UUID.randomUUID();
         DisplayNameService.Name name = displayNames.initial(id, claim.displayName());
-        User created = users.save(User.create(id, name.display(), name.key(), claim.avatarUrl(), Role.FAN));
+        // A new account starts on the generated avatar (§8.7). The provider's picture is available
+        // immediately in settings, but choosing it is the user's to make, not a default we assume.
+        User created = users.save(User.create(id, name.display(), name.key(), null, Role.FAN));
         attach(created.getId(), claim, email);
         // No email in the log: an account id and the provider identify the event without storing a
         // personal identifier in a table an operator browses casually.
@@ -135,6 +142,31 @@ public class AccountService {
     }
 
     /**
+     * Chooses which linked identity supplies the user's picture (ARCHITECTURE §8.7).
+     *
+     * @param userId   whose avatar
+     * @param provider a linked provider that currently has a picture, or {@code null} for the generated one
+     * @throws ConflictException when the provider is not linked or has no picture to offer
+     */
+    @Transactional
+    public void chooseAvatarSource(UUID userId, @Nullable String provider) {
+        User user = users.findById(userId)
+                .orElseThrow(() -> new NotFoundException("User not found: " + userId));
+        if (provider != null) {
+            LinkedIdentity identity = identities.findByUserIdAndProvider(userId, provider)
+                    .orElseThrow(() -> new ConflictException("No " + provider + " identity linked"));
+            if (identity.getAvatarRef() == null) {
+                throw new ConflictException("Your " + provider + " account has no picture");
+            }
+        }
+        user.useAvatarFrom(provider);
+        users.save(user);
+        // Immediately, as §8.7 requires: a setting whose effect appears a quarter of an hour later is a
+        // setting the user will press again.
+        avatars.invalidate(userId);
+    }
+
+    /**
      * Unlinks a provider from a user. The <strong>last remaining identity cannot be removed</strong> —
      * that would lock the user out (§8.4).
      */
@@ -146,11 +178,20 @@ public class AccountService {
             throw new ConflictException("Cannot remove the last identity — you would be locked out");
         }
         identities.delete(identity);
+
+        // A picture pulled from an identity that is gone is a dangling fetch (§8.7), so unlinking the
+        // chosen source falls back to the generated avatar rather than leaving a setting that cannot work.
+        User user = users.findById(userId).orElseThrow(() -> new NotFoundException("User not found"));
+        if (provider.equals(user.getAvatarProvider())) {
+            user.useAvatarFrom(null);
+            users.save(user);
+            avatars.invalidate(userId);
+        }
     }
 
     private void attach(UUID userId, IdentityClaim claim, String normalizedEmail) {
-        identities.save(LinkedIdentity.link(
-                userId, claim.provider(), claim.externalId(), normalizedEmail, claim.emailVerified()));
+        identities.save(LinkedIdentity.link(userId, claim.provider(), claim.externalId(),
+                normalizedEmail, claim.emailVerified(), claim.avatarRef()));
     }
 
     /** Normalizes an email for storage and matching (trim + lowercase); null/blank yields null. */

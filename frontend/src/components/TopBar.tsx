@@ -8,6 +8,7 @@ import { api } from '../api/client';
 import { useMeta } from '../api/MetaContext';
 import type { Role } from '../api/types';
 import { useUser } from '../auth/UserContext';
+import { Avatar } from './Avatar';
 import { useLegalEntries } from '../hooks/useLegalEntries';
 import { availableLocales, ensureCatalog, localeName } from '../i18n';
 import { useSite } from '../theme/SiteContext';
@@ -140,7 +141,7 @@ export function TopBar() {
               triggerClassName="mc-btn mc-btn--ghost"
               trigger={
                 <span className="mc-menu__label">
-                  {user.avatarUrl && <img className="mc-avatar" src={user.avatarUrl} alt="" aria-hidden="true" />}
+                  <Avatar userId={user.id} />
                   {/* Wrapped so the name alone can be truncated: clamping the label would take the
                       dropdown caret with it and leave the control looking like plain text. */}
                   <span className="mc-menu__name">{user.displayName}</span>

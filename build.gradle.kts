@@ -67,6 +67,7 @@ dependencies {
     implementation(libs.pf4j)
     implementation(libs.shedlock.spring)
     implementation(libs.shedlock.provider.jdbc.template)
+    implementation(libs.caffeine)
     implementation(libs.jsoup)
     implementation(libs.commonmark)
 

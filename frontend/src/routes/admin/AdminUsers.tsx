@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ApiError, api } from '../../api/client';
 import type { Paged, Role, UserAdminView } from '../../api/types';
 import { useUser } from '../../auth/UserContext';
+import { Avatar } from '../../components/Avatar';
 
 const ROLES: Role[] = ['fan', 'podcaster', 'admin'];
 
@@ -124,7 +125,7 @@ export function AdminUsers() {
           return (
             <li key={u.id} className="mc-userlist__row">
               <div className="mc-userlist__who">
-                {u.avatarUrl && <img className="mc-avatar" src={u.avatarUrl} alt="" aria-hidden="true" />}
+                <Avatar userId={u.id} />
                 <div>
                   <span className="mc-userlist__name">{u.displayName}</span>
                   <span className="mc-muted mc-userlist__meta">

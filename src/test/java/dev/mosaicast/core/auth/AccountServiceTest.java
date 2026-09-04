@@ -41,6 +41,9 @@ class AccountServiceTest {
     @Mock
     private UserNameHistoryRepository nameHistory;
 
+    @Mock
+    private dev.mosaicast.core.auth.avatar.AvatarService avatars;
+
     private AccountService service;
 
     /**
@@ -53,7 +56,7 @@ class AccountServiceTest {
     void setUp() {
         displayNames = new DisplayNameService(
                 users, nameHistory, new DisplayNameProperties(null, null, null, List.of(), List.of()));
-        service = new AccountService(users, identities, new AuthProperties("", ""), displayNames);
+        service = new AccountService(users, identities, new AuthProperties("", ""), displayNames, avatars);
         lenient().when(users.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(identities.save(any(LinkedIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -66,7 +69,7 @@ class AccountServiceTest {
     void case1_knownIdentity_logsInExistingUser() {
         UUID userId = UUID.randomUUID();
         User existingUser = User.create(UUID.randomUUID(), "Alex", "alex", null, Role.FAN);
-        LinkedIdentity identity = LinkedIdentity.link(userId, "discord", "E1", "old@x.io", false);
+        LinkedIdentity identity = LinkedIdentity.link(userId, "discord", "E1", "old@x.io", false, null);
         when(identities.findByProviderAndExternalId("discord", "E1")).thenReturn(Optional.of(identity));
         when(users.findById(userId)).thenReturn(Optional.of(existingUser));
 
@@ -99,7 +102,7 @@ class AccountServiceTest {
     void case1_linkingIdentityOwnedByAnotherUser_throwsConflict() {
         UUID currentUserId = UUID.randomUUID();
         UUID otherUserId = UUID.randomUUID();
-        LinkedIdentity othersIdentity = LinkedIdentity.link(otherUserId, "discord", "E1", "b@x.io", true);
+        LinkedIdentity othersIdentity = LinkedIdentity.link(otherUserId, "discord", "E1", "b@x.io", true, null);
         when(identities.findByProviderAndExternalId("discord", "E1")).thenReturn(Optional.of(othersIdentity));
 
         // A logged-in user must NOT be switched into the account that already owns this identity.
@@ -111,7 +114,8 @@ class AccountServiceTest {
     void case3_anonymousVerifiedEmailMatch_requiresExplicitLink_doesNotMerge() {
         when(identities.findByProviderAndExternalId("google", "G7")).thenReturn(Optional.empty());
         when(identities.findByEmailAndEmailVerifiedTrue("a@x.io"))
-                .thenReturn(List.of(LinkedIdentity.link(UUID.randomUUID(), "discord", "E1", "a@x.io", true)));
+                .thenReturn(List.of(
+                        LinkedIdentity.link(UUID.randomUUID(), "discord", "E1", "a@x.io", true, null)));
 
         // §8.3 conservative variant: do not merge silently, do not create a duplicate — require linking.
         assertThatThrownBy(() -> service.resolveLogin(claim("google", "G7", "a@x.io", true), null))
@@ -125,7 +129,8 @@ class AccountServiceTest {
         // proving the lookup is done on the normalized (lowercased) email.
         when(identities.findByProviderAndExternalId("discord", "E9")).thenReturn(Optional.empty());
         when(identities.findByEmailAndEmailVerifiedTrue("alice@x.io"))
-                .thenReturn(List.of(LinkedIdentity.link(UUID.randomUUID(), "patreon", "P1", "alice@x.io", true)));
+                .thenReturn(List.of(
+                        LinkedIdentity.link(UUID.randomUUID(), "patreon", "P1", "alice@x.io", true, null)));
 
         assertThatThrownBy(() -> service.resolveLogin(claim("discord", "E9", "Alice@X.IO", true), null))
                 .isInstanceOf(ExplicitLinkRequiredException.class);
@@ -169,7 +174,7 @@ class AccountServiceTest {
     @Test
     void bootstrapIdentity_isPromotedToAdmin() {
         AccountService bootstrapService =
-                new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"), displayNames);
+                new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"), displayNames, avatars);
         when(identities.findByProviderAndExternalId("discord", "ADMIN123")).thenReturn(Optional.empty());
         when(identities.findByEmailAndEmailVerifiedTrue(any())).thenReturn(List.of());
 
