@@ -135,6 +135,30 @@ public class UserAdminController {
         return ResponseEntity.noContent().build();
     }
 
+    /**
+     * One warning as the admin who sent it sees it.
+     *
+     * @param readAt when the user opened it, or null — the part that makes a warning a record rather than
+     *               a gesture (§17)
+     */
+    public record WarningView(UUID id, String text, java.time.Instant createdAt,
+                              java.time.Instant readAt) {
+    }
+
+    /**
+     * The warnings this user has been sent (ARCHITECTURE §17).
+     *
+     * <p>Fetched per user on demand rather than counted into the list, so opening the admin page does not
+     * cost a query per row for a surface most visits never look at.
+     */
+    @GetMapping("/{id}/warnings")
+    public List<WarningView> warnings(@PathVariable UUID id) {
+        return notifications.warningsFor(id).stream()
+                .map(n -> new WarningView(n.getId(), n.getPayload().getOrDefault("text", ""),
+                        n.getCreatedAt(), n.getReadAt()))
+                .toList();
+    }
+
     @PutMapping("/{id}/role")
     public MeView setRole(@PathVariable UUID id, @Valid @RequestBody RoleRequest request,
                           Authentication authentication) {

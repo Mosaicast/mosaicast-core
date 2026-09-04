@@ -80,6 +80,18 @@ public class NotificationService {
         deliver(Notification.fromPlugin(userId, pluginId, capped, link));
     }
 
+    /**
+     * The warnings sent to one user, for the admin who sent them (§17).
+     *
+     * <p>Admin-only by virtue of its caller: this is the one place a notification is read by somebody other
+     * than its addressee, and the reason is that "they were told" is the point of a warning — a record only
+     * the recipient can see is not a record.
+     */
+    @Transactional(readOnly = true)
+    public List<Notification> warningsFor(UUID userId) {
+        return notifications.findByUserIdAndSourceOrderByCreatedAtDesc(userId, Notification.SOURCE_ADMIN);
+    }
+
     /** One user's inbox, newest first. */
     @Transactional(readOnly = true)
     public Page<Notification> inbox(UUID userId, int page, int size) {
