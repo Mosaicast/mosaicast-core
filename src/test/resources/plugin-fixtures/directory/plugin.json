@@ -1,7 +1,7 @@
 {
   "id": "directory",
   "version": "1.0.0",
-  "platformApi": "0.13.0",
+  "platformApi": "0.14.0",
   "name": "Directory Fixture",
   "frontend": {
     "entry": "fixture.js",
@@ -24,5 +24,9 @@
   },
   "identity": {
     "resolvesUsers": true
+  },
+  "notifications": {
+    "sends": true,
+    "perUserPerDay": 5
   }
 }

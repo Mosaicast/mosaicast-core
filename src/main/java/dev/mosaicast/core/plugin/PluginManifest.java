@@ -38,6 +38,8 @@ import java.util.Set;
  *                    tag surface at all
  * @param identity    whether the plugin may resolve user UUIDs to a name and a picture (§8.8); absent
  *                    means no user directory at all
+ * @param notifications whether the plugin may put messages in users' inboxes (§17.1), and how many per
+ *                    recipient per day it asks for; absent means no notification surface at all
  * @param external    which of the instance's external services the plugin uses, and the lowest role that may
  *                    trigger a call from its UI (§16); absent means no external surface at all
  * @param consent     declared consent categories / external sources
@@ -69,6 +71,7 @@ public record PluginManifest(
         Blobs blobs,
         TagAccess tags,
         Identity identity,
+        Notifications notifications,
         External external,
         Consent consent,
         List<NavEntry> nav,
@@ -93,7 +96,7 @@ public record PluginManifest(
                           Frontend frontend, List<Slot> slots, PluginStorage storage,
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, null,
-                null, null, consent, null, null, null, null, null);
+                null, null, null, consent, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares a {@code tags} block (§7.2). */
@@ -102,7 +105,7 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                null, null, consent, null, null, null, null, null);
+                null, null, null, consent, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares an {@code external} block (§7.2/§16). */
@@ -111,7 +114,7 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           External external, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                null, external, consent, null, null, null, null, null);
+                null, null, external, consent, null, null, null, null, null);
     }
 
     /** The declared nav entries, or an empty list — callers never have to null-check. */
@@ -323,6 +326,27 @@ public record PluginManifest(
         }
     }
 
+    /**
+     * The {@code notifications} block (ARCHITECTURE §17.1): may this plugin write into other users' inboxes?
+     *
+     * <p>Declared, never derived, like every block beside it — and the one an operator most needs to read
+     * before installing, because it is the only plugin surface that writes into <em>another</em> user's view
+     * of the site. Everything else a plugin touches is its own scope or the current visitor's.
+     *
+     * @param sends         whether the surface exists at all; the default is yes, since a block declaring
+     *                      nothing would produce an endpoint that refuses everything
+     * @param perUserPerDay what the plugin <em>asks</em> for. The operator's cap is what it gets, exactly
+     *                      as blob quotas work: a plugin may ask for less than the ceiling and be held to
+     *                      its own number, but never for more
+     */
+    public record Notifications(Boolean sends, Integer perUserPerDay) {
+
+        /** Whether the plugin may send at all; the default is yes. */
+        public boolean sendsOrDefault() {
+            return !Boolean.FALSE.equals(sends);
+        }
+    }
+
     public record TagAccess(Boolean readsVocabulary, Boolean writesEpisodes) {
 
         /** Whether the plugin reads the vocabulary; the default is yes. */
@@ -346,6 +370,17 @@ public record PluginManifest(
      */
     public boolean declaresIdentity() {
         return identity != null && identity.resolvesUsersOrDefault();
+    }
+
+    /**
+     * Whether the plugin declares a {@code notifications} block (§17.1).
+     *
+     * <p>Absent means no surface at all: {@code ctx.notify} is null, {@code PluginContext.notifier()} is
+     * null, and the endpoint 404s — the same null-means-not-declared shape as {@code blobs}, {@code tags}
+     * and {@code identity}.
+     */
+    public boolean declaresNotifications() {
+        return notifications != null && notifications.sendsOrDefault();
     }
 
     public boolean declaresTags() {

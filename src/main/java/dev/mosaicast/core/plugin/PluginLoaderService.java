@@ -54,6 +54,9 @@ public class PluginLoaderService implements ApplicationRunner {
     private final dev.mosaicast.core.tag.TagService tagService;
     private final org.springframework.jdbc.core.JdbcTemplate jdbc;
     private final dev.mosaicast.core.auth.UserRepository userRepository;
+    private final PluginDataRepository pluginDataRepository;
+    private final dev.mosaicast.core.notification.NotificationService notifications;
+    private final PluginNotifyRateLimiter notifyLimiter;
 
     /** Registrations in discovery order, keyed by id; populated once at startup. */
     private final Map<String, PluginRegistration> registrations = new LinkedHashMap<>();
@@ -85,7 +88,10 @@ public class PluginLoaderService implements ApplicationRunner {
                                dev.mosaicast.plugin.api.Locales locales,
                                dev.mosaicast.core.external.translation.TranslationService translations,
                                org.springframework.jdbc.core.JdbcTemplate jdbc,
-                               dev.mosaicast.core.auth.UserRepository userRepository) {
+                               dev.mosaicast.core.auth.UserRepository userRepository,
+                               PluginDataRepository pluginDataRepository,
+                               dev.mosaicast.core.notification.NotificationService notifications,
+                               PluginNotifyRateLimiter notifyLimiter) {
         this.properties = properties;
         this.dataService = dataService;
         this.feedAccess = feedAccess;
@@ -99,6 +105,9 @@ public class PluginLoaderService implements ApplicationRunner {
         this.translations = translations;
         this.jdbc = jdbc;
         this.userRepository = userRepository;
+        this.pluginDataRepository = pluginDataRepository;
+        this.notifications = notifications;
+        this.notifyLimiter = notifyLimiter;
     }
 
     @Override
@@ -203,7 +212,10 @@ public class PluginLoaderService implements ApplicationRunner {
         // Null unless declared, like blobs and tags: what a plugin may touch is decided in the manifest
         // and nowhere else (§7.2, §8.8).
         dev.mosaicast.plugin.api.Users users = manifest.declaresIdentity() ? new UsersImpl(userRepository) : null;
-        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, users, config, feedAccess, locales,
+        dev.mosaicast.plugin.api.Notifier notifier = manifest.declaresNotifications()
+                ? new NotifierImpl(manifest.id(), pluginDataRepository, notifications, notifyLimiter)
+                : null;
+        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, users, notifier, config, feedAccess, locales,
                 translation, scheduler);
     }
 

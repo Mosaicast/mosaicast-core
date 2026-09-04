@@ -120,6 +120,25 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * A notification the host will not send (ARCHITECTURE §17.1).
+     *
+     * <p>A status and a stable type per reason, matching the SDK's own vocabulary: a send refused by the
+     * operator's cap is a routine outcome a scheduled sender must back off from, and one refused for a bad
+     * link is a bug that will fail the same way next time. A caller that cannot tell them apart can act on
+     * neither.
+     */
+    @ExceptionHandler(dev.mosaicast.plugin.api.NotificationException.class)
+    public ProblemDetail handleNotificationRefused(
+            dev.mosaicast.plugin.api.NotificationException ex, WebRequest request) {
+        HttpStatus status = ex.retryable() ? HttpStatus.TOO_MANY_REQUESTS : HttpStatus.BAD_REQUEST;
+        String slug = ex.reason().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        problem.setTitle("Notification refused");
+        problem.setType(URI.create("https://mosaicast.dev/problems/notification-" + slug));
+        return problem;
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex, WebRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

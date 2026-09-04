@@ -35,6 +35,8 @@ interface PluginMountProps {
   hasTags?: boolean;
   /** Whether the plugin declares an `identity` block (§8.8). */
   hasIdentity?: boolean;
+  /** Whether the plugin declares a `notifications` block (§17.1). */
+  hasNotifications?: boolean;
   /**
    * Whether the host said this plugin gets a `ctx.translation` client — its manifest declared the kind *and*
    * a provider is configured (§16). The shell never reconstructs those two halves; it is told the answer.
@@ -53,6 +55,7 @@ export function PluginMount({
   hasBlobs,
   hasTags,
   hasIdentity,
+  hasNotifications,
   hasTranslation,
 }: PluginMountProps) {
   // Only a page mount is addressed by the URL, so only a page mount reads the query and hash off it. On a
@@ -102,6 +105,7 @@ export function PluginMount({
         hasBlobs,
         hasTags,
         hasIdentity,
+        hasNotifications,
         hasTranslation,
         navigateTo,
         consentHas: consent.has,
@@ -126,6 +130,7 @@ export function PluginMount({
       hasBlobs,
       hasTags,
       hasIdentity,
+      hasNotifications,
       hasTranslation,
       navigateTo,
       consent.has,
