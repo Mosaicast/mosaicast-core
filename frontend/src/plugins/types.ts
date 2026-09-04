@@ -42,6 +42,8 @@ export interface PublicPlugin {
   hasTags?: boolean;
   /** Whether the plugin declares an `identity` block (§8.8). */
   hasIdentity?: boolean;
+  /** Whether the plugin declares a `notifications` block (§17.1). */
+  hasNotifications?: boolean;
   /**
    * Whether it declared `tags.writesEpisodes` — the capability half. Public because it is one: what a plugin
    * may change about the site's own filter options and recommendations is not a secret from the visitor

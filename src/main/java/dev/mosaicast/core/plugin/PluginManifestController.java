@@ -33,7 +33,8 @@ public class PluginManifestController {
                 .map(PluginRegistration::manifest)
                 .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), m.slots(),
                         !m.schemaEntities().isEmpty(), m.declaresBlobs(), m.declaresTags(),
-                        m.writesEpisodeTags(), m.declaresIdentity(), hasTranslation(m),
+                        m.writesEpisodeTags(), m.declaresIdentity(), m.declaresNotifications(),
+                        hasTranslation(m),
                         m.license(), m.author(), m.homepage(), m.attribution()))
                 .toList();
     }
@@ -77,6 +78,10 @@ public class PluginManifestController {
      *                  signal again for {@code ctx.users} (§8.8). Public for the same reason
      *                  {@code tagsWriteEpisodes} is: what a plugin may learn about the people on a page is
      *                  not a secret from the people on it
+     * @param hasNotifications whether the plugin declares a {@code notifications} block, the same
+     *                  pure-declaration signal for {@code ctx.notify} (§17.1). Public for a stronger reason
+     *                  than the others: this is the surface that writes into other users' inboxes, and what
+     *                  a plugin may say to the people on a page is not a secret from them
      * @param hasTranslation whether the shell should hand this plugin a {@code ctx.translation} client (§16).
      *                  <strong>Unlike the three flags above it is not pure declaration</strong>: it is the
      *                  declaration <em>and</em> a configured provider, because the SDK makes those two
@@ -94,7 +99,8 @@ public class PluginManifestController {
      */
     public record PublicPlugin(String id, String name, String version, Frontend frontend, List<Slot> slots,
                                boolean hasSchema, boolean hasBlobs, boolean hasTags,
-                               boolean tagsWriteEpisodes, boolean hasIdentity, boolean hasTranslation,
+                               boolean tagsWriteEpisodes, boolean hasIdentity, boolean hasNotifications,
+                               boolean hasTranslation,
                                String license, String author, String homepage, String attribution) {
     }
 }

@@ -265,7 +265,8 @@ public interface PluginContext {
     PluginBlobs  blobs();    // only present if the manifest declares `blobs` (§11.1); null otherwise
     Tags         tags();     // only present if the manifest declares `tags` (§6.1.1); null otherwise
     Users        users();    // only present if the manifest declares `identity` (§8.8); null otherwise
-    Notifier     notify();   // only present if the manifest declares `notifications` (§17); null otherwise
+    Notifier     notifier(); // only present if the manifest declares `notifications` (§17); null otherwise
+                             // `notifier`, not `notify`: Object.notify() is final in Java
     PluginConfig config();
     FeedAccess   feeds();
     void onSchedule(Duration every, Runnable task); // ShedLock-wrapped
@@ -702,16 +703,21 @@ Notification (id, user_id, source, kind, payload JSONB, created_at, read_at)
 
 ### 17.1 What a plugin may do
 ```ts
-interface NotifyClient { send(userIds: string[], msg: NotifyMessage): Promise<void>; }
-type NotifyMessage = { key: string; params?: Record<string, string>; link?: string };
+interface NotifyClient { send(userIds: string[], msg: NotifyMessage): Promise<string[]>; }
+type NotifyMessage = { text: Record<string, string>; link?: string };   // locale → finished sentence
 ```
-`Notifier notify()` is the backend twin (§7.4) and is where nearly all real use lives — the thing worth announcing usually finishes on a timer, not in someone's browser.
+`Notifier notifier()` is the backend twin (§7.4) and is where nearly all real use lives — the thing worth announcing usually finishes on a timer, not in someone's browser. **It is `notifier()` in Java and `ctx.notify` in TypeScript**, and the asymmetry is forced: `Object.notify()` is `final`, so no Java interface may declare that name.
+
+**`send` answers who was actually notified**, not `void`. The eligibility rule below guarantees partial sends — an erased account (§12.8) is the ordinary case — and a write whose partial failure is invisible degrades in silence: a plugin working from a stale participant list would look exactly like one working perfectly.
 
 This is the **first plugin surface that writes into another user's experience**. Everything else a plugin touches is its own scope or the current visitor's (§7.6). Unbounded, it is a spam cannon pointed at the whole user list, so:
 
 - **A plugin may only notify users it already holds `USER`-scope data for.** Host-enforced against the same partitions `queryAcrossUsers` reads (§7.4), needing no new concept: bingo may write to its participants because participants have rows, and no plugin can reach a user who never touched it. The rule survives the surface it was written for — a comments plugin later notifies a thread's participants, who are exactly the users it stores rows for.
 - **Rate limits are the host's**, per plugin per recipient per window plus a ceiling across all recipients, both capped by the operator over what the manifest asked for. A limit a plugin enforces is a limit a plugin can drop.
-- **Text is third-party and user-visible.** A plugin sends a key and parameters resolved against its own locale bundle, never a rendered string, because a notification that exists in one language breaks §12.7 on the surface where it is most obviously wrong. Rendered as text, never HTML, with length caps.
+- **Text is third-party and user-visible.** A plugin sends **one finished sentence per locale**, and the shell picks when it draws the bell. A single rendered string would freeze the language at send time, which breaks §12.7 on the surface where it is most obviously wrong: a notification is written on a timer and read days later by someone whose shell may have changed language since.
+  - *Not a translation key*, which is what this section first specified — nothing can resolve one. A plugin's catalogs ship inside its **frontend bundle** (§12.7) and load when its Web Component mounts; the bell is shell chrome and renders on pages where that never happens. There is no plugin-scoped catalog endpoint and no manifest field naming one, so a key would reach a reader as the literal string. A key is the better design and may yet arrive — it needs a plugin catalog surface first, which is a larger piece of work than the notification it would serve.
+  - The map must carry `en`: §12.7 makes English the one language a site cannot switch off, so it is the only safe terminal fallback. Requiring the *site's* default instead would refuse a perfectly good plugin that does not happen to ship that language. The honest cost is that the set of languages is fixed when a notification is sent, so one added later cannot appear in a message already written.
+  - Rendered as text, never HTML, with length caps.
 - **`link` is host-validated and internal** — a `ctx.links`-shaped target or a subpath under `/p/<pluginId>/` (§6.4). A notification is chrome the site is speaking through, and a plugin that can point it off-site is a plugin that can phish the site's own users with the site's own voice.
 
 ### 17.2 Lifecycle

@@ -12,6 +12,7 @@ import {
   makePluginFeeds,
   makePluginSchema,
   makePluginTags,
+  makePluginNotify,
   makePluginUsers,
   makePluginTranslation,
 } from './pluginApi';
@@ -61,6 +62,8 @@ export interface CtxInputs {
   hasTags?: boolean;
   /** Whether the plugin declares an `identity` block — decides `ctx.users` vs `null` (§8.8). */
   hasIdentity?: boolean;
+  /** Whether the plugin declares a `notifications` block — decides `ctx.notify` vs `null` (§17.1). */
+  hasNotifications?: boolean;
   /**
    * Whether the host granted a `ctx.translation` client (§16) — the manifest declared the kind *and* an
    * admin configured a provider. One flag rather than two on purpose: the SDK makes those two reasons for
@@ -138,6 +141,9 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // rather than derived is that a plugin already holds user ids: what is granted here is turning them
     // into people (§8.8).
     users: inputs.hasIdentity ? makePluginUsers(inputs.pluginId) : null,
+    // Null unless the manifest declared `notifications`. The block an operator most needs to read before
+    // installing, because it is the only surface that writes into another user's view of the site (§17.1).
+    notify: inputs.hasNotifications ? makePluginNotify(inputs.pluginId) : null,
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
     consent: {
       // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).

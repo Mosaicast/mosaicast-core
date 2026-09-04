@@ -28,6 +28,7 @@ public class PluginContextImpl implements PluginContext {
     private final dev.mosaicast.plugin.api.PluginBlobs blobs;
     private final Tags tags;
     private final dev.mosaicast.plugin.api.Users users;
+    private final dev.mosaicast.plugin.api.Notifier notifier;
     private final PluginConfig config;
     private final FeedAccess feeds;
     private final dev.mosaicast.plugin.api.Locales locales;
@@ -37,7 +38,8 @@ public class PluginContextImpl implements PluginContext {
 
     public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
                              dev.mosaicast.plugin.api.PluginBlobs blobs, Tags tags,
-                             dev.mosaicast.plugin.api.Users users, PluginConfig config,
+                             dev.mosaicast.plugin.api.Users users,
+                             dev.mosaicast.plugin.api.Notifier notifier, PluginConfig config,
                              FeedAccess feeds, dev.mosaicast.plugin.api.Locales locales,
                              dev.mosaicast.plugin.api.Translation translation,
                              PluginScheduler scheduler) {
@@ -47,6 +49,7 @@ public class PluginContextImpl implements PluginContext {
         this.blobs = blobs;
         this.tags = tags;
         this.users = users;
+        this.notifier = notifier;
         this.config = config;
         this.feeds = feeds;
         this.locales = locales;
@@ -130,6 +133,19 @@ public class PluginContextImpl implements PluginContext {
     @Override
     public dev.mosaicast.plugin.api.Users users() {
         return users;
+    }
+
+    /**
+     * Puts messages in users' inboxes, or {@code null} for a plugin whose manifest declares no
+     * {@code notifications} block (§17.1) — the same null-means-not-declared shape as {@link #blobs()},
+     * {@link #tags()} and {@link #users()}.
+     *
+     * <p>Named {@code notifier()} rather than {@code notify()} because {@code Object.notify()} is final,
+     * so no Java interface may declare that name. The TypeScript side keeps {@code ctx.notify}.
+     */
+    @Override
+    public dev.mosaicast.plugin.api.Notifier notifier() {
+        return notifier;
     }
 
     @Override

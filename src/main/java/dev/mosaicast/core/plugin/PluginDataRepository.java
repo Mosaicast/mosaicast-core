@@ -21,6 +21,31 @@ public interface PluginDataRepository extends JpaRepository<PluginData, PluginDa
      * Every document in a scope whose key starts with {@code prefix} (an empty prefix matches all), ordered
      * by key for a stable page. Bound to the plugin id, so it never crosses plugin boundaries.
      */
+    /**
+     * Which of the given users this plugin already holds {@code USER}-scope data for (§17.1).
+     *
+     * <p>The eligibility rule behind {@code ctx.notify}, and the reason it needed no new concept: a plugin
+     * may write into another user's experience only where that user already has rows in it — bingo reaches
+     * its participants because participants have rows, and nothing reaches a user who never touched the
+     * plugin. Read against the same partitions {@code queryAcrossUsers} spans, so the two cannot drift.
+     *
+     * @param pluginId the sender
+     * @param scopeIds the candidate user ids, as scope-id strings
+     * @return the subset that has data, as scope-id strings
+     */
+    @Query("""
+            select distinct d.id.scopeId from PluginData d
+            where d.id.pluginId = :pluginId
+              and d.id.scopeType = 'USER'
+              and d.id.scopeId in :scopeIds
+            """)
+    java.util.Set<String> userScopesHeldBy(@Param("pluginId") String pluginId,
+                                           @Param("scopeIds") java.util.Collection<String> scopeIds);
+
+    /** Everything one plugin stored, dropped when the plugin's data goes (§17.2). */
+    @Query("select count(d) from PluginData d where d.id.pluginId = :pluginId")
+    long countForPlugin(@Param("pluginId") String pluginId);
+
     @Query("""
             select d from PluginData d
             where d.id.pluginId = :pluginId

@@ -1,7 +1,7 @@
 {
   "id": "tagreader",
   "version": "1.0.0",
-  "platformApi": "0.13.0",
+  "platformApi": "0.14.0",
   "name": "Tag Reader Fixture",
   "frontend": {
     "entry": "fixture.js",

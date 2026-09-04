@@ -35,6 +35,7 @@ public class PluginSettingsService {
     private final PluginSchemaMigrator schemaMigrator;
     private final PluginBlobService blobs;
     private final dev.mosaicast.core.tag.TagService tags;
+    private final dev.mosaicast.core.notification.NotificationService notifications;
     private final org.springframework.context.ApplicationEventPublisher events;
 
     /** pluginId → explicit admin decision. Absent = never toggled = enabled. */
@@ -49,13 +50,15 @@ public class PluginSettingsService {
                                  PluginSchemaMigrator schemaMigrator,
                                  PluginBlobService blobs,
                                  dev.mosaicast.core.tag.TagService tags,
-                                 org.springframework.context.ApplicationEventPublisher events) {
+                                 org.springframework.context.ApplicationEventPublisher events,
+            dev.mosaicast.core.notification.NotificationService notifications) {
         this.activations = activations;
         this.configValues = configValues;
         this.data = data;
         this.schemaMigrator = schemaMigrator;
         this.blobs = blobs;
         this.tags = tags;
+        this.notifications = notifications;
         this.events = events;
     }
 
@@ -148,10 +151,15 @@ public class PluginSettingsService {
         // entries themselves stay — they are the site's, and a word other episodes still carry is not the
         // purged plugin's to take with it.
         int assignments = tags.purgePlugin(pluginId);
+        // And the fifth, which is not a store the plugin wrote to but a surface it wrote *through*: the
+        // notifications it put in other people's inboxes (§17.2). They outlive the rows that prompted them
+        // and core never learned which those were, so they are matched on the sender instead — a message
+        // from a plugin whose data is gone is a message about nothing.
+        long notices = notifications.deleteFromPlugin(pluginId);
         // Irreversible and admin-initiated: worth a permanent record of how much went.
-        log.info("Purged {} stored document(s), {} schema table(s), {} file(s) and {} tag assignment(s) of "
-                        + "plugin '{}'; its config and on/off state were kept",
-                removed, tables, files, assignments, pluginId);
+        log.info("Purged {} stored document(s), {} schema table(s), {} file(s), {} tag assignment(s) and "
+                        + "{} notification(s) of plugin '{}'; its config and on/off state were kept",
+                removed, tables, files, assignments, notices, pluginId);
         return removed;
     }
 }

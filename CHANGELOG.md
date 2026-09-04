@@ -14,7 +14,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
-- **Users can choose their own display name (ARCHITECTURE §8.6).** Prefilled from the provider at sign-up
+- **Users can choose their own display name (`0.7.0`, ARCHITECTURE §8.6).** Prefilled from the provider at sign-up
   and never overwritten by a later login — with several identities linked there is no non-arbitrary answer
   to which provider's name would win. Names are unique on a canonical `display_key` that folds NFKC,
   invisible characters, whitespace and cross-script lookalikes, so `Maritime` and a Cyrillic-a `Mаritime`
@@ -31,7 +31,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Sign-up cannot fail over a name: a provider name that is rude, malformed or already taken falls back
     to a generated one. A naming policy that can block a login is a worse bug than a bad name.
 
-- **An admin can revert a display name; an admin cannot set one (§8.6.1).** There is deliberately no
+- **An admin can revert a display name; an admin cannot set one (`0.7.0`, §8.6.1).** There is deliberately no
   endpoint that assigns a name. An admin who never types the string cannot choose it, cannot use it to mock
   or impersonate, and cannot be accused of either — and no operator needs a policy about what they are
   allowed to write into somebody else's profile.
@@ -46,7 +46,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   name, so an account spelt with a Cyrillic character to imitate somebody is found by typing the name it
   imitates — which is the search a moderator actually runs.
 
-- **Everybody has an avatar, and the host serves it (§8.7).** Everyone starts with a generated picture —
+- **Everybody has an avatar, and the host serves it (`0.7.0`, §8.7).** Everyone starts with a generated picture —
   an initial over a colour derived from their user id — and may instead pull one from a single chosen
   linked identity. `GET /api/users/{id}/avatar` always answers bytes.
   - **It never redirects.** The stored Discord URL contained the snowflake that `external_id` deliberately
@@ -60,7 +60,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Unlinking the chosen identity falls back to the generated picture rather than leaving a setting
     pointing at something that is gone.
 
-- **A plugin can resolve user ids to people (§8.8).** `ctx.users.resolve(ids)` in the browser and
+- **A plugin can resolve user ids to people (`0.7.0`, §8.8).** `ctx.users.resolve(ids)` in the browser and
   `PluginContext.users()` on the backend, both behind a new `identity` manifest block. `queryAcrossUsers`
   hands a backend UUIDs and nothing else, so a plugin aggregating across users — a bingo leaderboard, the
   case this was written for — could not render a person. Filled with a lookup rather than a wider
@@ -75,7 +75,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - Undeclared is a 404 indistinguishable from an unknown plugin, so a page cannot probe which plugins on
     this install declared the directory.
 
-- **A notification inbox (ARCHITECTURE §17).** Three things needed to tell a user something and none of
+- **A notification inbox (`0.7.0`, ARCHITECTURE §17).** Three things needed to tell a user something and none of
   them could. A bell in the header, `GET /api/me/notifications`, read state and an unread count.
   - **The revert notice (§8.6.1).** Reverting a display name shipped without one, so the name changed
     silently — which reads as a bug or a break-in. It is a fixed *kind*, not text: the shell owns the
@@ -88,7 +88,37 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     *oldest* unread are trimmed — someone who has stopped reading their bell should still see what just
     happened. Notifications are erased with the account.
 
+- **Plugins can put a message in a user's inbox (`0.7.0`, §17.1).** `ctx.notify` in the browser and
+  `PluginContext.notifier()` on the backend, behind a new `notifications` manifest block — the block an
+  operator most needs to read before installing, because this is **the only plugin surface that writes into
+  another user's view of the site**. Everything else a plugin touches is its own scope or the current
+  visitor's.
+  - **Eligibility**: only users the plugin already holds `USER`-scope data for, read against the same
+    partitions `queryAcrossUsers` spans. Bingo reaches its participants because participants have rows;
+    nothing reaches a user who never touched the plugin. Ineligible recipients are *dropped*, not rejected —
+    an erased account is the ordinary case, and one stale participant must not cost the others their
+    notification.
+  - **The limits are the host's**: per recipient per window, plus a ceiling on one call. The manifest's
+    `perUserPerDay` is what a plugin *asks* for and the operator's `hard-per-user-per-day` is what it gets —
+    the same ask-and-cap shape as blob quotas, because without a ceiling a manifest number would be a plugin
+    setting its own limit, which is not a limit.
+  - **Links are internal**, and only into the plugin's own subtree or a core page. A notification is chrome
+    the site speaks through, and a plugin that could aim one off-site could phish the site's own users in
+    the site's own voice.
+  - A plugin's notifications go when its data is purged (§17.2).
+
 ### Changed
+
+- **The plugin contract moves to `platformApi` 0.14.0** (`0.7.0`), which subsumes 0.13.0. That check is an
+  exact `major.minor` match, so **every installed plugin must be rebuilt** — and a plugin that had not yet
+  adopted 0.13.0 should skip it and go straight to 0.14.0, picking up `ctx.users` and `ctx.notify` in one
+  change.
+- **ARCHITECTURE §17.1 and §7.4 corrected against what shipped.** §17.1 specified a translation key
+  "resolved against the plugin's own locale bundle" — nothing can resolve one: a plugin's catalogs live in
+  its frontend bundle and load when its component mounts, while the bell is shell chrome that renders where
+  that never happens. A plugin now sends one finished sentence per locale. §7.4 wrote `Notifier notify()`,
+  which cannot compile: `Object.notify()` is `final` in Java. It is `notifier()`, and `ctx.notify` in
+  TypeScript.
 
 - **The plugin contract moves to `platformApi` 0.13.0.** That check is an exact `major.minor` match, so
   **every installed plugin must be rebuilt against SDK 0.13.0 or it will not load** — `plugins/bingo`,

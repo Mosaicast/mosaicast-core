@@ -20,6 +20,8 @@ import type {
   TagsClient,
   TranslationClient,
   TranslationRequest,
+  NotifyClient,
+  NotifyMessage,
   UserDirectory,
   UserRef,
   TranslationResult,
@@ -314,6 +316,27 @@ export function makePluginUsers(pluginId: string): UserDirectory {
       const asked = ids.slice(0, USER_RESOLVE_LIMIT);
       return api.get<UserRef[]>(`${base}?ids=${asked.map(encodeURIComponent).join(',')}`);
     },
+  };
+}
+
+/**
+ * `ctx.notify` — puts a message in other users' inboxes (ARCHITECTURE §17.1).
+ *
+ * The one plugin surface that writes into somebody *else's* view of the site, so almost all of its
+ * behaviour is the host's: eligibility, rate limits and link validation all happen server-side, and this
+ * client is a thin post. It resolves with the ids actually notified, which is shorter than the request
+ * whenever a recipient has gone or is over their window.
+ */
+export function makePluginNotify(pluginId: string): NotifyClient {
+  return {
+    send: (userIds: string[], msg: NotifyMessage) =>
+      userIds.length === 0
+        ? Promise.resolve([])
+        : api.post<string[]>(`/api/plugins/${pluginId}/notify`, {
+            userIds,
+            text: msg.text,
+            link: msg.link ?? null,
+          }),
   };
 }
 

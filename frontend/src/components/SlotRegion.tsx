@@ -116,6 +116,7 @@ export function SlotRegion({
             hasBlobs={mount.hasBlobs}
             hasTags={mount.hasTags}
             hasIdentity={mount.hasIdentity}
+            hasNotifications={mount.hasNotifications}
             hasTranslation={mount.hasTranslation}
           />
         </SlotErrorBoundary>

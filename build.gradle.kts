@@ -120,7 +120,7 @@ tasks.processResources {
 // manifest differs (good loads; broken has an incompatible platformApi; schema declares "schema" storage
 // with no entities; wikifix declares a real one readable anonymously and wikilocked the same one behind a
 // podcaster read floor; nopage loads but declares no `page` slot; translator declares external translation at
-// the default podcaster floor and translatoropen the same kind at `anonymous`, directory an `identity` block)
+// the default podcaster floor and translatoropen the same kind at `anonymous`, directory an `identity` and a `notifications` block)
 // so the test can assert failure
 // isolation, the deep-link 404, the schema surface's access rules and the external floor.
 // Only when the test-only fixture project is present (it is absent from the production Docker build context,
