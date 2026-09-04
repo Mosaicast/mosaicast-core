@@ -12,6 +12,25 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Added
+
+- **Users can choose their own display name (ARCHITECTURE §8.6).** Prefilled from the provider at sign-up
+  and never overwritten by a later login — with several identities linked there is no non-arbitrary answer
+  to which provider's name would win. Names are unique on a canonical `display_key` that folds NFKC,
+  invisible characters, whitespace and cross-script lookalikes, so `Maritime` and a Cyrillic-a `Mаritime`
+  cannot both exist, without lower-casing what a visitor reads. A separate and more aggressive key
+  (leetspeak folded, punctuation removed) matches the operator's blocked-word list, which ships **empty**
+  and lives in configuration rather than code: a default list would be English-only and would read as this
+  project's opinion of which words are unacceptable.
+  - Renames are rate-limited and recorded. That history is personal data, so it is retention-capped and
+    erased with the account — otherwise the mechanism that lets someone shed a name becomes a permanent
+    record of every name they tried to leave behind.
+  - Refusals are RFC 7807 with a stable type per reason (`display-name-invalid` / `-refused` / `-taken` /
+    `-locked`), because the four ask different things of the reader and the UI translates on the type
+    rather than on an English sentence.
+  - Sign-up cannot fail over a name: a provider name that is rude, malformed or already taken falls back
+    to a generated one. A naming policy that can block a login is a worse bug than a bad name.
+
 ### Fixed
 
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
