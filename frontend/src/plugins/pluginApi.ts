@@ -20,6 +20,8 @@ import type {
   TagsClient,
   TranslationClient,
   TranslationRequest,
+  UserDirectory,
+  UserRef,
   TranslationResult,
 } from '@mosaicast/plugin-sdk';
 import { DISPLAY_BATCH_LIMIT, DOC_KEY_PATTERN, declaredTypeFor } from '@mosaicast/plugin-sdk';
@@ -290,6 +292,34 @@ export function makePluginBlobs(pluginId: string): BlobClient {
  * the host refusing a capability, not a transient failure: it will not start working, and the shell decides
  * up front whether to offer the write at all.
  */
+/**
+ * `ctx.users` — resolves user ids to people (ARCHITECTURE §8.8).
+ *
+ * The batch is clamped rather than rejected, matching `feeds` and `tags`: a plugin drawing a long
+ * leaderboard gets an answer, not an error. The host clamps too, so this is a courtesy rather than the
+ * boundary.
+ *
+ * Unresolvable ids come back **absent, not redacted** — the array may be shorter than the request and is
+ * not aligned with it, which is why callers are told to key on `id`.
+ */
+export function makePluginUsers(pluginId: string): UserDirectory {
+  const base = `/api/plugins/${pluginId}/users`;
+  return {
+    resolve: (ids: string[]) => {
+      if (ids.length === 0) {
+        // Answered without a round trip: the empty case is the normal state of a leaderboard nobody has
+        // played yet, and the contract says it resolves rather than rejects.
+        return Promise.resolve([]);
+      }
+      const asked = ids.slice(0, USER_RESOLVE_LIMIT);
+      return api.get<UserRef[]>(`${base}?ids=${asked.map(encodeURIComponent).join(',')}`);
+    },
+  };
+}
+
+/** The most ids the host resolves in one call; beyond this the rest are ignored, on both sides. */
+const USER_RESOLVE_LIMIT = 500;
+
 export function makePluginTags(pluginId: string): TagsClient {
   const base = `/api/plugins/${pluginId}`;
   const tagPath = (tag: string) => `${base}/tags/${encodeURIComponent(tag)}`;

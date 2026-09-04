@@ -78,7 +78,20 @@ describe('buildCtx', () => {
       avatarProvider: null,
       role: 'podcaster',
     };
-    expect(buildCtx({ ...base, user }).user).toEqual({ id: 'u1', role: 'podcaster' });
+    // The visitor's own name and picture ride along since §8.8 — telling a plugin who its own viewer is
+    // discloses nothing the viewer does not already know. `avatarProvider` deliberately does not: which
+    // account supplies the picture is the user's business, not the plugin's.
+    expect(buildCtx({ ...base, user }).user).toEqual({
+      id: 'u1',
+      role: 'podcaster',
+      displayName: 'U',
+      avatarUrl: '/api/users/u1/avatar',
+    });
+  });
+
+  it('hands over ctx.users only when the manifest declared identity (§8.8)', () => {
+    expect(buildCtx(base).users).toBeNull();
+    expect(buildCtx({ ...base, hasIdentity: true }).users).not.toBeNull();
   });
 
   it('falls back to default theme tokens when none provided', () => {

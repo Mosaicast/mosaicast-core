@@ -27,6 +27,7 @@ public class PluginContextImpl implements PluginContext {
     private final SchemaStore schema;
     private final dev.mosaicast.plugin.api.PluginBlobs blobs;
     private final Tags tags;
+    private final dev.mosaicast.plugin.api.Users users;
     private final PluginConfig config;
     private final FeedAccess feeds;
     private final dev.mosaicast.plugin.api.Locales locales;
@@ -35,7 +36,8 @@ public class PluginContextImpl implements PluginContext {
     private int scheduleCount;
 
     public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
-                             dev.mosaicast.plugin.api.PluginBlobs blobs, Tags tags, PluginConfig config,
+                             dev.mosaicast.plugin.api.PluginBlobs blobs, Tags tags,
+                             dev.mosaicast.plugin.api.Users users, PluginConfig config,
                              FeedAccess feeds, dev.mosaicast.plugin.api.Locales locales,
                              dev.mosaicast.plugin.api.Translation translation,
                              PluginScheduler scheduler) {
@@ -44,6 +46,7 @@ public class PluginContextImpl implements PluginContext {
         this.schema = schema;
         this.blobs = blobs;
         this.tags = tags;
+        this.users = users;
         this.config = config;
         this.feeds = feeds;
         this.locales = locales;
@@ -119,6 +122,16 @@ public class PluginContextImpl implements PluginContext {
      * The site's shared tag vocabulary, or {@code null} for a plugin whose manifest declares no {@code tags}
      * block (§6.1) — the same null-means-not-declared shape as {@link #schema()} and {@link #blobs()}.
      */
+    /**
+     * Resolves user ids to people, or {@code null} for a plugin whose manifest declares no {@code identity}
+     * block (§8.8) — the same null-means-not-declared shape as {@link #schema()}, {@link #blobs()} and
+     * {@link #tags()}.
+     */
+    @Override
+    public dev.mosaicast.plugin.api.Users users() {
+        return users;
+    }
+
     @Override
     public Tags tags() {
         return tags;

@@ -1,26 +1,28 @@
 {
-  "id": "translator",
+  "id": "directory",
   "version": "1.0.0",
   "platformApi": "0.13.0",
-  "name": "Translator Fixture",
+  "name": "Directory Fixture",
   "frontend": {
     "entry": "fixture.js",
     "elements": [
-      "translator-card"
+      "directory-card"
     ]
   },
   "slots": [
     {
       "scope": "site",
-      "element": "translator-card",
+      "element": "directory-card",
       "placement": "sidebar",
       "visibleTo": "anonymous"
     }
   ],
   "storage": "doc",
-  "external": {
-    "kinds": [
-      "translation"
-    ]
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster"
+  },
+  "identity": {
+    "resolvesUsers": true
   }
 }
