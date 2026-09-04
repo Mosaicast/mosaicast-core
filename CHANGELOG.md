@@ -98,8 +98,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     nothing reaches a user who never touched the plugin. Ineligible recipients are *dropped*, not rejected —
     an erased account is the ordinary case, and one stale participant must not cost the others their
     notification.
-  - **The limits are the host's**: per recipient per window, plus a ceiling on one call. A limit a plugin
-    enforces is a limit a plugin can drop.
+  - **The limits are the host's**: per recipient per window, plus a ceiling on one call. The manifest's
+    `perUserPerDay` is what a plugin *asks* for and the operator's `hard-per-user-per-day` is what it gets —
+    the same ask-and-cap shape as blob quotas, because without a ceiling a manifest number would be a plugin
+    setting its own limit, which is not a limit.
   - **Links are internal**, and only into the plugin's own subtree or a core page. A notification is chrome
     the site speaks through, and a plugin that could aim one off-site could phish the site's own users in
     the site's own voice.

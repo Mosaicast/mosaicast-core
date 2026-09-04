@@ -213,7 +213,7 @@ public class PluginLoaderService implements ApplicationRunner {
         // and nowhere else (§7.2, §8.8).
         dev.mosaicast.plugin.api.Users users = manifest.declaresIdentity() ? new UsersImpl(userRepository) : null;
         dev.mosaicast.plugin.api.Notifier notifier = manifest.declaresNotifications()
-                ? new NotifierImpl(manifest.id(), pluginDataRepository, notifications, notifyLimiter)
+                ? new NotifierImpl(manifest, pluginDataRepository, notifications, notifyLimiter)
                 : null;
         return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, users, notifier, config, feedAccess, locales,
                 translation, scheduler);

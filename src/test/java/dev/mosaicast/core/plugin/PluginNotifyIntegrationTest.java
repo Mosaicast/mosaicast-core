@@ -175,6 +175,28 @@ class PluginNotifyIntegrationTest {
     }
 
     @Test
+    void thePerRecipientAllowanceComesFromTheManifest() {
+        // Spent against the *podcaster*, not the fan. The limiter is in-memory and lives for the whole
+        // context, so burning the fan's window here would drop the sends every other test in this class
+        // makes — and the failure would surface in whichever test ran next.
+        pluginData.save(new PluginData(
+                new PluginDataKey("directory", "USER", podcasterId.toString(), "card"),
+                tools.jackson.databind.node.JsonNodeFactory.instance.objectNode()));
+
+        // The `directory` fixture asks for 5/day, so the sixth is dropped for that recipient: the manifest
+        // number is a real limit rather than documentation (§17.1).
+        for (int i = 0; i < 5; i++) {
+            assertThat(send("""
+                    {"userIds":["%s"],"text":{"en":"message %d"}}""".formatted(podcasterId, i))
+                    .getBody()).contains(podcasterId.toString());
+        }
+        assertThat(send("""
+                {"userIds":["%s"],"text":{"en":"one too many"}}""".formatted(podcasterId)).getBody())
+                .doesNotContain(podcasterId.toString());
+        assertThat(notifications.findAll()).hasSize(5);
+    }
+
+    @Test
     void theManifestTellsTheShellWhichPluginsMaySend() {
         ResponseEntity<String> manifest = rest.getForEntity("/api/plugins/manifest", String.class);
         assertThat(manifest.getBody())

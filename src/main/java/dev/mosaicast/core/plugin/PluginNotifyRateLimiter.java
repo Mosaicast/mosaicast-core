@@ -14,9 +14,9 @@ import org.springframework.stereotype.Component;
  * How much one plugin may say, and to whom (ARCHITECTURE §17.1).
  *
  * <p><strong>The limits are the host's.</strong> A plugin declares what it <em>asks</em> for in its
- * manifest and the operator's ceiling is what it gets — but neither number is enforced by the plugin,
- * because a limit a plugin enforces is a limit a plugin can drop, and this is the one surface where
- * dropping it reaches other people.
+ * manifest and the operator's ceiling is what it gets — the same ask-and-cap shape as blob quotas (§11.1).
+ * Neither number is enforced by the plugin, because a limit a plugin enforces is a limit a plugin can
+ * drop, and this is the one surface where dropping it reaches other people.
  *
  * <p>Two limits, because they stop different things. The <strong>per-recipient</strong> window stops one
  * user being buried by a plugin that has confused a loop for a schedule; exhausting it costs that user
@@ -29,24 +29,38 @@ import org.springframework.stereotype.Component;
 @Component
 public class PluginNotifyRateLimiter {
 
-    /** How many notifications one plugin may send one user inside {@link #RECIPIENT_WINDOW}. */
-    private static final int PER_RECIPIENT = 5;
-
     private static final Duration RECIPIENT_WINDOW = Duration.ofDays(1);
 
-    /** The most recipients one call may reach — a page of a leaderboard, not a mailing list. */
-    private static final int MAX_BATCH = 200;
-
     private final FixedWindowRateLimiter recipients = new FixedWindowRateLimiter();
+    private final PluginNotifyProperties properties;
+
+    public PluginNotifyRateLimiter(PluginNotifyProperties properties) {
+        this.properties = properties;
+    }
+
+    /**
+     * The daily allowance this plugin actually has for one recipient.
+     *
+     * <p>The smaller of what the manifest asked for and what the operator permits, so a plugin may hold
+     * itself to less than the ceiling but never reach past it. A manifest that asks for nothing gets the
+     * operator's default rather than zero — an absent number is "no opinion", not "never send".
+     *
+     * @param manifest the sending plugin's manifest
+     */
+    public int perRecipientAllowance(PluginManifest manifest) {
+        Integer asked = manifest.notifications() == null ? null : manifest.notifications().perUserPerDay();
+        int wanted = asked == null || asked <= 0 ? properties.defaultPerUserPerDay() : asked;
+        return Math.min(wanted, properties.hardPerUserPerDay());
+    }
 
     /**
      * Whether this plugin may notify this user right now.
      *
      * @return false when that one recipient's window is spent; the rest of the batch is unaffected
      */
-    public boolean tryRecipient(String pluginId, UUID userId) {
-        return recipients.check(pluginId + "|" + userId, PER_RECIPIENT, RECIPIENT_WINDOW,
-                Instant.now()).allowed();
+    public boolean tryRecipient(String pluginId, UUID userId, int allowance) {
+        return recipients.check(pluginId + "|" + userId, allowance, RECIPIENT_WINDOW, Instant.now())
+                .allowed();
     }
 
     /**
@@ -56,9 +70,9 @@ public class PluginNotifyRateLimiter {
      *                               sender is expected to hold the batch and split it, not drop it
      */
     public void checkBatch(String pluginId, int recipientCount) throws NotificationException {
-        if (recipientCount > MAX_BATCH) {
+        if (recipientCount > properties.maxBatch()) {
             throw new NotificationException(NotificationException.Reason.RATE_LIMITED,
-                    "A notification may reach at most " + MAX_BATCH + " users in one call");
+                    "A notification may reach at most " + properties.maxBatch() + " users in one call");
         }
     }
 }

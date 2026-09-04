@@ -119,6 +119,15 @@ mosaicast:
     # per page view.
     failure-ttl: ${MOSAICAST_AVATAR_FAILURE_TTL:1m}
     timeout: ${MOSAICAST_AVATAR_TIMEOUT:5s}
+  # What a plugin may send through the inbox (ARCHITECTURE §17.1). Two kinds of number, the same shape blob
+  # quotas use: `default-` is what a plugin gets when its manifest names none, `hard-` is the ceiling no
+  # manifest can reach past. Without the second, `perUserPerDay` in a manifest would be a plugin setting its
+  # own limit — which is not a limit.
+  plugin-notifications:
+    default-per-user-per-day: ${MOSAICAST_PLUGIN_NOTIFY_DEFAULT:5}
+    hard-per-user-per-day: ${MOSAICAST_PLUGIN_NOTIFY_HARD:20}
+    # The most recipients one call may reach — a page of a leaderboard, not a mailing list.
+    max-batch: ${MOSAICAST_PLUGIN_NOTIFY_MAX_BATCH:200}
   # The notification inbox (ARCHITECTURE §17.2). An inbox nobody empties is not a feature, and an
   # unbounded one is a table that only grows — so read notifications expire and unread ones are capped.
   notifications:

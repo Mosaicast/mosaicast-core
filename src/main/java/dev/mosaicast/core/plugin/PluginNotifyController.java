@@ -76,6 +76,7 @@ public class PluginNotifyController {
         // Constructed here rather than injected, so the SDK's own validation — a non-blank sentence per
         // locale, and an `en` entry — runs on browser input exactly as it does on a backend call.
         NotifyMessage message = new NotifyMessage(request.text(), request.link());
-        return new NotifierImpl(id, data, notifications, limiter).send(request.userIds(), message);
+        return new NotifierImpl(registration.manifest(), data, notifications, limiter)
+                .send(request.userIds(), message);
     }
 }

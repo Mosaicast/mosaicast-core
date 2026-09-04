@@ -43,14 +43,16 @@ public class NotifierImpl implements Notifier {
 
     private static final Logger log = LoggerFactory.getLogger(NotifierImpl.class);
 
+    private final PluginManifest manifest;
     private final String pluginId;
     private final PluginDataRepository data;
     private final NotificationService notifications;
     private final PluginNotifyRateLimiter limiter;
 
-    public NotifierImpl(String pluginId, PluginDataRepository data, NotificationService notifications,
-                        PluginNotifyRateLimiter limiter) {
-        this.pluginId = pluginId;
+    public NotifierImpl(PluginManifest manifest, PluginDataRepository data,
+                        NotificationService notifications, PluginNotifyRateLimiter limiter) {
+        this.manifest = manifest;
+        this.pluginId = manifest.id();
         this.data = data;
         this.notifications = notifications;
         this.limiter = limiter;
@@ -73,13 +75,15 @@ public class NotifierImpl implements Notifier {
         // plugin is over its allowance — a scheduled sender retrying a partially-delivered batch would
         // notify the first half twice.
         limiter.checkBatch(pluginId, eligible.size());
+        // The smaller of what this plugin's manifest asked for and what the operator permits.
+        int allowance = limiter.perRecipientAllowance(manifest);
 
         List<UUID> notified = new ArrayList<>();
         for (UUID userId : asked) {
             if (!eligible.contains(userId.toString())) {
                 continue;
             }
-            if (!limiter.tryRecipient(pluginId, userId)) {
+            if (!limiter.tryRecipient(pluginId, userId, allowance)) {
                 // Per-recipient exhaustion is a property of that one user, not of the batch: the others
                 // still get theirs, and the caller sees the absence in the returned ids.
                 continue;
