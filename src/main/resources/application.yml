@@ -26,7 +26,12 @@ spring:
           json_format_mapper: dev.mosaicast.core.config.Jackson3JsonFormatMapper
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # SQL migrations, plus a package for the rare migration that must call application code. V33 backfills
+    # `display_key` with the same canonicaliser the runtime validator uses (ARCHITECTURE §8.6) — a SQL
+    # approximation of it would disagree on some unicode nobody anticipated, and the symptom would be a
+    # unique index rejecting names the validator had just accepted. Java migrations are found by package,
+    # which is why the second entry is a package path and not a resource directory.
+    locations: classpath:db/migration, classpath:dev/mosaicast/core/db/migration
   servlet:
     multipart:
       # The container-level ceiling, above every endpoint's own (ARCHITECTURE §13 upload limits). It has to
@@ -97,6 +102,31 @@ mosaicast:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
     bootstrap-external-id: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:}
+  # What a display name may be (ARCHITECTURE §8.6). The lists live in configuration and not in code because
+  # an operator's language and jurisdiction are not ours to guess: a German-market install needs German
+  # slurs, a self-hoster needs their own list, and neither should have to fork the host to get one.
+  #
+  # `blocked` ships empty on purpose. A default list would be English-only, would read as this project's
+  # opinion of which words are unacceptable, and would silently under-serve every other market — the two
+  # locales the shell ships (§12.7) are already more than one such list could cover. §8.6 is explicit that
+  # this is a speed bump anyway: word lists lose to compounds and produce false positives, and the actual
+  # control is the admin revert (§8.6.1).
+  display-name:
+    min-length: ${MOSAICAST_DISPLAY_NAME_MIN:3}
+    max-length: ${MOSAICAST_DISPLAY_NAME_MAX:32}
+    # How long after changing their name a user must wait to change it again. Also the freeze an admin
+    # revert applies, so a reverted name does not simply go straight back.
+    rename-cooldown: ${MOSAICAST_DISPLAY_NAME_COOLDOWN:24h}
+    # Matched on the whole canonical key: `admin` is taken, `administrator` is a plausible person.
+    reserved:
+      - admin
+      - administrator
+      - moderator
+      - system
+      - support
+      - mosaicast
+    # Matched as substrings of the aggressive key (leetspeak folded, punctuation removed).
+    blocked: []
   feed:
     # Whether a feed URL may point at a private address (loopback, link-local, RFC-1918, ...).
     #

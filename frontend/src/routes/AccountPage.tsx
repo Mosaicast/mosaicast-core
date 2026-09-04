@@ -27,6 +27,10 @@ export function AccountPage() {
   const [newName, setNewName] = useState('');
   const [created, setCreated] = useState<CreatedToken | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [displayName, setDisplayName] = useState('');
+  /** The refusal, translated from the problem type rather than from the server's English (§8.6). */
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [nameSaved, setNameSaved] = useState(false);
 
   const loadIdentities = () => api.get<Identity[]>('/api/me/identities').then(setIdentities).catch(() => {});
   const loadTokens = () => api.get<Token[]>('/api/me/tokens').then(setTokens).catch(() => {});
@@ -36,12 +40,43 @@ export function AccountPage() {
     void loadTokens();
   }, []);
 
+  // Seeded once the user is known, and only when the field is still untouched — refetching the profile
+  // (which `refresh()` does after a successful rename) must not overwrite what someone is mid-way through
+  // typing.
+  useEffect(() => {
+    if (user && displayName === '') {
+      setDisplayName(user.displayName);
+    }
+  }, [user]);
+
   if (!user) {
     return null;
   }
 
   const linkedCount = identities.filter((i) => i.linked).length;
   const canCreateToken = user.role === 'admin' || user.role === 'podcaster';
+
+  /**
+   * Saves a new display name (ARCHITECTURE §8.6).
+   *
+   * The refusal is translated from the problem `type`, not from the server's message: the four reasons ask
+   * four different things of the reader, and matching English here would leave the German UI printing an
+   * English sentence (§12.7).
+   */
+  const saveDisplayName = async () => {
+    setNameError(null);
+    setNameSaved(false);
+    try {
+      await api.patch('/api/me', { displayName: displayName.trim() });
+      await refresh();
+      setNameSaved(true);
+    } catch (e) {
+      const type = e instanceof ApiError ? (e.problem?.type ?? '') : '';
+      const reason = type.split('/').pop() ?? '';
+      const known = ['display-name-invalid', 'display-name-refused', 'display-name-taken', 'display-name-locked'];
+      setNameError(known.includes(reason) ? t(`account.name.${reason}`) : t('account.name.failed'));
+    }
+  };
 
   const connect = (provider: string) => {
     window.location.href = `/oauth2/authorization/${provider}`;
@@ -104,6 +139,43 @@ export function AccountPage() {
       </div>
 
       {error && <p className="mc-error">{error}</p>}
+
+      {/*
+        The name is the only thing about a listener other people see (§8.6), so the field says so rather
+        than leaving someone to discover it on a leaderboard. Prefilled from the provider at sign-up and
+        editable ever since; the host never overwrites it on a later login.
+      */}
+      <h2>{t('account.name.heading')}</h2>
+      <div className="mc-name-edit">
+        <label className="mc-field">
+          <span>{t('account.name.label')}</span>
+          <input
+            className="mc-input"
+            type="text"
+            value={displayName}
+            maxLength={64}
+            aria-describedby="mc-name-help"
+            onChange={(e) => {
+              setDisplayName(e.target.value);
+              setNameError(null);
+              setNameSaved(false);
+            }}
+          />
+        </label>
+        <button
+          type="button"
+          className="mc-btn mc-btn--accent"
+          disabled={!displayName.trim() || displayName.trim() === user.displayName}
+          onClick={saveDisplayName}
+        >
+          {t('account.name.save')}
+        </button>
+      </div>
+      <p id="mc-name-help" className="mc-muted">
+        {t('account.name.help')}
+      </p>
+      {nameError && <p className="mc-error">{nameError}</p>}
+      {nameSaved && <p className="mc-muted">{t('account.name.saved')}</p>}
 
       {/*
         Duplicated deliberately from the privacy settings: this is where a signed-in listener looks for it,

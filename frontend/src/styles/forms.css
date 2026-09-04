@@ -94,6 +94,18 @@
   margin: 1.75rem 0 0.75rem;
   font-size: 1.15rem;
 }
+/* Field and button on one line where there is room, stacked where there is not — the button carries no
+   icon, so it must keep its label and cannot shrink below it. */
+.mc-name-edit {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+.mc-name-edit .mc-field {
+  flex: 1 1 16rem;
+  margin: 0;
+}
 .mc-error {
   color: var(--mc-danger);
 }

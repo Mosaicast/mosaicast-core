@@ -28,17 +28,38 @@ public class MeController {
     private static final List<String> SUPPORTED_PROVIDERS = List.of("discord");
 
     private final AccountService accounts;
+    private final DisplayNameService displayNames;
     private final dev.mosaicast.core.erasure.AccountErasureService erasures;
 
-    public MeController(AccountService accounts,
+    public MeController(AccountService accounts, DisplayNameService displayNames,
                         dev.mosaicast.core.erasure.AccountErasureService erasures) {
         this.accounts = accounts;
+        this.displayNames = displayNames;
         this.erasures = erasures;
     }
 
     @GetMapping
     public MeView me(Authentication authentication) {
         return MeView.of(accounts.requireUser(currentUserId(authentication)));
+    }
+
+    /** A requested display name (§8.6). */
+    public record ProfileRequest(@jakarta.validation.constraints.NotBlank String displayName) {
+    }
+
+    /**
+     * Changes the caller's display name (ARCHITECTURE §8.6).
+     *
+     * <p>Refusals are RFC 7807 with a stable type per reason, because the four are not one error: too long,
+     * not available, already taken and changed too recently need four different things from the person
+     * reading them, and the UI translates on the type rather than on an English sentence (§13).
+     */
+    @org.springframework.web.bind.annotation.PatchMapping
+    public MeView updateProfile(@jakarta.validation.Valid @org.springframework.web.bind.annotation.RequestBody
+                                ProfileRequest request, Authentication authentication) {
+        UUID userId = currentUserId(authentication);
+        displayNames.rename(userId, request.displayName());
+        return MeView.of(accounts.requireUser(userId));
     }
 
     @GetMapping("/identities")

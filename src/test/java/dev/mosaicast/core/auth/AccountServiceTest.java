@@ -38,11 +38,22 @@ class AccountServiceTest {
     @Mock
     private LinkedIdentityRepository identities;
 
+    @Mock
+    private UserNameHistoryRepository nameHistory;
+
     private AccountService service;
+
+    /**
+     * Real, not mocked: naming a new account is part of what {@code resolveLogin} does, and a stub would
+     * assert that the merging rules call <em>something</em> rather than that a sign-up ends up with a name.
+     */
+    private DisplayNameService displayNames;
 
     @BeforeEach
     void setUp() {
-        service = new AccountService(users, identities, new AuthProperties("", ""));
+        displayNames = new DisplayNameService(
+                users, nameHistory, new DisplayNameProperties(null, null, null, List.of(), List.of()));
+        service = new AccountService(users, identities, new AuthProperties("", ""), displayNames);
         lenient().when(users.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(identities.save(any(LinkedIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -54,7 +65,7 @@ class AccountServiceTest {
     @Test
     void case1_knownIdentity_logsInExistingUser() {
         UUID userId = UUID.randomUUID();
-        User existingUser = User.create("Alex", null, Role.FAN);
+        User existingUser = User.create(UUID.randomUUID(), "Alex", "alex", null, Role.FAN);
         LinkedIdentity identity = LinkedIdentity.link(userId, "discord", "E1", "old@x.io", false);
         when(identities.findByProviderAndExternalId("discord", "E1")).thenReturn(Optional.of(identity));
         when(users.findById(userId)).thenReturn(Optional.of(existingUser));
@@ -71,7 +82,7 @@ class AccountServiceTest {
     @Test
     void case2_newIdentityWhileLoggedIn_attachesToCurrentUser() {
         UUID currentUserId = UUID.randomUUID();
-        User current = User.create("Alex", null, Role.PODCASTER);
+        User current = User.create(UUID.randomUUID(), "Alex", "alex", null, Role.PODCASTER);
         when(identities.findByProviderAndExternalId("patreon", "P9")).thenReturn(Optional.empty());
         when(users.findById(currentUserId)).thenReturn(Optional.of(current));
 
@@ -158,7 +169,7 @@ class AccountServiceTest {
     @Test
     void bootstrapIdentity_isPromotedToAdmin() {
         AccountService bootstrapService =
-                new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"));
+                new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"), displayNames);
         when(identities.findByProviderAndExternalId("discord", "ADMIN123")).thenReturn(Optional.empty());
         when(identities.findByEmailAndEmailVerifiedTrue(any())).thenReturn(List.of());
 

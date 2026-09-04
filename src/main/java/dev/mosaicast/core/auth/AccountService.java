@@ -44,11 +44,14 @@ public class AccountService {
     private final UserRepository users;
     private final LinkedIdentityRepository identities;
     private final AuthProperties auth;
+    private final DisplayNameService displayNames;
 
-    public AccountService(UserRepository users, LinkedIdentityRepository identities, AuthProperties auth) {
+    public AccountService(UserRepository users, LinkedIdentityRepository identities, AuthProperties auth,
+                          DisplayNameService displayNames) {
         this.users = users;
         this.identities = identities;
         this.auth = auth;
+        this.displayNames = displayNames;
     }
 
     /**
@@ -102,7 +105,14 @@ public class AccountService {
         }
 
         // Otherwise: a brand-new account (default role FAN; the bootstrap identity is promoted below).
-        User created = users.save(User.create(claim.displayName(), claim.avatarUrl(), Role.FAN));
+        //
+        // The provider's name is a *proposal*, not the name (§8.6). It is prefilled once and never
+        // overwritten by a later login, and it has to survive being unusable: display names are unique now,
+        // so a second Discord user called "alex" would otherwise be unable to sign in at all. `initial`
+        // therefore falls back rather than refusing — a naming policy must never become a login failure.
+        UUID id = UUID.randomUUID();
+        DisplayNameService.Name name = displayNames.initial(id, claim.displayName());
+        User created = users.save(User.create(id, name.display(), name.key(), claim.avatarUrl(), Role.FAN));
         attach(created.getId(), claim, email);
         // No email in the log: an account id and the provider identify the event without storing a
         // personal identifier in a table an operator browses casually.
