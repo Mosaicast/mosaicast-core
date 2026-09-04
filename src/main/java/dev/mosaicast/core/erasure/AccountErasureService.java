@@ -62,12 +62,14 @@ public class AccountErasureService {
     private final LinkedIdentityRepository identities;
     private final PersonalAccessTokenRepository tokens;
     private final ListeningProgressRepository progress;
+    private final dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory;
 
     public AccountErasureService(PluginLoaderService plugins, PluginExtensions extensions,
                                  PluginDataService pluginData, UserDataErasureRepository erasures,
                                  UserRepository users, LinkedIdentityRepository identities,
                                  PersonalAccessTokenRepository tokens,
-                                 ListeningProgressRepository progress) {
+                                 ListeningProgressRepository progress,
+                                 dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory) {
         this.plugins = plugins;
         this.extensions = extensions;
         this.pluginData = pluginData;
@@ -76,6 +78,7 @@ public class AccountErasureService {
         this.identities = identities;
         this.tokens = tokens;
         this.progress = progress;
+        this.nameHistory = nameHistory;
     }
 
     /**
@@ -105,6 +108,12 @@ public class AccountErasureService {
         progress.deleteByIdUserId(userId);
         tokens.deleteByUserId(userId);
         identities.deleteByUserId(userId);
+        // Named explicitly rather than left to the foreign key's cascade, like the four above it: every
+        // personal thing core holds should be visible in this list, or the next person adding a table has
+        // no way to notice that it belongs here too. It also matters more than most — a name history that
+        // outlived its account would be a record of names someone left behind, kept past the account they
+        // left them in (§8.6).
+        nameHistory.deleteByUserId(userId);
         users.deleteById(userId);
 
         log.info("Erased account {}: {} user-scoped plugin document(s), {} plugin(s) still outstanding",

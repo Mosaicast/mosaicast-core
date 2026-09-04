@@ -100,6 +100,26 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * A display name the host will not take (ARCHITECTURE §8.6).
+     *
+     * <p>A type and a status per reason, following the external-service vocabulary in §16: "too long",
+     * "not available", "already taken" and "not yet" ask four different things of the person reading them,
+     * and a UI that has to tell them apart by matching English cannot be translated (§13, §12.7).
+     */
+    @ExceptionHandler(dev.mosaicast.core.auth.DisplayNameRejectedException.class)
+    public ProblemDetail handleDisplayNameRejected(
+            dev.mosaicast.core.auth.DisplayNameRejectedException ex, WebRequest request) {
+        HttpStatus status = ex.getReason() == dev.mosaicast.core.auth.DisplayNameRejectedException.Reason.INVALID
+                ? HttpStatus.BAD_REQUEST
+                : HttpStatus.CONFLICT;
+        String slug = ex.getReason().name().toLowerCase(java.util.Locale.ROOT);
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, ex.getMessage());
+        problem.setTitle("Display name rejected");
+        problem.setType(URI.create("https://mosaicast.dev/problems/display-name-" + slug));
+        return problem;
+    }
+
     @ExceptionHandler(ConflictException.class)
     public ProblemDetail handleConflict(ConflictException ex, WebRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
