@@ -137,6 +137,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Plugin per-user data was addressed with the wrong case, so two features silently did nothing
+  (`0.7.0`, §17.1/§12.8).** `plugin_data.scope_type` is written lower-cased by `DataScope`, but two queries
+  compared it against `'USER'`.
+  - `userScopesHeldBy` — the eligibility rule behind `ctx.notify`. It matched no rows, so **no plugin could
+    notify anybody**: every send reported success and reached nobody.
+  - `deleteUserScope` — account erasure. It deleted nothing, so **every account deletion left the plugin's
+    per-user documents behind** while the receipt still said `"complete": true`, because core counts what it
+    asked to delete rather than what went. Present since deletion first reached a plugin's data.
+  - Both queries now take the scope type as a parameter from one shared constant, alongside the three that
+    were already correct. Spelling it inline is what let them drift.
+  - The tests missed it because they seeded rows by hand in the case the query expected, so test and code
+    agreed with each other and with nothing else. They now write through the store the host uses.
+  - Also `DataScope.typeColumn()` lower-cases with `Locale.ROOT`: under a Turkish default `EPISODE` became
+    `epısode`, a scope type nothing could read back.
+
+
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
   `.env.example` has documented it since external services landed, and both files read that same `.env`, so
   an operator pointing their instance at a self-hosted LibreTranslate set the value, saw no error, and had
