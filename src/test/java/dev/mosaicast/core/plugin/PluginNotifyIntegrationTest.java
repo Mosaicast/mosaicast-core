@@ -8,6 +8,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import dev.mosaicast.core.auth.LinkedIdentityRepository;
 import dev.mosaicast.core.notification.NotificationRepository;
 import dev.mosaicast.core.support.DevLogin;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,9 @@ class PluginNotifyIntegrationTest {
     @Autowired
     private PluginDataRepository pluginData;
 
+    @Autowired
+    private PluginDataService pluginDataService;
+
     private Session fan;
     private UUID fanId;
     private UUID podcasterId;
@@ -78,11 +82,14 @@ class PluginNotifyIntegrationTest {
         podcasterId = userId("PODCASTER");
         notifications.deleteAll();
         pluginData.deleteAll();
-        // What makes a user notifiable is a row in the plugin's USER scope — which is also how they became
-        // a participant. There is no separate allow-list to keep in step (§17.1).
-        pluginData.save(new PluginData(
-                new PluginDataKey("directory", "USER", fanId.toString(), "card"),
-                tools.jackson.databind.node.JsonNodeFactory.instance.objectNode()));
+        // Written through the real store, not by hand.
+        //
+        // This class used to insert the row itself with scope type `USER` — a spelling the writer never
+        // produces, since `DataScope` stores it lower-cased. The eligibility query hardcoded the same wrong
+        // case, so the two agreed with each other and with nothing else: every assertion here passed while
+        // no plugin could notify anybody on a real instance. Seeding through the path production uses is
+        // the only version of this test that could have caught that.
+        writeUserDoc(fanId);
     }
 
     @Test
@@ -179,9 +186,7 @@ class PluginNotifyIntegrationTest {
         // Spent against the *podcaster*, not the fan. The limiter is in-memory and lives for the whole
         // context, so burning the fan's window here would drop the sends every other test in this class
         // makes — and the failure would surface in whichever test ran next.
-        pluginData.save(new PluginData(
-                new PluginDataKey("directory", "USER", podcasterId.toString(), "card"),
-                tools.jackson.databind.node.JsonNodeFactory.instance.objectNode()));
+        writeUserDoc(podcasterId);
 
         // The `directory` fixture asks for 5/day, so the sixth is dropped for that recipient: the manifest
         // number is a real limit rather than documentation (§17.1).
@@ -202,6 +207,23 @@ class PluginNotifyIntegrationTest {
         assertThat(manifest.getBody())
                 .contains("\"hasNotifications\":true")
                 .contains("\"hasNotifications\":false");
+    }
+
+    /** A per-user document for the `directory` plugin, written the way the host writes one. */
+    private void writeUserDoc(UUID userId) {
+        pluginDataService.putRaw("directory", DataScope.ofUser(userId), "card",
+                tools.jackson.databind.node.JsonNodeFactory.instance.objectNode());
+    }
+
+    @Test
+    void theStoredScopeTypeIsWhatTheEligibilityQueryLooksFor() {
+        // A direct guard on the mismatch that made every send a no-op: the writer lower-cases the scope
+        // type, so anything reading it back must use the same spelling and not a hand-written literal.
+        assertThat(pluginData.findAll())
+                .isNotEmpty()
+                .allSatisfy(d -> assertThat(d.getId().getScopeType()).isEqualTo(DataScope.USER_TYPE));
+        assertThat(pluginData.userScopesHeldBy("directory", DataScope.USER_TYPE, Set.of(fanId.toString())))
+                .containsExactly(fanId.toString());
     }
 
     private ResponseEntity<String> send(String body) {

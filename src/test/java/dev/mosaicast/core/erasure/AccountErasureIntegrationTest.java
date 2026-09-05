@@ -50,6 +50,9 @@ class AccountErasureIntegrationTest {
     @Autowired
     private TestRestTemplate rest;
 
+    @Autowired
+    private dev.mosaicast.core.plugin.PluginDataRepository pluginData;
+
     @Test
     void deletingAnAccountAsksEveryPluginAndSaysWhatIsLeft() {
         Session fan = devLogin("fan");
@@ -68,6 +71,15 @@ class AccountErasureIntegrationTest {
         // The plugin's own erasure is invisible to core by construction, so the fixture leaves a mark.
         assertThat(rest.getForEntity("/api/plugins/good/data/site/main/erased:" + userId, String.class)
                 .getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // The USER-scope document itself is gone, and this is asserted rather than assumed.
+        //
+        // It was not, for a long time: `deleteUserScope` matched `scope_type = 'USER'` while the writer
+        // stores it lower-cased, so the delete removed nothing and every erasure quietly left a plugin's
+        // per-user documents behind. The test above wrote the row and then only checked the receipt —
+        // which said "complete" either way, because core counts what it asked to delete, not what went.
+        assertThat(pluginData.findAll())
+                .noneMatch(d -> userId.equals(d.getId().getScopeId()));
 
         // And the host's half is gone: the session no longer authenticates anybody.
         assertThat(rest.exchange("/api/me", HttpMethod.GET, fan.plain(), String.class).getStatusCode())

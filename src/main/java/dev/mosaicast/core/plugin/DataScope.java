@@ -28,6 +28,15 @@ import java.util.UUID;
  */
 record DataScope(ScopeType type, String partitionId) {
 
+    /**
+     * The stored spelling of the {@code USER} scope type.
+     *
+     * <p>Exists because it was written out by hand in two queries and got the case wrong in both, while a
+     * third derived it correctly — so the three drifted apart immediately and silently. Everything that
+     * needs this value now reads it from here.
+     */
+    static final String USER_TYPE = ScopeType.USER.name().toLowerCase(java.util.Locale.ROOT);
+
     /** An entity scope, exactly as addressed. Canonicalisation to the slug form happens in the service. */
     static DataScope of(Scope scope) {
         return new DataScope(scope.type(), scope.id());
@@ -38,8 +47,13 @@ record DataScope(ScopeType type, String partitionId) {
         return new DataScope(ScopeType.USER, userId.toString());
     }
 
-    /** The lower-case scope type as stored in {@code plugin_data.scope_type}. */
+    /**
+     * The lower-case scope type as stored in {@code plugin_data.scope_type}.
+     *
+     * <p>{@code Locale.ROOT} rather than the default locale: {@code EPISODE} lower-cases to
+     * {@code epısode} under a Turkish default, which would write a scope type nothing can read back.
+     */
     String typeColumn() {
-        return type.name().toLowerCase();
+        return type.name().toLowerCase(java.util.Locale.ROOT);
     }
 }

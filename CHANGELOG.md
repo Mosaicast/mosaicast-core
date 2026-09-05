@@ -86,6 +86,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     from the admin user list, and **shown there with whether they were read** — the point of a warning is
     that somebody was told, and an admin who cannot see that is carrying the obligation blind.
   - **Rendered as text, never HTML**, whoever sent it.
+  - **Read is an explicit act.** A control per row, or following the notification's link — never on scroll
+    or on render, because a glance at a bell is not having read a warning and read state is what an admin
+    later relies on. There is no delete: retention clears read ones on its own, and a user who could delete
+    an admin warning would erase the record that they received it.
+  - The bell's badge carries the whole unread count; the panel shows the newest and offers **the ones it
+    did not show** — not a total — as a link to `/notifications`, the full paged inbox.
   - Bounded (§17.2): read notifications expire, unread ones are capped per user, and past the cap the
     *oldest* unread are trimmed — someone who has stopped reading their bell should still see what just
     happened. Notifications are erased with the account.
@@ -130,6 +136,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   `app_user.avatar_url` is gone.
 
 ### Fixed
+
+- **Plugin per-user data was addressed with the wrong case, so two features silently did nothing
+  (`0.7.0`, §17.1/§12.8).** `plugin_data.scope_type` is written lower-cased by `DataScope`, but two queries
+  compared it against `'USER'`.
+  - `userScopesHeldBy` — the eligibility rule behind `ctx.notify`. It matched no rows, so **no plugin could
+    notify anybody**: every send reported success and reached nobody.
+  - `deleteUserScope` — account erasure. It deleted nothing, so **every account deletion left the plugin's
+    per-user documents behind** while the receipt still said `"complete": true`, because core counts what it
+    asked to delete rather than what went. Present since deletion first reached a plugin's data.
+  - Both queries now take the scope type as a parameter from one shared constant, alongside the three that
+    were already correct. Spelling it inline is what let them drift.
+  - The tests missed it because they seeded rows by hand in the case the query expected, so test and code
+    agreed with each other and with nothing else. They now write through the store the host uses.
+  - Also `DataScope.typeColumn()` lower-cases with `Locale.ROOT`: under a Turkish default `EPISODE` became
+    `epısode`, a scope type nothing could read back.
+
 
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
   `.env.example` has documented it since external services landed, and both files read that same `.env`, so
