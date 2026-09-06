@@ -138,6 +138,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Marking a notification read closed the whole panel (`0.7.1`, §17).** `Dropdown` closed on *any* click
+  inside it, which suits a menu of links and not a panel you work through: pressing the tick on one row shut
+  the inbox, so reading three notifications meant reopening it three times and losing your place each time.
+  It now closes on selecting a `role="menuitem"` — which is what its own documentation already claimed — so
+  links still close it and in-place controls like "mark as read" do not. The existing test used a bare
+  `<button>` as its menu item, so it had been asserting the wrong behaviour with markup no caller writes.
+
 - **Plugin per-user data was addressed with the wrong case, so two features silently did nothing
   (`0.7.1`, §17.1/§12.8).** `plugin_data.scope_type` is written lower-cased by `DataScope`, but two queries
   compared it against `'USER'`.

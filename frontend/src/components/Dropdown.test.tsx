@@ -13,7 +13,12 @@ function renderMenu() {
       <div>
         <span>outside</span>
         <Dropdown trigger="Menu" triggerClassName="mc-btn">
-          <button type="button">Item</button>
+          {/* A real menu item, as every caller writes one — selecting it is what closes the menu. */}
+          <button type="button" role="menuitem">
+            Item
+          </button>
+          {/* A control that acts in place, like the inbox's per-row "mark as read". */}
+          <button type="button">Tick</button>
         </Dropdown>
       </div>
     </MemoryRouter>,
@@ -35,6 +40,15 @@ describe('Dropdown', () => {
     open();
     fireEvent.click(screen.getByText('Item'));
     expect(screen.queryByText('Item')).not.toBeInTheDocument();
+  });
+
+  it('stays open when a control that is not a menu item is used', () => {
+    // The inbox panel has a "mark as read" tick on every row. Closing on it shut the panel the reader was
+    // working through, which is why the close test is about *selecting an item* rather than about clicking.
+    renderMenu();
+    open();
+    fireEvent.click(screen.getByText('Tick'));
+    expect(screen.getByText('Tick')).toBeInTheDocument();
   });
 
   it('closes on an outside click', () => {
