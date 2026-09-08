@@ -20,3 +20,7 @@ dist/
 .DS_Store
 /plugins/*
 !/plugins/.gitkeep
+
+# Claude Code: shared settings are committed, personal ones are not
+# (`*.local` above does not match `settings.local.json`)
+.claude/settings.local.json
