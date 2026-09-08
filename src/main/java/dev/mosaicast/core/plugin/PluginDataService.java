@@ -133,7 +133,7 @@ public class PluginDataService {
     public List<OwnedDocEntry> queryAcrossUsers(String pluginId, String keyPrefix) {
         String prefix = keyPrefix == null ? "" : keyPrefix;
         return repository
-                .findInScopeType(pluginId, ScopeType.USER.name().toLowerCase(), prefix)
+                .findInScopeType(pluginId, DataScope.USER_TYPE, prefix)
                 .stream()
                 .map(d -> new OwnedDocEntry(
                         UUID.fromString(d.getId().getScopeId()), d.getId().getKey(), d.getValue()))
@@ -179,7 +179,7 @@ public class PluginDataService {
      */
     @org.springframework.transaction.annotation.Transactional
     public int deleteUserScope(String userId) {
-        return repository.deleteUserScope(userId);
+        return repository.deleteUserScope(DataScope.USER_TYPE, userId);
     }
 
     public static void requireValidKey(String key) {

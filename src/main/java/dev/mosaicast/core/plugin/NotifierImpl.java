@@ -68,8 +68,8 @@ public class NotifierImpl implements Notifier {
 
         Set<UUID> asked = userIds.stream().filter(java.util.Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> eligible = data.userScopesHeldBy(
-                pluginId, asked.stream().map(UUID::toString).collect(Collectors.toSet()));
+        Set<String> eligible = data.userScopesHeldBy(pluginId, DataScope.USER_TYPE,
+                asked.stream().map(UUID::toString).collect(Collectors.toSet()));
 
         // The batch ceiling is checked before any row is written, so a send is not half-applied when the
         // plugin is over its allowance — a scheduled sender retrying a partially-delivered batch would

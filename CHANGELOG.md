@@ -86,11 +86,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     from the admin user list, and **shown there with whether they were read** — the point of a warning is
     that somebody was told, and an admin who cannot see that is carrying the obligation blind.
   - **Rendered as text, never HTML**, whoever sent it.
+  - **Read is an explicit act** (`0.7.1`). A control per row, or following the notification's link — never
+    on scroll or on render, because a glance at a bell is not having read a warning and read state is what
+    an admin later relies on. There is no delete: retention clears read ones on its own, and a user who
+    could delete an admin warning would erase the record that they received it.
+  - The bell's badge carries the whole unread count; the panel shows the newest and offers **the ones it
+    did not show** — not a total — as a link to `/notifications`, the full paged inbox (`0.7.1`).
   - Bounded (§17.2): read notifications expire, unread ones are capped per user, and past the cap the
     *oldest* unread are trimmed — someone who has stopped reading their bell should still see what just
     happened. Notifications are erased with the account.
 
-- **Plugins can put a message in a user's inbox (`0.7.0`, §17.1).** `ctx.notify` in the browser and
+- **Plugins can put a message in a user's inbox (`0.7.0`, §17.1).** **It did not actually deliver anything
+  until `0.7.1`** — see the scope-case fix below. `ctx.notify` in the browser and
   `PluginContext.notifier()` on the backend, behind a new `notifications` manifest block — the block an
   operator most needs to read before installing, because this is **the only plugin surface that writes into
   another user's view of the site**. Everything else a plugin touches is its own scope or the current
@@ -130,6 +137,30 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   `app_user.avatar_url` is gone.
 
 ### Fixed
+
+- **Marking a notification read closed the whole panel (`0.7.1`, §17).** `Dropdown` closed on *any* click
+  inside it, which suits a menu of links and not a panel you work through: pressing the tick on one row shut
+  the inbox, so reading three notifications meant reopening it three times and losing your place each time.
+  It now closes on selecting a `role="menuitem"` — which is what its own documentation already claimed — so
+  links still close it and in-place controls like "mark as read" do not. The existing test used a bare
+  `<button>` as its menu item, so it had been asserting the wrong behaviour with markup no caller writes.
+
+- **Plugin per-user data was addressed with the wrong case, so two features silently did nothing
+  (`0.7.1`, §17.1/§12.8).** `plugin_data.scope_type` is written lower-cased by `DataScope`, but two queries
+  compared it against `'USER'`.
+  - `userScopesHeldBy` — the eligibility rule behind `ctx.notify`. It matched no rows, so **no plugin could
+    notify anybody**: every send reported success and reached nobody.
+  - `deleteUserScope` — account erasure. It deleted nothing, so **every account deletion left the plugin's
+    per-user documents behind** while the receipt still said `"complete": true`, because core counts what it
+    asked to delete rather than what went. Present since deletion first reached a plugin's data, so every
+    release up to and including the tagged `v0.7.0` is affected.
+  - Both queries now take the scope type as a parameter from one shared constant, alongside the three that
+    were already correct. Spelling it inline is what let them drift.
+  - The tests missed it because they seeded rows by hand in the case the query expected, so test and code
+    agreed with each other and with nothing else. They now write through the store the host uses.
+  - Also `DataScope.typeColumn()` lower-cases with `Locale.ROOT`: under a Turkish default `EPISODE` became
+    `epısode`, a scope type nothing could read back.
+
 
 - **Neither compose file passed `MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS` to the app (§16).**
   `.env.example` has documented it since external services landed, and both files read that same `.env`, so

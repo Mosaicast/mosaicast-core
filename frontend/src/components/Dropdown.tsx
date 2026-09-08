@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation } from 'react-router-dom';
 
 /** What counts as a menu item for keyboard navigation — headings and separators are deliberately absent. */
@@ -10,7 +18,8 @@ const ITEM_SELECTOR = '[role="menuitem"]';
 /**
  * A small controlled dropdown menu. Replaces native `<details>` (which never closes on an outside click or
  * on selecting an item): opens on the trigger, and closes on an outside click, `Escape`, selecting an item
- * inside the panel, or a route change. The markup reuses the `mc-menu` styles.
+ * inside the panel (anything with `role="menuitem"`), or a route change. A click on some other control in
+ * the panel — a button that acts in place, like the inbox's per-row "mark as read" — leaves it open. The markup reuses the `mc-menu` styles.
  *
  * Keyboard: the arrow keys move between items, `Home`/`End` jump to the ends, and closing returns focus to
  * the trigger. Opening with `ArrowDown` lands on the first item, which is how someone driving the menu from
@@ -110,6 +119,20 @@ export function Dropdown({
     setOpen(false);
   }, [location]);
 
+  /**
+   * Closes when an <em>item</em> is selected — not on any click that lands in the panel.
+   *
+   * This used to close on every click anywhere inside, which is fine for a menu of links and wrong for a
+   * panel with controls in it: the notification inbox has a "mark as read" tick per row, and pressing one
+   * shut the panel the reader was working through. A menu closes because you picked something and are done
+   * with it, so the test is whether the click was on something pickable.
+   */
+  const onPanelClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest(ITEM_SELECTOR)) {
+      close(false);
+    }
+  };
+
   /** Arrow / Home / End roving focus across the items, skipping headings and separators. */
   const onPanelKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const keys = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
@@ -168,7 +191,7 @@ export function Dropdown({
           ref={panelRef}
           className={`mc-menu__panel${align === 'start' ? ' mc-menu__panel--start' : ''}`}
           role="menu"
-          onClick={() => close(false)}
+          onClick={onPanelClick}
           onKeyDown={onPanelKeyDown}
         >
           {children}

@@ -9,7 +9,7 @@ import '../i18n';
 import { NotificationBell } from './NotificationBell';
 
 /** Stubs the two endpoints the bell uses; `items` is what the panel gets when it opens. */
-function stubFetch(unread: number, items: unknown[] = []) {
+function stubFetch(unread: number, items: unknown[] = [], totalElements?: number) {
   const calls: string[] = [];
   vi.stubGlobal(
     'fetch',
@@ -17,7 +17,13 @@ function stubFetch(unread: number, items: unknown[] = []) {
       calls.push(`${init?.method ?? 'GET'} ${url}`);
       const body = url.includes('unread-count')
         ? { unread }
-        : { items, page: 0, size: 10, totalElements: items.length, totalPages: 1 };
+        : {
+            items,
+            page: 0,
+            size: 10,
+            totalElements: totalElements ?? items.length,
+            totalPages: 1,
+          };
       return Promise.resolve({
         ok: true,
         status: 200,
@@ -107,6 +113,79 @@ describe('NotificationBell (ARCHITECTURE §17)', () => {
     // Text, never HTML (§17.1) — it arrives as the characters that were typed.
     expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     expect(document.querySelector('img')).toBeNull();
+  });
+
+  it('shows the whole unread count rather than clamping it', async () => {
+    // A number that stops counting stops being information, and this is the one place the size of a
+    // backlog is visible at a glance.
+    stubFetch(137);
+    renderBell();
+    expect(await screen.findByText('137')).toBeInTheDocument();
+  });
+
+  it('offers the ones it did not show, not the total', async () => {
+    // A reader deciding whether to open the full page wants to know what they have *not* seen.
+    stubFetch(30, [view({}), view({ id: 'n2' })], 12);
+    renderBell();
+
+    fireEvent.click(await screen.findByRole('button'));
+    const more = await screen.findByText('10 more');
+    expect(more).toHaveAttribute('href', '/notifications');
+  });
+
+  it('marks one read only when the reader says so', async () => {
+    // Explicitly not on scroll or on render: a glance at a bell is not having read a warning, and read
+    // state is what an admin later relies on (§17).
+    const calls = stubFetch(1, [view({ source: 'admin', payload: { text: 'Please keep it civil.' } })]);
+    renderBell();
+
+    fireEvent.click(await screen.findByRole('button'));
+    await screen.findByText('Please keep it civil.');
+    expect(calls.some((c) => c.includes('/read'))).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Mark as read' }));
+    await waitFor(() => expect(calls.some((c) => c.endsWith('/api/me/notifications/n1/read'))).toBe(true));
+  });
+
+  it('stays open after marking one read', async () => {
+    // The panel is a list you work through: closing it on the first tick means reopening it for every
+    // notification, and losing your place each time.
+    stubFetch(2, [
+      view({ id: 'n1', source: 'admin', payload: { text: 'first' } }),
+      view({ id: 'n2', source: 'admin', payload: { text: 'second' } }),
+    ]);
+    renderBell();
+
+    fireEvent.click(await screen.findByRole('button'));
+    await screen.findByText('first');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Mark as read' })[0]);
+
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Mark as read' })).toHaveLength(1));
+    // Still there — and so is the one that has not been read yet.
+    expect(screen.getByText('first')).toBeInTheDocument();
+    expect(screen.getByText('second')).toBeInTheDocument();
+  });
+
+  it('stays open when marking everything read', async () => {
+    stubFetch(1, [view({ source: 'admin', payload: { text: 'warned' } })]);
+    renderBell();
+
+    fireEvent.click(await screen.findByRole('button'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
+
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull());
+    expect(screen.getByText('warned')).toBeInTheDocument();
+  });
+
+  it('offers no way to delete a notification', async () => {
+    // Retention clears read ones on its own (§17.2), and a user who could delete an admin warning would
+    // erase the record that they received it.
+    stubFetch(1, [view({ source: 'admin', payload: { text: 'warned' } })]);
+    renderBell();
+
+    fireEvent.click(await screen.findByRole('button'));
+    await screen.findByText('warned');
+    expect(screen.queryByRole('button', { name: /delete|remove|dismiss/i })).toBeNull();
   });
 
   it('says so when there is nothing to read', async () => {

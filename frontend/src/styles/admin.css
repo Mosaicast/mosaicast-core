@@ -23,8 +23,18 @@
   border-radius: 10px;
   background: var(--mc-surface);
 }
+/*
+ * The name block absorbs the free space, so every row's controls line up.
+ *
+ * Without `flex: 1` the row's `space-between` spreads the slack *between* the items instead, and since the
+ * name block is as wide as the name, "Revert name" and "Warn" land at a different x on every row — only
+ * the role select looked aligned, because it was pinned to the right edge rather than actually placed.
+ * `min-width: 0` lets a long name truncate rather than push the controls out of line again.
+ */
 .mc-userlist__who {
   display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
   align-items: center;
   gap: 0.75rem;
 }
