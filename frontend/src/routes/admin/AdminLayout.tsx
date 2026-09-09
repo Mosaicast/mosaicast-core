@@ -34,6 +34,13 @@ export function AdminLayout() {
       <h1 className="mc-page__title">{t('admin.title')}</h1>
       <div className="mc-admin__body">
         <nav className="mc-adminnav" aria-label={t('admin.title')} ref={nav}>
+          {/*
+            First, because `/admin` lands here: the section a visit to the admin area opens on should be
+            the section the nav reads as current, and it is also the only entry a podcaster sees at all.
+          */}
+          <NavLink to="/admin/feeds" className={tab}>
+            {t('admin.nav.feeds')}
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin/site" className={tab}>
               {t('admin.nav.site')}
@@ -54,9 +61,6 @@ export function AdminLayout() {
               {t('admin.nav.users')}
             </NavLink>
           )}
-          <NavLink to="/admin/feeds" className={tab}>
-            {t('admin.nav.feeds')}
-          </NavLink>
           {isAdmin && (
             <NavLink to="/admin/plugins" className={tab}>
               {t('admin.nav.plugins')}

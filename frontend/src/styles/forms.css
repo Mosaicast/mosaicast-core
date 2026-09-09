@@ -231,6 +231,15 @@
   gap: 0.3rem;
   max-width: 420px;
 }
+/*
+ * A checkbox is the one control with an intrinsic size. The column stretches its children, so the input's
+ * box was as wide as the field and the platform drew the box in the middle of it — a checkbox that reads
+ * as centred under a left-aligned label. It sits at the start like every other control in the form.
+ */
+.mc-field input[type='checkbox'] {
+  align-self: start;
+}
+
 .mc-field--inline {
   flex-direction: row;
   align-items: center;

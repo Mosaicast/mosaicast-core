@@ -146,6 +146,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   height, since that is what a thumb has to hit. The wordmark still gives way before any of this (below
   430px, as before), and the panels themselves are now clamped to the viewport width, so no menu can open
   off the side of the screen whatever a plugin adds to the `top` slot.
+- **The admin nav opens on the section `/admin` actually lands on.** Feeds is first, above Site & branding:
+  it is where the area redirects, and it is the only entry a podcaster sees at all, so it was the one tab
+  the nav pushed into the middle of an admin-only list.
+
 - **The plugin contract moves to `platformApi` 0.14.0** (`0.7.0`), which subsumes 0.13.0. That check is an
   exact `major.minor` match, so **every installed plugin must be rebuilt** — and a plugin that had not yet
   adopted 0.13.0 should skip it and go straight to 0.14.0, picking up `ctx.users` and `ctx.notify` in one
@@ -165,6 +169,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   `app_user.avatar_url` is gone.
 
 ### Fixed
+
+- **Checkboxes in a generated settings form sat in the middle of the field.** The column stretches its
+  children and a checkbox is the one control with an intrinsic size, so the platform drew it centred in a
+  full-width box, under a left-aligned label. It sits at the start, like every other control in the form.
 
 - **Marking a notification read closed the whole panel (`0.7.1`, §17).** `Dropdown` closed on *any* click
   inside it, which suits a menu of links and not a panel you work through: pressing the tick on one row shut
