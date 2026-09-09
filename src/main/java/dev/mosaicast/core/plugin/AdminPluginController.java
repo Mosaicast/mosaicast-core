@@ -94,8 +94,11 @@ public class AdminPluginController {
                         "Config field '%s' is editable by %s only".formatted(key, field.editableByOrDefault()));
             }
             if (!field.accepts(value)) {
-                throw new IllegalArgumentException(
-                        "Config field '%s' expects a %s".formatted(key, field.type()));
+                // A closed set fails this for a different reason than a type mismatch, and "expects a
+                // string" for a word that is a string tells the operator nothing about what to do.
+                throw new IllegalArgumentException(field.isEnum()
+                        ? "Config field '%s' expects one of its declared options".formatted(key)
+                        : "Config field '%s' expects a %s".formatted(key, field.type()));
             }
         });
         values.forEach((key, value) -> settings.putConfig(id, key, value));
@@ -162,7 +165,11 @@ public class AdminPluginController {
                     field.editableByOrDefault(),
                     visible ? field.defaultValue() : null,
                     visible ? overrides.getOrDefault(key, field.defaultValue()) : null,
-                    overrides.containsKey(key)));
+                    overrides.containsKey(key),
+                    // Options are the shape of the input, not a value, so they are not withheld from a
+                    // caller who may only look: the row is rendered either way and a select that has lost
+                    // its choices renders as an empty box.
+                    field.optionsOrEmpty()));
         });
         return new AdminPlugin(
                 r.id(),
@@ -259,9 +266,17 @@ public class AdminPluginController {
     public record AdminExternal(java.util.List<String> kinds, String usedBy) {
     }
 
-    /** One declared config field, its default and the value currently in effect — the form's row model. */
+    /**
+     * One declared config field, its default and the value currently in effect — the form's row model.
+     *
+     * <p>{@code options} is empty for a free-form field and non-empty for a closed set, which the form
+     * renders as a select. Each option's label is passed through exactly as the manifest wrote it — a
+     * plain string, or an object keyed by locale — and resolved in the browser, against the language the
+     * operator is reading in.
+     */
     public record AdminConfigField(String type, String editableBy, JsonNode defaultValue,
-                                   JsonNode value, boolean overridden) {
+                                   JsonNode value, boolean overridden,
+                                   java.util.List<PluginManifest.ConfigOption> options) {
     }
 
     /**

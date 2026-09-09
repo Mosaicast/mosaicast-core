@@ -117,6 +117,49 @@ export interface AdminConfigField {
   /** The effective value: the admin override when there is one, otherwise the default. */
   value: string | number | boolean | null;
   overridden: boolean;
+  /** The closed set of values this field accepts, if it declares one. Empty means free-form. */
+  options?: AdminConfigOption[];
+}
+
+/**
+ * One choice in a config field's closed set.
+ *
+ * The label arrives exactly as the manifest wrote it — a plain string, or an object keyed by locale — and
+ * is resolved here rather than on the server, which knows neither the language the operator is reading in
+ * nor when they switch it.
+ */
+export interface AdminConfigOption {
+  value: string | number | boolean;
+  label?: string | Record<string, string>;
+}
+
+/**
+ * What to show for one option in the reader's language.
+ *
+ * Falls back the way a partly translated manifest needs: the exact locale, then its base language so
+ * `de-AT` finds a `de` label, then English, then any label that exists, and finally the raw value — so a
+ * missing translation degrades to something readable instead of an empty row.
+ */
+export function optionLabel(option: AdminConfigOption, locale: string): string {
+  const { label, value } = option;
+  if (typeof label === 'string' && label.trim()) {
+    return label;
+  }
+  if (label && typeof label === 'object') {
+    const base = locale.split('-')[0];
+    const candidates = [locale, base, 'en'];
+    for (const key of candidates) {
+      const found = label[key];
+      if (typeof found === 'string' && found.trim()) {
+        return found;
+      }
+    }
+    const any = Object.values(label).find((v) => typeof v === 'string' && v.trim());
+    if (any) {
+      return any;
+    }
+  }
+  return String(value);
 }
 
 /**

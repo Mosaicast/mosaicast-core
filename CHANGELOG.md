@@ -14,6 +14,25 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A plugin config field can declare a closed set of values (ARCHITECTURE §7.2).** `options` on a config
+  field makes the generic admin form render a select rather than a text box, and core refuses anything
+  outside the set — at load for the manifest's own `default`, and at write time for an operator's override.
+  Until now a field whose plugin understood exactly two words was a free-text input: a typo passed
+  validation, was stored, and then fell back silently when the plugin read it, so the operator was told a
+  setting had saved while it did nothing.
+  An option's `label` is the first manifest string the host **localises**. It takes either a plain string,
+  behaving exactly like the verbatim `nav` and `consent` labels, or an object keyed by locale
+  (`{"en": "Lines", "de": "Reihen"}`) — the additive step the nav labels already anticipate, available here
+  first so those can adopt the same shape without a second convention. Labels resolve in the browser,
+  against the language the operator is actually reading in: the host has no server-side locale for an admin
+  request, and resolving there would also mean a refetch on every language switch.
+  Saving sends the option's own value back, exactly as the manifest wrote it, rather than re-parsing what
+  the form held: every draft in that form is a string, and `Boolean('false')` is `true`, so a boolean set
+  would otherwise have stored the opposite of the choice. A rejected value says which rule it broke, too —
+  "one of its declared options" rather than "expects a string" for a string that simply was not one.
+  Purely additive — a manifest that declares no options is free-form as before, so **no `platformApi`
+  bump**, which matters because that check is an exact `major.minor` match.
+
 - **Users can choose their own display name (`0.7.0`, ARCHITECTURE §8.6).** Prefilled from the provider at sign-up
   and never overwritten by a later login — with several identities linked there is no non-arbitrary answer
   to which provider's name would win. Names are unique on a canonical `display_key` that folds NFKC,
