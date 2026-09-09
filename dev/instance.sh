@@ -66,6 +66,9 @@ up() {
   python3 -m http.server "$FEED_PORT" --directory assets/sample >/dev/null 2>&1 &
   echo $! > "$RUN_DIR/feed.pid"
 
+  # Passed as an --args property below, not as MOSAICAST_PLUGINS_DIR: the env var loses to the repo's own
+  # .env (which points at ./plugins), so --no-plugins silently loaded them anyway — and a README screenshot
+  # taken that way shows the sample plugin's demo card, which is exactly what the convention forbids.
   local plugins_dir="$RUN_DIR/noplugins"
   mkdir -p "$plugins_dir"
   if [ "$WITH_PLUGINS" = 1 ]; then
@@ -85,6 +88,7 @@ up() {
   MOSAICAST_DB_USER=mosaicast MOSAICAST_DB_PASSWORD=mosaicast \
     ./gradlew bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT \
       --mosaicast.base-url=$APP_URL \
+      --mosaicast.plugins-dir=$plugins_dir \
       --mosaicast.feed.allow-private-targets=true \
       --mosaicast.feed.allow-private-targets-confirmed=true" \
       > "$RUN_DIR/app.log" 2>&1 &
