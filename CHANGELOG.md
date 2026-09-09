@@ -137,6 +137,15 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **The header fits a phone again, by carrying one control fewer.** Below 560px the language switcher stops
+  being its own button and moves inside the info menu, as a labelled group under the legal pages; the
+  account control drops the display name and is the avatar alone. Brand + search + language + info +
+  account did not fit a 375px header, and a header row cannot scroll, so what fell off the right edge was
+  the account control — the **Log in** button was drawn partly outside the viewport and its menu with it.
+  Below 380px the row also trims its gutter and the padding inside its icon buttons; the buttons keep their
+  height, since that is what a thumb has to hit. The wordmark still gives way before any of this (below
+  430px, as before), and the panels themselves are now clamped to the viewport width, so no menu can open
+  off the side of the screen whatever a plugin adds to the `top` slot.
 - **The plugin contract moves to `platformApi` 0.14.0** (`0.7.0`), which subsumes 0.13.0. That check is an
   exact `major.minor` match, so **every installed plugin must be rebuilt** — and a plugin that had not yet
   adopted 0.13.0 should skip it and go straight to 0.14.0, picking up `ctx.users` and `ctx.notify` in one
