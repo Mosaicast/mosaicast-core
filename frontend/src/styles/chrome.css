@@ -122,6 +122,10 @@
   right: 0;
   top: calc(100% + 0.4rem);
   min-width: 190px;
+  /* A panel hangs off its trigger, so on a narrow screen a wide one would run off the edge it is anchored
+     to. Clamped to the viewport less the header's own gutters, it stays whole and its items stay hittable
+     however little room there is. */
+  max-width: calc(100vw - var(--mc-space-4) * 2);
   display: flex;
   flex-direction: column;
   gap: 0.1rem;
@@ -164,6 +168,14 @@
   background: var(--mc-bg);
   text-decoration: none;
 }
+/*
+ * A block of menu items that exists only on a phone. `display: none` here rather than not rendering it:
+ * which controls the header has room for is a layout question, and the shell answers those in CSS.
+ */
+.mc-menu__onphone {
+  display: none;
+}
+
 .mc-menu__role {
   padding: 0.3rem 0.6rem;
   font-size: 0.72rem;
@@ -261,9 +273,44 @@
   .mc-menu__short {
     display: inline;
   }
-  /* The name truncates; the avatar and the caret stay, so the control still reads as a menu. */
+  /*
+   * The display name goes entirely: the avatar identifies the account and the caret says it opens, which
+   * is what the control has to convey. Truncating it instead spent up to 5rem on two or three letters and
+   * an ellipsis — width the row does not have, and a name clipped to "Alex…" is not the name anyway.
+   */
   .mc-menu__name {
-    max-width: 5rem;
+    display: none;
+  }
+  /*
+   * The language switcher stops being its own control and rides inside the info menu (`mc-menu__onphone`).
+   * Four controls plus the brand overflowed a 375px header, and because the row cannot scroll, what fell
+   * off the right edge was the account menu — the login button was drawn half outside the viewport, and
+   * its panel with it. Dropping one control is what makes the rest fit, down to 320px.
+   */
+  .mc-top__lang {
+    display: none;
+  }
+  .mc-menu__onphone {
+    display: contents;
+  }
+}
+
+/*
+ * The narrowest phones (320px, an iPhone SE in portrait) are still ~13px short after that, so the row
+ * gives up spacing rather than a control: a smaller gutter and tighter gaps between the action buttons.
+ * The buttons themselves keep their size — they are what a thumb has to hit.
+ */
+@media (max-width: 380px) {
+  .mc-top__inner {
+    padding-inline: var(--mc-space-3);
+  }
+  .mc-top__actions {
+    gap: var(--mc-space-1);
+  }
+  /* An icon button is mostly padding at this size. Trimming it keeps four controls in the row without
+     shrinking the icons or the row's height, so the hit area stays a comfortable square. */
+  .mc-top__actions .mc-btn {
+    padding-inline: var(--mc-space-3);
   }
 }
 

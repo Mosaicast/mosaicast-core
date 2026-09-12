@@ -62,6 +62,81 @@ describe('AdminPlugins (M5 E5c)', () => {
     });
   });
 
+  it('renders a declared set as a select, and sends the declared type', async () => {
+    // A field whose plugin understands exactly three numbers was a free-text box, where a typo passed
+    // validation, was stored, and then fell back silently at read time.
+    const calls = stubFetch([
+      {
+        ...PLUGIN,
+        config: {
+          defaultGridSize: {
+            type: 'number',
+            editableBy: 'podcaster',
+            defaultValue: 3,
+            value: 3,
+            overridden: false,
+            options: [
+              { value: 3, label: '3x3' },
+              { value: 4, label: '4x4' },
+              { value: 5, label: '5x5' },
+            ],
+          },
+        },
+      },
+    ]);
+    render(<AdminPlugins />);
+
+    expect(await screen.findByText('Sample')).toBeInTheDocument();
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(['3x3', '4x4', '5x5']);
+    expect(select.value).toBe('3');
+
+    fireEvent.change(select, { target: { value: '5' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => {
+      const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/plugins/sample/config');
+      // Only the rendering changed: a numeric set still goes out as a number, not the form's string.
+      expect(put?.body).toBe(JSON.stringify({ defaultGridSize: 5 }));
+    });
+  });
+
+  it('sends a boolean set as the value that was picked', async () => {
+    // The form holds strings, and `Boolean('false')` is `true` — coercing the draft through the declared
+    // type would have saved the opposite of the choice. The option carries the manifest's own value.
+    const calls = stubFetch([
+      {
+        ...PLUGIN,
+        config: {
+          showTotals: {
+            type: 'boolean',
+            editableBy: 'admin',
+            defaultValue: true,
+            value: true,
+            overridden: false,
+            options: [
+              { value: true, label: { en: 'Shown', de: 'Sichtbar' } },
+              { value: false, label: { en: 'Hidden', de: 'Versteckt' } },
+            ],
+          },
+        },
+      },
+    ]);
+    render(<AdminPlugins />);
+
+    expect(await screen.findByText('Sample')).toBeInTheDocument();
+    const select = screen.getByRole('combobox') as HTMLSelectElement;
+    expect([...select.options].map((o) => o.textContent)).toEqual(['Shown', 'Hidden']);
+
+    fireEvent.change(select, { target: { value: 'false' } });
+    fireEvent.click(screen.getByText('Save'));
+
+    await waitFor(() => {
+      const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/plugins/sample/config');
+      expect(put?.body).toBe(JSON.stringify({ showTotals: false }));
+    });
+  });
+
   it('toggles activation through the enabled endpoint', async () => {
     const calls = stubFetch();
     render(<AdminPlugins />);

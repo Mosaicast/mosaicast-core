@@ -106,6 +106,53 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void aFieldWithOptionsAcceptsOnlyThoseOptions() throws Exception {
+        // Before options existed, a field its plugin understood as exactly two words was a free-text box:
+        // a typo passed validation, was stored, and then fell back silently at read time.
+        PluginManifest manifest = parse(withConfig("""
+                {"rankBy":{"type":"string","default":"lines","options":[
+                   {"value":"lines","label":{"en":"Lines","de":"Reihen"}},
+                   {"value":"fields","label":{"en":"Fields","de":"Felder"}}]}}
+                """));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+
+        PluginManifest.ConfigField field = manifest.config().get("rankBy");
+        assertThat(field.isEnum()).isTrue();
+        assertThat(field.accepts(mapper.readTree("\"fields\""))).isTrue();
+        assertThat(field.accepts(mapper.readTree("\"linez\""))).isFalse();
+        // Clearing an override is still how an operator falls back to the default.
+        assertThat(field.accepts(mapper.readTree("null"))).isTrue();
+    }
+
+    @Test
+    void aDefaultOutsideTheDeclaredOptionsIsRejected() throws Exception {
+        assertThatThrownBy(parse(withConfig("""
+                {"rankBy":{"type":"string","default":"columns","options":[
+                   {"value":"lines"},{"value":"fields"}]}}
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("not one of its options");
+    }
+
+    @Test
+    void anOptionOfTheWrongTypeIsRejected() throws Exception {
+        // The type still governs what is stored; options narrow it, they do not replace it.
+        assertThatThrownBy(parse(withConfig("""
+                {"size":{"type":"number","default":3,"options":[{"value":3},{"value":"four"}]}}
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("not a number");
+    }
+
+    @Test
+    void aFieldWithoutOptionsStaysFreeForm() throws Exception {
+        PluginManifest manifest = parse(withConfig("{\"x\":{\"type\":\"string\",\"default\":\"a\"}}"));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.config().get("x").isEnum()).isFalse();
+        assertThat(manifest.config().get("x").accepts(mapper.readTree("\"anything\""))).isTrue();
+    }
+
+    @Test
     void theLegacyConsentFormIsRejected() throws Exception {
         // A plugin migrated per the SDK guide declares services[]; one that did not must fail loudly rather
         // than load with its consent declaration silently dropped — that would mean no banner and no CSP

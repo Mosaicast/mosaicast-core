@@ -514,27 +514,73 @@ public record PluginManifest(
      * declaration has to carry enough to render and validate an input.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record ConfigField(String type, @JsonProperty("default") JsonNode defaultValue, String editableBy) {
+    public record ConfigField(String type, @JsonProperty("default") JsonNode defaultValue, String editableBy,
+                              List<ConfigOption> options) {
 
         /** The role a field defaults to when the manifest names none: the most restrictive one. */
         public String editableByOrDefault() {
             return editableBy == null || editableBy.isBlank() ? EDITABLE_BY_ADMIN : editableBy.toLowerCase();
         }
 
+        /** The declared choices, never null. Empty means the field is free-form. */
+        public List<ConfigOption> optionsOrEmpty() {
+            return options == null ? List.of() : options;
+        }
+
+        /** Whether this field is a closed set rather than a free-form input. */
+        public boolean isEnum() {
+            return !optionsOrEmpty().isEmpty();
+        }
+
         /**
          * Whether {@code value} is a legal setting for this field. JSON null always passes: it is how an
          * admin clears an override and falls back to the manifest default.
+         *
+         * <p>A field that declares options accepts nothing outside them. Before this existed, a field whose
+         * plugin understood exactly two words was rendered as a free-text box, and a typo in it passed
+         * validation, was stored, and then fell back silently at read time — telling the operator the save
+         * had worked while the setting did nothing.
          */
         public boolean accepts(JsonNode value) {
             if (value == null || value.isNull()) {
                 return true;
             }
-            return switch (type == null ? "" : type.toLowerCase()) {
+            boolean typeOk = switch (type == null ? "" : type.toLowerCase()) {
                 case CONFIG_TYPE_STRING -> value.isString();
                 case CONFIG_TYPE_NUMBER -> value.isNumber();
                 case CONFIG_TYPE_BOOLEAN -> value.isBoolean();
                 default -> false;
             };
+            if (!typeOk || !isEnum()) {
+                return typeOk;
+            }
+            return optionsOrEmpty().stream().anyMatch(o -> o.matches(value));
+        }
+    }
+
+    /**
+     * One choice in a config field's closed set.
+     *
+     * <p>{@code label} is the one place in a manifest where a string is <strong>localised</strong>: it is
+     * read by an operator in the admin form, whose language the host already knows, and a dropdown reading
+     * {@code lines} / {@code fields} on a German page is not a translated interface. It accepts either a
+     * plain string, which behaves exactly like the verbatim {@code nav} and {@code consent} labels, or an
+     * object keyed by locale — so the additive step the nav labels anticipate is available here first, and
+     * those can adopt the same shape whenever they like without a second convention being invented.
+     *
+     * <p>The label is passed to the admin UI verbatim and resolved there, against the language the operator
+     * is actually reading the page in. Resolving it here instead would mean either a second copy of the
+     * fallback rules in TypeScript, or a refetch every time somebody switches language.
+     *
+     * @param value the stored value; must match the field's declared type
+     * @param label what the operator reads: a plain string, or {@code {"en": "Lines", "de": "Reihen"}}
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ConfigOption(JsonNode value, JsonNode label) {
+
+        /** Whether a submitted value is this option. */
+        public boolean matches(JsonNode candidate) {
+            return value != null && value.equals(candidate);
         }
     }
 
@@ -993,9 +1039,32 @@ public record PluginManifest(
                 throw new PluginValidationException(
                         "config field '%s' has unknown editableBy: %s".formatted(entry.getKey(), field.editableBy()));
             }
+            for (ConfigOption option : field.optionsOrEmpty()) {
+                if (option.value() == null || option.value().isNull()) {
+                    throw new PluginValidationException(
+                            "config field '%s' has an option with no value".formatted(entry.getKey()));
+                }
+                // Checked against the type rather than through accepts(), which would ask whether the
+                // option is one of the options and answer yes to every one of them.
+                boolean typed = switch (type) {
+                    case CONFIG_TYPE_STRING -> option.value().isString();
+                    case CONFIG_TYPE_NUMBER -> option.value().isNumber();
+                    case CONFIG_TYPE_BOOLEAN -> option.value().isBoolean();
+                    default -> false;
+                };
+                if (!typed) {
+                    throw new PluginValidationException(
+                            "config field '%s' has an option that is not a %s: %s"
+                                    .formatted(entry.getKey(), type, option.value()));
+                }
+            }
+            // Last, so that a default outside a declared set is reported as such: accepts() folds the type
+            // check and the membership check together, and by here the type is already known to be sound.
             if (!field.accepts(field.defaultValue())) {
-                throw new PluginValidationException(
-                        "config field '%s' default does not match declared type %s".formatted(entry.getKey(), type));
+                throw new PluginValidationException(field.isEnum()
+                        ? "config field '%s' default is not one of its options".formatted(entry.getKey())
+                        : "config field '%s' default does not match declared type %s"
+                                .formatted(entry.getKey(), type));
             }
         }
     }

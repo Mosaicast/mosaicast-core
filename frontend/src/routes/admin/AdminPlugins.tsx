@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
 import { SettingsFieldInput, toJsonValue, type DraftValue } from '../../components/SettingsFieldInput';
-import type { AdminPlugin } from '../../plugins/types';
+import { optionLabel, type AdminPlugin } from '../../plugins/types';
 import { PluginStorage } from './PluginStorage';
 
 /**
@@ -18,7 +18,7 @@ import { PluginStorage } from './PluginStorage';
  * `editableBy`), which is why the manifest rejects field types the host cannot render.
  */
 export function AdminPlugins() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [plugins, setPlugins] = useState<AdminPlugin[] | null>(null);
   /** Unsaved form input, keyed `${pluginId} ${field}`; absent means "unchanged from the server value". */
   const [drafts, setDrafts] = useState<Record<string, string | boolean>>({});
@@ -69,7 +69,11 @@ export function AdminPlugins() {
       if (draft === undefined) {
         continue;
       }
-      body[field] = toJsonValue(draft, declared.type);
+      // A closed set carries its values in the manifest's own types, and the form only ever held the
+      // stringified form of one of them. Send the option back rather than re-parsing the string:
+      // `Boolean('false')` is `true`, so a boolean set would save the opposite of what was picked.
+      const chosen = declared.options?.find((option) => String(option.value) === String(draft));
+      body[field] = chosen ? chosen.value : toJsonValue(draft, declared.type);
     }
     void run(async () => {
       await api.put(`/api/admin/plugins/${plugin.id}/config`, body);
@@ -193,7 +197,14 @@ export function AdminPlugins() {
                       key={field}
                       field={{
                         key: field,
-                        type: declared.type,
+                        // A field that declares a closed set is rendered as a select. Only the rendering
+                        // changes: saving still coerces through `declared.type`, so a numeric set is sent
+                        // as a number rather than as the string the form held.
+                        type: declared.options?.length ? 'SELECT' : declared.type,
+                        options: declared.options?.map((option) => ({
+                          value: String(option.value),
+                          label: optionLabel(option, i18n.language),
+                        })),
                         overridden: declared.overridden,
                       }}
                       value={drafts[draftKey(plugin.id, field)] ?? (declared.value as DraftValue) ?? ''}

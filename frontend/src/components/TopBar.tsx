@@ -88,6 +88,13 @@ export function TopBar() {
           <SearchLink />
           {locales.length > 1 && (
             <Dropdown
+              /*
+                Hidden on a phone, where the same choices ride inside the info menu below: brand +
+                language + info + account did not fit a 375px header, and what overflowed was the
+                account control at the right edge — clipped, not scrollable, so the login button sat
+                half off the screen. One fewer control in the row is what buys the space back.
+              */
+              className="mc-top__lang"
               triggerClassName="mc-btn mc-btn--ghost"
               ariaLabel={t('nav.switchLanguage')}
               trigger={
@@ -135,6 +142,31 @@ export function TopBar() {
                 {entry.title}
               </Link>
             ))}
+            {/*
+              The phone's language switcher. `display: contents` on a wide screen would put these in the
+              menu twice, so the wrapper is `display: none` there and the standalone control above is the
+              one that shows — the same one-of-two-renderings trick the language label already uses, kept
+              in CSS so no JS breakpoint decides layout.
+            */}
+            {locales.length > 1 && (
+              <div className="mc-menu__onphone">
+                <div className="mc-menu__sep" role="separator" />
+                <div className="mc-navmenu__heading" role="presentation">
+                  {t('nav.switchLanguage')}
+                </div>
+                {locales.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    role="menuitem"
+                    aria-current={code === currentLocale}
+                    onClick={() => changeLocale(code)}
+                  >
+                    {localeName(code)}
+                  </button>
+                ))}
+              </div>
+            )}
           </Dropdown>
 
           {/* Signed in only: an anonymous visitor has no inbox and no endpoint to ask (§17). */}
@@ -146,8 +178,10 @@ export function TopBar() {
               trigger={
                 <span className="mc-menu__label">
                   <Avatar userId={user.id} />
-                  {/* Wrapped so the name alone can be truncated: clamping the label would take the
-                      dropdown caret with it and leave the control looking like plain text. */}
+                  {/* Wrapped so the name alone can give way: it truncates as the header narrows and
+                      drops entirely on a phone, where the avatar and the caret already say what the
+                      control is. Clamping the whole label instead would take the caret with it and
+                      leave the control looking like plain text. */}
                   <span className="mc-menu__name">{user.displayName}</span>
                 </span>
               }

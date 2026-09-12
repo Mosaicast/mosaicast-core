@@ -28,6 +28,7 @@ const ITEM_SELECTOR = '[role="menuitem"]';
 export function Dropdown({
   trigger,
   triggerClassName,
+  className,
   ariaLabel,
   onOpen,
   align = 'end',
@@ -37,6 +38,8 @@ export function Dropdown({
   trigger: ReactNode;
   /** Class for the trigger button (e.g. `mc-btn mc-btn--ghost`). */
   triggerClassName?: string;
+  /** Extra class on the menu wrapper, for a caller that needs to address the control from CSS. */
+  className?: string;
   /** Accessible label for the trigger when its content is not text (e.g. an icon). */
   ariaLabel?: string;
   /**
@@ -168,7 +171,7 @@ export function Dropdown({
   };
 
   return (
-    <div className="mc-menu" ref={ref}>
+    <div className={`mc-menu${className ? ` ${className}` : ''}`} ref={ref}>
       <button
         ref={triggerRef}
         type="button"
