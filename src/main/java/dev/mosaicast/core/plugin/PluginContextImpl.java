@@ -11,6 +11,7 @@ import dev.mosaicast.plugin.api.PluginContext;
 import dev.mosaicast.plugin.api.SchemaStore;
 import dev.mosaicast.plugin.api.Tags;
 import java.time.Duration;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -163,8 +164,16 @@ public class PluginContextImpl implements PluginContext {
         return feeds;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>The supplier is the whole point: the host consults it before every tick, so a plugin whose period
+     * comes from config follows an operator's edit within one period instead of at the next restart. The
+     * fixed-{@code Duration} overload is a {@code default} on the interface that delegates here, so both
+     * shapes land in one implementation.
+     */
     @Override
-    public void onSchedule(Duration every, Runnable task) {
+    public void onSchedule(Supplier<Duration> every, Runnable task) {
         scheduler.schedule(pluginId, scheduleCount++, every, task);
     }
 }

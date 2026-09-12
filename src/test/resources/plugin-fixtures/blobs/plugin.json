@@ -1,7 +1,7 @@
 {
   "id": "blobs",
   "version": "1.0.0",
-  "platformApi": "0.14.0",
+  "platformApi": "0.15.0",
   "name": "Blob Fixture",
   "backend": {
     "basePath": "/api/plugins/blobs",

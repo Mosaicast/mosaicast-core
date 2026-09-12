@@ -272,8 +272,14 @@ public interface PluginContext {
                              // `notifier`, not `notify`: Object.notify() is final in Java
     PluginConfig config();
     FeedAccess   feeds();
-    void onSchedule(Duration every, Runnable task); // ShedLock-wrapped
-}
+    void onSchedule(Supplier<Duration> every, Runnable task); // ShedLock-wrapped; period re-read per tick
+    default void onSchedule(Duration every, Runnable task);   // fixed cadence, captured once
+}   // The supplier form (platformApi 0.15.0) is what a configurable interval needs: the host consults it
+    // before every fire and reschedules when the answer changes, so an operator's edit takes effect within
+    // one old period instead of at the next restart. It is consulted, not trusted — null, a non-positive
+    // Duration or a throw leaves the task on the last period that was valid, and only the value at
+    // registration is strict. The host clamps to an operator-owned floor (`mosaicast.plugin-schedule
+    // .min-period`, default 10s): the period is a request, like the manifest's other numbers.
 interface DocStore {
     <T> Optional<T> get(Scope scope, String key, Class<T> type);
     void            put(Scope scope, String key, Object value);

@@ -1,7 +1,7 @@
 {
   "id": "wikilocked",
   "version": "1.0.0",
-  "platformApi": "0.14.0",
+  "platformApi": "0.15.0",
   "name": "Schema Fixture (podcaster-only reads)",
   "backend": {
     "basePath": "/api/plugins/wikilocked",
