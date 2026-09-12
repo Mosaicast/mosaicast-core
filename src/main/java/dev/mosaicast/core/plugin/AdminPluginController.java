@@ -166,10 +166,13 @@ public class AdminPluginController {
                     visible ? field.defaultValue() : null,
                     visible ? overrides.getOrDefault(key, field.defaultValue()) : null,
                     overrides.containsKey(key),
-                    // Options are the shape of the input, not a value, so they are not withheld from a
-                    // caller who may only look: the row is rendered either way and a select that has lost
-                    // its choices renders as an empty box.
-                    field.optionsOrEmpty()));
+                    // Options, label and description are the shape of the input, not a value, so they are
+                    // not withheld from a caller who may only look: the row is rendered either way, a
+                    // select that has lost its choices renders as an empty box, and a row whose label went
+                    // with the value would leave a podcaster reading an identifier they cannot act on.
+                    field.optionsOrEmpty(),
+                    field.label(),
+                    field.description()));
         });
         return new AdminPlugin(
                 r.id(),
@@ -272,11 +275,13 @@ public class AdminPluginController {
      * <p>{@code options} is empty for a free-form field and non-empty for a closed set, which the form
      * renders as a select. Each option's label is passed through exactly as the manifest wrote it — a
      * plain string, or an object keyed by locale — and resolved in the browser, against the language the
-     * operator is reading in.
+     * operator is reading in. {@code label} and {@code description} are the field's own prose and take the
+     * same two shapes; they are what the form shows in place of the raw identifier.
      */
     public record AdminConfigField(String type, String editableBy, JsonNode defaultValue,
                                    JsonNode value, boolean overridden,
-                                   java.util.List<PluginManifest.ConfigOption> options) {
+                                   java.util.List<PluginManifest.ConfigOption> options,
+                                   JsonNode label, JsonNode description) {
     }
 
     /**

@@ -509,13 +509,36 @@ public record PluginManifest(
     }
 
     /**
+     * Accepts the two shapes a localized manifest string may take: a plain string, or an object keyed by
+     * locale. Absent is fine — every localized string in a manifest is optional.
+     */
+    private static void requireLocalizedText(String fieldKey, String what, JsonNode value) {
+        if (value == null || value.isNull()) {
+            return;
+        }
+        if (!value.isString() && !value.isObject()) {
+            throw new PluginValidationException(
+                    "config field '%s' has a %s that is neither a string nor a locale object".formatted(fieldKey, what));
+        }
+    }
+
+    /**
      * A declared config field: its type, default value (raw JSON) and who may edit it (ARCHITECTURE §7.2).
      * The host renders these as a generic admin form — plugins never build their own config UI — so the
      * declaration has to carry enough to render and validate an input.
+     *
+     * <p>{@code label} and {@code description} are what an operator actually reads. Without them the form
+     * could only show the identifier a plugin author chose — {@code ingestIntervalSeconds (podcaster)} —
+     * with no room to say what the setting does, what unit it is in, or what a sane value looks like, and
+     * a plugin cannot make up the difference because it is forbidden from building its own config UI.
+     * Both take the same shape as an option's label: a plain string, or an object keyed by locale, resolved
+     * in the browser against the language the operator is reading in (§12.7). Passed through as raw JSON
+     * because the host does not read them — it only carries them — and keeping an odd value loadable
+     * matters more here than rejecting it: credit and prose are not correctness concerns.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ConfigField(String type, @JsonProperty("default") JsonNode defaultValue, String editableBy,
-                              List<ConfigOption> options) {
+                              List<ConfigOption> options, JsonNode label, JsonNode description) {
 
         /** The role a field defaults to when the manifest names none: the most restrictive one. */
         public String editableByOrDefault() {
@@ -1039,6 +1062,11 @@ public record PluginManifest(
                 throw new PluginValidationException(
                         "config field '%s' has unknown editableBy: %s".formatted(entry.getKey(), field.editableBy()));
             }
+            // Prose, not a value: a label the host cannot read is a cosmetic problem, and refusing to load
+            // a plugin over one would be worse than showing its field key. So only the shape is checked —
+            // a string or a locale object — which is what tells an author they wrote a number by mistake.
+            requireLocalizedText(entry.getKey(), "label", field.label());
+            requireLocalizedText(entry.getKey(), "description", field.description());
             for (ConfigOption option : field.optionsOrEmpty()) {
                 if (option.value() == null || option.value().isNull()) {
                     throw new PluginValidationException(

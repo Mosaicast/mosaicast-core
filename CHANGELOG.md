@@ -14,6 +14,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A plugin config field can say what it is (ARCHITECTURE §7.2, core#145).** `label` and `description` on a
+  field are rendered in place of the raw identifier, each either a plain string or an object keyed by locale,
+  resolved in the browser against the language the operator is reading in — the same shape and the same
+  fallback chain `options[].label` already uses. Until now the generated form could only show the name an
+  author happened to choose (`ingestIntervalSeconds (podcaster)`), with nothing to say what the setting does
+  or what unit it is in, and a plugin cannot make up the difference because building its own config UI is
+  precisely what it may not do. The field key stays visible beside the label, since a plugin's documentation
+  names the identifier. The host validates the shape and never the content — refusing to load a plugin over
+  a malformed label would be worse than showing its key. Purely additive, so **no `platformApi` bump**.
+
+- **A podcaster can open the plugin page their manifests delegate to them (§7.2/§8.5, core#142).** Writing a
+  config field was already open to PODCASTER, per field, with the server enforcing `editableBy` — but the
+  `GET` that the form is rendered from fell through to the ADMIN catch-all, so a podcaster could write a
+  field they were never allowed to read, and saw "Not allowed" on the whole page. `editableBy: "podcaster"`
+  was decorative in practice. They now see the whole list with admin-only settings redacted (the response
+  was already redacted per field for the caller's role), and none of the controls the server would refuse:
+  activation, purge and storage limits stay ADMIN and are no longer rendered to fail.
+
 - **A plugin's schedule follows its config (ARCHITECTURE §7.4, `platformApi` 0.15.0, core#143).** The host
   now takes a `Supplier<Duration>` and re-reads it before every tick, rescheduling when the answer changes,
   so an interval an operator edits takes effect within one old period. It used to be captured during

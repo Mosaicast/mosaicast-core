@@ -119,7 +119,19 @@ export interface AdminConfigField {
   overridden: boolean;
   /** The closed set of values this field accepts, if it declares one. Empty means free-form. */
   options?: AdminConfigOption[];
+  /** What the operator reads instead of the raw key, if the manifest says. Same shape as an option label. */
+  label?: LocalizedText;
+  /** One line on what the setting does, in the reader's language when the manifest offers one. */
+  description?: LocalizedText;
 }
+
+/**
+ * A manifest string the host localises: written once as a plain string, or keyed by locale.
+ *
+ * The plain form is what every verbatim manifest label has always been (`nav`, `consent`), so adopting the
+ * object form is additive for an author who does not need it.
+ */
+export type LocalizedText = string | Record<string, string>;
 
 /**
  * One choice in a config field's closed set.
@@ -136,12 +148,22 @@ export interface AdminConfigOption {
 /**
  * What to show for one option in the reader's language.
  *
- * Falls back the way a partly translated manifest needs: the exact locale, then its base language so
- * `de-AT` finds a `de` label, then English, then any label that exists, and finally the raw value — so a
- * missing translation degrades to something readable instead of an empty row.
+ * Falls back to the raw value when the manifest has no usable label, so a missing translation degrades to
+ * something readable instead of an empty row.
  */
 export function optionLabel(option: AdminConfigOption, locale: string): string {
-  const { label, value } = option;
+  return localizedText(option.label, locale) ?? String(option.value);
+}
+
+/**
+ * The reader's version of a localized manifest string, or `undefined` when the manifest offers nothing
+ * usable — so a caller decides what "nothing" means: an option falls back to its raw value, a config field
+ * to its key.
+ *
+ * Falls back the way a partly translated manifest needs: the exact locale, then its base language so
+ * `de-AT` finds a `de` label, then English, then any translation that exists.
+ */
+export function localizedText(label: LocalizedText | undefined, locale: string): string | undefined {
   if (typeof label === 'string' && label.trim()) {
     return label;
   }
@@ -159,7 +181,7 @@ export function optionLabel(option: AdminConfigOption, locale: string): string {
       return any;
     }
   }
-  return String(value);
+  return undefined;
 }
 
 /**

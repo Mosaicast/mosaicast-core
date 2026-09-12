@@ -31,6 +31,8 @@ export interface SettingsFieldSpec {
   envVar?: string | null;
   placeholder?: string | null;
   overridden?: boolean;
+  /** Whether the caller may actually change this. A redacted row is shown, not made editable. */
+  disabled?: boolean;
 }
 
 export type DraftValue = string | boolean;
@@ -118,6 +120,9 @@ export function SettingsFieldInput({
     <label className="mc-field">
       <span>
         {label}{' '}
+        {/* The key stays visible whenever a label replaced it: the plugin's own documentation, and the
+            operator's notes, name the identifier — the label is the explanation, not a rename. */}
+        {field.label && field.label !== field.key && <code className="mc-muted">{field.key}</code>}{' '}
         {hint && <span className="mc-muted">{hint}</span>}
         {!hint && field.required === false && (
           <span className="mc-muted">{t('admin.external.optional')}</span>
@@ -126,9 +131,14 @@ export function SettingsFieldInput({
       {field.description && <span className="mc-muted">{field.description}</span>}
 
       {field.type === 'BOOLEAN' || field.type === 'boolean' ? (
-        <input type="checkbox" checked={Boolean(current)} onChange={(e) => onChange(e.target.checked)} />
+        <input
+          type="checkbox"
+          checked={Boolean(current)}
+          disabled={field.disabled}
+          onChange={(e) => onChange(e.target.checked)}
+        />
       ) : field.type === 'SELECT' ? (
-        <select value={String(current)} onChange={(e) => onChange(e.target.value)}>
+        <select value={String(current)} disabled={field.disabled} onChange={(e) => onChange(e.target.value)}>
           {(field.options ?? []).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -140,6 +150,7 @@ export function SettingsFieldInput({
           <input
             className="mc-input"
             type="password"
+            disabled={field.disabled}
             autoComplete="new-password"
             // Write-only: the API never returns a stored credential, so the box starts empty even when
             // one is set. `placeholder` says which of those two it is.
@@ -153,6 +164,7 @@ export function SettingsFieldInput({
         <input
           className={isNumeric(field.type) ? 'mc-input mc-input--num' : 'mc-input'}
           type={isNumeric(field.type) ? 'number' : 'text'}
+          disabled={field.disabled}
           step={field.type === 'DECIMAL' ? 'any' : undefined}
           min={field.min ?? undefined}
           max={field.max ?? undefined}
@@ -162,7 +174,7 @@ export function SettingsFieldInput({
         />
       )}
 
-      {field.overridden && onReset && (
+      {!field.disabled && field.overridden && onReset && (
         <button type="button" className="mc-btn" onClick={onReset}>
           {resetLabel}
         </button>

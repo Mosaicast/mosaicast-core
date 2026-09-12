@@ -145,6 +145,34 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void aFieldCarriesItsOwnLabelAndDescription() throws Exception {
+        // Without these the form can only show the identifier a plugin author chose, and the plugin cannot
+        // make up the difference: it is forbidden from building its own config UI.
+        PluginManifest manifest = parse(withConfig("""
+                {"ingestIntervalSeconds":{"type":"number","default":60,
+                  "label":{"en":"Ingest interval","de":"Abrufintervall"},
+                  "description":{"en":"How often the source is re-read, in seconds."}},
+                 "rankBy":{"type":"string","default":"lines","label":"Ranking"}}
+                """));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+
+        // Carried verbatim: the host does not read prose, it hands it to the browser that knows the locale.
+        assertThat(manifest.config().get("ingestIntervalSeconds").label().get("de").stringValue())
+                .isEqualTo("Abrufintervall");
+        assertThat(manifest.config().get("rankBy").label().stringValue()).isEqualTo("Ranking");
+        assertThat(manifest.config().get("rankBy").description()).isNull();
+    }
+
+    @Test
+    void aLabelThatIsNeitherAStringNorALocaleObjectIsRejected() throws Exception {
+        // Only the shape is checked. A label the host cannot read is cosmetic, but a number where prose
+        // belongs is a mistake worth telling the author about while they still have the manifest open.
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"string\",\"default\":\"a\",\"label\":7}}"))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("neither a string nor a locale object");
+    }
+
+    @Test
     void aFieldWithoutOptionsStaysFreeForm() throws Exception {
         PluginManifest manifest = parse(withConfig("{\"x\":{\"type\":\"string\",\"default\":\"a\"}}"));
         assertThatCode(manifest::validate).doesNotThrowAnyException();

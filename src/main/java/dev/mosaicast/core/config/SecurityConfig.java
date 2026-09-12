@@ -176,6 +176,14 @@ public class SecurityConfig {
                         // §7.2); the controller enforces which fields this role may actually set. Activation
                         // and purge stay ADMIN via the catch-all below.
                         .requestMatchers("/api/admin/plugins/*/config").hasAnyRole("ADMIN", "PODCASTER")
+                        // …and reading the list is how that delegation is reached at all. Writing was open
+                        // to PODCASTER while the GET the form is rendered from fell through to ADMIN below,
+                        // so a podcaster could set a field they were never allowed to see: `editableBy:
+                        // "podcaster"` rendered in the UI and was unreachable in practice. The response is
+                        // redacted per field for the caller's role, so this widens what a podcaster may
+                        // read to exactly the fields they may already write. Activation, purge and blob
+                        // limits stay ADMIN on the catch-all.
+                        .requestMatchers(HttpMethod.GET, "/api/admin/plugins").hasAnyRole("ADMIN", "PODCASTER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Deny any other API path by default (no accidental fail-open for new endpoints).
                         .requestMatchers("/api/**").denyAll()

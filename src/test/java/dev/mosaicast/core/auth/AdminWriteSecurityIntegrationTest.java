@@ -71,6 +71,30 @@ class AdminWriteSecurityIntegrationTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
+    @Test
+    void podcasterCanReadThePluginListTheyMayPartlyEdit() {
+        // Writing a config field was open to PODCASTER while the GET the form is rendered from was not, so
+        // a podcaster could set a field they could never see — `editableBy: "podcaster"` was decorative.
+        Session session = devLogin("podcaster");
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, session.sessionCookie() + "; " + session.xsrfCookie());
+        ResponseEntity<String> response = rest.exchange(
+                "/api/admin/plugins", HttpMethod.GET, new HttpEntity<>(headers), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void podcasterStillCannotSwitchAPluginOnOrOff() {
+        // Reading the list is not permission to run one: activation stays on the ADMIN catch-all.
+        Session session = devLogin("podcaster");
+        ResponseEntity<String> response = rest.exchange(
+                "/api/admin/plugins/sample/enabled?value=false", HttpMethod.PUT,
+                session.write("", true), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
     /** Logs in via the dev bypass and captures the session + CSRF cookies the chain set. */
     private Session devLogin(String role) {
         DevLogin.Cookies cookies = DevLogin.login(rest, role);
