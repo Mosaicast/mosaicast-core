@@ -12,9 +12,9 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * A configured feed source (ARCHITECTURE §5). In v1 this is an RSS feed; the {@code manual} type holds
- * host-created planned episodes that have no external feed yet (§4.3). The rest of the platform queries
- * a source's {@link SourceCapabilities}, never its {@link #type} (§5.1).
+ * A configured feed source (ARCHITECTURE §5). In v1 this is an RSS feed. The rest of the platform queries
+ * a source's {@link SourceCapabilities}, never its {@link #type} (§5.1). Host-created planned episodes
+ * (§4.3) attach to their target feed directly — there is no separate "manual" source.
  *
  * <p>The conditional-GET bookkeeping ({@link #etag}, {@link #lastModified}) lets the scheduler poll
  * politely — an unchanged feed costs a 304 (§5.4).
@@ -22,9 +22,6 @@ import java.util.UUID;
 @Entity
 @Table(name = "feed")
 public class Feed {
-
-    /** Feed {@link #type} for host-created planned episodes with no external source. */
-    public static final String TYPE_MANUAL = "manual";
 
     /** Feed {@link #type} for an RSS/Atom source parsed with Rome. */
     public static final String TYPE_RSS = "rss";
@@ -101,11 +98,6 @@ public class Feed {
     /** Creates a new RSS feed source (status flips PLANNED→PUBLISHED once items are reconciled). */
     public static Feed rss(String url, String title) {
         return new Feed(UUID.randomUUID(), TYPE_RSS, url, title);
-    }
-
-    /** Creates the singleton manual source that holds host-created planned episodes. */
-    public static Feed manual(String title) {
-        return new Feed(UUID.randomUUID(), TYPE_MANUAL, null, title);
     }
 
     public UUID getId() {

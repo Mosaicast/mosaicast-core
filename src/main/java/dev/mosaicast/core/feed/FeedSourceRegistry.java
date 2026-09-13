@@ -24,7 +24,7 @@ public class FeedSourceRegistry {
         this.byType = sources.stream().collect(Collectors.toMap(FeedSource::type, Function.identity()));
     }
 
-    /** The source for a type, or empty if none is registered (e.g. the {@code manual} feed has none). */
+    /** The source for a type, or empty if none is registered — a feed of an unknown type is simply not polled. */
     public Optional<FeedSource> forType(String type) {
         return Optional.ofNullable(byType.get(type));
     }
