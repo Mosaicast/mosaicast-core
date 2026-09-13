@@ -14,7 +14,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
-- **A plugin config field can say what it is (ARCHITECTURE §7.2, core#145).** `label` and `description` on a
+- **A plugin config field can say what it is (`0.7.2`, ARCHITECTURE §7.2, core#145).** `label` and `description` on a
   field are rendered in place of the raw identifier, each either a plain string or an object keyed by locale,
   resolved in the browser against the language the operator is reading in — the same shape and the same
   fallback chain `options[].label` already uses. Until now the generated form could only show the name an
@@ -24,7 +24,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   names the identifier. The host validates the shape and never the content — refusing to load a plugin over
   a malformed label would be worse than showing its key. Purely additive, so **no `platformApi` bump**.
 
-- **A podcaster can open the plugin page their manifests delegate to them (§7.2/§8.5, core#142).** Writing a
+- **A podcaster can open the plugin page their manifests delegate to them (`0.7.2`, §7.2/§8.5, core#142).** Writing a
   config field was already open to PODCASTER, per field, with the server enforcing `editableBy` — but the
   `GET` that the form is rendered from fell through to the ADMIN catch-all, so a podcaster could write a
   field they were never allowed to read, and saw "Not allowed" on the whole page. `editableBy: "podcaster"`
@@ -32,7 +32,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   was already redacted per field for the caller's role), and none of the controls the server would refuse:
   activation, purge and storage limits stay ADMIN and are no longer rendered to fail.
 
-- **A plugin's schedule follows its config (ARCHITECTURE §7.4, `platformApi` 0.15.0, core#143).** The host
+- **A plugin's schedule follows its config (`0.7.2`, ARCHITECTURE §7.4, `platformApi` 0.15.0, core#143).** The host
   now takes a `Supplier<Duration>` and re-reads it before every tick, rescheduling when the answer changes,
   so an interval an operator edits takes effect within one old period. It used to be captured during
   `register()` and held for the life of the process: a plugin whose tick rate came from `ctx.config()`
@@ -46,7 +46,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   (default `10s`) is the floor the host clamps to, because the ask now comes from a number an operator typed
   into a form and a typo would otherwise buy a ShedLock round-trip a second on every instance.
 
-- **A plugin config field can declare a closed set of values (ARCHITECTURE §7.2).** `options` on a config
+- **A plugin config field can declare a closed set of values (`0.7.2`, ARCHITECTURE §7.2).** `options` on a config
   field makes the generic admin form render a select rather than a text box, and core refuses anything
   outside the set — at load for the manifest's own `default`, and at write time for an operator's override.
   Until now a field whose plugin understood exactly two words was a free-text input: a typo passed
@@ -169,13 +169,20 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
-- **The plugin contract moves to `platformApi` 0.15.0.** That check is an exact `major.minor` match, so
+- **The `manual` feed type is gone (`0.7.2`, §4.3/§5).** `Feed.TYPE_MANUAL` and `Feed.manual(String)` had no
+  callers: planned episodes attach to their target feed (`EpisodeRef.planned(feed.getId(), …)`), and the
+  separate source they once needed stopped being written. The comments were the reason to remove it rather
+  than leave it — the class Javadoc still described the type as holding planned episodes, so a reader
+  implementing against §4.3 would have gone looking for a row nothing creates. `source=manual` on an
+  `EpisodeRef` is a different field and is unchanged, as is the `type=manual` line in the applied migration.
+
+- **The plugin contract moves to `platformApi` 0.15.0** (`0.7.2`). That check is an exact `major.minor` match, so
   **every installed plugin must be rebuilt against SDK 0.15.0 or it will not load** — `plugins/bingo`,
   `plugins/sample`, `plugins/wiki` and the loader fixtures included. The release bundles both contract
   fixes from the same sweep (the schedule supplier above, and a component that survives a new `ctx`) so
   plugin authors pay the rebuild once rather than twice.
 
-- **The header fits a phone again, by carrying one control fewer.** Below 560px the language switcher stops
+- **The header fits a phone again, by carrying one control fewer (`0.7.2`).** Below 560px the language switcher stops
   being its own button and moves inside the info menu, as a labelled group under the legal pages; the
   account control drops the display name and is the avatar alone. Brand + search + language + info +
   account did not fit a 375px header, and a header row cannot scroll, so what fell off the right edge was
@@ -184,7 +191,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   height, since that is what a thumb has to hit. The wordmark still gives way before any of this (below
   430px, as before), and the panels themselves are now clamped to the viewport width, so no menu can open
   off the side of the screen whatever a plugin adds to the `top` slot.
-- **The admin nav opens on the section `/admin` actually lands on.** Feeds is first, above Site & branding:
+- **The admin nav opens on the section `/admin` actually lands on (`0.7.2`).** Feeds is first, above Site & branding:
   it is where the area redirects, and it is the only entry a podcaster sees at all, so it was the one tab
   the nav pushed into the middle of an admin-only list.
 
@@ -208,7 +215,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
-- **Plugin components were destroyed and rebuilt several times a second during playback (core#144).** The
+- **Plugin components were destroyed and rebuilt several times a second during playback (`0.7.2`, core#144).** The
   shell listed the player's context value as an input to the `ctx` it hands each plugin element, and that
   value is rebuilt on every render of its provider with a `currentTime` that updates on every `timeupdate`.
   Since assigning `ctx` re-renders the element — after running the previous render's cleanup — every mounted
@@ -219,7 +226,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   Measured on the dev instance: zero assignments over eight seconds of idle, one when playback starts.
   This is the host half; SDK 0.15.0 carries the other, where a render may keep its DOM across a new `ctx`.
 
-- **Checkboxes in a generated settings form sat in the middle of the field.** The column stretches its
+- **Checkboxes in a generated settings form sat in the middle of the field (`0.7.2`).** The column stretches its
   children and a checkbox is the one control with an intrinsic size, so the platform drew it centred in a
   full-width box, under a left-aligned label. It sits at the start, like every other control in the form.
 

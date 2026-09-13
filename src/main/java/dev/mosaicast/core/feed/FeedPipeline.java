@@ -36,7 +36,7 @@ public class FeedPipeline {
     /**
      * Polls one feed and reconciles the result.
      *
-     * @param feed the feed to poll; a {@code manual} feed (no registered source) is skipped
+     * @param feed the feed to poll; one whose type has no registered source is skipped
      * @return the outcome (not-modified, reconciled, skipped, or failed) — never throws for a fetch error
      */
     /**
