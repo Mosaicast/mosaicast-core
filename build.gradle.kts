@@ -151,6 +151,21 @@ tasks.withType<Test>().configureEach {
             layout.buildDirectory.dir("test-plugins").get().asFile.absolutePath)
     }
     useJUnitPlatform()
+    // Gradle gives a test worker 512 MB unless told otherwise, and this suite does not fit in it: every
+    // @SpringBootTest configuration caches a context for the life of the worker, each with its own Tomcat,
+    // Hikari pool and HTTP clients, and forty-odd integration classes add up. At 512 MB the worker spends
+    // its time collecting instead of running — measured: seven GC threads pegged, no test finishing for
+    // nine minutes — and once it tips over it dies with OutOfMemoryError inside a context load, which
+    // Spring reports as every later class failing to load. Neither failure names memory, so the suite
+    // reads as broken rather than starved.
+    //
+    // Raising this cannot be done from the command line: `JAVA_TOOL_OPTIONS` is prepended to the worker's
+    // arguments and Gradle's own -Xmx comes after it, so the override is silently ignored. It has to be
+    // here.
+    maxHeapSize = "2g"
+    // A worker that dies still leaves Gradle waiting on it forever. This puts a bound on one test rather
+    // than on the build, so a hang is reported as the failing test it is.
+    systemProperty("junit.jupiter.execution.timeout.testable.method.default", "5m")
     // Opt-in live checks against a real external service (LibreTranslateLiveTest). Gradle does not pass
     // -D through to the test JVM, so a developer running
     //   ./gradlew test -Dmosaicast.test.libretranslate-url=http://localhost:5000
