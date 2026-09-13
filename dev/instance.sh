@@ -8,6 +8,7 @@
 # dev data, and never a real podcast.
 #
 #   dev/instance.sh up [--plugins|--no-plugins] [--admin]   # Postgres + feed server + dev-profile app
+#                                                           # --admin also leaves an admin cookie jar for curl
 #   dev/instance.sh status                                  # is it up, and what is loaded
 #   dev/instance.sh logs [-f]                               # the app log
 #   dev/instance.sh psql                                    # a shell on the fleeting database
@@ -23,8 +24,11 @@
 # For screenshots, capture light + dark at ~1280px:
 #   - /                                  -> home-{light,dark}.png
 #   - /episodes/<slug>                   -> detail-{light,dark}.png
-#   - /account                           -> account-{light,dark}.png   (needs --admin)
-#   - /admin/<page>                      -> admin-{light,dark}.png     (needs --admin)
+#   - /account                           -> account-{light,dark}.png   (sign in first)
+#   - /admin/<page>                      -> admin-{light,dark}.png     (sign in first)
+# Those two need a signed-in browser, which --admin cannot give you: it writes a curl cookie jar, and a
+# cookie in a file is not a cookie in your browser. Sign in through the UI (Log in -> Admin, the dev-login
+# menu the dev profile ships), or have your capture script do it.
 # Switch theme with the browser's colour-scheme emulation and RELOAD — setting data-theme by hand produces
 # an image that looks right and is not (the accent tokens come from the site payload, not from CSS alone).
 
@@ -97,20 +101,26 @@ up() {
   until curl -sf "$APP_URL/actuator/health" >/dev/null 2>&1; do sleep 2; done
 
   echo "▶ seeding the sample feed"
-  local jar="$RUN_DIR/cookies.txt" xsrf
-  # dev-login is CSRF-protected like every other mutation, so prime a token first and echo it back — the
-  # same two steps the SPA takes. Re-read the token afterwards: the login response may re-set the cookie.
-  curl -s -c "$jar" "$APP_URL/api/meta" >/dev/null
-  xsrf=$(awk '/XSRF-TOKEN/{print $7}' "$jar")
-  curl -s -b "$jar" -c "$jar" -H "X-XSRF-TOKEN: $xsrf" \
-    -X POST "$APP_URL/api/auth/dev-login?role=podcaster" >/dev/null
+  local jar xsrf
+  # Adding a feed is a podcaster capability, so the seeding session is a podcaster one. Through the same
+  # helper --admin uses: this block used to carry its own copy of the login, which is how the helper ended
+  # up written and never called.
+  jar=$(login podcaster)
   xsrf=$(awk '/XSRF-TOKEN/{print $7}' "$jar")
   curl -s -o /dev/null -w '  add feed: %{http_code}\n' -b "$jar" -H "X-XSRF-TOKEN: $xsrf" \
     -H 'Content-Type: application/json' \
     -d "{\"url\":\"http://localhost:$FEED_PORT/sample-feed.xml\",\"title\":\"The Sample Cast\"}" \
     "$APP_URL/api/admin/feeds"
 
-  echo "✅ ready at $APP_URL — capture screenshots, then: dev/screenshots.sh down"
+  if [ "$AS_ADMIN" = 1 ]; then
+    local admin_jar
+    admin_jar=$(login admin)
+    echo "▶ admin session for curl: $admin_jar"
+    echo "  e.g. curl -s -b $admin_jar $APP_URL/api/admin/plugins"
+    echo "  (a browser needs its own sign-in: Log in -> Admin)"
+  fi
+
+  echo "✅ ready at $APP_URL — capture screenshots, then: dev/instance.sh down"
 }
 
 down() {
