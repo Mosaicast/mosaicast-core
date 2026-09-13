@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { optionLabel } from './types';
+import { localizedText, optionLabel } from './types';
 
 /**
  * A config option's label is the one manifest string the host localises, and it is resolved here rather
@@ -36,5 +36,29 @@ describe('optionLabel', () => {
     expect(optionLabel({ value: 'lines', label: {} }, 'de')).toBe('lines');
     expect(optionLabel({ value: 'lines', label: { de: '   ' } }, 'de')).toBe('lines');
     expect(optionLabel({ value: 5, label: { de: '' } }, 'de')).toBe('5');
+  });
+});
+
+/**
+ * The same resolution, used for a config field's own prose. It answers `undefined` rather than a fallback
+ * string, because what "nothing" means differs by caller: an option shows its raw value, a field its key.
+ */
+describe('localizedText', () => {
+  it('takes the locale, then the base language, then English', () => {
+    const label = { en: 'Refresh interval', de: 'Aktualisierungsintervall' };
+
+    expect(localizedText(label, 'de')).toBe('Aktualisierungsintervall');
+    expect(localizedText(label, 'de-AT')).toBe('Aktualisierungsintervall');
+    expect(localizedText(label, 'fr')).toBe('Refresh interval');
+  });
+
+  it('accepts the plain string form every verbatim manifest label already uses', () => {
+    expect(localizedText('Refresh interval', 'de')).toBe('Refresh interval');
+  });
+
+  it('says nothing rather than something empty', () => {
+    expect(localizedText(undefined, 'de')).toBeUndefined();
+    expect(localizedText({}, 'de')).toBeUndefined();
+    expect(localizedText({ de: '   ' }, 'de')).toBeUndefined();
   });
 });

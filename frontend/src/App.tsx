@@ -155,7 +155,9 @@ export default function App() {
                     <Route
                       path="plugins"
                       element={
-                        <RequireRole roles={['admin']}>
+                        // A podcaster belongs here for the fields a manifest delegates to them (§7.2); the
+                        // page renders only what their role may act on, and the server redacts the rest.
+                        <RequireRole roles={['admin', 'podcaster']}>
                           <AdminPlugins />
                         </RequireRole>
                       }

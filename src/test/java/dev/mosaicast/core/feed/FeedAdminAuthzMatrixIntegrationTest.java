@@ -120,10 +120,16 @@ class FeedAdminAuthzMatrixIntegrationTest {
 
     @Test
     void theSiblingAdminEndpointsStayAdminOnly() {
-        // The contrast that makes the matrix above a decision rather than an oversight: everything else
-        // under /api/admin is ADMIN, and a podcaster reaching feeds does not reach users or site config.
+        // The contrast that makes the matrix above a decision rather than an oversight: a podcaster reaching
+        // feeds does not thereby reach users or site config.
+        //
+        // `/api/admin/plugins` used to be on this list and is deliberately not any more (§7.2): a manifest
+        // may delegate individual config fields to a podcaster, and writing those was always open to the
+        // role — so reading the list the form is rendered from is part of the same decision, with the
+        // response redacted per field. What stays ADMIN there is acting on a plugin rather than configuring
+        // one: activation, purge and storage limits, covered in AdminWriteSecurityIntegrationTest.
         DevLogin.Cookies podcaster = DevLogin.login(rest, "podcaster");
-        for (String path : new String[] {"/api/admin/users", "/api/admin/plugins", "/api/admin/consent"}) {
+        for (String path : new String[] {"/api/admin/users", "/api/admin/consent"}) {
             assertThat(rest.exchange(path, HttpMethod.GET, read(podcaster), String.class).getStatusCode())
                     .as("podcaster GET %s", path)
                     .isEqualTo(HttpStatus.FORBIDDEN);

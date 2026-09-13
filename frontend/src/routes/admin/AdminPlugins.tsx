@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
 import { SettingsFieldInput, toJsonValue, type DraftValue } from '../../components/SettingsFieldInput';
-import { optionLabel, type AdminPlugin } from '../../plugins/types';
+import { useUser } from '../../auth/UserContext';
+import { localizedText, optionLabel, type AdminPlugin } from '../../plugins/types';
 import { PluginStorage } from './PluginStorage';
 
 /**
@@ -19,6 +20,10 @@ import { PluginStorage } from './PluginStorage';
  */
 export function AdminPlugins() {
   const { t, i18n } = useTranslation();
+  // A podcaster reaches this page for the fields their manifests delegate to them (§7.2). Everything else
+  // here is ADMIN on the server, so the controls for it are not rendered rather than rendered to fail.
+  const { user } = useUser();
+  const isAdmin = user?.role === 'admin';
   const [plugins, setPlugins] = useState<AdminPlugin[] | null>(null);
   /** Unsaved form input, keyed `${pluginId} ${field}`; absent means "unchanged from the server value". */
   const [drafts, setDrafts] = useState<Record<string, string | boolean>>({});
@@ -141,16 +146,20 @@ export function AdminPlugins() {
                   )}
                 </div>
                 <div className="mc-pluginrow__actions">
-                  {plugin.status !== 'REJECTED' && (
+                  {isAdmin && plugin.status !== 'REJECTED' && (
                     <label className="mc-toggle">
                       <input type="checkbox" checked={plugin.enabled} onChange={() => toggle(plugin)} />
                       {t('admin.plugins.enabled')}
                     </label>
                   )}
+                  {/* Status is readable by anyone who can see the row: a podcaster editing a field of a
+                      plugin that is switched off needs to know that before wondering why nothing happens. */}
                   <span className={statusClass(plugin)}>{t(statusKey(plugin))}</span>
-                  <button type="button" className="mc-btn" onClick={() => purge(plugin)}>
-                    {t('admin.plugins.purge')}
-                  </button>
+                  {isAdmin && (
+                    <button type="button" className="mc-btn" onClick={() => purge(plugin)}>
+                      {t('admin.plugins.purge')}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -181,7 +190,7 @@ export function AdminPlugins() {
                 </div>
               )}
 
-              {plugin.blobs && (
+              {isAdmin && plugin.blobs && (
                 <PluginStorage
                   blobs={plugin.blobs}
                   saved={saved === plugin.id}
@@ -205,6 +214,14 @@ export function AdminPlugins() {
                           value: String(option.value),
                           label: optionLabel(option, i18n.language),
                         })),
+                        // The manifest's own prose, in the reader's language. Absent leaves the raw key,
+                        // which is what every field showed before a plugin could say anything about one.
+                        label: localizedText(declared.label, i18n.language),
+                        description: localizedText(declared.description, i18n.language),
+                        // Shown but not editable for a role the server would refuse. Saving is
+                        // all-or-nothing, so a podcaster typing into an admin-only row would lose the edits
+                        // they were allowed to make along with the one they were not.
+                        disabled: !isAdmin && declared.editableBy !== 'podcaster',
                         overridden: declared.overridden,
                       }}
                       value={drafts[draftKey(plugin.id, field)] ?? (declared.value as DraftValue) ?? ''}

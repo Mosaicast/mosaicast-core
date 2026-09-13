@@ -2,10 +2,16 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import '../../i18n';
 import { AdminPlugins } from './AdminPlugins';
+
+/** Who is looking. A podcaster reaches this page for delegated fields; everything else here is ADMIN. */
+let role: 'admin' | 'podcaster' = 'admin';
+vi.mock('../../auth/UserContext', () => ({
+  useUser: () => ({ user: { id: 'me', displayName: 'Me', avatarUrl: null, role } }),
+}));
 
 const PLUGIN = {
   id: 'sample',
@@ -41,7 +47,11 @@ function stubFetch(plugins: unknown[] = [PLUGIN]) {
 }
 
 describe('AdminPlugins (M5 E5c)', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => {
+  role = 'admin';
+});
+
+afterEach(() => vi.unstubAllGlobals());
 
   it('renders a form input per declared config field and PUTs the typed value', async () => {
     const calls = stubFetch();
@@ -135,6 +145,72 @@ describe('AdminPlugins (M5 E5c)', () => {
       const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/plugins/sample/config');
       expect(put?.body).toBe(JSON.stringify({ showTotals: false }));
     });
+  });
+
+  it('shows a podcaster the delegated fields and none of the admin controls', async () => {
+    // Reading the list used to be ADMIN while writing a field was open to PODCASTER, so `editableBy:
+    // "podcaster"` rendered in the UI and was unreachable in practice.
+    role = 'podcaster';
+    stubFetch([
+      {
+        ...PLUGIN,
+        // What the server sends a podcaster: the admin-only row keeps its shape and loses its value.
+        config: {
+          refreshIntervalMinutes: PLUGIN.config.refreshIntervalMinutes,
+          apiToken: {
+            type: 'string',
+            editableBy: 'admin',
+            defaultValue: null,
+            value: null,
+            overridden: false,
+          },
+        },
+      },
+    ]);
+    render(<AdminPlugins />);
+
+    expect(await screen.findByText('Sample')).toBeInTheDocument();
+    // The delegated field is there to edit, and so is the row they may only look at.
+    expect(screen.getByText(/refreshIntervalMinutes/)).toBeInTheDocument();
+    expect(screen.getByText(/apiToken/)).toBeInTheDocument();
+    // Everything the server would refuse is absent rather than rendered to fail.
+    expect(screen.queryByText('Purge data')).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+
+    // And the admin-only row is readable, not editable: a save is all-or-nothing, so typing into it would
+    // cost the podcaster the edits they were allowed to make.
+    const inputs = screen.getAllByRole('textbox') as HTMLInputElement[];
+    expect(inputs.some((i) => i.disabled)).toBe(true);
+  });
+
+  it('reads a field by its label, in the language the operator is using', async () => {
+    stubFetch([
+      {
+        ...PLUGIN,
+        config: {
+          refreshIntervalMinutes: {
+            ...PLUGIN.config.refreshIntervalMinutes,
+            label: { en: 'Refresh interval', de: 'Aktualisierungsintervall' },
+            description: { en: 'How often the feed is re-read, in minutes.', de: 'Wie oft neu gelesen wird.' },
+          },
+          untitled: {
+            type: 'string',
+            editableBy: 'admin',
+            defaultValue: 'x',
+            value: 'x',
+            overridden: false,
+          },
+        },
+      },
+    ]);
+    render(<AdminPlugins />);
+
+    expect(await screen.findByText('Refresh interval')).toBeInTheDocument();
+    expect(screen.getByText('How often the feed is re-read, in minutes.')).toBeInTheDocument();
+    // The key stays visible beside the label: a plugin's own docs name the identifier, not the prose.
+    expect(screen.getByText('refreshIntervalMinutes')).toBeInTheDocument();
+    // A field that declares nothing reads exactly as it did before.
+    expect(screen.getByText(/untitled/)).toBeInTheDocument();
   });
 
   it('toggles activation through the enabled endpoint', async () => {
