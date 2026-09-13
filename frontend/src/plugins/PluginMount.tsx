@@ -69,7 +69,18 @@ export function PluginMount({
   const elementRef = useRef<HTMLElement | null>(null);
   const { user } = useUser();
   const { site, mode } = useSite();
+  // Held in a ref for the same reason `navigate` is below, but the cost was far higher: the player's
+  // context value is rebuilt on every one of its own renders, and `currentTime` is state that updates on
+  // every `timeupdate` — several times a second while audio plays. As a `ctx` dependency that reassigned
+  // `ctx` at that rate, and the SDK's contract is that a new `ctx` re-renders the element after running
+  // the previous render's cleanup: every mounted plugin component was destroyed and rebuilt, losing
+  // component state, in-flight requests, scroll position and open dialogs, and re-running every effect
+  // behind them. What `ctx` actually needs from the player is two functions, and neither has to change.
   const player = usePlayer();
+  const playerRef = useRef(player);
+  playerRef.current = player;
+  const playerCurrentTime = useCallback(() => playerRef.current.currentTime, []);
+  const playerSeekTo = useCallback((seconds: number) => playerRef.current.seek(seconds), []);
   const consent = useConsent();
   const { i18n } = useTranslation();
 
@@ -96,8 +107,8 @@ export function PluginMount({
         locale: i18n.language,
         uiLocales: uiLocaleInfos(),
         contentLocales: contentLocaleInfos(),
-        playerCurrentTime: () => player.currentTime,
-        playerSeekTo: player.seek,
+        playerCurrentTime,
+        playerSeekTo,
         routePath,
         routeQuery,
         routeHash,
@@ -122,7 +133,8 @@ export function PluginMount({
       site,
       mode,
       i18n.language,
-      player,
+      playerCurrentTime,
+      playerSeekTo,
       routePath,
       routeQuery,
       routeHash,

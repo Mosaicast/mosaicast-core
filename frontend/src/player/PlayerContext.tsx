@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useRef,
+  useMemo,
   useState,
   type ReactNode,
 } from 'react';
@@ -364,20 +365,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [current, currentTime, toggle, skip, advance]);
 
-  const value: PlayerContextValue = {
-    current,
-    playing,
-    currentTime,
-    duration,
-    volume,
-    rate,
-    play,
-    toggle,
-    seek,
-    skip,
-    setVolume,
-    setRate,
-  };
+  // Memoised rather than rebuilt inline: this value is read by plugin mounts, and an identity that changes
+  // on every render of this provider is an identity that changes several times a second while audio plays.
+  // The state in it still moves at that rate — the point is that nothing else does.
+  const value: PlayerContextValue = useMemo(
+    () => ({
+      current,
+      playing,
+      currentTime,
+      duration,
+      volume,
+      rate,
+      play,
+      toggle,
+      seek,
+      skip,
+      setVolume,
+      setRate,
+    }),
+    [current, playing, currentTime, duration, volume, rate, play, toggle, seek, skip, setVolume, setRate],
+  );
 
   return (
     <PlayerContext.Provider value={value}>

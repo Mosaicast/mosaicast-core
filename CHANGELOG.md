@@ -190,6 +190,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Plugin components were destroyed and rebuilt several times a second during playback (core#144).** The
+  shell listed the player's context value as an input to the `ctx` it hands each plugin element, and that
+  value is rebuilt on every render of its provider with a `currentTime` that updates on every `timeupdate`.
+  Since assigning `ctx` re-renders the element — after running the previous render's cleanup — every mounted
+  plugin lost its component state, in-flight requests, scroll position and open dialogs at that rate, and
+  re-ran every effect behind them. One measured feed page fetched the same document eight times.
+  What `ctx` needs from the player is two functions, and neither has to change: they read through a ref and
+  are wrapped, the way the shell already treats `navigate`, so playback is no longer a `ctx` input at all.
+  Measured on the dev instance: zero assignments over eight seconds of idle, one when playback starts.
+  This is the host half; SDK 0.15.0 carries the other, where a render may keep its DOM across a new `ctx`.
+
 - **Checkboxes in a generated settings form sat in the middle of the field.** The column stretches its
   children and a checkbox is the one control with an intrinsic size, so the platform drew it centred in a
   full-width box, under a left-aligned label. It sits at the start, like every other control in the form.
