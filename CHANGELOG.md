@@ -14,6 +14,20 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A plugin's schedule follows its config (ARCHITECTURE §7.4, `platformApi` 0.15.0, core#143).** The host
+  now takes a `Supplier<Duration>` and re-reads it before every tick, rescheduling when the answer changes,
+  so an interval an operator edits takes effect within one old period. It used to be captured during
+  `register()` and held for the life of the process: a plugin whose tick rate came from `ctx.config()`
+  accepted a new value, stored it, reported the save as successful, and went on running at the old cadence
+  with nothing in the admin form saying so.
+  The supplier is consulted, not trusted — it runs on a scheduler thread, so `null`, a non-positive
+  `Duration` or a throw leaves the task on the last period that was valid and is logged once per transition
+  rather than once per tick; a plugin whose config read starts failing must not also lose its schedule.
+  Only registration is strict, because there is no last-valid period to fall back to yet.
+  The period is a **request**, like the manifest's other numbers: `mosaicast.plugin-schedule.min-period`
+  (default `10s`) is the floor the host clamps to, because the ask now comes from a number an operator typed
+  into a form and a typo would otherwise buy a ShedLock round-trip a second on every instance.
+
 - **A plugin config field can declare a closed set of values (ARCHITECTURE §7.2).** `options` on a config
   field makes the generic admin form render a select rather than a text box, and core refuses anything
   outside the set — at load for the manifest's own `default`, and at write time for an operator's override.
@@ -136,6 +150,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   - A plugin's notifications go when its data is purged (§17.2).
 
 ### Changed
+
+- **The plugin contract moves to `platformApi` 0.15.0.** That check is an exact `major.minor` match, so
+  **every installed plugin must be rebuilt against SDK 0.15.0 or it will not load** — `plugins/bingo`,
+  `plugins/sample`, `plugins/wiki` and the loader fixtures included. The release bundles both contract
+  fixes from the same sweep (the schedule supplier above, and a component that survives a new `ctx`) so
+  plugin authors pay the rebuild once rather than twice.
 
 - **The header fits a phone again, by carrying one control fewer.** Below 560px the language switcher stops
   being its own button and moves inside the info menu, as a labelled group under the legal pages; the
