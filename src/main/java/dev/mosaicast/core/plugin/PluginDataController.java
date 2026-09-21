@@ -11,6 +11,10 @@ import dev.mosaicast.core.web.PagedResponse;
 import dev.mosaicast.plugin.api.DocEntry;
 import dev.mosaicast.plugin.api.Scope;
 import dev.mosaicast.plugin.api.ScopeType;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -50,6 +54,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PluginDataController {
 
+    /** Per-request ceiling on a batch read's ids and keys — the same order of magnitude as a feed page. */
+    private static final int BATCH_LIMIT = 100;
+
     private final PluginLoaderService plugins;
     private final PluginDataService data;
     private final FeedAccessImpl scopes;
@@ -60,17 +67,69 @@ public class PluginDataController {
         this.scopes = scopes;
     }
 
-    /** One document, or 404 when absent (the frontend relies on the 404). */
+    /**
+     * One document, or <strong>204</strong> when the key is simply not there.
+     *
+     * <p>"This episode has no highlight yet" is the normal case for an optional value, not a client error,
+     * and answering it 404 made it one: on a first load of a 40-card feed page, 252 of 307 plugin requests
+     * were 404s, and a three-minute anonymous session on a real instance produced 3,737 of which 98% said
+     * nothing more than "not set" (core#159). Each one still cost a session lookup, the filter chain and a
+     * round trip, it painted the development console red enough to bury real errors, and — because a
+     * rejected promise is not a cacheable answer — nothing on the client could remember it.
+     *
+     * <p>404 keeps its meaning for the cases that *are* errors: an unknown or switched-off plugin, an
+     * unknown scope type, a scope naming something that does not exist. The distinction a caller needs is
+     * "this address is wrong" versus "this address is right and empty", and only the second is a 204.
+     */
     @GetMapping("/api/plugins/{id}/data/{scopeType}/{scopeId}/{key}")
-    public JsonNode get(@PathVariable String id, @PathVariable String scopeType,
-                        @PathVariable String scopeId, @PathVariable String key, Authentication authentication) {
+    public ResponseEntity<JsonNode> get(@PathVariable String id, @PathVariable String scopeType,
+                                        @PathVariable String scopeId, @PathVariable String key,
+                                        Authentication authentication) {
         // The plugin first: an unknown or switched-off plugin has no data surface at all, and should
         // not have scope errors answered on its behalf.
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireReadable(manifest, scope, authentication);
         return data.getRaw(id, scope, key)
-                .orElseThrow(() -> new NotFoundException("No document: " + key));
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /**
+     * Several documents in one request: the keys named by {@code keys}, for each scope id named by
+     * {@code ids}, answered as {@code {scopeId: {key: value}}} with misses simply absent.
+     *
+     * <p>Without this, a plugin rendering one tile per episode card asks for every key of every scope in a
+     * request of its own — measured at 160 requests for a single cold load of a 20-card page, most of them
+     * answering "not set". The shape mirrors {@code scope-episodes}, which already takes the scope this
+     * way, and it is bounded: at most {@value #BATCH_LIMIT} ids and {@value #BATCH_LIMIT} keys, so one call
+     * cannot become the expensive thing it exists to prevent.
+     *
+     * <p>Authorization is unchanged and per plugin, exactly as the single-document read: the same manifest
+     * floor, the same scope resolution per id, and an id the caller may not address is refused rather than
+     * skipped — a batch that quietly dropped what it could not reach would turn a 404 into an empty answer.
+     */
+    @GetMapping("/api/plugins/{id}/data/{scopeType}")
+    public Map<String, Map<String, JsonNode>> getMany(@PathVariable String id, @PathVariable String scopeType,
+                                                      @RequestParam List<String> ids,
+                                                      @RequestParam List<String> keys,
+                                                      Authentication authentication) {
+        PluginManifest manifest = manifestOf(id);
+        if (ids.size() > BATCH_LIMIT || keys.size() > BATCH_LIMIT) {
+            throw new IllegalArgumentException(
+                    "At most " + BATCH_LIMIT + " ids and " + BATCH_LIMIT + " keys per batch read.");
+        }
+        Map<String, Map<String, JsonNode>> answer = new LinkedHashMap<>();
+        for (String scopeId : new LinkedHashSet<>(ids)) {
+            DataScope scope = scope(scopeType, scopeId, authentication);
+            requireReadable(manifest, scope, authentication);
+            Map<String, JsonNode> found = new LinkedHashMap<>();
+            for (String key : new LinkedHashSet<>(keys)) {
+                data.getRaw(id, scope, key).ifPresent(value -> found.put(key, value));
+            }
+            answer.put(scopeId, found);
+        }
+        return answer;
     }
 
     /** Paginated list of documents in a scope, optionally filtered by key prefix. */

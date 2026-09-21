@@ -215,6 +215,25 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **One visitor with audio playing drove ~304 requests a second (`0.7.2`, core#158, core#159).** Two
+  independent causes, one symptom. Every slot region writes its scope inline — `scope={{ type: 'episode',
+  id: slug }}` — so the object is a new one on every render of whatever hosts it, and `PluginMount` took
+  that object as a `ctx` input: a scope that had not moved reassigned `ctx`, and the SDK re-renders the
+  element on every assignment, which re-runs its fetches. `EpisodeCard` made it continuous by calling
+  `usePlayer()` for its Play button, so all forty cards on a feed page re-rendered at `timeupdate` rate.
+  #144 fixed the player half of this; the scope half survived it. The scope is now the two values it
+  actually is, and the player's actions live in a context of their own (`usePlayerActions`) that changes
+  only when the loaded episode does — a Play button, a deep link and a plugin mount are no longer tick-rate
+  consumers, and the position is available to them as `getCurrentTime()` without subscribing to it.
+  Meanwhile **an unset doc-store key answers 204 rather than 404**: "this episode has no highlight yet" is
+  the normal state of an optional value, and calling it a client error meant 98% of the plugin requests in
+  a three-minute session on a real instance were errors, none of them cacheable, with the development
+  console red enough to bury the real ones. 404 keeps its meaning for an address that is wrong — unknown
+  plugin, unknown scope type, a scope naming nothing — which is a distinction the surface could not express
+  before. `ctx.docs` now shares one request between identical reads in flight and remembers a miss for the
+  life of the page (a hit is not cached, and writing a key forgets its miss), and a new batch read answers
+  many scopes at once, so a plugin drawing one tile per card need not ask per card. An episode region whose
+  caller already holds the title no longer asks the host to resolve a one-element list either.
 - **Every Docker install ran with its language registry switched off (`0.7.2`, core#157).** The backend
   stage of the image never copied `frontend/src/locales`, so the `processResources` rule that places the
   bundled message catalogs copied a directory that was not there — a Gradle copy from a missing source

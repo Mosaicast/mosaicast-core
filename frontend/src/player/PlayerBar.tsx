@@ -174,7 +174,7 @@ export function PlayerBar() {
         >
           {rate}×
         </button>
-        <SlotRegion name="player" scope={{ type: 'episode', id: current.slug }} />
+        <SlotRegion name="player" scope={{ type: 'episode', id: current.slug }} scopeLabel={current.title} />
         <input
           className="mc-player__vol"
           type="range"

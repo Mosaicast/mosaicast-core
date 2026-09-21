@@ -16,6 +16,7 @@ import { SearchPage } from './SearchPage';
 
 vi.mock('../player/PlayerContext', () => ({
   usePlayer: () => ({ play: () => {}, currentTime: 0, seek: () => {} }),
+  usePlayerActions: () => ({ play: () => {}, seek: () => {} }),
 }));
 
 function mockSearch(body: unknown) {

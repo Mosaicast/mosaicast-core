@@ -39,6 +39,15 @@ function nullOn404(error: unknown): null {
 }
 
 /**
+ * An absent document answers 204, which the HTTP client resolves as `undefined`. The SDK's contract for a
+ * miss is `null`, so the two are one answer here. The 404 branch stays: a plugin whose key is fine but
+ * whose *scope* is not still gets one, and an older host answers one for a plain miss.
+ */
+function absentAsNull<T>(value: T | undefined): T | null {
+  return value ?? null;
+}
+
+/**
  * Builds the {@link PluginApiClient} the host sets on a plugin's `ctx.api` (ARCHITECTURE §7.5/§7.6). Paths are
  * relative to the plugin's namespace `/api/plugins/<id>/`; the shell's HTTP client attaches the base path,
  * the cookie session and the SPA CSRF header. This targets the host's generic doc-store surface — there are
@@ -54,7 +63,11 @@ export function makePluginApi(pluginId: string): PluginApiClient {
     // missing doc — and swallowed the 500, the 403 and the network failure with it, reporting all four to
     // the visitor as an empty widget. This resolves `null` for absence alone; everything else still
     // rejects, carrying the status and the problem body.
-    getOrNull: <T>(path: string) => api.get<T>(url(path)).catch(nullOn404) as Promise<T | null>,
+    getOrNull: <T>(path: string) =>
+      api
+        .get<T>(url(path))
+        .catch(nullOn404)
+        .then((value) => absentAsNull(value as T | undefined)),
     post: <T>(path: string, body?: unknown) => api.post<T>(url(path), body),
     put: <T>(path: string, body?: unknown) => api.put<T>(url(path), body),
     delete: <T>(path: string) => api.del<T>(url(path)),
@@ -73,7 +86,40 @@ export function makePluginApi(pluginId: string): PluginApiClient {
  * remembering a key cannot contain a slash. The key is checked against the SDK's `DOC_KEY_PATTERN` before
  * the request, so a malformed one throws where it was written instead of arriving as a 400 from the host.
  */
-export function makePluginDocs(pluginId: string): DocClient {
+/**
+ * Remembered misses, per plugin and per identity, for the life of the page.
+ *
+ * Module-level rather than per client on purpose: `ctx` is rebuilt whenever one of its inputs legitimately
+ * changes — the site's theme arriving is one, a language switch is another — and a cache that lived on the
+ * client would be thrown away with it, so every tile would ask again for keys it had already been told are
+ * unset. Keyed by identity because absence is not identity-independent: `user/me` is a different partition
+ * for every caller, and a miss seen while logged out must not be served to the person who just logged in.
+ * Only the previous identity's entries are dropped, which is the whole of the staleness question here.
+ */
+const missesByPlugin = new Map<string, { identity: string; paths: Set<string> }>();
+
+/**
+ * Reads in flight, shared across every mount of the same plugin: a feed page mounts one tile per card and
+ * they ask at the same moment, so deduping only within a single client would still send one request per
+ * tile for the site- and feed-scoped keys they all read.
+ */
+const inFlight = new Map<string, Promise<unknown>>();
+
+function rememberedMisses(pluginId: string, identity: string): Set<string> {
+  const held = missesByPlugin.get(pluginId);
+  if (held && held.identity === identity) {
+    return held.paths;
+  }
+  const fresh = { identity, paths: new Set<string>() };
+  missesByPlugin.set(pluginId, fresh);
+  return fresh.paths;
+}
+
+/**
+ * @param identity who the reads are made as — the viewer's user id, or `'anonymous'`. It scopes the
+ *   remembered misses and nothing else; the server decides what this caller may read, as it always has.
+ */
+export function makePluginDocs(pluginId: string, identity = 'anonymous'): DocClient {
   const base = `/api/plugins/${pluginId}/data`;
 
   // 'self' and 'site' are the two singletons whose id the client never chooses: `user/me` is resolved to
@@ -95,11 +141,63 @@ export function makePluginDocs(pluginId: string): DocClient {
     return `${base}/${partition(target)}/${encodeURIComponent(key)}`;
   };
 
+  /**
+   * One promise per document address, for as long as it is useful.
+   *
+   * A plugin tile asks for its key whenever it renders, and the shell may render it many times in a row:
+   * one measured page requested the same key three times per episode, and a three-minute session on a real
+   * instance asked for one key 178 times. Two things fix that and neither belongs in every plugin:
+   *
+   * - **Dedupe.** Identical reads in flight at the same time share one request.
+   * - **Remember the misses.** "Not set" is the normal answer for an optional value and it does not change
+   *   by itself, so it is cached for the life of the page. A *hit* is not cached — a document another
+   *   session wrote is exactly the thing a re-render should pick up.
+   *
+   * Writing through this client invalidates the address it wrote, so a plugin that stores a value and reads
+   * it back gets its own write rather than the miss it saw a moment earlier.
+   */
+  const knownAbsent = rememberedMisses(pluginId, identity);
+
+  const read = <T>(target: DocTarget, key: string): Promise<T | null> => {
+    const path = keyed(target, key);
+    if (knownAbsent.has(path)) {
+      return Promise.resolve(null);
+    }
+    const pending = inFlight.get(path);
+    if (pending) {
+      return pending as Promise<T | null>;
+    }
+    const request = api
+      .get<T>(path)
+      .then((value) => {
+        // `undefined` is the host's 204 — the key is simply not set, and that is what gets remembered.
+        // A 404 below is a different answer (the address is wrong) and is deliberately not cached: a
+        // plugin that is switched on, or a scope that comes into existence, should not be remembered as
+        // empty for the rest of the page.
+        if (value === undefined) {
+          knownAbsent.add(path);
+        }
+        return absentAsNull(value as T | undefined);
+      })
+      .catch(nullOn404)
+      .finally(() => {
+        inFlight.delete(path);
+      });
+    inFlight.set(path, request);
+    return request as Promise<T | null>;
+  };
+
+  const forget = (target: DocTarget, key: string) => {
+    knownAbsent.delete(keyed(target, key));
+  };
+
   return {
-    get: <T>(target: DocTarget, key: string) =>
-      api.get<T>(keyed(target, key)).catch(nullOn404) as Promise<T | null>,
+    get: <T>(target: DocTarget, key: string) => read<T>(target, key),
     put: <T>(target: DocTarget, key: string, value: T) =>
-      api.put<void>(keyed(target, key), value).then(() => undefined),
+      api.put<void>(keyed(target, key), value).then(() => {
+        forget(target, key);
+        return undefined;
+      }),
     list: <T>(target: DocTarget, opts?: { prefix?: string; page?: number; size?: number }) => {
       const search = new URLSearchParams();
       if (opts?.prefix) search.set('prefix', opts.prefix);
@@ -108,7 +206,10 @@ export function makePluginDocs(pluginId: string): DocClient {
       return api.get<PagedDocs<T>>(`${base}/${partition(target)}?${search.toString()}`);
     },
     remove: (target: DocTarget, key: string) =>
-      api.del<void>(keyed(target, key)).then(() => undefined),
+      api.del<void>(keyed(target, key)).then(() => {
+        forget(target, key);
+        return undefined;
+      }),
   };
 }
 

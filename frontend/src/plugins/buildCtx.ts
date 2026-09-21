@@ -126,7 +126,7 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     api: makePluginApi(inputs.pluginId),
     // Non-nullable, both of them: every plugin has a doc store, and `feeds` reads host data the same
     // visitor can already read from /api/episodes/* — neither is something a manifest declares (§7.5).
-    docs: makePluginDocs(inputs.pluginId),
+    docs: makePluginDocs(inputs.pluginId, inputs.user?.id ?? 'anonymous'),
     feeds: makePluginFeeds(inputs.pluginId),
     // Null for a doc-store plugin, mirroring the backend's `ctx.schema()`. Handing every plugin a client
     // would mean one that 404s on every call — a worse answer than saying there is nothing here.

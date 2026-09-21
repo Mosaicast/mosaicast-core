@@ -198,10 +198,59 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
-    void missingDocIs404() {
-        ResponseEntity<String> response =
+    void anUnsetKeyIs204AndAnUnknownAddressIsStill404() {
+        // "Not set" is the normal state of an optional value, not a client error, and answering it 404 made
+        // it one: 98% of the plugin requests in a three-minute session on a real instance said nothing more
+        // than this (core#159). A caller has to be able to tell it from an address that is wrong.
+        ResponseEntity<String> unset =
                 rest.getForEntity("/api/plugins/good/data/site/main/absent", String.class);
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(unset.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(unset.getBody()).isNull();
+
+        // Wrong address, all three ways: unknown plugin, unknown scope type, unaddressable scope.
+        assertThat(rest.getForEntity("/api/plugins/nope/data/site/main/absent", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/plugins/good/data/nonsense/main/absent", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/plugins/good/data/episode/no-such-episode/absent", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void aBatchReadAnswersManyScopesInOneRequest() {
+        // One request per key per scope is what made a 20-card page issue 160 of them. The batch answers a
+        // map, misses are simply absent, and the floor is checked per scope exactly as the single read does.
+        ResponseEntity<String> response = rest.getForEntity(
+                "/api/plugins/good/data/site?ids=main&keys=greeting,episode-count,absent", String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains("hello from fixture").contains("episode-count");
+        // A key that is not set is left out rather than answered as null: absence is the absence of an entry.
+        assertThat(response.getBody()).doesNotContain("absent");
+    }
+
+    @Test
+    void aBatchReadRefusesAnAddressItCannotReach() {
+        // Skipping what it cannot resolve would turn a wrong address into an empty answer — the caller would
+        // read "this episode has nothing" where the truth is "there is no such episode".
+        assertThat(rest.getForEntity(
+                "/api/plugins/good/data/episode?ids=no-such-episode&keys=note", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity("/api/plugins/nope/data/site?ids=main&keys=greeting", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void aBatchReadIsBounded() {
+        String manyIds = java.util.stream.IntStream.rangeClosed(1, 101)
+                .mapToObj(i -> "id" + i)
+                .collect(java.util.stream.Collectors.joining(","));
+
+        // The batch exists to make a page cheaper; one call that asks for everything would be the thing it
+        // was built to prevent.
+        assertThat(rest.getForEntity(
+                "/api/plugins/good/data/site?ids=" + manyIds + "&keys=greeting", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
@@ -296,12 +345,14 @@ class PluginLoadingIntegrationTest {
         assertThat(rest.exchange(path, HttpMethod.PUT, fan.write("{\"cell\":\"c3\"}", true), String.class)
                 .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
-        // The same URL, a different session — and therefore a different partition. Not forbidden: absent.
-        // There is no request either of them can make that names the other's data.
+        // The same URL, a different session — and therefore a different partition. Not forbidden: absent,
+        // and since core#159 that is said as 204 rather than 404 — the address is a perfectly good one, it
+        // is this caller's own partition and there is nothing in it. There is no request either of them can
+        // make that names the other's data.
         assertThat(rest.exchange(path, HttpMethod.GET, fan.get(), String.class).getBody())
                 .contains("c3");
         assertThat(rest.exchange(path, HttpMethod.GET, podcaster.get(), String.class)
-                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
 
         // Listing is the other half: the audit noted `?prefix=` meant nothing had to be guessed.
         assertThat(rest.exchange("/api/plugins/good/data/user/me?prefix=", HttpMethod.GET,
@@ -546,8 +597,14 @@ class PluginLoadingIntegrationTest {
     void purgeRemovesDocsButKeepsHostSettings() {
         Session admin = devLogin("admin");
         Session podcaster = devLogin("podcaster");
-        String path = "/api/plugins/good/data/episode/ep-purge/note";
-        rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"text\":\"bye\"}", true), String.class);
+        // A real episode slug: `ep-purge` named nothing, so the write below was refused as an unresolvable
+        // scope and the read after the purge answered 404 for that reason rather than because anything had
+        // been purged. While 404 meant both "wrong address" and "no document" the test could not tell, and
+        // it passed all the same (core#159).
+        String path = "/api/plugins/good/data/episode/" + realEpisodeSlug() + "/note";
+        assertThat(rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"text\":\"bye\"}", true),
+                String.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(rest.getForEntity(path, String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
         rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
                 admin.write("{\"refreshIntervalMinutes\":7}", true), String.class);
 
@@ -556,10 +613,11 @@ class PluginLoadingIntegrationTest {
         assertThat(purge.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(purge.getBody()).contains("\"purged\":");
 
-        // Documents are gone — including the ones the plugin's register(ctx) seeded at boot …
-        assertThat(rest.getForEntity(path, String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        // Documents are gone — including the ones the plugin's register(ctx) seeded at boot. 204, not 404:
+        // the plugin still serves, so its addresses are still addresses; they are empty (core#159).
+        assertThat(rest.getForEntity(path, String.class).getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
-                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+                .getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
         // … while the plugin keeps serving and its config survives: purging data is not a reset.
         assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("7");
         assertThat(rest.getForEntity("/api/plugins/manifest", String.class).getBody())

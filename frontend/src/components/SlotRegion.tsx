@@ -20,10 +20,20 @@ import { selectMounts } from '../plugins/slots';
 
 const SITE_SCOPE: Scope = { type: 'site', id: 'main' };
 
+/** One shared empty answer, so "nothing resolved" is the same identity on every render. */
+const EMPTY_SCOPE: { ids: string[]; labels: Record<string, string> } = { ids: [], labels: {} };
+
 interface SlotRegionProps {
   name: 'top' | 'card' | 'main' | 'sidebar' | 'player' | 'feed' | 'site' | 'admin' | 'page';
   /** The scope this region is rendered in; defaults to the site scope. */
   scope?: Scope;
+  /**
+   * The label of an `episode` scope, when the caller already has it. An episode card knows the title of the
+   * episode it is drawing, and asking the host to resolve a one-element list it is holding is a request per
+   * card: 21 of them on one measured 20-card page (core#159). Given this, the region skips the round trip
+   * entirely. Ignored for any other scope type, where the host really does have to resolve the set.
+   */
+  scopeLabel?: string;
   /** Only for the `page` region: the subpath below `/p/{pluginId}/`, handed to plugins as `ctx.route`. */
   routePath?: string;
   /** Renders only the named plugin's slots — the deep-link page belongs to one plugin. */
@@ -54,6 +64,7 @@ class SlotErrorBoundary extends Component<{ children: ReactNode }, BoundaryState
 export function SlotRegion({
   name,
   scope = SITE_SCOPE,
+  scopeLabel,
   routePath,
   onlyPluginId,
   children,
@@ -72,12 +83,12 @@ export function SlotRegion({
   );
 
   // Host-resolved episodes for the scope: slugs (ctx.episodes) + slug→label (ctx.episodeLabels). Fetched
-  // only when something mounts here.
-  const [episodes, setEpisodes] = useState<string[]>([]);
-  const [episodeLabels, setEpisodeLabels] = useState<Record<string, string>>({});
+  // only when something mounts here — and not at all when the caller handed us the one answer there is.
+  const known = scope.type === 'episode' && scopeLabel != null;
+  const [fetched, setFetched] = useState<{ ids: string[]; labels: Record<string, string> }>(EMPTY_SCOPE);
   const hasMounts = mounts.length > 0;
   useEffect(() => {
-    if (!hasMounts) {
+    if (!hasMounts || known) {
       return;
     }
     let cancelled = false;
@@ -87,18 +98,32 @@ export function SlotRegion({
       )
       .then((options) => {
         if (!cancelled) {
-          setEpisodes(options.map((o) => o.id));
-          setEpisodeLabels(Object.fromEntries(options.map((o) => [o.id, o.label])));
+          setFetched({
+            ids: options.map((o) => o.id),
+            labels: Object.fromEntries(options.map((o) => [o.id, o.label])),
+          });
         }
       })
       .catch(() => {
-        setEpisodes([]);
-        setEpisodeLabels({});
+        if (!cancelled) {
+          setFetched(EMPTY_SCOPE);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [hasMounts, scope.type, scope.id]);
+  }, [hasMounts, known, scope.type, scope.id]);
+
+  // Memoised so a re-render of this region does not hand every mount a new array and a new object — those
+  // are `ctx` inputs, and a fresh identity there costs the same as a changed scope did (core#158).
+  const episodes = useMemo(
+    () => (known ? [scope.id] : fetched.ids),
+    [known, scope.id, fetched.ids],
+  );
+  const episodeLabels = useMemo(
+    () => (known ? { [scope.id]: scopeLabel } : fetched.labels),
+    [known, scope.id, scopeLabel, fetched.labels],
+  );
 
   return (
     <div className="mc-slot" data-slot={name}>

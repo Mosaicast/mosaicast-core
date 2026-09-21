@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import type { EpisodeSummary } from '../api/types';
-import { usePlayer } from '../player/PlayerContext';
+import { usePlayerActions } from '../player/PlayerContext';
 import { listenedFraction } from '../player/progress';
 import { formatDate, formatDuration } from '../util/format';
 import { Cover } from './Cover';
@@ -25,7 +25,9 @@ import { SlotRegion } from './SlotRegion';
  */
 export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; feedTitle?: string }) {
   const { t, i18n } = useTranslation();
-  const { play } = usePlayer();
+  // Actions only. A card renders no part of the player's state, and a feed page holds forty of them:
+  // subscribing them to the position re-rendered every card four times a second (core#158).
+  const { play } = usePlayerActions();
 
   const upcoming = episode.status === 'PLANNED';
   const locked = episode.access === 'TIER';
@@ -104,7 +106,11 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
         {episode.excerpt && <p className="mc-card__excerpt">{episode.excerpt}</p>}
 
         {/* Compact plugin renderings (E5) mount here. */}
-        <SlotRegion name="card" scope={{ type: 'episode', id: episode.slug }} />
+        <SlotRegion
+          name="card"
+          scope={{ type: 'episode', id: episode.slug }}
+          scopeLabel={episode.title}
+        />
       </div>
     </article>
   );

@@ -15,7 +15,7 @@ import { RelatedEpisodes } from '../components/RelatedEpisodes';
 import { RelatedPins } from '../components/RelatedPins';
 import { ShareButton } from '../components/ShareButton';
 import { SlotRegion } from '../components/SlotRegion';
-import { usePlayer, type PlayableEpisode } from '../player/PlayerContext';
+import { usePlayerActions, type PlayableEpisode } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
 import { sanitizeFeedHtml } from '../util/sanitize';
 import { parseTimestamp } from '../util/timestamp';
@@ -54,7 +54,7 @@ function toPlayable(episode: EpisodeDetail, feedTitle: string | null | undefined
 export function EpisodePage() {
   const { slug = '' } = useParams();
   const { t, i18n } = useTranslation();
-  const { play } = usePlayer();
+  const { play } = usePlayerActions();
   const { titleOf } = useFeeds();
   const [params] = useSearchParams();
   // An unparsable value is ignored rather than an error — a mangled timestamp in a forwarded link should
@@ -179,14 +179,18 @@ export function EpisodePage() {
             )}
           </div>
           {/* Full-width plugin renderings (e.g. bingo) mount here in E5. */}
-          <SlotRegion name="main" scope={{ type: 'episode', id: episode.slug }} />
+          <SlotRegion name="main" scope={{ type: 'episode', id: episode.slug }} scopeLabel={episode.title} />
         </div>
         <aside className="mc-detail__side">
           {/* Related is core and swappable (§6.3), not a plugin — it renders above the plugin region so a
               site with no plugins still has something in its sidebar. */}
           <RelatedEpisodes episodes={related} error={relatedError} />
           <RelatedPins slug={episode.slug} onChange={reloadRelated} />
-          <SlotRegion name="sidebar" scope={{ type: 'episode', id: episode.slug }} />
+          <SlotRegion
+            name="sidebar"
+            scope={{ type: 'episode', id: episode.slug }}
+            scopeLabel={episode.title}
+          />
         </aside>
       </div>
 
