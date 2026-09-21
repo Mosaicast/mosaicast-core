@@ -33,6 +33,11 @@ COPY gradlew ./
 COPY gradle ./gradle
 COPY settings.gradle.kts build.gradle.kts gradle.properties ./
 COPY src ./src
+# The shipped message catalogs live with the frontend's strings and are copied into the jar by
+# `processResources` (build.gradle.kts). Without this line that copy finds nothing, and the backend's
+# language registry is switched off in every image built from this file — silently, because the shell
+# bundle carries its own copy of the same strings and still renders correctly (core#157).
+COPY frontend/src/locales ./frontend/src/locales
 # The shell built in stage 1 becomes part of the backend's served static resources.
 COPY --from=frontend /build/src/main/resources/static ./src/main/resources/static
 # Gradle reads GITHUB_ACTOR/GITHUB_TOKEN to resolve the SDK from GitHub Packages (see header).

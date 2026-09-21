@@ -88,3 +88,42 @@ jobs:
             echo "::error::dev/attributions.mjs and the generated credits disagree. Run 'npm run attributions' and commit the result."
             exit 1
           }
+
+  # The backend build and this image build can disagree: `processResources` pulls the message catalogs
+  # from `frontend/src/locales`, a directory outside `src/`, and a Gradle copy from a missing directory
+  # succeeds and copies nothing. A local build never sees it because the directory is always there; the
+  # Docker build context is what decides. core#157 shipped that way, so the image is checked here as an
+  # artifact rather than inferred from the source build.
+  image:
+    name: Image ships its message catalogs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build the production image
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker buildx build \
+            --secret id=github_actor,env=GITHUB_ACTOR \
+            --secret id=github_token,env=GITHUB_TOKEN \
+            --load -t mosaicast-core:ci .
+
+      # Read the jar out of the image instead of inspecting it inside: the runtime stage is a slim JRE
+      # with neither `unzip` nor the `jar` tool, and adding one to the shipped image to support a test
+      # would be the wrong trade.
+      - name: The jar carries the bundled catalogs
+        run: |
+          cid=$(docker create mosaicast-core:ci)
+          docker cp "$cid:/app/app.jar" ./app.jar
+          docker rm "$cid" >/dev/null
+          missing=0
+          for code in en de; do
+            if ! unzip -l app.jar | grep -q "BOOT-INF/classes/i18n/bundled/$code.json"; then
+              echo "::error::the built image's jar has no i18n/bundled/$code.json — the language registry is off in this image (core#157)"
+              missing=1
+            fi
+          done
+          exit "$missing"
