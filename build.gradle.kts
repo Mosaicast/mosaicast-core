@@ -200,6 +200,13 @@ tasks.withType<Test>().configureEach {
     System.getProperty("mosaicast.test.libretranslate-url")?.let {
         systemProperty("mosaicast.test.libretranslate-url", it)
     }
+    // Order dependence between test classes is invisible in whichever ordering the suite happens to run
+    // in, and stays invisible until someone's PR is the one that trips it (core#189). CI runs the suite a
+    // second time with class and method order randomised; Gradle does not forward -D to the test JVM, so
+    // the properties have to be re-declared here, and only when set — a normal run keeps JUnit's default,
+    // deterministic order.
+    listOf("junit.jupiter.testclass.order.default", "junit.jupiter.testmethod.order.default")
+        .forEach { key -> System.getProperty(key)?.let { systemProperty(key, it) } }
     // Rate limiting (ARCHITECTURE §13) buckets by client address, and every test in the suite is the same
     // client — 127.0.0.1 — so a class that logs in as a dozen different users spends one budget and starts
     // getting 429s that have nothing to do with what it is testing. Off by default here; RateLimitIntegrationTest

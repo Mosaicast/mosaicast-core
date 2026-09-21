@@ -63,8 +63,12 @@ class BlobMigratorIntegrationTest {
         BlobRef two = postgres.put("plugin/mover", "k2", bytes("a whale"), "application/pdf", null, null);
         FilesystemBlobStore target = filesystem();
 
+        // Its own namespace, not the shared `plugin` prefix: every other method in this class writes under
+        // `plugin/...` into the same store, so migrating the parent counts their blobs too and `copied()`
+        // becomes whatever ran first. That prefix is covered by aPrefixCoversEveryNamespaceUnderIt, which
+        // asserts membership rather than a total and is order-independent for that reason.
         BlobMigrator.Result result =
-                new BlobMigrator(postgres, target, message -> { }).run("plugin", false, false);
+                new BlobMigrator(postgres, target, message -> { }).run("plugin/mover", false, false);
 
         assertThat(result.copied()).isEqualTo(2);
         // The id is the identity a plugin stored, so it has to be the same object on the other side —
