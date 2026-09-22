@@ -4,6 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  makePluginApi,
   makePluginDocs,
   makePluginFeeds,
   makePluginSchema,
@@ -165,6 +166,57 @@ const reply = (body: unknown, status = 200) =>
  * plugin building them by hand, which is where the `user/me` convention and the key grammar were being
  * re-learned one plugin at a time.
  */
+/**
+ * `ctx.api`'s namespace confinement (ARCHITECTURE §7.5).
+ *
+ * The comment above `makePluginApi` has always promised that paths are relative to
+ * `/api/plugins/<id>/`. What was enforced was a leading-slash strip, so `..` segments survived and
+ * `fetch` resolved the result against the document URL — `../../admin/plugins` became a call to a core
+ * endpoint carrying the session cookie and the CSRF header (core#181). No rights were gained, since the
+ * server still authorises, but the documented boundary was not one.
+ */
+describe('makePluginApi', () => {
+  const captured: string[] = [];
+
+  beforeEach(() => {
+    captured.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        captured.push(url);
+        return reply({});
+      }),
+    );
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('keeps a plain path inside the plugin namespace', async () => {
+    await makePluginApi('wiki').get('state');
+    await makePluginApi('wiki').get('/state');
+    expect(captured).toEqual(['/api/plugins/wiki/state', '/api/plugins/wiki/state']);
+  });
+
+  it('cannot climb out of the namespace', async () => {
+    await makePluginApi('wiki').get('../../admin/plugins');
+    await makePluginApi('wiki').get('a/../../../me');
+    await makePluginApi('wiki').get('./state');
+
+    expect(captured).toEqual([
+      '/api/plugins/wiki/admin/plugins',
+      '/api/plugins/wiki/a/me',
+      '/api/plugins/wiki/state',
+    ]);
+  });
+
+  it('keeps the query and the fragment, and does not clean inside them', async () => {
+    // A `..` after the `?` belongs to the value, not to the path — rewriting it would corrupt a legitimate
+    // parameter.
+    await makePluginApi('wiki').get('search?q=../etc&n=2');
+    expect(captured).toEqual(['/api/plugins/wiki/search?q=../etc&n=2']);
+  });
+});
+
 describe('makePluginDocs', () => {
   const captured: string[] = [];
 

@@ -106,6 +106,55 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void slotsAreFilteredToTheCallerTheWayNavigationAlreadyWas() {
+        // `visibleTo` was a browser-side gate: /api/plugins/manifest returned every slot unchanged, so an
+        // anonymous caller got the podcaster-only sidebar slot including its element name, and mounting it
+        // was a decision the page made about itself (core#180). Navigation has been filtered on the server
+        // since it existed; this is the same rule for the other entrance.
+        ResponseEntity<String> anonymous = rest.getForEntity("/api/plugins/manifest", String.class);
+
+        assertThat(anonymous.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(anonymous.getBody()).contains("fixture-card");
+        assertThat(anonymous.getBody()).doesNotContain("fixture-admin");
+
+        Session podcaster = devLogin("podcaster");
+        String forStaff = rest.exchange("/api/plugins/manifest", HttpMethod.GET, podcaster.get(),
+                String.class).getBody();
+
+        assertThat(forStaff).contains("fixture-card").contains("fixture-admin");
+    }
+
+    @Test
+    void aPageSlotBehindAFloorIsNotServedToACallerBelowIt() {
+        // The deep-link route checked only that *a* page slot existed, so a podcaster-only page answered
+        // 200 to anyone, rendered the shell, and handed an anonymous crawler the page's own title and
+        // description through ShareMetadataProvider. A 404 rather than a 403: a distinct refusal would
+        // confirm the page exists, which is what `visibleTo` says not to do.
+        assertThat(rest.getForEntity("/p/directorylocked", String.class).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+
+        Session podcaster = devLogin("podcaster");
+        assertThat(rest.exchange("/p/directorylocked", HttpMethod.GET, podcaster.get(), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        // And the anonymous page of a plugin that declares one is untouched.
+        assertThat(rest.getForEntity("/p/good", String.class).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
+    void aFeedScopeMustNameAFeedThatExistsAndIsEnabled() {
+        Session podcaster = devLogin("podcaster");
+        // Any well-formed UUID used to resolve, so a caller above the write floor could create unbounded
+        // doc partitions under feed/<any-uuid> that no feed will ever reclaim (core#180). The episode
+        // scope has always been strict here; this is the sibling scope held to the same standard.
+        String path = "/api/plugins/good/data/feed/" + UUID.randomUUID() + "/note";
+
+        assertThat(rest.exchange(path, HttpMethod.PUT, podcaster.write("{\"x\":1}", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(rest.getForEntity(path, String.class).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
     void navigationIsAnonymousAndFilteredToTheCaller() {
         // The whole path: a manifest on disk -> resolution -> JSON, with the role floor applied on the
         // server. An anonymous visitor is never told a podcaster-only entrance exists — filtering it in the
@@ -133,24 +182,36 @@ class PluginLoadingIntegrationTest {
         // The admin view shows every declared entry, including the one an anonymous visitor cannot see.
         assertThat(before).contains("Good Fixture").contains("Staff only");
 
-        // Hide the root entry and push the other to the front. A stale decision for an entry nobody
-        // declares is accepted and stored — a plugin may be mid-upgrade — and simply resolves to nothing.
-        String body = """
-                [{"pluginId":"good","path":"","enabled":false,"order":5},
-                 {"pluginId":"good","path":"_secret","enabled":true,"order":1},
-                 {"pluginId":"good","path":"_gone","enabled":true,"order":0}]
-                """;
-        ResponseEntity<String> saved = rest.exchange(
-                "/api/admin/navigation", HttpMethod.PUT, admin.write(body, true), String.class);
-        assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.OK);
+        try {
+            // Hide the root entry and push the other to the front. A stale decision for an entry nobody
+            // declares is accepted and stored — a plugin may be mid-upgrade — and simply resolves to nothing.
+            String body = """
+                    [{"pluginId":"good","path":"","enabled":false,"order":5},
+                     {"pluginId":"good","path":"_secret","enabled":true,"order":1},
+                     {"pluginId":"good","path":"_gone","enabled":true,"order":0}]
+                    """;
+            ResponseEntity<String> saved = rest.exchange(
+                    "/api/admin/navigation", HttpMethod.PUT, admin.write(body, true), String.class);
+            assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        String anonymous = rest.getForEntity("/api/plugins/navigation", String.class).getBody();
-        assertThat(anonymous).doesNotContain("Good Fixture");
-        assertThat(anonymous).doesNotContain("_gone");
+            String anonymous = rest.getForEntity("/api/plugins/navigation", String.class).getBody();
+            assertThat(anonymous).doesNotContain("Good Fixture");
+            assertThat(anonymous).doesNotContain("_gone");
 
-        String forStaff = rest.exchange("/api/plugins/navigation", HttpMethod.GET,
-                devLogin("podcaster").get(), String.class).getBody();
-        assertThat(forStaff).contains("Staff only").doesNotContain("Good Fixture");
+            String forStaff = rest.exchange("/api/plugins/navigation", HttpMethod.GET,
+                    devLogin("podcaster").get(), String.class).getBody();
+            assertThat(forStaff).contains("Staff only").doesNotContain("Good Fixture");
+        } finally {
+            // Put the entry back. The overrides are rows in the shared database and this context is shared
+            // with every other test in the class, so hiding "Good Fixture" and leaving it hidden made every
+            // later assertion about the anonymous navigation depend on this test running after them. It did,
+            // under JUnit's default ordering, until the randomised CI run said otherwise (core#189).
+            // In a finally, so a failing assertion above does not take the rest of the class with it.
+            rest.exchange("/api/admin/navigation", HttpMethod.PUT, admin.write("""
+                    [{"pluginId":"good","path":"","enabled":true,"order":0},
+                     {"pluginId":"good","path":"_secret","enabled":true,"order":1}]
+                    """, true), String.class);
+        }
     }
 
     @Test

@@ -5,6 +5,7 @@ package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.plugin.api.Role;
 import dev.mosaicast.plugin.api.ScopeType;
+import java.util.Locale;
 import java.util.Optional;
 
 /**
@@ -107,6 +108,31 @@ final class PluginAccessPolicy {
      */
     static int rankOf(Optional<Role> role) {
         return role.map(PluginAccessPolicy::rank).orElse(ANONYMOUS);
+    }
+
+    /**
+     * The rank a caller needs to be shown a {@code visibleTo} entrance — a nav entry or a slot.
+     *
+     * <p>An unrecognised value resolves to {@code podcaster}, not to anonymous: a typo in a manifest should
+     * hide an entrance rather than publish one. That is what separates this from the {@code visibleTo}
+     * mapping used for the data floors right below, which fails open — the comment on {@link #rankOf}
+     * explains why those two must not be one method, and this is not that sharing. Navigation and slots are
+     * the same policy for the same field, and were two copies of it until a slot needed it server-side.
+     *
+     * <p>{@code Locale.ROOT}, because the default locale is the host environment's: on a Turkish JVM
+     * {@code "ANONYMOUS".toLowerCase()} is {@code "anonymous"} with a dotless i, which matches nothing and
+     * would silently promote every entrance to podcaster-only.
+     */
+    static int visibilityFloorOf(String visibleTo) {
+        if (visibleTo == null || visibleTo.isBlank()) {
+            return ANONYMOUS;
+        }
+        return switch (visibleTo.toLowerCase(Locale.ROOT)) {
+            case "anonymous" -> ANONYMOUS;
+            case "fan" -> FAN;
+            case "admin" -> ADMIN;
+            default -> PODCASTER;
+        };
     }
 
     /**

@@ -161,7 +161,17 @@ public class SitemapController {
         }
     }
 
-    private static String escape(String value) {
-        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+    /**
+     * XML-escapes a value for an element body <strong>or an attribute</strong>.
+     *
+     * <p>The quote characters are not optional here: {@link #alternate} puts {@code hreflang} and
+     * {@code href} inside double-quoted attributes, and both can come from a plugin's
+     * {@code SitemapUrl.alternates()} rather than from a host-generated slug. A value carrying a
+     * {@code "} would end the attribute and let the rest of it be read as markup, in a document a
+     * browser parses as XML in the XHTML namespace this sitemap already declares.
+     */
+    static String escape(String value) {
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                .replace("\"", "&quot;").replace("'", "&apos;");
     }
 }

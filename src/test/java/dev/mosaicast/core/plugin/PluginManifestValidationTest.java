@@ -65,6 +65,49 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void aUsableFrontendEntryIsAccepted() throws Exception {
+        for (String entry : new String[] {"s.js", "assets/index-a1b2.js", "a/b/c.mjs", "..leading.js"}) {
+            assertThatCode(parse(withEntry(entry))::validate)
+                    .describedAs(entry)
+                    .doesNotThrowAnyException();
+        }
+    }
+
+    @Test
+    void anEntryThatWouldAddressSomethingElseIsRejected() throws Exception {
+        // It is the one manifest string that becomes a path and had no grammar (core#181). The shell builds
+        // /plugins/<id>/assets/<entry> by interpolation, so `../` or a query addresses something other than
+        // what the author wrote. Refused rather than normalised, exactly as a nav path is: loading a
+        // different file than the one declared is worse than saying the declaration was wrong.
+        for (String entry : new String[] {
+            "/absolute.js", "../../admin", "a/../b.js", "./a.js", "s.js?v=2", "s.js#x", "a//b.js", "a b.js",
+        }) {
+            assertThatThrownBy(parse(withEntry(entry))::validate)
+                    .describedAs(entry)
+                    .isInstanceOf(PluginValidationException.class)
+                    .hasMessageContaining("frontend.entry");
+        }
+    }
+
+    @Test
+    void aBackendOnlyPluginNeedsNoEntryAtAll() throws Exception {
+        assertThatCode(parse("""
+                {"id":"headless","version":"1.0.0","platformApi":"HOST_API","name":"Headless",
+                 "storage":"doc"}
+                """)::validate).doesNotThrowAnyException();
+    }
+
+    /** The compatible manifest above with one {@code frontend.entry} substituted in. */
+    private String withEntry(String entry) {
+        return """
+                {"id":"sample","version":"1.0.0","platformApi":"HOST_API","name":"Sample",
+                 "frontend":{"entry":"%s","elements":["s-card"]},
+                 "slots":[{"scope":"site","element":"s-card","placement":"sidebar","visibleTo":"anonymous"}],
+                 "storage":"doc"}
+                """.formatted(entry);
+    }
+
+    @Test
     void declaredConfigFieldsAreAccepted() throws Exception {
         assertThatCode(parse(withConfig("""
                 {"minutes":{"type":"number","default":30,"editableBy":"podcaster"},

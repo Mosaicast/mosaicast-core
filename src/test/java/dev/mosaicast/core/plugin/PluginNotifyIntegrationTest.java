@@ -71,13 +71,14 @@ class PluginNotifyIntegrationTest {
     private PluginDataService pluginDataService;
 
     private Session fan;
+    private Session podcaster;
     private UUID fanId;
     private UUID podcasterId;
 
     @BeforeEach
     void participants() {
         fan = devLogin("fan");
-        devLogin("podcaster");
+        podcaster = devLogin("podcaster");
         fanId = userId("FAN");
         podcasterId = userId("PODCASTER");
         notifications.deleteAll();
@@ -182,6 +183,21 @@ class PluginNotifyIntegrationTest {
     }
 
     @Test
+    void aCallerBelowTheDeclaredWriteFloorIsRefused() {
+        // The one surface that writes into other people's inboxes was the one that checked no floor: any
+        // signed-in fan could put arbitrary text and a link into any account's inbox, in a plugin's name
+        // and in the site's own voice (core#161). Both shipped plugins that declare notifications declare
+        // `writableBy: podcaster`, so a fan is below the floor on every other surface and was above it here.
+        ResponseEntity<String> response = rest.exchange("/api/plugins/directory/notify", HttpMethod.POST,
+                fan.write("""
+                        {"userIds":["%s"],"text":{"en":"not yours to send"}}""".formatted(fanId)),
+                String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(notifications.findAll()).isEmpty();
+    }
+
+    @Test
     void thePerRecipientAllowanceComesFromTheManifest() {
         // Spent against the *podcaster*, not the fan. The limiter is in-memory and lives for the whole
         // context, so burning the fan's window here would drop the sends every other test in this class
@@ -226,8 +242,18 @@ class PluginNotifyIntegrationTest {
                 .containsExactly(fanId.toString());
     }
 
+    /**
+     * Sends as a podcaster, because the {@code directory} fixture declares {@code writableBy: podcaster}
+     * and the endpoint enforces it (core#161).
+     *
+     * <p>This used to send as the fan, and passed: the endpoint checked that the caller was signed in and
+     * nothing else, so every assertion in this class was made from below the floor the manifest declares.
+     * A suite that exercises a write surface only from an account that should be refused cannot tell the
+     * difference between a floor and a wish.
+     */
     private ResponseEntity<String> send(String body) {
-        return rest.exchange("/api/plugins/directory/notify", HttpMethod.POST, fan.write(body), String.class);
+        return rest.exchange("/api/plugins/directory/notify", HttpMethod.POST, podcaster.write(body),
+                String.class);
     }
 
     private UUID userId(String devRole) {

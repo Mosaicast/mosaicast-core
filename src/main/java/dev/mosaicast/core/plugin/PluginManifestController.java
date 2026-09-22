@@ -3,9 +3,11 @@
 
 package dev.mosaicast.core.plugin;
 
+import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.plugin.PluginManifest.Frontend;
 import dev.mosaicast.core.plugin.PluginManifest.Slot;
 import java.util.List;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -28,14 +30,38 @@ public class PluginManifestController {
     }
 
     @GetMapping("/api/plugins/manifest")
-    public List<PublicPlugin> manifest() {
+    public List<PublicPlugin> manifest(Authentication authentication) {
+        int rank = PluginAccessPolicy.rankOf(CurrentUser.role(authentication));
         return plugins.allActive().stream()
                 .map(PluginRegistration::manifest)
-                .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), m.slots(),
+                .map(m -> new PublicPlugin(m.id(), m.name(), m.version(), m.frontend(), visible(m, rank),
                         !m.schemaEntities().isEmpty(), m.declaresBlobs(), m.declaresTags(),
                         m.writesEpisodeTags(), m.declaresIdentity(), m.declaresNotifications(),
                         hasTranslation(m),
                         m.license(), m.author(), m.homepage(), m.attribution()))
+                .toList();
+    }
+
+    /**
+     * The slots this caller may be shown, applying each slot's {@code visibleTo} floor here rather than
+     * only in the shell.
+     *
+     * <p>The shell already filters ({@code frontend/src/plugins/slots.ts}), but it filtered a list the host
+     * had handed it in full — so a podcaster-only slot, its element name and its placement were in the
+     * anonymous response, and mounting it was a browser-side decision. Navigation entries have been
+     * filtered server-side since they existed ({@code PluginNavService.visibleTo}); this is the same rule
+     * for the other entrance. What sits *behind* a slot is still governed by {@code data.readableBy} — this
+     * does not replace that floor, it stops advertising a surface to somebody who may not use it.
+     *
+     * <p>Unrecognised values resolve to {@code podcaster}, matching {@code PluginNavService.floorOf} and the
+     * shell: a typo in a manifest hides a slot rather than publishing one.
+     */
+    private static List<Slot> visible(PluginManifest manifest, int rank) {
+        if (manifest.slots() == null) {
+            return manifest.slots();
+        }
+        return manifest.slots().stream()
+                .filter(slot -> rank >= PluginAccessPolicy.visibilityFloorOf(slot.visibleTo()))
                 .toList();
     }
 

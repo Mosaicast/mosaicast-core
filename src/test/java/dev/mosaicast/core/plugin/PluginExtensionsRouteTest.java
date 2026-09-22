@@ -8,8 +8,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+
 import dev.mosaicast.plugin.api.PageRouteProvider;
+import dev.mosaicast.plugin.api.PlatformApi;
+import dev.mosaicast.plugin.api.SitemapProvider;
+import dev.mosaicast.plugin.api.SitemapUrl;
 import java.util.List;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -79,5 +86,50 @@ class PluginExtensionsRouteTest {
         // A plugin declaring several is unusual but legal, and "no" is the answer that carries information:
         // one provider claiming everything would otherwise mask the one that knows.
         assertThat(new PluginExtensions(plugins).rendersRoute("wiki", "kraken")).isFalse();
+    }
+
+    @Test
+    void aSitemapLocationThatClimbsOutOfTheNamespaceIsDropped() {
+        // `confined` was a bare startsWith, so `/p/wiki/../../legal/impressum` passed it — and every
+        // crawler that reads a <loc> normalises it, so the host would have published a core URL as one of
+        // the plugin's own pages (core#181). `href` has filtered `.` and `..` segment by segment since it
+        // was written; this comparison was the copy that had not.
+        when(plugins.allActive()).thenReturn(List.of(registration("wiki")));
+        when(plugins.extensions(eq(SitemapProvider.class), eq("wiki"))).thenReturn(List.of(
+                () -> List.of(
+                        new SitemapUrl("/p/wiki/kraken", null),
+                        new SitemapUrl("/p/wiki/../../legal/impressum", null),
+                        new SitemapUrl("/p/wiki/./notes", null))));
+
+        List<SitemapUrl> urls = new PluginExtensions(plugins).sitemapUrls();
+
+        assertThat(urls).extracting(SitemapUrl::loc).containsExactly("/p/wiki/kraken");
+    }
+
+    @Test
+    void aPluginAboveTheAnonymousReadFloorContributesNoSitemapUrls() {
+        // A sitemap is read by anonymous crawlers. Publishing the URLs of content this caller may not open
+        // is the leak, whatever the page does once they follow one (core#180).
+        when(plugins.allActive()).thenReturn(List.of(registration("wiki", "podcaster")));
+
+        assertThat(new PluginExtensions(plugins).sitemapUrls()).isEmpty();
+        verify(plugins, never()).extensions(eq(SitemapProvider.class), any());
+    }
+
+    /** A loaded registration whose manifest declares the given read floor. */
+    private static PluginRegistration registration(String id, String readableBy) {
+        try {
+            PluginManifest manifest = new ObjectMapper().readValue("""
+                    {"id":"%s","version":"1.0.0","platformApi":"%s","name":"%s",
+                     "storage":"doc","data":{"readableBy":"%s","writableBy":"podcaster"}}
+                    """.formatted(id, PlatformApi.VERSION, id, readableBy), PluginManifest.class);
+            return PluginRegistration.loaded(manifest, java.nio.file.Path.of("/dev/null"));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static PluginRegistration registration(String id) {
+        return registration(id, "anonymous");
     }
 }

@@ -3,14 +3,19 @@
 
 package dev.mosaicast.core.plugin;
 
+import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.web.IndexHtmlService;
 import dev.mosaicast.core.web.PageView;
 import dev.mosaicast.plugin.api.OgMeta;
+import dev.mosaicast.plugin.api.Role;
 import jakarta.servlet.http.HttpServletRequest;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,12 +50,14 @@ public class PluginPageController {
     @GetMapping(path = {"/p/{pluginId}", "/p/{pluginId}/**"}, produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> page(@PathVariable String pluginId, HttpServletRequest request,
                                        @org.springframework.web.bind.annotation.RequestParam(
-                                               required = false) String lang) {
+                                               required = false) String lang,
+                                       Authentication authentication) {
         String requested = locales.resolveUiLocale(lang);
+        Role role = CurrentUser.role(authentication).orElse(null);
         // The status has to match what the shell will actually render: a plugin that is unknown, switched off,
         // or simply declares no `page` slot has no page here, and the shell shows its not-found view. Answering
         // 200 for those would be the soft-404 §6.6 rules out.
-        if (!hasPage(pluginId)) {
+        if (!hasPage(pluginId, role)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .contentType(MediaType.TEXT_HTML)
                     .body(indexHtml.plain());
@@ -64,7 +71,7 @@ public class PluginPageController {
                     .contentType(MediaType.TEXT_HTML)
                     .body(indexHtml.plain());
         }
-        Optional<OgMeta> og = extensions.shareMetadata(pluginId, subpath);
+        Optional<OgMeta> og = extensions.shareMetadata(pluginId, subpath, role);
         IndexHtmlService.Meta meta = og.map(PluginPageController::toMeta).orElseGet(indexHtml::siteMeta);
         // A plugin may state the language its own page is written in, and then that is the answer whoever
         // asked (SDK 0.12.0): a German article stays German for an English visitor, so announcing it as
@@ -76,14 +83,28 @@ public class PluginPageController {
                 .body(indexHtml.render(PageView.metaOnly(meta), locale));
     }
 
-    /** Whether an active plugin actually opted into the deep-link page by declaring a {@code page} slot. */
-    private boolean hasPage(String pluginId) {
+    /**
+     * Whether an active plugin opted into the deep-link page by declaring a {@code page} slot
+     * <em>this caller may be shown</em>.
+     *
+     * <p>The {@code visibleTo} floor was a browser-side decision: the shell hid a podcaster-only page from
+     * a fan's menu while this route still answered 200 for anyone, rendered the shell, and — through
+     * {@code ShareMetadataProvider} — put the page's own title and description into the response for an
+     * anonymous crawler. Hiding an entrance in the UI and serving it here are not the same claim, and only
+     * one of them is enforcement.
+     *
+     * <p>A caller below the floor gets the same 404 as an unknown plugin. That is deliberate: a distinct
+     * 403 would tell them the page exists, which is precisely what {@code visibleTo} says not to.
+     */
+    private boolean hasPage(String pluginId, Role role) {
+        int rank = PluginAccessPolicy.rankOf(Optional.ofNullable(role));
         return plugins.active(pluginId)
                 .map(PluginRegistration::manifest)
                 .filter(manifest -> manifest.slots() != null)
                 .stream()
                 .flatMap(manifest -> manifest.slots().stream())
-                .anyMatch(slot -> PluginManifest.PLACEMENT_PAGE.equals(slot.placement()));
+                .filter(slot -> PluginManifest.PLACEMENT_PAGE.equals(slot.placement()))
+                .anyMatch(slot -> rank >= PluginAccessPolicy.visibilityFloorOf(slot.visibleTo()));
     }
 
     /** An {@code OgMeta} with a null image falls back to the host's own default, per the SDK contract. */
@@ -92,14 +113,33 @@ public class PluginPageController {
                 og.title(), Optional.ofNullable(og.description()).orElse(""), og.imageUrl());
     }
 
-    /** The path below {@code /p/{pluginId}/}; empty at the plugin root. */
-    private static String subpathOf(String requestUri, String pluginId) {
+    /**
+     * The path below {@code /p/{pluginId}/}; empty at the plugin root.
+     *
+     * <p><strong>Decoded.</strong> {@code getRequestURI()} is, per the servlet spec, not decoded, so a
+     * plugin's own extension points saw {@code caf%C3%A9-episode} where the browser hands the same plugin
+     * {@code café-episode} through {@code ctx.route}. For the wiki, whose slugs come from page titles, that
+     * meant a deep link to any page with a non-ASCII character 404'd server-side while working perfectly
+     * once the SPA had booted — the plugin was being asked about a path that does not exist in its world.
+     *
+     * <p>Decoded per segment rather than all at once, so the host never re-splits on a slash it produced
+     * itself. That is as far as it goes: the subpath reaches the plugin as one flat string, so {@code a%2Fb}
+     * and {@code a/b} arrive identical and a plugin splitting on {@code /} cannot tell them apart. Carrying
+     * that difference would take a shape change on the SDK side, and no plugin has needed it.
+     */
+    static String subpathOf(String requestUri, String pluginId) {
         String prefix = "/p/" + pluginId;
         int at = requestUri.indexOf(prefix);
         if (at < 0) {
             return "";
         }
         String rest = requestUri.substring(at + prefix.length());
-        return rest.startsWith("/") ? rest.substring(1) : rest;
+        String raw = rest.startsWith("/") ? rest.substring(1) : rest;
+        if (raw.isEmpty()) {
+            return "";
+        }
+        return java.util.Arrays.stream(raw.split("/", -1))
+                .map(segment -> URLDecoder.decode(segment, StandardCharsets.UTF_8))
+                .collect(java.util.stream.Collectors.joining("/"));
     }
 }

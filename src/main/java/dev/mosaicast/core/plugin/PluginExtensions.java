@@ -94,7 +94,7 @@ public class PluginExtensions {
         for (PluginRegistration registration : plugins.allActive()) {
             String pluginId = registration.id();
             List<SearchProvider> providers = plugins.extensions(SearchProvider.class, pluginId);
-            if (providers.isEmpty()) {
+            if (providers.isEmpty() || !mayPublishTo(registration, role)) {
                 continue;
             }
             String name = registration.manifest() == null || registration.manifest().name() == null
@@ -108,6 +108,25 @@ public class PluginExtensions {
             sections.add(new SearchResults.PluginSection(pluginId, name, hits, answered.timedOut()));
         }
         return sections;
+    }
+
+    /**
+     * Whether a caller at this role may be shown anything a plugin publishes through an extension point.
+     *
+     * <p>The manifest's {@code data.readableBy} is enforced on every direct HTTP surface — docs, schema,
+     * blobs, tags — and was enforced on none of these. A plugin storing podcaster-only content still had it
+     * surfaced through site search, through {@code sitemap.xml} and through share previews, because those
+     * three paths reach the plugin's own code rather than the host's store. The declaration is supposed to
+     * be the permission (§7.6); this is that sentence applied to the three doors it did not cover.
+     *
+     * <p>It gates the provider, not its answers. A provider that serves several tiers of its own content
+     * still decides among them — {@link SearchProvider} is handed the role for exactly that, and the SDK
+     * says so. What the host decides is whether this caller is admitted at all.
+     */
+    private static boolean mayPublishTo(PluginRegistration registration, Role role) {
+        PluginManifest manifest = registration.manifest();
+        return manifest == null
+                || PluginAccessPolicy.canRead(manifest, Optional.ofNullable(role));
     }
 
     /** Runs one plugin's providers, resolving each hit's subpath into a URL inside its own namespace. */
@@ -140,10 +159,7 @@ public class PluginExtensions {
      * slash or a {@code ..} segment must not be able to point a search result at a core route.
      */
     private static String href(String pluginId, String subpath) {
-        String cleaned = subpath == null ? "" : String.join("/",
-                java.util.Arrays.stream(subpath.split("/"))
-                        .filter(segment -> !segment.isEmpty() && !".".equals(segment) && !"..".equals(segment))
-                        .toList());
+        String cleaned = subpath == null ? "" : cleanSegments(subpath);
         return cleaned.isEmpty() ? "/p/" + pluginId : "/p/" + pluginId + "/" + cleaned;
     }
 
@@ -199,8 +215,13 @@ public class PluginExtensions {
      *
      * @param pluginId the plugin owning the deep link
      * @param subpath  the path below {@code /p/{pluginId}/}; never null, may be empty (the plugin root)
+     * @param role     the caller's role, or {@code null} when anonymous — a plugin above that floor
+     *                 describes nothing here, the same as it serves nothing from its doc store
      */
-    public Optional<OgMeta> shareMetadata(String pluginId, String subpath) {
+    public Optional<OgMeta> shareMetadata(String pluginId, String subpath, Role role) {
+        if (plugins.active(pluginId).filter(r -> mayPublishTo(r, role)).isEmpty()) {
+            return Optional.empty();
+        }
         for (ShareMetadataProvider provider : plugins.extensions(ShareMetadataProvider.class, pluginId)) {
             try {
                 Optional<OgMeta> meta = provider.metaFor(subpath == null ? "" : subpath);
@@ -257,6 +278,12 @@ public class PluginExtensions {
         for (PluginRegistration registration : plugins.allActive()) {
             String pluginId = registration.id();
             String prefix = "/p/" + pluginId + "/";
+            // The sitemap is read by anonymous crawlers, so a plugin above that floor contributes nothing:
+            // publishing the URLs of content this caller may not open is the leak, whatever the page does
+            // when they follow one.
+            if (!mayPublishTo(registration, null)) {
+                continue;
+            }
             for (SitemapProvider provider : plugins.extensions(SitemapProvider.class, pluginId)) {
                 try {
                     List<SitemapUrl> provided = provider.urls();
@@ -276,9 +303,29 @@ public class PluginExtensions {
         return urls;
     }
 
-    /** Whether a path is this plugin's own root or something below it. */
+    /**
+     * Whether a path is this plugin's own root or something below it.
+     *
+     * <p>Against the <em>normalised</em> path, not the raw one. {@code /p/wiki/../../legal/impressum}
+     * starts with {@code /p/wiki/} and every crawler that reads it resolves it to {@code /legal/impressum},
+     * so a bare {@code startsWith} confined nothing. {@link #href} has filtered {@code .} and {@code ..}
+     * segment by segment since it was written; this comparison was the copy that had not.
+     *
+     * <p>A path that is not already in normal form is refused rather than quietly rewritten: a provider
+     * naming a path it did not mean should be told so, and the caller drops the entry with a warning.
+     */
     private static boolean confined(String path, String prefix) {
+        if (path == null || !path.equals("/" + cleanSegments(path))) {
+            return false;
+        }
         return path.equals(prefix.substring(0, prefix.length() - 1)) || path.startsWith(prefix);
+    }
+
+    /** The path's meaningful segments, joined: empty, {@code .} and {@code ..} dropped, no leading slash. */
+    private static String cleanSegments(String path) {
+        return String.join("/", java.util.Arrays.stream(path.split("/"))
+                .filter(segment -> !segment.isEmpty() && !".".equals(segment) && !"..".equals(segment))
+                .toList());
     }
 
     /**

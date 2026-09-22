@@ -1,0 +1,38 @@
+{
+  "id": "directorylocked",
+  "version": "1.0.0",
+  "platformApi": "0.15.0",
+  "name": "Locked Directory Fixture",
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "directorylocked-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "directorylocked-card",
+      "placement": "sidebar",
+      "visibleTo": "anonymous"
+    },
+    {
+      "scope": "site",
+      "element": "directorylocked-page",
+      "placement": "page",
+      "visibleTo": "podcaster"
+    }
+  ],
+  "storage": "doc",
+  "data": {
+    "readableBy": "podcaster",
+    "writableBy": "podcaster"
+  },
+  "identity": {
+    "resolvesUsers": true
+  },
+  "notifications": {
+    "sends": true,
+    "perUserPerDay": 5
+  }
+}

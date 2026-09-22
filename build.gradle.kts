@@ -166,7 +166,9 @@ tasks.bootJar {
 // build/test-plugins/{good,broken,schema,nopage} so the plugin-loading integration test can point
 // MOSAICAST_PLUGINS_DIR at a real, hermetic plugins dir. The same JAR is reused across the folders; only the
 // manifest differs (good loads; broken has an incompatible platformApi; schema declares "schema" storage
-// with no entities; wikifix declares a real one readable anonymously and wikilocked the same one behind a
+// with no entities; directory declares identity + notifications at an anonymous read floor and
+// directorylocked the same capabilities behind a podcaster one, plus a podcaster-only `page` slot;
+// wikifix declares a real one readable anonymously and wikilocked the same one behind a
 // podcaster read floor; nopage loads but declares no `page` slot; translator declares external translation at
 // the default podcaster floor and translatoropen the same kind at `anonymous`, directory an `identity` and a `notifications` block)
 // so the test can assert failure
@@ -182,7 +184,7 @@ val stageTestPlugins = fixtureProject?.let { fixture ->
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         into(layout.buildDirectory.dir("test-plugins"))
         listOf("good", "broken", "schema", "wikifix", "wikilocked", "nopage", "ownedbad", "blobs",
-            "tagger", "tagreader", "translator", "translatoropen", "directory")
+            "tagger", "tagreader", "translator", "translatoropen", "directory", "directorylocked")
             .forEach { name ->
             into(name) {
                 from("src/test/resources/plugin-fixtures/$name")

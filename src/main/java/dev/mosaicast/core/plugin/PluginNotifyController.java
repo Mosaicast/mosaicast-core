@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
+import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.notification.NotificationService;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.NotificationException;
@@ -12,6 +13,8 @@ import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -27,6 +30,11 @@ import org.springframework.web.bind.annotation.RestController;
  * <p><strong>Authenticated, unlike most plugin reads.</strong> Every other plugin surface that is open to
  * anonymous callers only ever hands data <em>out</em>; this one writes into other people's inboxes, and an
  * anonymous visitor has no business doing that however the manifest is written.
+ *
+ * <p><strong>And authenticated is not by itself permission.</strong> This is a write, so it takes the
+ * plugin's declared {@code data.writableBy} floor like the doc, blob, tag and log surfaces do. Without it
+ * any signed-in fan could put arbitrary text and a link into the inbox of every participant the plugin
+ * holds a {@code USER} partition for, in the site's own voice.
  */
 @RestController
 public class PluginNotifyController {
@@ -64,7 +72,8 @@ public class PluginNotifyController {
      * @return the ids notified
      */
     @PostMapping("/api/plugins/{id}/notify")
-    public List<UUID> notify(@PathVariable String id, @Valid @RequestBody SendRequest request)
+    public List<UUID> notify(@PathVariable String id, @Valid @RequestBody SendRequest request,
+                             Authentication authentication)
             throws NotificationException {
         PluginRegistration registration = plugins.active(id)
                 .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id));
@@ -72,6 +81,12 @@ public class PluginNotifyController {
         // them apart would let a page probe an install's manifest set.
         if (!registration.manifest().declaresNotifications()) {
             throw new NotFoundException("Unknown plugin: " + id);
+        }
+        // After the 404, deliberately: a caller with no business in this plugin's data should not learn
+        // from a distinct 403 which plugins on this install declare notifications.
+        if (!PluginAccessPolicy.canWrite(registration.manifest(), CurrentUser.role(authentication))) {
+            throw new AccessDeniedException("Not allowed to send notifications as plugin '%s'"
+                    .formatted(registration.manifest().id()));
         }
         // Constructed here rather than injected, so the SDK's own validation — a non-blank sentence per
         // locale, and an `en` entry — runs on browser input exactly as it does on a backend call.
