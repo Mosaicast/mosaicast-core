@@ -119,8 +119,9 @@ npm run build              # builds the shell into ../src/main/resources/static
 # 2) start Postgres + the app:
 cp .env.example .env              # fill in (DB password, Discord OAuth, bootstrap admin)
 docker compose up --build         # → http://localhost:8080
-# …or run the backend directly against a local Postgres:
-./gradlew bootRun
+# …or run the backend directly against a local Postgres (the DB credentials have no defaults —
+# an app that connects as a guessable user because nobody set one is the worse outcome):
+MOSAICAST_DB_USER=… MOSAICAST_DB_PASSWORD=… ./gradlew bootRun
 ```
 
 ### Dev profile & dev-login (local only)

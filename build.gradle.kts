@@ -255,6 +255,10 @@ tasks.withType<Test>().configureEach {
     // deterministic order.
     listOf("junit.jupiter.testclass.order.default", "junit.jupiter.testmethod.order.default")
         .forEach { key -> System.getProperty(key)?.let { systemProperty(key, it) } }
+    // The dev profile refuses to start unless the operator confirms they meant it (core#186), and the
+    // whole integration suite runs under @ActiveProfiles("dev") for the login helper. Declared here rather
+    // than on forty test classes: a test JVM is the case the confirmation exists to distinguish *from*.
+    systemProperty("mosaicast.security.dev-login-confirmed", "true")
     // Rate limiting (ARCHITECTURE §13) buckets by client address, and every test in the suite is the same
     // client — 127.0.0.1 — so a class that logs in as a dozen different users spends one budget and starts
     // getting 429s that have nothing to do with what it is testing. Off by default here; RateLimitIntegrationTest

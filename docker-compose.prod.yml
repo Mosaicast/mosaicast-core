@@ -53,10 +53,22 @@ services:
       # LibreTranslate, say. Empty by default, which permits none. See .env.example.
       MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS: ${MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS:-}
     ports:
-      - "${APP_PORT:-8080}:8080"
+      # Bound to loopback, not 0.0.0.0. The app speaks plain http and the session cookie is Secure by
+      # default, so the only working deployment is one with a TLS terminator in front — and with the port
+      # published on every interface, "it works if I set MOSAICAST_SECURITY_SECURE_COOKIE=false" is the
+      # shortcut an operator finds first. Set APP_BIND=0.0.0.0 only when something else terminates TLS.
+      - "${APP_BIND:-127.0.0.1}:${APP_PORT:-8080}:8080"
     volumes:
       - ./plugins:/app/plugins
       - ./locales:/app/locales
+    # A plugin loads in-process and a feed poll parses whatever a remote host sends; neither should be able
+    # to take the database down with it by exhausting the host.
+    deploy:
+      resources:
+        limits:
+          memory: ${APP_MEMORY_LIMIT:-2g}
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q '\"status\":\"UP\"' || exit 1"]
       interval: 30s

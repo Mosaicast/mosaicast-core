@@ -208,6 +208,7 @@ up() {
   MOSAICAST_DB_URL="jdbc:postgresql://localhost:$PG_PORT/mosaicast" \
   MOSAICAST_DB_USER=mosaicast MOSAICAST_DB_PASSWORD=mosaicast \
     ./gradlew $maven_local bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT \
+      --mosaicast.security.dev-login-confirmed=true \
       --mosaicast.base-url=$APP_URL \
       --mosaicast.plugins-dir=$plugins_dir \
       --mosaicast.feed.allow-private-targets=true \

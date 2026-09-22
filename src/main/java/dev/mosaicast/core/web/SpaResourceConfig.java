@@ -4,9 +4,11 @@
 package dev.mosaicast.core.web;
 
 import java.io.IOException;
+import java.time.Duration;
+import org.jspecify.annotations.NonNull;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.jspecify.annotations.NonNull;
+import org.springframework.http.CacheControl;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -34,6 +36,16 @@ public class SpaResourceConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(@NonNull ResourceHandlerRegistry registry) {
+        // The content-hashed build output, which is immutable by construction: `index-BMksdjBz.js` cannot
+        // change without changing its name. It was being served `no-cache, no-store, must-revalidate` —
+        // Spring Security stamps that on any response that does not already carry a Cache-Control, which is
+        // the right default and the wrong answer here, so a 462 KB bundle was re-downloaded on every load
+        // (core#187). Declared before the catch-all below so it wins for /assets/**, and set here rather
+        // than by disabling the framework default, which would take `no-store` off the API responses too.
+        registry.addResourceHandler("/assets/**")
+                .addResourceLocations("classpath:/static/assets/")
+                .setCacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable());
+
         registry.addResourceHandler("/**")
                 .addResourceLocations("classpath:/static/")
                 .resourceChain(true)

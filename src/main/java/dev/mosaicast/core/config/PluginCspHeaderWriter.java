@@ -129,7 +129,10 @@ public class PluginCspHeaderWriter implements HeaderWriter {
         for (String directive : WIDENED) {
             policy.append(directive).append(" 'self'").append(suffix).append("; ");
         }
-        return policy.append("object-src 'none'; base-uri 'self'; frame-ancestors 'none'").toString();
+        // `form-action 'self'` does not fall back to `default-src`, so its absence meant the policy said
+        // nothing about where a form may post — the one directive that bounds an injected <form> (core#187).
+        return policy.append("object-src 'none'; base-uri 'self'; form-action 'self'; "
+                + "frame-ancestors 'none'").toString();
     }
 
     /**

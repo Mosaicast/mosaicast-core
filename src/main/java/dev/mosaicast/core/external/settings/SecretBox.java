@@ -47,10 +47,21 @@ public class SecretBox {
     private static final int KEY_BYTES = 32;
 
     private final SecretKeySpec key;
+    /** The key values may still be sealed with, during a rotation. Read-only: nothing is ever sealed with it. */
+    private final SecretKeySpec previousKey;
     private final SecureRandom random = new SecureRandom();
 
-    public SecretBox(@Value("${mosaicast.encryption-key:${MOSAICAST_ENCRYPTION_KEY:}}") String configured) {
+    public SecretBox(@Value("${mosaicast.encryption-key:${MOSAICAST_ENCRYPTION_KEY:}}") String configured,
+                     @Value("${mosaicast.encryption-key-previous:${MOSAICAST_ENCRYPTION_KEY_PREVIOUS:}}")
+                     String previous) {
         this.key = parse(configured);
+        this.previousKey = parse(previous);
+        if (previousKey != null && key == null) {
+            throw new IllegalStateException(
+                    "MOSAICAST_ENCRYPTION_KEY_PREVIOUS is set but MOSAICAST_ENCRYPTION_KEY is not. The "
+                            + "previous key only decrypts; without a current key there is nothing to "
+                            + "rotate onto.");
+        }
         if (key == null) {
             log.warn("MOSAICAST_ENCRYPTION_KEY is not set — admin-entered service credentials will be stored "
                     + "in plain text, and will appear in database backups. Prefer environment-supplied "
@@ -125,17 +136,34 @@ public class SecretBox {
                     "A stored credential is encrypted but MOSAICAST_ENCRYPTION_KEY is not set");
         }
         try {
-            byte[] raw = Base64.getDecoder().decode(stored.substring(PREFIX.length()));
-            Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, key,
-                    new GCMParameterSpec(TAG_BITS, raw, 0, NONCE_BYTES));
-            byte[] plain = cipher.doFinal(raw, NONCE_BYTES, raw.length - NONCE_BYTES);
-            return new String(plain, StandardCharsets.UTF_8);
-        } catch (GeneralSecurityException | IllegalArgumentException problem) {
+            return decrypt(stored, key);
+        } catch (GeneralSecurityException | IllegalArgumentException withCurrent) {
+            // The previous key, if the operator is mid-rotation. Tried second so a fully rotated install
+            // never pays for it, and only when the current key has already failed — which is the only
+            // situation in which the answer could differ.
+            if (previousKey != null) {
+                try {
+                    String opened = decrypt(stored, previousKey);
+                    log.info("A stored credential is still sealed with the previous encryption key. "
+                            + "Re-save it (Admin → External services) to move it onto the current one, and "
+                            + "drop MOSAICAST_ENCRYPTION_KEY_PREVIOUS once nothing reports this.");
+                    return opened;
+                } catch (GeneralSecurityException | IllegalArgumentException withPrevious) {
+                    log.warn("A stored credential could not be decrypted with either key", withPrevious);
+                    throw new IllegalStateException("A stored credential could not be decrypted");
+                }
+            }
             // Deliberately not "wrong key" vs "corrupt": the message reaches an admin page, and telling a
             // caller which of the two it is turns this into an oracle. The distinction is in the log.
-            log.warn("A stored credential could not be decrypted", problem);
+            log.warn("A stored credential could not be decrypted", withCurrent);
             throw new IllegalStateException("A stored credential could not be decrypted");
         }
+    }
+
+    private static String decrypt(String stored, SecretKeySpec with) throws GeneralSecurityException {
+        byte[] raw = Base64.getDecoder().decode(stored.substring(PREFIX.length()));
+        Cipher cipher = Cipher.getInstance(ALGORITHM);
+        cipher.init(Cipher.DECRYPT_MODE, with, new GCMParameterSpec(TAG_BITS, raw, 0, NONCE_BYTES));
+        return new String(cipher.doFinal(raw, NONCE_BYTES, raw.length - NONCE_BYTES), StandardCharsets.UTF_8);
     }
 }

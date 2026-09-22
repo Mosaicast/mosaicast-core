@@ -30,6 +30,16 @@ public class MetaController {
         this.devLoginEnabled = environment.acceptsProfiles(Profiles.of("dev"));
     }
 
+    /**
+     * What the shell needs before anybody logs in.
+     *
+     * <p>The version stays here, and stays anonymous, against the audit's suggestion to drop it (core#187).
+     * It is not free to remove: the footer renders it on every page for every visitor, which for an AGPL
+     * application whose source is linked two lines away is a feature rather than a leak. An anonymous scan
+     * learns which CVEs might apply — from a repository that would have told it anyway. Obscuring a version
+     * that the licence obliges this project to publish is theatre with a visible cost, so the actual
+     * exposure is dealt with where it lives: {@code /actuator/**} is ADMIN-only now.
+     */
     @GetMapping("/api/meta")
     public Map<String, Object> meta() {
         return Map.of("name", "Mosaicast", "version", version, "devLoginEnabled", devLoginEnabled);

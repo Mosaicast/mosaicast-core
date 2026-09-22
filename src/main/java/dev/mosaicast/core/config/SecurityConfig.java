@@ -8,6 +8,7 @@ import dev.mosaicast.core.auth.DiscordOAuth2UserService;
 import dev.mosaicast.core.auth.OAuthLoginFailureHandler;
 import dev.mosaicast.core.auth.UserRepository;
 import dev.mosaicast.core.auth.pat.PatAuthenticationFilter;
+import dev.mosaicast.core.web.ProblemResponses;
 import dev.mosaicast.core.auth.pat.PersonalAccessTokenService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
@@ -20,7 +21,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -30,6 +30,8 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler;
 import java.util.function.Supplier;
+import org.springframework.security.web.header.writers.CrossOriginOpenerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.CrossOriginResourcePolicyHeaderWriter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -142,6 +144,12 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_PATHS).permitAll()
+                        // Everything else under /actuator is ADMIN-only. Without this line the catch-all
+                        // `anyRequest().permitAll()` at the bottom is what answers for it, so the only thing
+                        // keeping env/configprops/loggers/heapdump off the public internet is
+                        // `management.endpoints.web.exposure.include` in application.yml — one property, in a
+                        // different file, that an operator may widen while chasing something else.
+                        .requestMatchers("/actuator/**").hasRole("ADMIN")
                         // Public read API (ARCHITECTURE §10 — v1 everything PUBLIC), GET-only so a non-GET
                         // hits the /api/** deny-by-default below instead of a handler-level 405.
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_PATHS).permitAll()
@@ -190,8 +198,16 @@ public class SecurityConfig {
                         // The SPA shell and static assets are served openly.
                         .anyRequest().permitAll())
                 // Unauthenticated API calls get 401 (not a redirect to a login page).
-                .exceptionHandling(e -> e.authenticationEntryPoint(
-                        new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
+                // Both in problem+json, like every application error. Left to the defaults, a 401 from the
+                // entry point and a 403 from the access-denied handler rendered Spring Boot's error page
+                // instead, so a client had two shapes to parse for the same kind of answer (core#187).
+                .exceptionHandling(e -> e
+                        .authenticationEntryPoint((request, response, denied) -> ProblemResponses.write(
+                                response, HttpStatus.UNAUTHORIZED, "unauthorized",
+                                "Authentication is required."))
+                        .accessDeniedHandler((request, response, denied) -> ProblemResponses.write(
+                                response, HttpStatus.FORBIDDEN, "forbidden",
+                                "You do not have access to this.")))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((req, res, authn) -> res.setStatus(HttpStatus.NO_CONTENT.value()))
@@ -201,7 +217,28 @@ public class SecurityConfig {
                         // (§12.5) — the declaration is both the notice and the permission.
                         .addHeaderWriter(cspHeaderWriter)
                         .referrerPolicy(ref -> ref.policy(
-                                ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)));
+                                ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        // None of these is a Spring Security default, so none of them was present (core#187).
+                        //
+                        // Permissions-Policy denies the capabilities this app never uses; a plugin rendering
+                        // in the page inherits the denial, which is the point — a slot is somebody else's
+                        // code running on this origin.
+                        .permissionsPolicyHeader(policy -> policy.policy(
+                                "accelerometer=(), autoplay=(self), camera=(), display-capture=(), "
+                                        + "encrypted-media=(), geolocation=(), gyroscope=(), magnetometer=(), "
+                                        + "microphone=(), midi=(), payment=(), usb=(), xr-spatial-tracking=()"))
+                        // Cross-origin isolation for the document: `same-origin` keeps a window this app
+                        // opened out of another origin's reach, and `same-site` stops an off-site document
+                        // embedding these responses as a subresource.
+                        .crossOriginOpenerPolicy(coop -> coop.policy(
+                                CrossOriginOpenerPolicyHeaderWriter.CrossOriginOpenerPolicy.SAME_ORIGIN))
+                        .crossOriginResourcePolicy(corp -> corp.policy(
+                                CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_SITE))
+                        // Spring Security's `no-store` default stays on, because it is right for every
+                        // response that does not say otherwise. The content-hashed bundle says otherwise:
+                        // it sets its own Cache-Control in SpaResourceConfig, and CacheControlHeaderWriter
+                        // leaves a header that is already present alone (core#187).
+                        );;
 
         // Enable Discord login only when a client registration exists (credentials configured).
         if (clientRegistrations.getIfAvailable() != null) {

@@ -215,6 +215,31 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Deny-by-default ended at `/api/**`, and four response headers were simply absent (`0.7.4`, core#186,
+  core#187).** The last rule in the security chain is `anyRequest().permitAll()`, so everything outside
+  `/api/**` was open — `/actuator/**` included, where the only thing keeping `env`, `configprops`,
+  `loggers` and `heapdump` off the public internet was an exposure property in a different file that an
+  operator may widen while chasing something else. `/actuator/**` is ADMIN-only now; the two probes stay
+  public, as the `PUBLIC_PATHS` list always intended. Alongside it the **runtime container no longer runs
+  as root**, the prod compose **binds to loopback** (it speaks plain http, and a port on every interface
+  is what makes "turn the `Secure` cookie flag off" the shortcut an operator finds first) with a memory
+  limit and `no-new-privileges`, **plugin installation refuses an unpinned or `http://` source** — with
+  `MOSAICAST_PLUGINS_ALLOW_UNVERIFIED` as the documented way to keep the old behaviour while digests are
+  added — and the **`dev` profile refuses to start** unless `MOSAICAST_DEV_LOGIN_CONFIRMED=true`, or at all
+  when Discord credentials are configured: the bypass mints an ADMIN session without Discord, and the
+  failure mode of leaving it on is silent, because the site keeps working and only the login gate is gone.
+  The **database credentials lost their defaults**: `mosaicast`/`mosaicast` in the clear in the repository,
+  unused by the compose path but silently in force for a fat jar started directly — which is the documented
+  route for `migrateBlobs`, `draftCatalog` and every non-Docker install. And **`MOSAICAST_ENCRYPTION_KEY`
+  can be rotated**: a previous key may be supplied for reading, so changing the key is a procedure rather
+  than making every stored credential permanently unreadable.
+  On the headers: `Permissions-Policy`, `Cross-Origin-Opener-Policy` and `Cross-Origin-Resource-Policy` are
+  set (none is a Spring Security default, so none was present), the CSP gains `form-action 'self'` — which
+  does **not** fall back to `default-src`, so its absence meant the policy said nothing about where a form
+  may post — the 462 KB content-hashed bundle is no longer served `no-store` on every load, and a refusal
+  raised in the filter chain now answers in the same `problem+json` shape as every application error
+  instead of Spring Boot's default page, which named the framework and the path.
+
 - **Switching a plugin back on did nothing (`0.7.4`, core#165, core#167, core#182).** Switching one *off*
   took effect immediately, because every surface reads through `active()`. Switching one **on** did not: if
   the plugin had been off at boot the loader never ran `loadPlugin`/`startPlugin`/`register(ctx)` for it,
