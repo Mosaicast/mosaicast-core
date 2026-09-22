@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.episode;
 
+import org.jsoup.Jsoup;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Instant;
 import java.util.UUID;
@@ -54,12 +55,21 @@ public record EpisodeSummary(
                 snapshot.audioUrl() != null);
     }
 
-    /** A short plain-text lead-in for the card: HTML stripped, whitespace collapsed, length-capped. */
+    /**
+     * A short plain-text lead-in for the card: HTML stripped, whitespace collapsed, length-capped.
+     *
+     * <p>Parsed rather than regexed. {@code replaceAll("<[^>]*>", " ")} left entities encoded, so an
+     * ordinary RSS description reading {@code Tom &amp; Jerry} was shown to a visitor literally as
+     * {@code Tom &amp;amp; Jerry}, and an attribute value containing {@code >} ended a "tag" early and
+     * spilled the rest of it into the page as visible text (core#196). Not a security problem — both
+     * output sites escape correctly — but a defect a reader sees, and `OgResolver.plainText` in this same
+     * repository has always done it properly.
+     */
     private static String excerpt(String description) {
         if (description == null || description.isBlank()) {
             return null;
         }
-        String text = description.replaceAll("<[^>]*>", " ").replaceAll("\\s+", " ").trim();
+        String text = Jsoup.parse(description).text().replaceAll("\\s+", " ").trim();
         if (text.isEmpty()) {
             return null;
         }

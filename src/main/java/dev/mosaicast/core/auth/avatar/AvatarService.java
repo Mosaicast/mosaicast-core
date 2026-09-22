@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.auth.avatar;
 
+import dev.mosaicast.core.blob.MimeSniffer;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
@@ -212,6 +213,17 @@ public class AvatarService {
             byte[] bytes = body.readNBytes(properties.maxImageBytes() + 1);
             if (bytes.length > properties.maxImageBytes()) {
                 log.debug("Avatar refused: larger than {} bytes", properties.maxImageBytes());
+                return Optional.empty();
+            }
+            // The bytes, not only the header. BrandingService and PluginBlobService both run the declared
+            // type *and* MimeSniffer against the same allow-list; this path decided on the upstream
+            // header alone and then served those bytes under that type from this app's own origin — the
+            // one upload-shaped path that skipped the project's own rule (core#198). Well contained
+            // already: the host is pinned to cdn.discordapp.com and the allow-list is four raster formats.
+            String sniffed = MimeSniffer.sniff(bytes);
+            if (sniffed == null || !ALLOWED_TYPES.contains(sniffed)) {
+                log.debug("Avatar refused: bytes are {}, which the declared {} does not match",
+                        sniffed, contentType);
                 return Optional.empty();
             }
             return Optional.of(bytes);

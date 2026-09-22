@@ -5,6 +5,8 @@ package dev.mosaicast.core.external.http;
 
 import dev.mosaicast.core.external.error.ExternalProviderException;
 import dev.mosaicast.core.external.error.ExternalTimeoutException;
+import dev.mosaicast.core.feed.BodyTooLargeException;
+import dev.mosaicast.core.feed.LimitedBodyHandler;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -102,8 +104,12 @@ public class ExternalHttpClient {
     }
 
     private String send(HttpRequest request, Duration budget, URI uri) {
+        // The cap has to be enforced while the body arrives, not after. `BodyHandlers.ofByteArray()`
+        // buffers whatever the endpoint sends into one array and only then could it be measured, so the
+        // documented 2 MB ceiling bounded nothing: a host that answers fast and large is inside its
+        // budget the whole time. This is the handler `RssFeedSource` already uses for the same reason.
         CompletableFuture<HttpResponse<byte[]>> pending =
-                http.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray());
+                http.sendAsync(request, LimitedBodyHandler.of(MAX_BODY_BYTES));
         HttpResponse<byte[]> response;
         try {
             response = pending.get(budget.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
@@ -116,8 +122,13 @@ public class ExternalHttpClient {
             pending.cancel(true);
             throw new ExternalProviderException("The call was interrupted");
         } catch (ExecutionException failed) {
+            Throwable cause = failed.getCause() == null ? failed : failed.getCause();
+            if (cause instanceof BodyTooLargeException) {
+                log.warn("External service at {} sent more than {} bytes", uri.getHost(), MAX_BODY_BYTES);
+                throw new ExternalProviderException("The service returned more data than expected");
+            }
             // The cause names the host and sometimes the internal error; log it, do not return it.
-            log.warn("External service call to {} failed", uri.getHost(), failed.getCause());
+            log.warn("External service call to {} failed", uri.getHost(), cause);
             throw new ExternalProviderException("The service could not be reached");
         }
 
@@ -126,6 +137,8 @@ public class ExternalHttpClient {
             log.warn("External service at {} answered {} — redirects are not followed", uri.getHost(), status);
             throw new ExternalProviderException("The service redirected, which is not supported");
         }
+        // Kept as a second gate: the handler above aborts the exchange, this states the invariant for a
+        // reader and survives a future change of handler.
         byte[] body = response.body();
         if (body != null && body.length > MAX_BODY_BYTES) {
             throw new ExternalProviderException("The service returned more data than expected");

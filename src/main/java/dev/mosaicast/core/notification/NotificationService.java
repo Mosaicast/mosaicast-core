@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.notification;
 
+import dev.mosaicast.core.util.Truncate;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -176,8 +177,6 @@ public class NotificationService {
     /** Caps one message's length; the limit is the host's, so no source can write an unbounded string. */
     private String truncate(String text) {
         String value = text == null ? "" : text.strip();
-        return value.length() <= properties.maxTextLength()
-                ? value
-                : value.substring(0, properties.maxTextLength());
+        return Truncate.toLength(value, properties.maxTextLength());
     }
 }

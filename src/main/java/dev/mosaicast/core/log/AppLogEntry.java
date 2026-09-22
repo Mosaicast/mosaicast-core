@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.log;
 
+import dev.mosaicast.core.util.Truncate;
 import tools.jackson.databind.JsonNode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -78,10 +79,7 @@ public class AppLogEntry {
 
     /** Keeps an oversized message readable instead of rejecting it — a truncated entry still diagnoses. */
     private static String truncate(String value, int max) {
-        if (value == null) {
-            return null;
-        }
-        return value.length() <= max ? value : value.substring(0, max - 1) + "…";
+        return Truncate.toLength(value, max, "…");
     }
 
     public Long getId() {

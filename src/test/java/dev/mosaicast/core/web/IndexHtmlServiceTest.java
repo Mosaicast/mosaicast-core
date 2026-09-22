@@ -54,7 +54,7 @@ class IndexHtmlServiceTest {
     }
 
     @Test
-    void jsonLdCannotCloseItsOwnScriptElement() {
+    void jsonLdCannotLeaveItsOwnScriptElement() {
         // A feed whose episode title contains `</script>` would otherwise end the data block early and have
         // the rest of the document's own markup parsed as page content.
         String html = indexHtml.render(new PageView(
@@ -63,8 +63,32 @@ class IndexHtmlServiceTest {
 
         assertThat(html).contains("<script type=\"application/ld+json\">");
         assertThat(html).doesNotContain("</script><script>alert(1)");
-        assertThat(html).contains("<\\/script>");
+        // Every `<` is escaped, not the `</` sequence alone — see below for why that is not enough.
+        assertThat(html).contains("\\u003c/script>");
         // Exactly one opening and one closing tag for the data block.
+        assertThat(html.split("<script type=\"application/ld\\+json\">", -1)).hasSize(2);
+    }
+
+    @Test
+    void jsonLdCannotOpenTheDoubleEscapedState() {
+        // The sequence the old escaping missed (core#196). `</` was neutralised, but the HTML tokenizer
+        // also leaves script-data state on `<!--`, and a following `<script` puts it into the
+        // double-escaped state — where this element's own `</script>` no longer ends it, and the rest of
+        // the document, the shell's module script included, becomes the text content of this block. The
+        // page then never mounts. An episode title from a third-party feed can carry both tokens.
+        String html = indexHtml.render(new PageView(
+                new IndexHtmlService.Meta("t", "", null), null,
+                "{\"name\":\"<!-- <script> oops\"}", null));
+
+        // Asserted on the block itself: the page template has HTML comments of its own, and what matters
+        // is that neither token survives *inside* the JSON. `>` is deliberately left alone — it cannot
+        // start anything, and escaping it would be noise.
+        int opens = html.indexOf("application/ld+json\">") + "application/ld+json\">".length();
+        // Searched from the block's own start: the shell has script tags of its own before this one.
+        String block = html.substring(opens, html.indexOf("</script>", opens));
+        assertThat(block).doesNotContain("<!--").doesNotContain("<script");
+        assertThat(block).isEqualTo("{\"name\":\"\\u003c!-- \\u003cscript> oops\"}");
+        // Still exactly one data block.
         assertThat(html.split("<script type=\"application/ld\\+json\">", -1)).hasSize(2);
     }
 

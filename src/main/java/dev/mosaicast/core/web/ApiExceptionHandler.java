@@ -199,12 +199,36 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return response.body(problem);
     }
 
+    /**
+     * A client error, with the project's own validation message when there is one.
+     *
+     * <p>The message used to be returned verbatim, which is right for the messages this project writes —
+     * they are addressed to the caller — and wrong for the ones it does not. The same handler catches
+     * IAEs thrown deep inside the framework and its libraries, whose messages carry internal type names,
+     * field paths and occasionally file paths, and those went straight into the response body (core#196).
+     * Every other handler here is careful about this; the catch-all below returns a generic 500 and logs
+     * separately.
+     *
+     * <p>So the message is passed on only when this project raised it. "Ours" is decided by where the
+     * throw came from, not by inspecting the text: a message that happens to mention a package name is a
+     * bad heuristic, and a stack trace is a fact.
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleBadRequest(IllegalArgumentException ex, WebRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        String detail = raisedByThisProject(ex) ? ex.getMessage() : "The request could not be accepted.";
+        if (!raisedByThisProject(ex)) {
+            log.warn("A library raised IllegalArgumentException; the detail was not passed on", ex);
+        }
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Bad Request");
         problem.setType(URI.create("https://mosaicast.dev/problems/bad-request"));
         return problem;
+    }
+
+    /** Whether the topmost frame of this throw is this project's own code. */
+    private static boolean raisedByThisProject(Throwable ex) {
+        StackTraceElement[] frames = ex.getStackTrace();
+        return frames.length > 0 && frames[0].getClassName().startsWith("dev.mosaicast.");
     }
 
     @ExceptionHandler(Exception.class)
