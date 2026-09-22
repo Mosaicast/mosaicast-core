@@ -87,7 +87,10 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
 - **Dev instance:** `dev/instance.sh up` stands up a disposable site (fleeting Postgres on :5433, app on
   :8081, seeded only with the fictional `assets/sample/sample-feed.xml` — never your real dev DB, never a
   real podcast). Use it for screenshots *and* for checking anything by hand. `--plugins` loads `./plugins`,
-  `--admin` opens an admin session; `status`, `logs [-f]`, `psql`, `down`.
+  `--admin` opens an admin session; `status`, `logs [-f]`, `psql`, `down`. `--audio DIR` repoints the
+  sample feed's `example.com` enclosures at your own files in a staged copy, so playback actually plays —
+  needed for anything that only misbehaves while `timeupdate` fires; it turns on strict media CSP, so not
+  for screenshots.
 - **Screenshots:** after a change that alters the shell's look, refresh **all four pages, light and dark**
   in `assets/screenshots/` (`home-`, `detail-`, `account-`, `admin-{light,dark}.png`, ~1280px). Capture with
   `dev/instance.sh up --admin` (no plugins — the sample plugin's demo card is not what the README should
