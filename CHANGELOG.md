@@ -215,6 +215,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Every Docker install ran with its language registry switched off (`0.7.2`, core#157).** The backend
+  stage of the image never copied `frontend/src/locales`, so the `processResources` rule that places the
+  bundled message catalogs copied a directory that was not there — a Gradle copy from a missing source
+  succeeds and produces nothing. Nothing looked broken, because the shell bundle carries its own copy of
+  the same strings and still rendered in the right language, while every server-side feature behind the
+  registry was dead: the admin Languages page listed nothing and refused every code with "No message
+  catalog", `?lang=` was ignored so the document kept the default locale, and `sitemap.xml` emitted no
+  hreflang alternates at all. A local `./gradlew build` could never see it, since the directory is always
+  present on a developer machine — the build *context* was what decided. The image now copies the
+  directory, `bootJar` fails when the resulting jar carries no `i18n/bundled/en.json` rather than shipping
+  a silent hole, and CI builds the image and reads the catalogs back out of its jar, because that is the
+  artifact the defect lived in.
+
 - **Plugin components were destroyed and rebuilt several times a second during playback (`0.7.2`, core#144).** The
   shell listed the player's context value as an input to the `ctx` it hands each plugin element, and that
   value is rebuilt on every render of its provider with a `currentTime` that updates on every `timeupdate`.

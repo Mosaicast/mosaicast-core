@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
+// Imported rather than written out at the use site: inside a build script `java` resolves to the
+// JavaPluginExtension, which shadows the package of the same name.
+import java.util.zip.ZipFile
+
 plugins {
     java
     alias(libs.plugins.spring.boot)
@@ -111,6 +115,28 @@ tasks.processResources {
     from("frontend/src/locales") {
         into("i18n/bundled")
         include("*.json")
+    }
+}
+
+// `processResources` copies the catalogs from a directory outside `src/`, and a Gradle copy whose source
+// directory does not exist succeeds and produces nothing. That is exactly what happened in the Docker
+// backend stage (core#157): a jar with no catalogs, a language registry switched off in every install, and
+// a local `./gradlew build` that could not see it because the directory is there on a developer machine.
+// Assert the result rather than trusting the copy, so the next build context that forgets the directory
+// fails here instead of shipping.
+tasks.bootJar {
+    doLast {
+        val archive = archiveFile.get().asFile
+        val required = "BOOT-INF/classes/i18n/bundled/en.json"
+        ZipFile(archive).use { zip ->
+            if (zip.getEntry(required) == null) {
+                throw GradleException(
+                    "$archive carries no $required: the bundled message catalogs are missing. " +
+                        "processResources copies them from frontend/src/locales — check that the directory " +
+                        "is present in the build context (see the Dockerfile's backend stage)."
+                )
+            }
+        }
     }
 }
 
