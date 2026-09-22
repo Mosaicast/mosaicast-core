@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 
 /**
  * The parsed {@code plugin.json} manifest of a plugin (ARCHITECTURE §7.2). Deserialized from the plugin
@@ -210,13 +211,13 @@ public record PluginManifest(
         /** The declared write floor, or the conservative default. */
         public String writableByOrDefault() {
             return writableBy == null || writableBy.isBlank()
-                    ? EDITABLE_BY_PODCASTER : writableBy.trim().toLowerCase();
+                    ? EDITABLE_BY_PODCASTER : writableBy.trim().toLowerCase(Locale.ROOT);
         }
 
         /** The declared read floor, or — deliberately — the write floor. */
         public String readableByOrDefault() {
             return readableBy == null || readableBy.isBlank()
-                    ? writableByOrDefault() : readableBy.trim().toLowerCase();
+                    ? writableByOrDefault() : readableBy.trim().toLowerCase(Locale.ROOT);
         }
 
         /** The declared backend-owned key patterns; empty when the manifest reserves nothing. */
@@ -542,7 +543,7 @@ public record PluginManifest(
 
         /** The role a field defaults to when the manifest names none: the most restrictive one. */
         public String editableByOrDefault() {
-            return editableBy == null || editableBy.isBlank() ? EDITABLE_BY_ADMIN : editableBy.toLowerCase();
+            return editableBy == null || editableBy.isBlank() ? EDITABLE_BY_ADMIN : editableBy.toLowerCase(Locale.ROOT);
         }
 
         /** The declared choices, never null. Empty means the field is free-form. */
@@ -568,7 +569,7 @@ public record PluginManifest(
             if (value == null || value.isNull()) {
                 return true;
             }
-            boolean typeOk = switch (type == null ? "" : type.toLowerCase()) {
+            boolean typeOk = switch (type == null ? "" : type.toLowerCase(Locale.ROOT)) {
                 case CONFIG_TYPE_STRING -> value.isString();
                 case CONFIG_TYPE_NUMBER -> value.isNumber();
                 case CONFIG_TYPE_BOOLEAN -> value.isBoolean();
@@ -935,7 +936,7 @@ public record PluginManifest(
         }
         for (String floor : new String[] {data.readableBy(), data.writableBy()}) {
             if (floor != null && !floor.isBlank()
-                    && !KNOWN_DATA_ACCESS.contains(floor.trim().toLowerCase())) {
+                    && !KNOWN_DATA_ACCESS.contains(floor.trim().toLowerCase(Locale.ROOT))) {
                 throw new PluginValidationException(
                         "data floor '%s' is not one of %s".formatted(floor, KNOWN_DATA_ACCESS));
             }
@@ -1090,7 +1091,7 @@ public record PluginManifest(
         }
         for (Map.Entry<String, ConfigField> entry : config.entrySet()) {
             ConfigField field = entry.getValue();
-            String type = field.type() == null ? null : field.type().toLowerCase();
+            String type = field.type() == null ? null : field.type().toLowerCase(Locale.ROOT);
             if (type == null || !KNOWN_CONFIG_TYPES.contains(type)) {
                 throw new PluginValidationException(
                         "config field '%s' has unknown type: %s".formatted(entry.getKey(), field.type()));

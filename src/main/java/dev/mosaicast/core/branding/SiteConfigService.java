@@ -6,6 +6,7 @@ package dev.mosaicast.core.branding;
 import dev.mosaicast.core.web.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -60,9 +61,9 @@ public class SiteConfigService {
                 throw new IllegalArgumentException("Accent must be a #rrggbb hex colour");
             }
             if (!accentSeed.equalsIgnoreCase(config.getAccentSeed())) {
-                changes.add("accent %s → %s".formatted(config.getAccentSeed(), accentSeed.toLowerCase()));
+                changes.add("accent %s → %s".formatted(config.getAccentSeed(), accentSeed.toLowerCase(Locale.ROOT)));
             }
-            config.setAccentSeed(accentSeed.toLowerCase());
+            config.setAccentSeed(accentSeed.toLowerCase(Locale.ROOT));
         }
         if (modePolicy != null && modePolicy != config.getModePolicy()) {
             changes.add("theme mode %s → %s".formatted(config.getModePolicy(), modePolicy));
@@ -71,8 +72,8 @@ public class SiteConfigService {
         if (defaultLocale != null && !defaultLocale.isBlank()
                 && !defaultLocale.trim().equalsIgnoreCase(config.getDefaultLocale())) {
             changes.add("default language %s → %s"
-                    .formatted(config.getDefaultLocale(), defaultLocale.trim().toLowerCase()));
-            config.setDefaultLocale(defaultLocale.trim().toLowerCase());
+                    .formatted(config.getDefaultLocale(), defaultLocale.trim().toLowerCase(Locale.ROOT)));
+            config.setDefaultLocale(defaultLocale.trim().toLowerCase(Locale.ROOT));
         }
         SiteConfig saved = configs.save(config);
         if (!changes.isEmpty()) {
@@ -151,8 +152,8 @@ public class SiteConfigService {
         if (defaultLocale != null && !defaultLocale.isBlank()
                 && !defaultLocale.trim().equalsIgnoreCase(config.getDefaultLocale())) {
             changes.add("default language %s → %s"
-                    .formatted(config.getDefaultLocale(), defaultLocale.trim().toLowerCase()));
-            config.setDefaultLocale(defaultLocale.trim().toLowerCase());
+                    .formatted(config.getDefaultLocale(), defaultLocale.trim().toLowerCase(Locale.ROOT)));
+            config.setDefaultLocale(defaultLocale.trim().toLowerCase(Locale.ROOT));
         }
         SiteConfig saved = configs.save(config);
         if (!changes.isEmpty()) {
@@ -164,7 +165,7 @@ public class SiteConfigService {
     /** Points a branding slot at a stored blob (or {@code null} to fall back to the bundled default). */
     @Transactional
     public void setAsset(BrandingAsset asset, UUID blobId) {
-        log.info("Branding {} {}", asset.name().toLowerCase(),
+        log.info("Branding {} {}", asset.name().toLowerCase(Locale.ROOT),
                 blobId == null ? "cleared — falling back to the bundled default" : "set to blob " + blobId);
         SiteConfig config = get();
         switch (asset) {

@@ -16,6 +16,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -266,7 +267,7 @@ public class PluginDataController {
     private DataScope scope(String scopeType, String scopeId, Authentication authentication) {
         ScopeType type;
         try {
-            type = ScopeType.valueOf(scopeType.toUpperCase());
+            type = ScopeType.valueOf(scopeType.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new NotFoundException("Unknown scope type: " + scopeType);
         }

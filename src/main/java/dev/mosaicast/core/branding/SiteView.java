@@ -3,6 +3,8 @@
 
 package dev.mosaicast.core.branding;
 
+import java.util.Locale;
+
 /**
  * The public site payload returned at boot (ARCHITECTURE §12.1): name, mode policy, the accent seed and
  * its generated light/dark tokens, and the branding asset URLs. The shell applies the tokens before first
@@ -26,7 +28,7 @@ public record SiteView(String name, String modePolicy, String accentSeed, String
         String darkLogo = config.getDarkLogoAssetId() != null ? "/branding/dark-logo" : null;
         return new SiteView(
                 config.getSiteName(),
-                config.getModePolicy().name().toLowerCase(),
+                config.getModePolicy().name().toLowerCase(Locale.ROOT),
                 config.getAccentSeed(),
                 config.getDefaultLocale(),
                 theme,

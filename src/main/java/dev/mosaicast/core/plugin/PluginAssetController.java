@@ -7,6 +7,7 @@ import dev.mosaicast.core.web.NotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -101,7 +102,7 @@ public class PluginAssetController {
     }
 
     private static MediaType contentType(Path file) {
-        String name = file.getFileName().toString().toLowerCase();
+        String name = file.getFileName().toString().toLowerCase(Locale.ROOT);
         if (name.endsWith(".js") || name.endsWith(".mjs")) {
             return MediaType.parseMediaType("text/javascript");
         }

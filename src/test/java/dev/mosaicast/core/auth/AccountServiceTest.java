@@ -103,6 +103,41 @@ class AccountServiceTest {
     }
 
     @Test
+    void case2_aSecondIdentityFromTheSameProvider_isRefused() {
+        // The database's UNIQUE (provider, external_id) guarantees an identity belongs to one account; it
+        // does not forbid an account holding two `discord` rows. Reachable with ordinary actions — stay
+        // logged in, start the OAuth flow again, authorise as a different Discord account — after which
+        // unlink and avatar selection, which both expect at most one per provider, fail with a 500
+        // (core#194).
+        UUID currentUserId = UUID.randomUUID();
+        User current = User.create(currentUserId, "Alex", "alex", null, Role.PODCASTER);
+        when(identities.findByProviderAndExternalId("discord", "D2")).thenReturn(Optional.empty());
+        when(users.findById(currentUserId)).thenReturn(Optional.of(current));
+        when(identities.findByUserIdAndProvider(currentUserId, "discord"))
+                .thenReturn(Optional.of(LinkedIdentity.link(currentUserId, "discord", "D1", null, false, null)));
+
+        assertThatThrownBy(() -> service.resolveLogin(claim("discord", "D2", "a@x.io", false), currentUserId))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Unlink");
+        verify(identities, never()).save(any());
+    }
+
+    @Test
+    void case2_aDifferentProviderStillLinks() {
+        // The rule is one identity per provider, not one identity: linking Patreon to an account that has
+        // Discord is the whole point of the feature.
+        UUID currentUserId = UUID.randomUUID();
+        User current = User.create(currentUserId, "Alex", "alex", null, Role.PODCASTER);
+        when(identities.findByProviderAndExternalId("patreon", "P9")).thenReturn(Optional.empty());
+        when(users.findById(currentUserId)).thenReturn(Optional.of(current));
+        when(identities.findByUserIdAndProvider(currentUserId, "patreon")).thenReturn(Optional.empty());
+
+        assertThat(service.resolveLogin(claim("patreon", "P9", "a@x.io", false), currentUserId))
+                .isSameAs(current);
+        verify(identities).save(any());
+    }
+
+    @Test
     void case1_linkingIdentityOwnedByAnotherUser_throwsConflict() {
         UUID currentUserId = UUID.randomUUID();
         UUID otherUserId = UUID.randomUUID();

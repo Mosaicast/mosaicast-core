@@ -8,6 +8,9 @@ import dev.mosaicast.core.web.ExplicitLinkRequiredException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
@@ -29,6 +32,8 @@ import org.springframework.stereotype.Service;
 @Service
 public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
+    private static final Logger log = LoggerFactory.getLogger(DiscordOAuth2UserService.class);
+
     /** The synthetic attribute holding the Mosaicast user id; also the principal name key. */
     public static final String UID_ATTRIBUTE = "uid";
 
@@ -44,11 +49,20 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
         OAuth2User discordUser = delegate.loadUser(request);
         Map<String, Object> attrs = discordUser.getAttributes();
 
-        String externalId = String.valueOf(attrs.get("id"));
+        // Rejected rather than stringified. `String.valueOf(null)` is the string "null", and because the
+        // identity table's unique key is (provider, external_id), the first login missing an id would have
+        // created an account keyed on that literal — and every subsequent one would have logged into it
+        // (core#194). Discord always sends an id; a response without one is a protocol failure, not a user.
+        Object rawId = attrs.get("id");
+        if (rawId == null || String.valueOf(rawId).isBlank()) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("missing_identity"),
+                    "The provider did not return an account id.", null);
+        }
+        String externalId = String.valueOf(rawId);
         String email = attrs.get("email") == null ? null : String.valueOf(attrs.get("email"));
         boolean verified = Boolean.TRUE.equals(attrs.get("verified"));
         String displayName = displayName(attrs);
-        String avatarRef = avatarRef(externalId, attrs.get("avatar"));
+        String avatarRef = avatarRef(attrs.get("avatar"));
 
         IdentityClaim claim =
                 new IdentityClaim("discord", externalId, email, verified, displayName, avatarRef);
@@ -66,6 +80,20 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
      * (§8.3) instead of surfacing a 500.
      */
     private User resolve(IdentityClaim claim, UUID currentUserId) {
+        try {
+            return attemptResolve(claim, currentUserId);
+        } catch (DataIntegrityViolationException e) {
+            // Two callbacks for the same unknown identity: both find nothing, both create a user, and one
+            // loses the race on uq_identity_provider_external. The loser used to reach the caller as a raw
+            // 500 rather than the designed failure page, because only the two domain exceptions below were
+            // translated (core#194). By the time we are here the identity exists, so resolving again is the
+            // ordinary "known identity" path — and if it somehow still fails, the failure is real.
+            log.debug("Concurrent first login for {}; resolving against the row that won", claim.provider());
+            return attemptResolve(claim, currentUserId);
+        }
+    }
+
+    private User attemptResolve(IdentityClaim claim, UUID currentUserId) {
         try {
             return accounts.resolveLogin(claim, currentUserId);
         } catch (ConflictException e) {
@@ -95,9 +123,10 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
      *
      * <p>The hash, deliberately not a URL (§8.7). A stored URL contains the Discord snowflake, and every
      * place that handled it was one `<img src>` away from publishing an identifier social login is meant to
-     * keep server-side. The host composes the URL when it fetches, from a constant host.
+     * keep server-side. The host composes the URL when it fetches, from a constant host — which is why the
+     * user id this took as its first parameter, and never read, is gone.
      */
-    private static String avatarRef(String userId, Object avatarHash) {
+    private static String avatarRef(Object avatarHash) {
         if (avatarHash == null || String.valueOf(avatarHash).isBlank()) {
             return null;
         }

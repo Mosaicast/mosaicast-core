@@ -9,6 +9,7 @@ import dev.mosaicast.core.plugin.PluginRegistration;
 import dev.mosaicast.plugin.api.PlatformApi;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -65,7 +66,7 @@ public class StartupSummary {
             // Name the ones that are not running — the summary should answer "what is missing?" on its own.
             plugins.all().stream()
                     .filter(r -> r.status() != PluginRegistration.Status.LOADED)
-                    .forEach(r -> log.info("  plugin '{}' is {}{}", r.id(), r.status().name().toLowerCase(),
+                    .forEach(r -> log.info("  plugin '{}' is {}{}", r.id(), r.status().name().toLowerCase(Locale.ROOT),
                             r.reason() == null ? "" : ": " + r.reason()));
         }
 

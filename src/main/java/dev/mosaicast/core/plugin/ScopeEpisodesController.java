@@ -8,6 +8,7 @@ import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.Scope;
 import dev.mosaicast.plugin.api.ScopeType;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -47,7 +48,7 @@ public class ScopeEpisodesController {
                                           @RequestParam(defaultValue = "200") int size) {
         ScopeType scopeType;
         try {
-            scopeType = ScopeType.valueOf(type.toUpperCase());
+            scopeType = ScopeType.valueOf(type.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new NotFoundException("Unknown scope type: " + type);
         }

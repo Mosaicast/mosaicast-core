@@ -18,6 +18,7 @@ import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
@@ -420,7 +421,7 @@ public class ConsentService {
     }
 
     private static String normalize(String category) {
-        return category == null || category.isBlank() ? null : category.trim().toLowerCase();
+        return category == null || category.isBlank() ? null : category.trim().toLowerCase(Locale.ROOT);
     }
 
     /**
