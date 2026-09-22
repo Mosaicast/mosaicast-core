@@ -35,8 +35,18 @@ public final class CurrentUser {
 
     /** A uniform authentication for a user: principal name = user id, one {@code ROLE_*} authority. */
     public static Authentication authenticationFor(User user) {
+        return authenticationFor(user, user.getRole());
+    }
+
+    /**
+     * The same shape, but carrying an explicitly chosen role rather than the user's own.
+     *
+     * <p>Used where the credential is weaker than the account: a personal access token authenticates the
+     * right person and still must not act as one (see {@link AuthenticatedUserFilter}).
+     */
+    public static Authentication authenticationFor(User user, Role role) {
         return UsernamePasswordAuthenticationToken.authenticated(
-                user.getId().toString(), null, authoritiesFor(user.getRole()));
+                user.getId().toString(), null, authoritiesFor(role));
     }
 
     /** The authenticated user's id, or empty for an anonymous request. */

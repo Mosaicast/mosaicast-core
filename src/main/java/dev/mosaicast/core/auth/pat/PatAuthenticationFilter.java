@@ -26,6 +26,16 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String BEARER = "Bearer ";
 
+    /**
+     * Request attribute set when this filter — and not a cookie session — authenticated the request.
+     *
+     * <p>Read by {@link dev.mosaicast.core.auth.AuthenticatedUserFilter} to cap what a token may do. A
+     * bearer token is a long-lived, CSRF-exempt, single-factor credential that lives in a CI variable; an
+     * interactive session is none of those things, so the two should not carry the same authority just
+     * because they name the same user.
+     */
+    public static final String PAT_AUTHENTICATED = PatAuthenticationFilter.class.getName() + ".pat";
+
     private final PersonalAccessTokenService tokens;
 
     public PatAuthenticationFilter(PersonalAccessTokenService tokens) {
@@ -43,6 +53,7 @@ public class PatAuthenticationFilter extends OncePerRequestFilter {
                 var authentication = UsernamePasswordAuthenticationToken.authenticated(
                         token.getUserId().toString(), null, List.of());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
+                request.setAttribute(PAT_AUTHENTICATED, Boolean.TRUE);
             });
         }
         chain.doFilter(request, response);

@@ -42,6 +42,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         "mosaicast.rate-limit.enabled=true",
         "mosaicast.rate-limit.auth-limit=3",
         "mosaicast.rate-limit.auth-window=5m",
+        // Loopback is inside the shipped `internal-proxies` list — a proxy on the compose network has to
+        // be trusted or a normal deployment breaks — so the test client would be believed. Narrowed here to
+        // a range it is not in, which is the configuration of an app published directly, and the one the
+        // forged-header case is about.
+        "server.tomcat.remoteip.internal-proxies=10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}",
+        "mosaicast.rate-limit.search-limit=3",
+        "mosaicast.rate-limit.search-window=5m",
 })
 class RateLimitIntegrationTest {
 
@@ -91,6 +98,43 @@ class RateLimitIntegrationTest {
             assertThat(post("/api/admin/site").getStatusCode())
                     .isNotEqualTo(HttpStatus.TOO_MANY_REQUESTS);
         }
+    }
+
+    @Test
+    void anAnonymousSearchIsBudgetedAlthoughItIsAGet() {
+        // Every other budget here counts state-changing requests only, because a GET that costs the server
+        // nothing should not punish someone clicking twice. Search is the exception: open to anyone, and the
+        // most database-expensive read the site serves — a full-text query plus a separate count, both
+        // re-tokenising the term (core#188).
+        ResponseEntity<String> last = null;
+        for (int i = 0; i < 4; i++) {
+            last = rest.getForEntity("/api/search?q=kraken", String.class);
+        }
+
+        assertThat(last).isNotNull();
+        assertThat(last.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    void aForgedForwardedHeaderNoLongerMintsAFreshBudget() {
+        // The limiter keys on the client address, and `forward-headers-strategy: framework` let any caller
+        // rewrite that with a header. Rotating it defeated the login and token budgets outright, and
+        // pinning a victim's address at 429 was the same trick pointed the other way (core#173). Tomcat's
+        // RemoteIpValve performs the same rewrite only for a peer inside `internal-proxies`, and the test
+        // client is not one.
+        for (int i = 0; i < 4; i++) {
+            postAs("/api/auth/dev-login?role=fan", "203.0.113." + i);
+        }
+
+        assertThat(postAs("/api/auth/dev-login?role=fan", "198.51.100.7").getStatusCode())
+                .isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    private ResponseEntity<String> postAs(String path, String forwardedFor) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.add("X-Forwarded-For", forwardedFor);
+        return rest.exchange(path, HttpMethod.POST, new HttpEntity<>("{}", headers), String.class);
     }
 
     private ResponseEntity<String> post(String path) {
