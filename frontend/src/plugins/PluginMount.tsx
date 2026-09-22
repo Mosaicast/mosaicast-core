@@ -10,7 +10,7 @@ import type { Scope } from '@mosaicast/plugin-sdk';
 import { useUser } from '../auth/UserContext';
 import { useConsent } from '../consent/ConsentContext';
 import { contentLocaleInfos, uiLocaleInfos } from '../i18n';
-import { usePlayer } from '../player/PlayerContext';
+import { usePlayerActions } from '../player/PlayerContext';
 import { useSite } from '../theme/SiteContext';
 import { buildCtx } from './buildCtx';
 
@@ -69,17 +69,24 @@ export function PluginMount({
   const elementRef = useRef<HTMLElement | null>(null);
   const { user } = useUser();
   const { site, mode } = useSite();
-  // Held in a ref for the same reason `navigate` is below, but the cost was far higher: the player's
-  // context value is rebuilt on every one of its own renders, and `currentTime` is state that updates on
-  // every `timeupdate` — several times a second while audio plays. As a `ctx` dependency that reassigned
-  // `ctx` at that rate, and the SDK's contract is that a new `ctx` re-renders the element after running
-  // the previous render's cleanup: every mounted plugin component was destroyed and rebuilt, losing
-  // component state, in-flight requests, scroll position and open dialogs, and re-running every effect
-  // behind them. What `ctx` actually needs from the player is two functions, and neither has to change.
-  const player = usePlayer();
+  // Every region builds its scope inline — `<SlotRegion scope={{ type: 'episode', id: slug }} />` — so the
+  // object is a new one on every render of the component that hosts it, and a card's host re-renders
+  // whenever anything above it does. Taking the object as a `ctx` input therefore reassigned `ctx` for a
+  // scope that had not changed; measured at ~304 requests a second from one visitor with audio playing,
+  // because the SDK re-renders the element on every assignment and each render re-runs its fetches. Depend
+  // on the two values the scope actually is.
+  const scopeType = scope.type;
+  const scopeId = scope.id;
+  const stableScope = useMemo<Scope>(() => ({ type: scopeType, id: scopeId }), [scopeType, scopeId]);
+
+  // Actions only, never the player's state: `currentTime` moves about four times a second while audio
+  // plays, and subscribing to it here would re-render this component — and rebuild `ctx` — at that rate.
+  // That is the same hazard as the scope above and as `navigate` below, and it is why the actions context
+  // exposes the position as a getter rather than as a value.
+  const player = usePlayerActions();
   const playerRef = useRef(player);
   playerRef.current = player;
-  const playerCurrentTime = useCallback(() => playerRef.current.currentTime, []);
+  const playerCurrentTime = useCallback(() => playerRef.current.getCurrentTime(), []);
   const playerSeekTo = useCallback((seconds: number) => playerRef.current.seek(seconds), []);
   const consent = useConsent();
   const { i18n } = useTranslation();
@@ -99,7 +106,7 @@ export function PluginMount({
     () =>
       buildCtx({
         pluginId,
-        scope,
+        scope: stableScope,
         episodes,
         episodeLabels,
         user,
@@ -126,7 +133,7 @@ export function PluginMount({
       }),
     [
       pluginId,
-      scope,
+      stableScope,
       episodes,
       episodeLabels,
       user,

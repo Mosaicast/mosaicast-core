@@ -141,6 +141,16 @@ describe('makePluginSchema', () => {
 });
 
 /** A fetch reply shaped like the shell's client expects — shared by the suites below. */
+/** What the host answers for a key that is simply not set: 204, no body. */
+const noContent = () =>
+  Promise.resolve({
+    ok: true,
+    status: 204,
+    headers: { get: () => null },
+    json: () => Promise.reject(new Error('no body')),
+    text: () => Promise.resolve(''),
+  });
+
 const reply = (body: unknown, status = 200) =>
   Promise.resolve({
     ok: status < 400,
@@ -190,6 +200,81 @@ describe('makePluginDocs', () => {
     // "Nothing saved yet" is the normal state of a doc-store key, and the reason every plugin wrote a
     // catch that also swallowed the 500 and the 403.
     await expect(makePluginDocs('wiki').get('self', 'marks')).resolves.toBeNull();
+  });
+
+  it('answers null for the 204 the host sends for an unset key', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => noContent()));
+
+    // 404 meant a caller could not tell "this address is wrong" from "this address is right and empty",
+    // and 98% of the plugin requests on a real instance were the second one (core#159).
+    await expect(makePluginDocs('unset-key').get('self', 'marks')).resolves.toBeNull();
+  });
+
+  it('remembers that a key is not set, and asks once', async () => {
+    const fetchMock = vi.fn(() => noContent());
+    vi.stubGlobal('fetch', fetchMock);
+    const docs = makePluginDocs('remembers-misses');
+
+    await docs.get('site', 'index');
+    await docs.get('site', 'index');
+    await docs.get('site', 'index');
+
+    // A miss does not change by itself, and a tile asks for its key on every render — one measured page
+    // requested the same key three times per episode.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one request between reads made at the same time', async () => {
+    const fetchMock = vi.fn(() => reply({ body: 'a note' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const docs = makePluginDocs('shares-in-flight');
+
+    const [first, second] = await Promise.all([
+      docs.get('site', 'index'),
+      docs.get('site', 'index'),
+    ]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(first).toEqual({ body: 'a note' });
+    expect(second).toEqual({ body: 'a note' });
+  });
+
+  it('asks again for a key that was there, because someone else may have changed it', async () => {
+    const fetchMock = vi.fn(() => reply({ body: 'a note' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const docs = makePluginDocs('caches-no-hits');
+
+    await docs.get('site', 'index');
+    await docs.get('site', 'index');
+
+    // Only absence is remembered. A document that exists is exactly what a re-render should pick up.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('forgets a remembered miss when the plugin writes the key itself', async () => {
+    const fetchMock = vi.fn((_url: string, init?: { method?: string }) =>
+      init?.method === 'PUT' ? noContent() : reply({ body: 'written' }),
+    );
+    vi.stubGlobal('fetch', vi.fn(() => noContent()));
+    const docs = makePluginDocs('forgets-on-write');
+    await expect(docs.get('site', 'index')).resolves.toBeNull();
+
+    vi.stubGlobal('fetch', fetchMock);
+    await docs.put('site', 'index', { body: 'written' });
+
+    // Reading back its own write is the one case where a remembered miss would be a lie.
+    await expect(docs.get('site', 'index')).resolves.toEqual({ body: 'written' });
+  });
+
+  it('does not serve one identity a miss that was seen as another', async () => {
+    const fetchMock = vi.fn(() => noContent());
+    vi.stubGlobal('fetch', fetchMock);
+
+    await makePluginDocs('per-identity', 'anonymous').get('self', 'marks');
+    await makePluginDocs('per-identity', 'user-7').get('self', 'marks');
+
+    // `user/me` is a different partition for every caller: absence is not a property of the address alone.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('refuses a key the host would reject, where it was written', async () => {

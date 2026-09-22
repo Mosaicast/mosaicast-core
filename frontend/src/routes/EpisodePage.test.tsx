@@ -16,6 +16,7 @@ import { EpisodePage } from './EpisodePage';
 const play = vi.fn();
 vi.mock('../player/PlayerContext', () => ({
   usePlayer: () => ({ play }),
+  usePlayerActions: () => ({ play }),
 }));
 vi.mock('../components/FeedsContext', () => ({
   useFeeds: () => ({ titleOf: () => 'A Feed' }),

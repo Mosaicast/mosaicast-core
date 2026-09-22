@@ -25,8 +25,12 @@ let setPlayerTime: (seconds: number) => void = () => {};
 
 vi.mock('../player/PlayerContext', () => ({
   // Rebuilt on every read, exactly like the real provider's value: the point is that PluginMount does not
-  // take the identity of this object as an input.
-  usePlayer: () => ({ currentTime: playerTime, seek: (s: number) => setPlayerTime(s), playing: false }),
+  // take the identity of this object as an input. The position is a getter here for the same reason it is
+  // one on the real actions context — reading it must not make the reader a tick-rate consumer.
+  usePlayerActions: () => ({
+    getCurrentTime: () => playerTime,
+    seek: (s: number) => setPlayerTime(s),
+  }),
 }));
 vi.mock('../auth/UserContext', () => ({ useUser: () => ({ user: null }) }));
 // Hoisted for the same reason as the consent value: the real SiteContext memoises its value, so a mock that
@@ -93,6 +97,26 @@ describe('PluginMount', () => {
       playerTime = seconds;
       await act(async () => {
         rerender(mount());
+      });
+    }
+
+    expect(assignments.length).toBe(afterMount);
+  });
+
+  it('does not reassign ctx for a scope object that only looks new', async () => {
+    // Every region writes its scope inline — `scope={{ type: 'episode', id: slug }}` — so the object is a
+    // new one on every render of whatever hosts it, while the scope it describes has not moved. Taking the
+    // object as an input is what turned one visitor's feed page into ~304 requests a second (core#158), so
+    // the values are the input and the object is not.
+    assignments.length = 0;
+    const { rerender } = render(mount({ type: 'episode', id: 'the-same-episode' }));
+    await act(async () => {});
+    const afterMount = assignments.length;
+    expect(afterMount).toBeGreaterThan(0);
+
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => {
+        rerender(mount({ type: 'episode', id: 'the-same-episode' }));
       });
     }
 

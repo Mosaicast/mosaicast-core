@@ -37,7 +37,12 @@ export interface PlayableEpisode {
   episodeNo?: number | null;
 }
 
-interface PlayerContextValue {
+/**
+ * What the player *is* right now. Every field here moves while audio plays — `currentTime` about four
+ * times a second — so a component that reads this re-renders at that rate. That is correct for the bar
+ * and wrong for everything else, which is why the actions live in their own context below.
+ */
+interface PlayerStateValue {
   current: PlayableEpisode | null;
   playing: boolean;
   currentTime: number;
@@ -45,6 +50,17 @@ interface PlayerContextValue {
   volume: number;
   /** Playback speed. Table stakes for a podcast player, and remembered across episodes and reloads. */
   rate: number;
+}
+
+/**
+ * What a component can *do* to the player. Separate from the state above because the two change at wildly
+ * different rates: a Play button on an episode card needs `play` and nothing else, and subscribing it to
+ * the whole player meant re-rendering all forty cards on a feed page several times a second — which then
+ * rebuilt the `ctx` of every plugin mounted under them and re-ran their fetches (core#158).
+ *
+ * This value changes at most when the loaded episode changes.
+ */
+interface PlayerActionsValue {
   /**
    * Starts (or resumes) an episode. `startAt` is the position a **shared timestamped link** asked for
    * (§6.4); it wins over the stored listening position for that navigation, and until playback actually
@@ -57,7 +73,16 @@ interface PlayerContextValue {
   skip: (seconds: number) => void;
   setVolume: (v: number) => void;
   setRate: (rate: number) => void;
+  /**
+   * The live position *without* subscribing to it. For callers that need to read the position when
+   * something happens rather than to render it — a plugin's `ctx.player.currentTime()`, a share link being
+   * built. Reading it through the state context instead is what made those callers tick-rate consumers.
+   */
+  getCurrentTime: () => number;
 }
+
+/** The whole player, for the one component that renders all of it. */
+interface PlayerContextValue extends PlayerStateValue, PlayerActionsValue {}
 
 /** The speeds the bar offers, in the order it cycles through them. */
 export const PLAYBACK_RATES = [1, 1.25, 1.5, 1.75, 2] as const;
@@ -79,14 +104,33 @@ function storedRate(): number {
   }
 }
 
-const PlayerContext = createContext<PlayerContextValue | null>(null);
+const PlayerStateContext = createContext<PlayerStateValue | null>(null);
+const PlayerActionsContext = createContext<PlayerActionsValue | null>(null);
 
+/**
+ * The player's state and its actions together — for a component that renders the position, such as the bar.
+ * A caller that only ever *acts* on the player should use {@link usePlayerActions}: this hook re-renders
+ * its caller on every `timeupdate`.
+ */
 export function usePlayer(): PlayerContextValue {
-  const ctx = useContext(PlayerContext);
-  if (!ctx) {
+  const state = useContext(PlayerStateContext);
+  const actions = useContext(PlayerActionsContext);
+  if (!state || !actions) {
     throw new Error('usePlayer must be used within a PlayerProvider');
   }
-  return ctx;
+  return useMemo(() => ({ ...state, ...actions }), [state, actions]);
+}
+
+/**
+ * The player's actions, without subscribing to its state. A Play button, a deep link that seeks, a plugin
+ * mount — none of them renders the position, and none of them should re-render four times a second.
+ */
+export function usePlayerActions(): PlayerActionsValue {
+  const actions = useContext(PlayerActionsContext);
+  if (!actions) {
+    throw new Error('usePlayerActions must be used within a PlayerProvider');
+  }
+  return actions;
 }
 
 const progressKey = (id: string) => `mc.progress.${id}`;
@@ -115,6 +159,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [current, setCurrent] = useState<PlayableEpisode | null>(null);
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  // The same number as `currentTime`, kept where reading it costs no subscription: `getCurrentTime()` below
+  // hands it to callers that need the position at a moment rather than on every frame of it.
+  const currentTimeRef = useRef(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(1);
   const [rate, setRateState] = useState(storedRate);
@@ -293,6 +340,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
     };
     const onTime = () => {
+      currentTimeRef.current = audio.currentTime;
       setCurrentTime(audio.currentTime);
       if (!current) {
         return;
@@ -365,33 +413,29 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
   }, [current, currentTime, toggle, skip, advance]);
 
-  // Memoised rather than rebuilt inline: this value is read by plugin mounts, and an identity that changes
-  // on every render of this provider is an identity that changes several times a second while audio plays.
-  // The state in it still moves at that rate — the point is that nothing else does.
-  const value: PlayerContextValue = useMemo(
-    () => ({
-      current,
-      playing,
-      currentTime,
-      duration,
-      volume,
-      rate,
-      play,
-      toggle,
-      seek,
-      skip,
-      setVolume,
-      setRate,
-    }),
-    [current, playing, currentTime, duration, volume, rate, play, toggle, seek, skip, setVolume, setRate],
+  const getCurrentTime = useCallback(() => currentTimeRef.current, []);
+
+  // Two values, two identities. The state one is rebuilt on every `timeupdate` — it has to be, that is what
+  // it carries. The actions one changes only when the loaded episode does, so a card's Play button, a deep
+  // link and every plugin mount stop re-rendering at tick rate, which is what took one visitor's feed page
+  // from ~304 requests a second to a handful (core#158).
+  const state: PlayerStateValue = useMemo(
+    () => ({ current, playing, currentTime, duration, volume, rate }),
+    [current, playing, currentTime, duration, volume, rate],
+  );
+  const actions: PlayerActionsValue = useMemo(
+    () => ({ play, toggle, seek, skip, setVolume, setRate, getCurrentTime }),
+    [play, toggle, seek, skip, setVolume, setRate, getCurrentTime],
   );
 
   return (
-    <PlayerContext.Provider value={value}>
-      {children}
-      {/* One audio element for the whole app; the bar shows once something is loaded. */}
-      <audio ref={audioRef} preload="metadata" />
-      {current && <PlayerBar />}
-    </PlayerContext.Provider>
+    <PlayerActionsContext.Provider value={actions}>
+      <PlayerStateContext.Provider value={state}>
+        {children}
+        {/* One audio element for the whole app; the bar shows once something is loaded. */}
+        <audio ref={audioRef} preload="metadata" />
+        {current && <PlayerBar />}
+      </PlayerStateContext.Provider>
+    </PlayerActionsContext.Provider>
   );
 }
