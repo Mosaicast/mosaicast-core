@@ -42,11 +42,26 @@ public class ExternalCacheSweeper {
     public void sweep() {
         int expired = store.deleteExpired();
         int trimmed = store.trimTo(properties.cacheMaxEntriesOrDefault());
-        // The rate limiter's windows are in memory and per instance, so this one is not under the lock's
-        // protection and does not need to be — it is only dropping this instance's own expired counters.
-        pipeline.evictExpiredWindows();
         if (expired > 0 || trimmed > 0) {
             log.info("External cache swept: {} expired, {} trimmed", expired, trimmed);
         }
+    }
+
+    /**
+     * Drops this instance's own expired rate-limit windows.
+     *
+     * <p>Its own schedule, with no {@link SchedulerLock}, and that is the whole point. It used to sit inside
+     * {@link #sweep()}, under a lock, beneath a comment claiming it was "not under the lock's protection and
+     * does not need to be" — the second half was right and the first was not. The windows are in memory and
+     * per instance, so a lock that lets exactly one instance run the sweep means exactly one instance ever
+     * drops its counters; every other one accumulates a map entry per client key until it restarts.
+     *
+     * <p>The cache sweep above genuinely needs the lock: it deletes shared rows, and several instances doing
+     * that at once is wasted work. These two were one method because they ran at the same time, which is not
+     * a reason to share a lock.
+     */
+    @Scheduled(fixedDelayString = "${mosaicast.external.window-sweep-delay-ms:600000}")
+    public void evictExpiredRateLimitWindows() {
+        pipeline.evictExpiredWindows();
     }
 }

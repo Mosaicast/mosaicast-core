@@ -76,6 +76,13 @@ public class DevLoginController {
     }
 
     private void establishSession(User user, HttpServletRequest request, HttpServletResponse response) {
+        // Rotate the session id first, exactly as Spring Security's ChangeSessionIdAuthenticationStrategy
+        // does for oauth2Login. This path is a plain controller, so no SessionAuthenticationStrategy runs
+        // and nothing else would rotate it — a session id fixed before the login would survive into an
+        // ADMIN session afterwards.
+        if (request.getSession(false) != null) {
+            request.changeSessionId();
+        }
         Authentication authentication = CurrentUser.authenticationFor(user);
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(authentication);

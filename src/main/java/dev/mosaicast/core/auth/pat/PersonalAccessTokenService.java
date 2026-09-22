@@ -65,7 +65,13 @@ public class PersonalAccessTokenService {
     /** Creates a token for a user and returns the one-time plaintext secret. */
     @Transactional
     public Issued create(UUID userId, String name) {
-        long live = tokens.countByUserId(userId);
+        // Live ones only. `countByUserId` counted every row including the expired, so at a 365-day expiry
+        // and a 20-token limit an automating user was locked out after about a year by credentials that no
+        // longer work — and the variable was already named `live`, which is what it should have counted.
+        Instant now = Instant.now();
+        long live = tokens.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .filter(token -> !token.isExpired(now))
+                .count();
         if (live >= maxPerUser) {
             throw new IllegalArgumentException(
                     ("You already have %d access tokens, which is the limit. Revoke one you no longer use "

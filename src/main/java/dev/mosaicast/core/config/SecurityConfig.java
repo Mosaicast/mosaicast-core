@@ -133,7 +133,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         // Bearer-token automation carries no cookies, so CSRF does not apply.
-                        .ignoringRequestMatchers(PatAuthenticationFilter::hasBearer))
+                        .ignoringRequestMatchers(SecurityConfig::isBearerOnly))
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 // Bearer auth (sets a bare principal), then the per-request user reload (fills the role and
                 // makes role changes / deletion take effect immediately), both before authorization.
@@ -213,6 +213,33 @@ public class SecurityConfig {
         }
 
         return http.build();
+    }
+
+    /**
+     * True for a request that presents a bearer token and <em>no</em> session cookie — the shape the CSRF
+     * exemption is actually meant for.
+     *
+     * <p>Presence of the header alone is not enough. A request that carries both a bearer header and a
+     * session cookie is authenticated by the cookie ({@code PatAuthenticationFilter} only runs when the
+     * request is otherwise anonymous), so exempting it would let the header switch CSRF off for a
+     * cookie-authenticated call. Nothing in a browser can set that header cross-site today — it forces a
+     * CORS preflight and this host configures no CORS — but the exemption should describe the credential
+     * it covers rather than rely on that.
+     */
+    static boolean isBearerOnly(jakarta.servlet.http.HttpServletRequest request) {
+        if (!PatAuthenticationFilter.hasBearer(request)) {
+            return false;
+        }
+        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return true;
+        }
+        for (jakarta.servlet.http.Cookie cookie : cookies) {
+            if (SessionConfig.SESSION_COOKIE_NAME.equals(cookie.getName())) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**

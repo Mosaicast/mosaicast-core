@@ -5,6 +5,7 @@ package dev.mosaicast.core.auth.pat;
 
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.web.NotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
@@ -15,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -65,12 +67,26 @@ public class PatController {
         return tokens.list(currentUserId(authentication)).stream().map(TokenView::of).toList();
     }
 
-    /** Podcaster capability (§8.5) — enforced declaratively; the denial renders as problem+json 403. */
+    /**
+     * Podcaster capability (§8.5) — enforced declaratively; the denial renders as problem+json 403.
+     *
+     * <p><strong>An interactive session only.</strong> Bearer authentication used to be accepted here, so a
+     * leaked token could mint its own replacements: revoking the one that leaked — the obvious operator
+     * response, and the one the UI invites — left every child it had already created alive, and nothing on
+     * screen said so. Recovery meant enumerating and revoking the whole account faster than an attacker
+     * could re-mint. Refusing here is simpler than cascade revocation and matches how the endpoint is
+     * actually used: a person clicks a button in their account page.
+     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasAnyRole('PODCASTER','ADMIN')")
     public CreatedToken create(@RequestBody @jakarta.validation.Valid CreateToken request,
+                               HttpServletRequest httpRequest,
                                Authentication authentication) {
+        if (PatAuthenticationFilter.hasBearer(httpRequest)) {
+            throw new AccessDeniedException(
+                    "Access tokens can only be created from a signed-in session, not with another token.");
+        }
         var issued = tokens.create(currentUserId(authentication), request.name());
         return new CreatedToken(
                 issued.token().getId(), issued.token().getName(), issued.token().getPrefix(),

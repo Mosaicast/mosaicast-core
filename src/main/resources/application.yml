@@ -7,6 +7,14 @@
 spring:
   application:
     name: mosaicast-core
+  data:
+    web:
+      pageable:
+        # A ceiling, which @PageableDefault(size = 20) is not — that sets a default and Spring's own maximum
+        # is 2000, so `GET /api/episodes?size=2000` returned every ref plus its snapshot in one response and
+        # every list endpoint on the site is anonymous. A page nobody asked for is not worth serving; the
+        # request is clamped rather than refused, so a client asking for too much gets the most it may have.
+        max-page-size: ${MOSAICAST_MAX_PAGE_SIZE:100}
   datasource:
     url: ${MOSAICAST_DB_URL:jdbc:postgresql://localhost:5432/mosaicast}
     username: ${MOSAICAST_DB_USER:mosaicast}
@@ -57,6 +65,16 @@ mosaicast:
     auth-window: 1m
     upload-limit: ${MOSAICAST_RATE_LIMIT_UPLOAD:10}
     upload-window: 1m
+    # Server-side fetches of a URL somebody typed (/api/admin/feeds add, preview, refresh). Low on purpose:
+    # the residual DNS-rebinding window OutboundTargetPolicy documents is a race, and an unmetered endpoint
+    # is unlimited attempts at it. Adding feeds by hand does not come near this.
+    outbound-limit: ${MOSAICAST_RATE_LIMIT_OUTBOUND:30}
+    outbound-window: 1m
+    # The one anonymous read with a budget. Search is the most database-expensive query the site serves —
+    # a full-text match plus a separate count, both re-tokenising the term — and it is open to everyone.
+    # Sized to be invisible to someone typing and correcting a query.
+    search-limit: ${MOSAICAST_RATE_LIMIT_SEARCH:60}
+    search-window: 1m
   # Which backend stores which blob namespace (ARCHITECTURE §11). Two are registered: `postgres`, and
   # `filesystem` once `filesystem.root` is set — an object-store backend becomes a bean plus a line here.
   #
@@ -225,9 +243,19 @@ server:
   # Honor X-Forwarded-* from a fronting TLS proxy so the app builds correct absolute URLs — notably the
   # OAuth2 redirect URI ({baseUrl}/login/oauth2/code/discord). Without this, behind a proxy the app derives
   # http://<internal-host> and Discord rejects the redirect. Safe when not proxied (no such headers arrive).
-  forward-headers-strategy: framework
+  #
+  # `native` rather than `framework`: the framework strategy (ForwardedHeaderFilter) believes the headers
+  # whoever sent them, and the shipped compose publishes this port directly — so on a direct hit any caller
+  # can set X-Forwarded-For and hand RateLimitFilter a fresh key on every request, which is the whole auth
+  # rate limit. Tomcat's RemoteIpValve performs the same rewrite but only for a peer matching
+  # `internal-proxies` below, so a proxy on the compose network is honoured and an internet client is not.
+  forward-headers-strategy: ${MOSAICAST_FORWARD_HEADERS_STRATEGY:native}
   # Uploads are bounded (ARCHITECTURE §13); tightened per-endpoint later.
   tomcat:
+    # The peers whose X-Forwarded-* are believed: the private ranges a container network and a sidecar proxy
+    # live on. Narrow this to the proxy's own address wherever that address is known.
+    remoteip:
+      internal-proxies: ${MOSAICAST_TRUSTED_PROXIES:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|169\.254\.\d{1,3}\.\d{1,3}|127\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.1[6-9]\.\d{1,3}\.\d{1,3}|172\.2[0-9]\.\d{1,3}\.\d{1,3}|172\.3[0-1]\.\d{1,3}\.\d{1,3}|0:0:0:0:0:0:0:1|::1}
     max-http-form-post-size: 20MB
   error:
     whitelabel:

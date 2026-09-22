@@ -61,9 +61,37 @@ public class RateLimitFilter extends OncePerRequestFilter {
             "/api/admin/branding/",
     };
 
+    /**
+     * Paths that make the <em>server</em> fetch an operator-supplied URL.
+     *
+     * <p>{@code OutboundTargetPolicy} records the one bypass it cannot close: resolution and connection are
+     * two lookups, so a name whose record changes in between still lands where it should not. That is a race
+     * — and an unmetered endpoint turns a race into a matter of patience. These paths are open to PODCASTER,
+     * each one holds a servlet thread for up to the feed fetch budget (30s), and {@code /preview} hands the
+     * answer back to the caller. A budget does not close the race; it makes retrying it cost something.
+     */
+    private static final String[] OUTBOUND_PATHS = {
+            "/api/admin/feeds",
+    };
+
+    /**
+     * The one anonymous read expensive enough to need a budget.
+     *
+     * <p>Everything else here is limited only when it changes state, because a GET that costs the server
+     * nothing should not punish somebody clicking twice. {@code /api/search} is the exception: it is open
+     * to anyone, and it is the most database-expensive read on the site — a full-text query plus a separate
+     * count, both re-tokenising the term. Unthrottled, it is the cheapest way to make a small self-hosted
+     * instance work hard from a single client.
+     */
+    private static final String[] SEARCH_PATHS = {
+            "/api/search",
+    };
+
     private final RateLimitProperties properties;
     private final FixedWindowRateLimiter authLimiter = new FixedWindowRateLimiter();
     private final FixedWindowRateLimiter uploadLimiter = new FixedWindowRateLimiter();
+    private final FixedWindowRateLimiter outboundLimiter = new FixedWindowRateLimiter();
+    private final FixedWindowRateLimiter searchLimiter = new FixedWindowRateLimiter();
 
     public RateLimitFilter(RateLimitProperties properties) {
         this.properties = properties;
@@ -109,6 +137,16 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if ((matches(path, UPLOAD_PATHS) || isPluginBlobPath(path)) && stateChanging) {
             return new Bucket(uploadLimiter, properties.uploadLimitOrDefault(),
                     properties.uploadWindowOrDefault());
+        }
+        if (matches(path, OUTBOUND_PATHS) && stateChanging) {
+            return new Bucket(outboundLimiter, properties.outboundLimitOrDefault(),
+                    properties.outboundWindowOrDefault());
+        }
+        // Deliberately not gated on `stateChanging`: search is a GET, and being a GET is not what makes it
+        // cheap to ask for or cheap to serve.
+        if (matches(path, SEARCH_PATHS)) {
+            return new Bucket(searchLimiter, properties.searchLimitOrDefault(),
+                    properties.searchWindowOrDefault());
         }
         return null;
     }
@@ -162,6 +200,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         Instant now = Instant.now();
         authLimiter.evictExpired(properties.authWindowOrDefault(), now);
         uploadLimiter.evictExpired(properties.uploadWindowOrDefault(), now);
+        outboundLimiter.evictExpired(properties.outboundWindowOrDefault(), now);
     }
 
     /**

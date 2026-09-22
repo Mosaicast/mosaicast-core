@@ -23,6 +23,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param authWindow    how long the auth window lasts
  * @param uploadLimit   uploads allowed per client per {@code uploadWindow}
  * @param uploadWindow  how long the upload window lasts
+ * @param outboundLimit server-side fetches of an operator-supplied URL allowed per client per
+ *                      {@code outboundWindow} — the feed add/preview/refresh surface
+ * @param outboundWindow how long the outbound window lasts
+ * @param searchLimit   anonymous searches allowed per client per {@code searchWindow}
+ * @param searchWindow  how long the search window lasts
  */
 @ConfigurationProperties(prefix = "mosaicast.rate-limit")
 public record RateLimitProperties(
@@ -30,7 +35,11 @@ public record RateLimitProperties(
         Integer authLimit,
         Duration authWindow,
         Integer uploadLimit,
-        Duration uploadWindow) {
+        Duration uploadWindow,
+        Integer outboundLimit,
+        Duration outboundWindow,
+        Integer searchLimit,
+        Duration searchWindow) {
 
     public boolean enabledOrDefault() {
         return enabled == null || enabled;
@@ -52,10 +61,39 @@ public record RateLimitProperties(
         return uploadWindow == null ? Duration.ofMinutes(1) : uploadWindow;
     }
 
+    /**
+     * Sized for a person managing feeds by hand, not for a script: the whole /api/admin/feeds surface shares
+     * this budget (add, preview, refresh, planned episodes), which no human workflow comes near.
+     */
+    public int outboundLimitOrDefault() {
+        return outboundLimit == null ? 30 : outboundLimit;
+    }
+
+    public Duration outboundWindowOrDefault() {
+        return outboundWindow == null ? Duration.ofMinutes(1) : outboundWindow;
+    }
+
+    /**
+     * Generous on purpose. Search is a legitimate, repeated thing for one visitor to do — typing, correcting,
+     * trying another word — so this is sized to be invisible to a person and to still put a ceiling on a
+     * client that has stopped being one.
+     */
+    public int searchLimitOrDefault() {
+        return searchLimit == null ? 60 : searchLimit;
+    }
+
+    public Duration searchWindowOrDefault() {
+        return searchWindow == null ? Duration.ofMinutes(1) : searchWindow;
+    }
+
     /** The longest window in play — what an eviction sweep has to outlive. */
     public Duration longestWindow() {
-        Duration auth = authWindowOrDefault();
-        Duration upload = uploadWindowOrDefault();
-        return auth.compareTo(upload) >= 0 ? auth : upload;
+        Duration longest = authWindowOrDefault();
+        for (Duration window : new Duration[] {uploadWindowOrDefault(), outboundWindowOrDefault()}) {
+            if (window.compareTo(longest) > 0) {
+                longest = window;
+            }
+        }
+        return longest;
     }
 }

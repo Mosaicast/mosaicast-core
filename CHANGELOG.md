@@ -215,6 +215,28 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **The rate limiter keyed on a header any caller could set (`0.7.4`, core#173, core#174, core#188).**
+  `forward-headers-strategy: framework` believes `X-Forwarded-*` from whoever sent them, and the shipped
+  compose publishes the app port directly with no proxy in front — so rotating the header handed the
+  limiter a fresh key on every request and defeated the login and token budgets outright, while pinning a
+  victim's address at 429 was the same trick pointed the other way. Tomcat's `RemoteIpValve` performs the
+  same rewrite, but only for a peer inside a trusted range, so a proxy on the compose network is still
+  honoured and an internet client is not. **Operators behind a proxy should narrow `MOSAICAST_TRUSTED_PROXIES`
+  to its address**; the default is Tomcat's own list of private ranges, which is right for a container
+  network and generous for a host on a shared LAN.
+  Three compounding weaknesses in the token chain go with it. A leaked token could **mint its own
+  replacements** — bearer auth was accepted on the endpoint that creates bearer tokens, so revoking the one
+  that leaked, which is what the UI invites, left every child alive and said nothing. A token now never
+  acts as `ADMIN`: §8.5 describes tokens as a podcaster capability, and a year-long CSRF-exempt credential
+  living in a CI variable should not be a key to site config, role assignment and erasure — nor should a
+  token minted by a podcaster silently gain all of it when they are promoted. And the CSRF exemption keyed
+  on the *header's presence* while the filter that consumes it only runs on an otherwise-anonymous request,
+  so a request carrying a session cookie **and** any bearer header was authenticated by the cookie and
+  accepted with no CSRF token. The per-user token limit also counted expired rows, locking an automating
+  user out after about a year by credentials that no longer worked.
+  Finally the two unbounded public surfaces: `@PageableDefault(size = 20)` sets a default and not a
+  ceiling, so `?size=2000` returned every episode ref and its snapshot in one anonymous response, and
+  `/api/search` — the most database-expensive read on the site, also anonymous — had no budget at all.
 - **Seven plugin boundaries the host described and did not enforce (`0.7.4`, core#161, core#180, core#181).**
   The architecture's promise is that a plugin's manifest *is* its permission (§7.6), and the code around
   these surfaces says so repeatedly. `POST /api/plugins/{id}/notify` checked that the caller was signed in
