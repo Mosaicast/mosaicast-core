@@ -228,7 +228,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   defect as the request storm above and as the Media Session handler leak, and `jsx-a11y` decides from the
   markup what an audit otherwise finds by hand.
 
-- **One visitor with audio playing drove ~304 requests a second (`0.7.2`, core#158, core#159).** Two
+- **One visitor with audio playing drove ~304 requests a second (`0.7.3`, core#158, core#159).** Two
   independent causes, one symptom. Every slot region writes its scope inline — `scope={{ type: 'episode',
   id: slug }}` — so the object is a new one on every render of whatever hosts it, and `PluginMount` took
   that object as a `ctx` input: a scope that had not moved reassigned `ctx`, and the SDK re-renders the
@@ -247,7 +247,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   life of the page (a hit is not cached, and writing a key forgets its miss), and a new batch read answers
   many scopes at once, so a plugin drawing one tile per card need not ask per card. An episode region whose
   caller already holds the title no longer asks the host to resolve a one-element list either.
-- **Every Docker install ran with its language registry switched off (`0.7.2`, core#157).** The backend
+- **Every Docker install ran with its language registry switched off (`0.7.3`, core#157).** The backend
   stage of the image never copied `frontend/src/locales`, so the `processResources` rule that places the
   bundled message catalogs copied a directory that was not there — a Gradle copy from a missing source
   succeeds and produces nothing. Nothing looked broken, because the shell bundle carries its own copy of
