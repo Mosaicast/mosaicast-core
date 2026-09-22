@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
+import jakarta.annotation.PreDestroy;
 import dev.mosaicast.core.search.SearchResults;
 import dev.mosaicast.plugin.api.OgMeta;
 import dev.mosaicast.plugin.api.PageRouteProvider;
@@ -62,6 +63,17 @@ public class PluginExtensions {
 
     public PluginExtensions(PluginLoaderService plugins) {
         this.plugins = plugins;
+    }
+
+    /**
+     * Releases the search executor when the context closes.
+     *
+     * <p>Built with {@code new} rather than taken from the container, so Spring had nothing to stop and it
+     * outlived every context restart along with the PF4J manager and the plugin scheduler (core#182).
+     */
+    @PreDestroy
+    void shutdown() {
+        searchThreads.shutdownNow();
     }
 
     /**

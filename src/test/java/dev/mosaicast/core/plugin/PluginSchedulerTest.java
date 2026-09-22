@@ -116,6 +116,27 @@ class PluginSchedulerTest {
     }
 
     @Test
+    void aTaskThatThrowsDoesNotTakeTheSchedulerWithIt() {
+        // The Supplier case is tested above; this one — the task itself throwing — was not, and it is the
+        // one a plugin author hits (core#182). A scheduled task that escalates out of the runnable kills
+        // the repeating schedule for good, so one plugin's bad tick would silently end every later tick of
+        // its own task, with nothing in the admin log to connect the two.
+        AtomicInteger runs = new AtomicInteger();
+        scheduler.schedule("acme", 0, () -> Duration.ofSeconds(60), () -> {
+            runs.incrementAndGet();
+            throw new IllegalStateException("plugin tick blew up");
+        });
+
+        int afterRegistration = runs.get();
+        scheduler.tick(LOCK);
+        scheduler.tick(LOCK);
+
+        // Still ticking, and still scheduled at its own period.
+        assertThat(runs.get()).isEqualTo(afterRegistration + 2);
+        assertThat(scheduler.periodOf(LOCK)).isEqualTo(Duration.ofSeconds(60));
+    }
+
+    @Test
     void registrationIsStrict() {
         // There is no last-valid period to fall back to yet, and a plugin that cannot name one at
         // registration has a bug its author can see.

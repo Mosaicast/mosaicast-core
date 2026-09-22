@@ -215,6 +215,28 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Switching a plugin back on did nothing (`0.7.4`, core#165, core#167, core#182).** Switching one *off*
+  took effect immediately, because every surface reads through `active()`. Switching one **on** did not: if
+  the plugin had been off at boot the loader never ran `loadPlugin`/`startPlugin`/`register(ctx)` for it,
+  so it stayed `DISABLED` and its manifest, nav entries, assets, data endpoints, scheduled tasks and schema
+  provisioning were all still missing — while the endpoint answered 200 and the admin page showed it
+  enabled. Enabling now runs the boot path for it.
+  Four more around the same lifecycle. **Plugins loaded after the HTTP port was already open**, so every
+  request arriving in the startup window saw a site with no plugin regions, no plugin nav and a hard 404 on
+  any `/p/<id>` deep link — with no way for the caller to tell "not loaded yet" from "not installed". The
+  **ShedLock lease equalled the tick period** with `lockAtLeastFor` at zero, so a run that took longer than
+  its interval — `bingo`'s is podcaster-settable down to ten seconds — lost the lock while still running
+  and the next tick started a second copy. **Settings caches were invalidated inside the transaction**, so
+  a reader in that window repopulated them from the uncommitted state with the old value, and it stuck,
+  because the only invalidation had already happened. And **nothing was released on shutdown**: no
+  `@PreDestroy` anywhere in `core/plugin`, so the PF4J manager with its per-plugin classloaders, the
+  scheduler's thread pool and the search executor leaked on every context restart.
+  `purgeData` now deletes files **last**. The filesystem backend deletes immediately and cannot be rolled
+  back, so a failure in any later step rolled the database back over files that were already gone, leaving
+  blob metadata pointing at nothing. And a plugin's erasure handler runs in a transaction of its own, so a
+  handler whose write fails cannot mark the host's deletion transaction rollback-only — which would lose
+  the deletion *and* the debt row that is supposed to outlive it, while the caller had already been told
+  the account was gone.
 - **Two admins demoting each other at the same time could leave the site with none (`0.7.4`, core#166,
   core#194, core#197).** The last-admin guard was a read followed by a write in separate transactions, so
   both requests read "2 admins", both passed, and both committed — and there is no recovery path in the

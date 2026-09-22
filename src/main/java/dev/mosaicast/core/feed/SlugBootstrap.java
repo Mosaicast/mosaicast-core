@@ -4,6 +4,7 @@
 package dev.mosaicast.core.feed;
 
 import dev.mosaicast.core.episode.EpisodeSlugBackfill;
+import dev.mosaicast.core.plugin.PluginLoaderService;
 import dev.mosaicast.core.plugin.PluginScopeRepartition;
 import org.springframework.beans.factory.SmartInitializingSingleton;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,10 @@ import org.springframework.stereotype.Component;
  *
  * <p>Order is a data dependency, not a preference: feed slugs first (episode slugs read the feed title),
  * episode slugs second, then the repartition, which needs both to exist before it can point documents at them.
+ *
+ * <p>The plugin loader runs last, for the same "before the port opens" reason and one more: a plugin's
+ * {@code register(ctx)} may read or seed its own documents, and it must see the repartitioned store rather
+ * than the one it was halfway through moving.
  */
 @Component
 public class SlugBootstrap implements SmartInitializingSingleton {
@@ -36,12 +41,14 @@ public class SlugBootstrap implements SmartInitializingSingleton {
     private final FeedSlugBackfill feeds;
     private final EpisodeSlugBackfill episodes;
     private final PluginScopeRepartition repartition;
+    private final PluginLoaderService plugins;
 
     public SlugBootstrap(FeedSlugBackfill feeds, EpisodeSlugBackfill episodes,
-                         PluginScopeRepartition repartition) {
+                         PluginScopeRepartition repartition, PluginLoaderService plugins) {
         this.feeds = feeds;
         this.episodes = episodes;
         this.repartition = repartition;
+        this.plugins = plugins;
     }
 
     @Override
@@ -49,5 +56,6 @@ public class SlugBootstrap implements SmartInitializingSingleton {
         feeds.backfill();
         episodes.backfill();
         repartition.run();
+        plugins.load();
     }
 }

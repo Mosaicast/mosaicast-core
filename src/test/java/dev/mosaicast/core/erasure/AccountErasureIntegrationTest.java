@@ -87,7 +87,18 @@ class AccountErasureIntegrationTest {
     }
 
     @Test
-    void aHandlerThatThrowsLeavesARecordedDebtRatherThanASilence() {
+    void aHandlerThatWritesAndThenThrowsLeavesARecordedDebtRatherThanASilence() {
+        // The fixture used to throw *before* touching the store, so the handler never enlisted in the
+        // caller's transaction and this case exercised a handler that had done nothing. It writes first
+        // now, which is the shape a real erasure has.
+        //
+        // Honest about what this does and does not prove: it passes with and without the REQUIRES_NEW
+        // isolation, because the exception is caught in `attempt()` and never leaves the outer
+        // transactional proxy — so nothing marks that transaction rollback-only, and the mechanism core#167
+        // describes does not fire for a handler that merely throws. What the isolation does close is the
+        // narrower case: a handler whose *write itself* fails inside PluginDataService, where the exception
+        // does cross a @Transactional boundary and does mark the outer transaction. That one could not be
+        // provoked from a fixture — plugin_data has no constraint a plugin can violate on purpose.
         Session admin = devLogin("admin");
         setFailErasure(admin, true);
         try {
@@ -97,6 +108,7 @@ class AccountErasureIntegrationTest {
 
             // The account still goes — what is owed is owed whether or not a plugin cooperated — but the
             // answer says so rather than claiming completion.
+            assertThat(receipt.getStatusCode()).isEqualTo(HttpStatus.OK);
             assertThat(receipt.getBody()).contains("\"complete\":false").contains("good");
 
             String outstanding = rest.exchange("/api/admin/erasures", HttpMethod.GET, admin.plain(),

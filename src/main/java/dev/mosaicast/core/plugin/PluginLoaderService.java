@@ -9,6 +9,7 @@ import dev.mosaicast.plugin.api.SchemaStore;
 import dev.mosaicast.plugin.api.PlatformApi;
 import dev.mosaicast.plugin.api.PluginBackend;
 import java.io.IOException;
+import jakarta.annotation.PreDestroy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,9 +23,6 @@ import org.pf4j.PluginState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
-import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 /**
@@ -36,10 +34,16 @@ import org.springframework.stereotype.Service;
  * incompatible {@code platformApi}, a declared schema, or a thrown exception disables only that plugin —
  * recorded as {@link PluginRegistration.Status#REJECTED} with a reason — while the host keeps booting. No
  * plugin can ever crash the host.
+ *
+ * <p><strong>Loaded before the HTTP port opens.</strong> {@link #load()} is driven by
+ * {@code SlugBootstrap}, not by {@code ApplicationRunner}: Spring Boot calls runners from
+ * {@code callRunners(...)}, which is <em>after</em> {@code refreshContext(...)} has started Tomcat. As an
+ * {@code ApplicationRunner} this class published plugin surfaces while requests were already arriving —
+ * every {@code /api/plugins/**} call in that window answered 404, and {@link #registrations} was being
+ * written by the boot thread while request threads streamed over it.
  */
 @Service
-@Order(0)
-public class PluginLoaderService implements ApplicationRunner {
+public class PluginLoaderService {
 
     private static final Logger log = LoggerFactory.getLogger(PluginLoaderService.class);
 
@@ -110,8 +114,12 @@ public class PluginLoaderService implements ApplicationRunner {
         this.notifyLimiter = notifyLimiter;
     }
 
-    @Override
-    public void run(ApplicationArguments args) {
+    /**
+     * Discovers and loads every plugin folder once. Called from {@code SlugBootstrap}, after the slug
+     * backfills and the scope repartition and before the web server starts, so no request can observe a
+     * half-built registry.
+     */
+    public void load() {
         Path root = Path.of(properties.pluginsDir());
         if (!Files.isDirectory(root)) {
             log.info("Plugins directory {} does not exist; no plugins loaded", root.toAbsolutePath());
@@ -126,6 +134,61 @@ public class PluginLoaderService implements ApplicationRunner {
         long loaded = registrations.values().stream().filter(PluginRegistration::isLoaded).count();
         log.info("Plugin loading complete: {} loaded, {} rejected, from {}",
                 loaded, registrations.size() - loaded, root.toAbsolutePath());
+    }
+
+    /**
+     * Stops and unloads every plugin when the context closes (§7.8).
+     *
+     * <p>Nothing in this package released anything: no {@code @PreDestroy}, no {@code DisposableBean}. The
+     * PF4J manager holds a classloader per plugin and the started plugins themselves, and neither
+     * {@code stopPlugins()} nor {@code unloadPlugins()} was ever called — so every context restart leaked
+     * them, which in the test suite is every class that dirties the context (core#182). It also means a
+     * plugin never got the chance to close what it opened.
+     *
+     * <p>Failures are logged and swallowed: a plugin that throws on the way down must not stop the rest of
+     * the shutdown, and by this point there is nothing left to protect.
+     */
+    @PreDestroy
+    void stopPlugins() {
+        MosaicastPluginManager current = manager;
+        manager = null;
+        registrations.clear();
+        if (current == null) {
+            return;
+        }
+        try {
+            current.stopPlugins();
+            current.unloadPlugins();
+        } catch (Exception e) {
+            log.warn("Plugin shutdown did not complete cleanly: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Loads a plugin that was skipped at boot because it was switched off (§7.8).
+     *
+     * <p>Switching a plugin <em>off</em> takes effect immediately, because every surface reads through
+     * {@code active()}. Switching one <em>on</em> did not: the loader had never run {@code loadPlugin},
+     * {@code startPlugin} or {@code register(ctx)} for it, so it stayed {@code DISABLED}, {@code active()}
+     * stayed empty, and the manifest, nav entries, assets, data endpoints, scheduled tasks and schema
+     * provisioning were all still missing — while the admin page showed it as enabled and the API had
+     * answered 200 (core#182).
+     *
+     * <p>Loading it here runs exactly the boot path, so a plugin enabled at runtime is in the same state as
+     * one that was on at startup. A plugin that is already loaded, was rejected, or was never discovered is
+     * left alone: re-running the path for a started plugin would register its backend twice.
+     *
+     * @return whether a plugin was actually loaded by this call
+     */
+    public boolean loadIfSwitchedOn(String id) {
+        PluginRegistration registration = registrations.get(id);
+        if (manager == null || registration == null || registration.isLoaded()
+                || registration.status() != PluginRegistration.Status.DISABLED
+                || registration.directory() == null) {
+            return false;
+        }
+        loadOne(manager, registration.directory());
+        return registrations.get(id) != null && registrations.get(id).isLoaded();
     }
 
     private void loadOne(MosaicastPluginManager manager, Path folder) {
