@@ -79,6 +79,7 @@ never touches a normal dev setup — seeded only with the fictional sample feed.
 
 ```bash
 dev/instance.sh up --admin      # + --plugins to load ./plugins
+dev/instance.sh up --audio ~/podcasts   # make the seeded episodes actually playable
 dev/instance.sh status          # up? how many plugins?
 dev/instance.sh logs -f
 dev/instance.sh psql            # a shell on the fleeting database
@@ -87,6 +88,12 @@ dev/instance.sh down
 
 Use it to check a change by hand, exercise an admin flow, point a plugin at a real host, or refresh the
 README screenshots.
+
+The sample feed's enclosures point at `example.com`, so pressing play does nothing — which is fine until
+the thing you are checking *is* playback. `--audio DIR` repoints them at your own audio files (matched to
+episodes in sorted order, oldest file to oldest episode) in a staged copy of the feed; the checked-in file
+is never modified and nothing is copied into the repo. It also switches the CSP to strict media sources so
+loopback audio is allowed, which narrows `img-src` too — so it is not the mode to take screenshots in.
 
 ## Build & test
 
