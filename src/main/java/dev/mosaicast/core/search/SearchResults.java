@@ -18,7 +18,8 @@ import java.util.List;
  * @param episodes core's own hits, best first
  * @param plugins  one section per plugin that answered, in plugin id order
  */
-public record SearchResults(String query, List<EpisodeSummary> episodes, List<PluginSection> plugins) {
+public record SearchResults(String query, List<EpisodeSummary> episodes, int page, int totalPages,
+                            long totalElements, List<PluginSection> plugins) {
 
     /**
      * One plugin's section.

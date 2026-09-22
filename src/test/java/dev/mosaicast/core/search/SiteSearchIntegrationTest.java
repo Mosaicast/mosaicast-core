@@ -15,6 +15,8 @@ import dev.mosaicast.core.support.DevLogin;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,6 +93,59 @@ class SiteSearchIntegrationTest {
         assertThat(body).contains("\"query\":\"kraken\"");
         assertThat(body).contains("Kraken Watching");
         assertThat(body).contains("\"pluginId\":\"good\"").contains("The Kraken");
+    }
+
+    @Test
+    void pagesOfTiedRanksNeitherRepeatNorSkip() {
+        // ts_rank produces long runs of identical scores over short show notes, and an ORDER BY that is not
+        // a total order lets Postgres return tied rows in any order it likes per LIMIT/OFFSET — so the same
+        // episode appears on page one *and* page two while another is never shown at all. Adding pagination
+        // without a tiebreaker would have shipped that to visitors (core#178).
+        //
+        // Honest about its reach: this passes with and without the tiebreaker at this size, because
+        // "unspecified" is not "adversarial" — a sequential scan over forty-five rows happens to come back
+        // in the same order every time. What makes the ordering correct is that it is now total, which is a
+        // property of the query rather than of one plan; this guards the *observable* half, so a future
+        // change that reintroduces duplicates or skips is caught.
+        Feed feed = feeds.save(Feed.rss("https://example.test/tied.xml", "Tied Cast"));
+        for (int i = 0; i < 45; i++) {
+            EpisodeRef ref = refs.save(EpisodeRef.published(
+                    feed.getId(), "guid-tied-" + i, 1, i, "tiedcast-s01e" + i));
+            // Identical text, so every row scores the same and only the tiebreaker separates them.
+            displays.save(new EpisodeDisplay(ref.getId(), new DisplaySnapshot(
+                    "Narwhal", "<p>Narwhal.</p>", "https://cdn.test/t.mp3",
+                    Instant.parse("2026-01-01T00:00:00Z"), Duration.ofMinutes(30), null, null, "A Host",
+                    null)));
+        }
+
+        List<String> seen = new ArrayList<>();
+        int totalPages = -1;
+        for (int page = 0; page < 5; page++) {
+            SearchResults results = rest.getForObject("/api/search?q=narwhal&page=" + page,
+                    SearchResults.class);
+            totalPages = results.totalPages();
+            results.episodes().forEach(episode -> seen.add(episode.slug()));
+            if (page >= results.totalPages() - 1) {
+                break;
+            }
+        }
+
+        assertThat(totalPages).isGreaterThan(1);
+        assertThat(seen).doesNotHaveDuplicates();
+        // Every one of the forty-five, exactly once: no skips either, which is the other half of the same
+        // defect and the one a single-page test cannot see.
+        assertThat(seen).hasSize(45);
+    }
+
+    @Test
+    void theAnswerSaysHowManyThereAreInTotal() {
+        // A visitor could not tell "twenty results" from "the first twenty of hundreds": no total, no
+        // "load more", nothing. Every other list on the site pages.
+        SearchResults results = rest.getForObject("/api/search?q=kraken", SearchResults.class);
+
+        assertThat(results.page()).isZero();
+        assertThat(results.totalElements()).isPositive();
+        assertThat(results.totalPages()).isPositive();
     }
 
     @Test

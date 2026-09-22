@@ -3,6 +3,10 @@
 
 package dev.mosaicast.core.web;
 
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.HandlerInterceptor;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
 import java.time.Duration;
 import org.jspecify.annotations.NonNull;
@@ -33,6 +37,30 @@ import org.springframework.web.servlet.resource.PathResourceResolver;
 public class SpaResourceConfig implements WebMvcConfigurer {
 
     private static final Resource INDEX = new ClassPathResource("/static/index.html");
+
+    /**
+     * Marks an unclaimed path as a 404 while still letting the shell render.
+     *
+     * <p>Set before the resource handler writes anything, because by the time the body is going out the
+     * status line is already decided. The shell is still served — the SPA boots and shows its own
+     * not-found view, which is a better page than a bare error — but the status is honest, so a crawler
+     * stops indexing arbitrary junk URLs as valid pages (core#179).
+     */
+    @Override
+    public void addInterceptors(@NonNull InterceptorRegistry registry) {
+        registry.addInterceptor(new HandlerInterceptor() {
+            @Override
+            public boolean preHandle(@NonNull HttpServletRequest request,
+                                     @NonNull HttpServletResponse response, @NonNull Object handler) {
+                String path = request.getRequestURI();
+                if (!SpaRoutes.claims(path) && !isBackendPath(stripLeadingSlash(path))
+                        && !hasFileExtension(path)) {
+                    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                }
+                return true;
+            }
+        });
+    }
 
     @Override
     public void addResourceHandlers(@NonNull ResourceHandlerRegistry registry) {
@@ -65,6 +93,26 @@ public class SpaResourceConfig implements WebMvcConfigurer {
                         return INDEX;
                     }
                 });
+    }
+
+    /** Strips one leading slash, so a request URI can be compared with the resource-relative prefixes. */
+    private static String stripLeadingSlash(String path) {
+        return path.startsWith("/") ? path.substring(1) : path;
+    }
+
+    /**
+     * Whether the last segment looks like a file rather than a route.
+     *
+     * <p>Static assets under {@code /assets/} are content-hashed and always carry an extension, and so do
+     * the brand files and {@code theme-init.js}. A missing one of those should 404 on its own merits —
+     * which it does, because the resolver below returns null for a backend path and the shell for
+     * everything else — but it should never be *marked* 404 here on the way in, or a file that does exist
+     * would be served with the wrong status.
+     */
+    private static boolean hasFileExtension(String path) {
+        int slash = path.lastIndexOf('/');
+        int dot = path.lastIndexOf('.');
+        return dot > slash + 1;
     }
 
     private static boolean isBackendPath(String path) {

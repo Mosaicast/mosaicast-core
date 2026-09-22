@@ -8,6 +8,7 @@ import dev.mosaicast.core.episode.EpisodeSummary;
 import dev.mosaicast.core.plugin.PluginExtensions;
 import dev.mosaicast.plugin.api.Role;
 import java.util.List;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -49,21 +50,36 @@ public class SiteSearchService {
     /**
      * Everything the site has about {@code query}, in sections.
      *
+     * <p>The episode section paginates; the plugin sections do not. That asymmetry is the contract's, not a
+     * shortcut: a {@code SearchProvider} is handed a limit and returns what it ranked, and the host has no
+     * model of a plugin's objects to page through. So a page beyond the first asks only the episode half,
+     * and the plugin sections are returned once, with page 0.
+     *
      * @param query what the visitor typed, verbatim
      * @param role  the caller's role, or {@code null} for an anonymous visitor — passed to plugins as-is,
      *              because a provider filters its own objects (the host has no model of them)
+     * @param page  zero-based; clamped, so a hand-edited URL cannot ask for a negative page
      */
-    public SearchResults search(String query, Role role) {
+    public SearchResults search(String query, Role role, int page) {
         String trimmed = query == null ? "" : query.strip();
         if (trimmed.isEmpty()) {
             // An empty query matches nothing rather than everything — the rule the schema search already
             // follows, and the one the SDK asks providers to follow.
-            return new SearchResults("", List.of(), List.of());
+            return new SearchResults("", List.of(), 0, 0, 0, List.of());
         }
-        List<EpisodeSummary> found = episodes
-                .search(trimmed, PageRequest.of(0, MAX_EPISODES))
-                .getContent();
-        return new SearchResults(trimmed, found,
-                extensions.searchHits(trimmed, role, MAX_PLUGIN_HITS));
+        int requested = Math.max(0, page);
+        Page<EpisodeSummary> found = episodes.search(trimmed, PageRequest.of(requested, MAX_EPISODES));
+        // Asked once. Re-running every provider for each page of episodes would multiply the search budget
+        // by the number of pages a visitor clicks through, for sections that do not move.
+        List<SearchResults.PluginSection> plugins = requested == 0
+                ? extensions.searchHits(trimmed, role, MAX_PLUGIN_HITS)
+                : List.of();
+        return new SearchResults(trimmed, found.getContent(), requested,
+                found.getTotalPages(), found.getTotalElements(), plugins);
+    }
+
+    /** The first page — what every caller wanted before search could paginate. */
+    public SearchResults search(String query, Role role) {
+        return search(query, role, 0);
     }
 }

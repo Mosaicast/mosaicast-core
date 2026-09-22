@@ -266,6 +266,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   deliberate: a feed page is browsed a season at a time, which is a different thing from the site list's
   reverse-chronological river.
 
+- **Search truncated at twenty with no way to say so, and unmatched routes answered 200 (`0.7.4`,
+  core#178, core#179).** `/search` returned exactly twenty results with no total, no "load more" and no
+  indication whether more existed — every other list on the site pages, and search was the one that
+  silently cut off, so a visitor could not tell "twenty results" from "the first twenty of hundreds". It
+  pages now, with the count the query was already computing. The ordering had to be fixed first: it sorted
+  by `ts_rank` alone, and short show notes produce long runs of identical scores, so an `ORDER BY` that is
+  not a total order lets Postgres return tied rows in any order per `LIMIT`/`OFFSET` — the same episode on
+  page one *and* page two while another never appears. Both this and the site list now end on the ref id.
+  Separately, `/totally/unknown/route` answered **200** with the shell: `SpaResourceConfig` returned the
+  SPA entry point for anything that was not a real file and did not start with a backend prefix, so a
+  crawler indexed arbitrary junk URLs as valid pages. The episode route has always got this right; this is
+  the general case. The shell is still served — its own not-found view is a better page than a bare error —
+  but the status is honest. And that page is no longer a dead end: it offers a search field, a way home and
+  the newest episodes, which are the three things somebody who followed a broken link actually wants.
+
 - **Encoding narrower than the context it was written into (`0.7.4`, core#196, core#198).** The JSON-LD
   block neutralised `</` and nothing else, but the HTML tokenizer also leaves script-data state on `<!--`,
   and a following `<script` puts it into the double-escaped state where the block's own `</script>` no

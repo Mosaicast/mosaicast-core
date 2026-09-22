@@ -161,7 +161,8 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
               case when not :newest then (ed.snapshot->>'publishedAt')::numeric end asc nulls first,
               er.season asc nulls last,
               er.episode_no asc nulls last,
-              er.first_seen_at desc
+              er.first_seen_at desc,
+              er.id
             """,
             countQuery = """
             select count(*)

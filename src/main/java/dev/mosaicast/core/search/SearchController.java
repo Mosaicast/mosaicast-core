@@ -31,10 +31,18 @@ public class SearchController {
     /**
      * Everything the site has about {@code q}.
      *
-     * @param q the query as typed; blank matches nothing rather than everything
+     * <p>Paginated since core#178. Every other list on the site pages; search returned exactly twenty
+     * results with no total and no way to ask for more, so a visitor could not tell "twenty results" from
+     * "the first twenty of hundreds".
+     *
+     * @param q    the query as typed; blank matches nothing rather than everything
+     * @param page zero-based; the plugin sections come with page 0 only, since a provider is asked for a
+     *             ranked set rather than a page
      */
     @GetMapping("/api/search")
-    public SearchResults search(@RequestParam(defaultValue = "") String q, Authentication authentication) {
-        return search.search(q, CurrentUser.role(authentication).orElse(null));
+    public SearchResults search(@RequestParam(defaultValue = "") String q,
+                                @RequestParam(defaultValue = "0") int page,
+                                Authentication authentication) {
+        return search.search(q, CurrentUser.role(authentication).orElse(null), page);
     }
 }
