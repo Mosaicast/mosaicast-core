@@ -25,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.Locale;
 import org.springframework.stereotype.Component;
 
 /**
@@ -207,6 +208,8 @@ public class RssFeedSource implements FeedSource {
             if (feedImageUrl == null && feed.getImage() != null) {
                 feedImageUrl = blankToNull(feed.getImage().getUrl());
             }
+            // Both channel-level sources through the same door as the item-level ones.
+            feedImageUrl = mediaUrl(feedImageUrl);
             String feedDescription = blankToNull(feed.getDescription());
             List<RawEpisode> episodes = new ArrayList<>(feed.getEntries().size());
             for (SyndEntry entry : feed.getEntries()) {
@@ -222,7 +225,7 @@ public class RssFeedSource implements FeedSource {
         String guid = entry.getUri() != null ? entry.getUri() : entry.getLink();
         String title = entry.getTitle() != null ? entry.getTitle() : "";
         String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
-        String audioUrl = firstAudioEnclosure(entry);
+        String audioUrl = mediaUrl(firstAudioEnclosure(entry));
         Instant publishedAt = entry.getPublishedDate() != null
                 ? entry.getPublishedDate().toInstant()
                 : (entry.getUpdatedDate() != null ? entry.getUpdatedDate().toInstant() : null);
@@ -240,7 +243,7 @@ public class RssFeedSource implements FeedSource {
             if (itunes.getDuration() != null) {
                 duration = Duration.ofMillis(itunes.getDuration().getMilliseconds());
             }
-            imageUrl = itunes.getImage() != null ? itunes.getImage().toString() : null;
+            imageUrl = itunes.getImage() != null ? mediaUrl(itunes.getImage().toString()) : null;
             author = blankToNull(itunes.getAuthor());
             subtitle = blankToNull(itunes.getSubtitle());
             if (itunes.getKeywords() != null) {
@@ -274,6 +277,29 @@ public class RssFeedSource implements FeedSource {
         if (!tag.isEmpty() && !tags.contains(tag)) {
             tags.add(tag);
         }
+    }
+
+    /**
+     * A media URL a feed supplied, or {@code null} when it is not one this host will hand to a browser.
+     *
+     * <p>Applied at ingestion, which is the only place it is cheap. These values are stored and later
+     * emitted as an {@code <img src>}, as the player's source and as {@code og:image} / {@code og:audio},
+     * and nothing in the feed path checked their scheme (core#196). Little of that is exploitable today,
+     * and not by accident: {@code IndexHtmlService.escape()} escapes correctly for an attribute, and
+     * neither {@code img} nor {@code audio} executes a {@code javascript:} URL. But the CSP is then the
+     * only containment left, and it has to stay wide — {@code img-src 'self' data: https:} — precisely
+     * because feed artwork comes from hosts nobody here chose. An allow-list at the door costs nothing.
+     *
+     * <p>{@code data:} is excluded deliberately, for a URL that is stored and re-served: an unbounded
+     * inline payload in a column that every listing reads is a different problem from a link.
+     */
+    private static String mediaUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String trimmed = url.trim();
+        String lower = trimmed.toLowerCase(Locale.ROOT);
+        return lower.startsWith("http://") || lower.startsWith("https://") ? trimmed : null;
     }
 
     private static String firstAudioEnclosure(SyndEntry entry) {

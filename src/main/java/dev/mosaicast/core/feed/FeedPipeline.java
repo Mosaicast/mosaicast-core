@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.feed;
 
+import dev.mosaicast.core.log.LogSafe;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -71,13 +72,13 @@ public class FeedPipeline {
             FetchResult result = source.get().fetch(poll.config());
             if (result.unchanged()) {
                 store.applyNotModified(feedId);
-                log.info("Polled feed '{}': unchanged (304) in {} ms", poll.title(), millisSince(startedAt));
+                log.info("Polled feed '{}': unchanged (304) in {} ms", LogSafe.of(poll.title()), millisSince(startedAt));
                 return PollOutcome.notModified();
             }
             ReconcileResult reconciled = store.applyChanged(feedId, result);
             log.info("Polled feed '{}': {} item(s) fetched in {} ms — {} new, {} updated, {} withdrawn, "
                             + "{} bound to planned, {} suggestion(s)",
-                    poll.title(), result.episodes().size(), millisSince(startedAt),
+                    LogSafe.of(poll.title()), result.episodes().size(), millisSince(startedAt),
                     reconciled.created(), reconciled.updated(), reconciled.withdrawn(), reconciled.bound(),
                     reconciled.suggestions().size());
             return PollOutcome.reconciled(reconciled);
@@ -86,7 +87,7 @@ public class FeedPipeline {
             int failures = store.applyFailure(feedId, e.getMessage());
             log.warn("Feed poll failed for '{}' after {} ms ({} consecutive failure(s), next attempt backs "
                             + "off): {}",
-                    poll.title(), millisSince(startedAt), failures, e.getMessage());
+                    LogSafe.of(poll.title()), millisSince(startedAt), failures, e.getMessage());
             return PollOutcome.failed(e.getMessage());
         }
         // Any other RuntimeException (a bug, or a DB error the pessimistic lock did not prevent) propagates;

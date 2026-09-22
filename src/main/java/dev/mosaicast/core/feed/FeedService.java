@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.feed;
 
+import dev.mosaicast.core.log.LogSafe;
 import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
 import dev.mosaicast.core.episode.EpisodeRef;
@@ -162,7 +163,7 @@ public class FeedService {
         // episode slugs read the feed's title, and plugin scope ids read this one.
         feed.assignSlugIfAbsent(FeedSlug.generate(resolvedTitle, feeds::existsBySlug));
         feed = feeds.save(feed);
-        log.info("Feed added: '{}' ({}) — polling now", resolvedTitle, url);
+        log.info("Feed added: '{}' ({}) — polling now", LogSafe.of(resolvedTitle), LogSafe.of(url));
         pipeline.poll(feed);
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
     }

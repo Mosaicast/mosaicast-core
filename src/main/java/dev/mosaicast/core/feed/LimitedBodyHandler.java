@@ -25,12 +25,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * they arrive and the subscription is cancelled the moment the count is exceeded. Chunked encoding, a lying
  * {@code Content-Length} and a body that simply never ends are all the second case.
  */
-final class LimitedBodyHandler {
+public final class LimitedBodyHandler {
 
     private LimitedBodyHandler() {
     }
 
-    static HttpResponse.BodyHandler<byte[]> of(long maxBytes) {
+    public static HttpResponse.BodyHandler<byte[]> of(long maxBytes) {
         return info -> {
             long declared = info.headers().firstValueAsLong("Content-Length").orElse(-1L);
             if (declared > maxBytes) {

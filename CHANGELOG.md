@@ -215,6 +215,27 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Encoding narrower than the context it was written into (`0.7.4`, core#196, core#198).** The JSON-LD
+  block neutralised `</` and nothing else, but the HTML tokenizer also leaves script-data state on `<!--`,
+  and a following `<script` puts it into the double-escaped state where the block's own `</script>` no
+  longer ends it — so an episode title from a third-party feed carrying both tokens made the rest of the
+  document, the shell's module script included, the text content of that block, and the page never
+  mounted. Every `<` is escaped now. An episode card's excerpt stripped HTML **with a regex**, so an
+  ordinary description reading `Tom &amp; Jerry` was shown to visitors literally as `Tom &amp;amp; Jerry`
+  and an attribute containing `>` spilled markup into the page as visible text — it is parsed now, the way
+  `OgResolver.plainText` in the same repository always has been. Feed and user titles reached **stdout**
+  unfiltered, so a newline in either produced extra, attacker-composed lines that look exactly like
+  entries this host wrote. Two `truncate` implementations cut on UTF-16 units and could leave **half a
+  character** behind — for a notification, written into a JSONB column that way. `IllegalArgumentException`
+  messages were returned verbatim as the 400 detail, which is right for this project's own validation
+  messages and wrong for the ones libraries raise, carrying internal type names and paths. And feed image
+  and audio URLs passed through **no scheme allow-list**, leaving the CSP as the only containment for
+  values that get stored and re-emitted as `<img src>`, player source and `og:image`.
+  Outbound: `ExternalHttpClient` promised a 2 MB body cap in its own Javadoc and measured only once the
+  whole body was already in the heap — it uses the same `LimitedBodyHandler` as the feed fetcher now. And
+  the avatar proxy trusted the upstream `Content-Type` without looking at the bytes, then served them
+  under that type from this app's own origin: the one upload-shaped path that skipped the rule
+  `BrandingService` and `PluginBlobService` both follow.
 - **Deny-by-default ended at `/api/**`, and four response headers were simply absent (`0.7.4`, core#186,
   core#187).** The last rule in the security chain is `anyRequest().permitAll()`, so everything outside
   `/api/**` was open — `/actuator/**` included, where the only thing keeping `env`, `configprops`,

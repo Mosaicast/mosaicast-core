@@ -295,13 +295,17 @@ public class IndexHtmlService {
      *
      * <p>Ordinary HTML escaping is wrong here — the contents of a {@code script} element are not parsed as
      * HTML, so {@code &quot;} would land in the JSON literally and break it. What actually has to be
-     * neutralized is the one sequence that can end the element early: an episode title or show-note
-     * containing {@code </script>} would otherwise close the block and leave the rest of a podcaster's feed
-     * content being parsed as markup. Escaping the {@code /} of every {@code </} keeps the JSON valid (JSON
-     * reads {@code \/} as {@code /}) and leaves no way out of the element.
+     * neutralized is every way out of the element, and {@code </script>} is only the obvious one: the
+     * tokenizer also leaves script-data state on {@code <!--}, and a following {@code <script} puts it in
+     * the double-escaped state, where this element's own {@code </script>} no longer ends it. A feed title
+     * carrying that pair makes the rest of the document — the shell's own module script included —
+     * the text content of this block, and the page never mounts.
+     *
+     * <p>So: every {@code <}, not a sequence. {@code \u003c} is a JSON string escape, so the parsed value
+     * is unchanged, and JSON structure carries no {@code <} of its own — only string literals are touched.
      */
     private static String escapeInScript(String json) {
-        return json == null ? "" : json.replace("</", "<\\/");
+        return json == null ? "" : json.replace("<", "\\u003c");
     }
 
     private String index() {
