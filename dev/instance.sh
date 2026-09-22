@@ -196,9 +196,18 @@ up() {
   # disposable, offline and bound to localhost, which is the case the escape hatch exists for.
   # As --args, not as environment: bootRun's JVM inherits the long-lived Gradle daemon's environment, not
   # this shell's, so an env var set here reaches the app only if the daemon happened to start with it.
+  # mavenLocal() is opt-in since core#190 — as the first repository it let a stale ~/.m2 artifact outrank
+  # the version the catalog pins. A developer without a read:packages PAT resolves the SDK from ~/.m2, and
+  # this script is exactly where that developer is standing, so the flag is passed for them when there are
+  # no credentials to use instead. With credentials present, the pinned versions win as they should.
+  local maven_local=""
+  if [ -z "${GITHUB_ACTOR:-}" ] && ! grep -qs '^gpr\.user=' "$HOME/.gradle/gradle.properties"; then
+    maven_local="-PuseMavenLocal"
+  fi
+
   MOSAICAST_DB_URL="jdbc:postgresql://localhost:$PG_PORT/mosaicast" \
   MOSAICAST_DB_USER=mosaicast MOSAICAST_DB_PASSWORD=mosaicast \
-    ./gradlew bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT \
+    ./gradlew $maven_local bootRun --args="--spring.profiles.active=dev --server.port=$APP_PORT \
       --mosaicast.base-url=$APP_URL \
       --mosaicast.plugins-dir=$plugins_dir \
       --mosaicast.feed.allow-private-targets=true \

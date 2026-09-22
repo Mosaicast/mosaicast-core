@@ -11,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Host-owned settings of a plugin: whether it is activated and which of its declared config fields an admin
@@ -79,6 +81,9 @@ public class PluginSettingsService {
                 existing -> existing.setEnabled(enabled),
                 () -> activations.save(new PluginActivation(pluginId, enabled)));
         enabledCache.put(pluginId, enabled);
+        // …but drop it again if the transaction does not commit: the cache would otherwise report a
+        // decision that was never persisted, and survive until the next toggle or restart.
+        onRollback(() -> enabledCache.remove(pluginId));
         log.info("Plugin '{}' {} by an admin{}", pluginId, enabled ? "enabled" : "disabled",
                 enabled ? " — its backend starts at the next restart" : " — it stops serving immediately");
         if (enabled) {
@@ -115,6 +120,11 @@ public class PluginSettingsService {
                     () -> configValues.save(new PluginConfigValue(id, value)));
         }
         configCache.remove(pluginId);
+        // And again once the write is actually visible. Evicting inside the transaction is not enough: a
+        // concurrent reader between this line and the commit repopulates the cache from the *pre-commit*
+        // rows, and that stale map then outlives the write — an admin's saved value that the running
+        // plugin never sees, until somebody edits the form a second time.
+        afterCompletion(() -> configCache.remove(pluginId));
         // The key, never the value.
         //
         // A config field is exactly where an API token or a webhook secret lives, and the config API gates those
@@ -124,6 +134,38 @@ public class PluginSettingsService {
         // role-gated secret to every reader of both. PersonalAccessTokenService takes the same care.
         log.info("Plugin '{}' config: {} {}", pluginId, key,
                 value == null || value.isNull() ? "reset to the manifest default" : "set");
+    }
+
+    /**
+     * Runs {@code action} once the current transaction has finished, whatever its outcome — or immediately
+     * when there is no transaction to wait for (a direct call from a test or a backend thread).
+     */
+    private static void afterCompletion(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                action.run();
+            }
+        });
+    }
+
+    /** Runs {@code action} only if the current transaction rolls back. */
+    private static void onRollback(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != STATUS_COMMITTED) {
+                    action.run();
+                }
+            }
+        });
     }
 
     /**
@@ -143,10 +185,6 @@ public class PluginSettingsService {
     public int purgeData(String pluginId) {
         int removed = data.deleteByPluginId(pluginId);
         int tables = schemaMigrator.purge(pluginId);
-        // Files are the third store a plugin can write to (§11), and a purge that left them behind would be
-        // the half-purge the schema work already called out: an admin who asked for the data to be gone
-        // would still be hosting the uploads.
-        int files = blobs.purge(pluginId);
         // And the fourth: the assignments it made against the shared tag vocabulary (§6.1). The vocabulary
         // entries themselves stay — they are the site's, and a word other episodes still carry is not the
         // purged plugin's to take with it.
@@ -156,6 +194,13 @@ public class PluginSettingsService {
         // and core never learned which those were, so they are matched on the sender instead — a message
         // from a plugin whose data is gone is a message about nothing.
         long notices = notifications.deleteFromPlugin(pluginId);
+        // Files last, and deliberately so. They are the third store a plugin can write to (§11), and a purge
+        // that left them behind would be the half-purge the schema work already called out — but the
+        // filesystem backend deletes immediately and cannot be rolled back, so doing it earlier meant a
+        // failure in any of the steps above rolled the database back over files that were already gone,
+        // leaving blob metadata pointing at nothing (core#182). Ordering it last does not make it
+        // transactional; it makes the irreversible step the one with nothing left to fail after it.
+        int files = blobs.purge(pluginId);
         // Irreversible and admin-initiated: worth a permanent record of how much went.
         log.info("Purged {} stored document(s), {} schema table(s), {} file(s), {} tag assignment(s) and "
                         + "{} notification(s) of plugin '{}'; its config and on/off state were kept",

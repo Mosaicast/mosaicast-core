@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.plugin;
 
+import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
@@ -44,6 +45,23 @@ public class PluginScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(PluginScheduler.class);
 
+    /**
+     * How much longer than its period a task may hold its lock.
+     *
+     * <p>{@code lockAtMostFor} is a lease, not a period: it has to outlast the <em>work</em>, not the gap
+     * between two ticks. Set to the period exactly, a task that ran longer than its own period lost the
+     * lock while it was still running, and the next tick — on this instance or another — started a second
+     * concurrent run of the same plugin task, which is the one thing the lock exists to prevent.
+     */
+    private static final int LEASE_FACTOR = 3;
+
+    /**
+     * The shortest time a completed tick keeps its lock, so two instances whose schedulers are a few
+     * hundred milliseconds apart cannot both run the same tick. With {@code Duration.ZERO} the lock was
+     * free again the instant the first instance finished.
+     */
+    private static final int MIN_HOLD_DIVISOR = 2;
+
     private final TaskScheduler taskScheduler;
     private final LockingTaskExecutor lockingExecutor;
     private final PluginSettingsService settings;
@@ -72,6 +90,27 @@ public class PluginScheduler {
         this.properties = properties;
         this.lockingExecutor = new DefaultLockingTaskExecutor(lockProvider);
         this.taskScheduler = taskScheduler;
+    }
+
+    /**
+     * Stops the pool this class built for itself.
+     *
+     * <p>Only the one it owns. The {@link TaskScheduler} is built with {@code new} rather than taken from
+     * the container, so Spring has no bean to stop and the threads outlived every context restart
+     * (core#182). A scheduler handed in by a test or by a future configuration is that caller's to close,
+     * which is why the type is checked rather than the field being closed unconditionally.
+     */
+    @PreDestroy
+    void shutdown() {
+        tasks.values().forEach(task -> {
+            if (task.future != null) {
+                task.future.cancel(false);
+            }
+        });
+        tasks.clear();
+        if (taskScheduler instanceof ThreadPoolTaskScheduler owned) {
+            owned.shutdown();
+        }
     }
 
     private static TaskScheduler defaultTaskScheduler() {
@@ -218,7 +257,10 @@ public class PluginScheduler {
             // plugin quiets it immediately instead of at the next restart (§7.8).
             return;
         }
-        LockConfiguration lock = new LockConfiguration(Instant.now(), entry.lockName, entry.period, Duration.ZERO);
+        Duration period = entry.period;
+        LockConfiguration lock = new LockConfiguration(Instant.now(), entry.lockName,
+                period.multipliedBy(LEASE_FACTOR),
+                period.dividedBy(MIN_HOLD_DIVISOR));
         lockingExecutor.executeWithLock((Runnable) () -> {
             try {
                 entry.task.run();

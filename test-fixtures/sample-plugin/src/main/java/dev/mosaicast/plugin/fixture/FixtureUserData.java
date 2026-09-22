@@ -27,6 +27,12 @@ public class FixtureUserData implements UserDataHandler {
             throw new IllegalStateException("fixture was not registered");
         }
         if (ctx.config().get("failErasure", Boolean.class, false)) {
+            // Writes *first*, then throws. Throwing before touching the store meant this handler never
+            // enlisted in the caller's transaction at all, so the host's "a throwing handler leaves a debt"
+            // test exercised a handler that had done nothing — which is not the shape anyone's real
+            // erasure has (core#167). Writing first puts a participating statement in the transaction
+            // before the failure, which is the arrangement the host has to survive.
+            ctx.store().put(Scope.site(), "erased-attempt:" + userId, true);
             throw new IllegalStateException("fixture was told to fail");
         }
         // Idempotent, as the contract requires: the same mark, however many times this is retried.

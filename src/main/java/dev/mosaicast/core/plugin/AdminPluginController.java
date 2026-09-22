@@ -59,16 +59,29 @@ public class AdminPluginController {
     }
 
     /**
-     * Switches a plugin on or off. Off takes effect immediately for every host-mediated surface (manifest,
-     * doc-store API, assets, scheduler, doc-store writes); the plugin's already-started backend stays in
-     * process until the next restart, where the loader skips it entirely (§7.8).
+     * Switches a plugin on or off.
+     *
+     * <p>Off takes effect immediately for every host-mediated surface (manifest, doc-store API, assets,
+     * scheduler, doc-store writes); the plugin's already-started backend stays in process until the next
+     * restart, where the loader skips it entirely (§7.8).
+     *
+     * <p>On is the asymmetric half, and it used to do nothing for a plugin that had been off at boot: the
+     * loader never ran {@code loadPlugin}/{@code startPlugin}/{@code register(ctx)} for it, so it stayed
+     * {@code DISABLED} and every surface kept answering as though it were not installed — while this
+     * endpoint returned 200 and the page showed it enabled (core#182). Enabling now runs the boot path for
+     * it, so it ends up in the state it would have been in had it been on at startup.
      */
     @PutMapping("/api/admin/plugins/{id}/enabled")
     public AdminPlugin setEnabled(@PathVariable String id, @RequestParam boolean value,
                                   Authentication authentication) {
-        PluginRegistration registration = registrationOf(id);
+        registrationOf(id);
         settings.setEnabled(id, value);
-        return toAdminPlugin(registration, CurrentUser.role(authentication));
+        if (value) {
+            plugins.loadIfSwitchedOn(id);
+        }
+        // Re-read: loading replaces the registration, and returning the one captured before would report
+        // the state the caller just changed away from.
+        return toAdminPlugin(registrationOf(id), CurrentUser.role(authentication));
     }
 
     /**

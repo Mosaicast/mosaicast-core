@@ -56,6 +56,8 @@ public class AccountErasureService {
 
     private final PluginLoaderService plugins;
     private final PluginExtensions extensions;
+    private final PluginErasureCall pluginErasure;
+    private final ErasureDebtRecorder debts;
     private final PluginDataService pluginData;
     private final UserDataErasureRepository erasures;
     private final UserRepository users;
@@ -66,6 +68,7 @@ public class AccountErasureService {
     private final dev.mosaicast.core.notification.NotificationService notifications;
 
     public AccountErasureService(PluginLoaderService plugins, PluginExtensions extensions,
+                                 PluginErasureCall pluginErasure, ErasureDebtRecorder debts,
                                  PluginDataService pluginData, UserDataErasureRepository erasures,
                                  UserRepository users, LinkedIdentityRepository identities,
                                  PersonalAccessTokenRepository tokens,
@@ -74,6 +77,8 @@ public class AccountErasureService {
                                  dev.mosaicast.core.notification.NotificationService notifications) {
         this.plugins = plugins;
         this.extensions = extensions;
+        this.pluginErasure = pluginErasure;
+        this.debts = debts;
         this.pluginData = pluginData;
         this.erasures = erasures;
         this.users = users;
@@ -91,17 +96,12 @@ public class AccountErasureService {
      */
     @Transactional
     public List<String> erase(UUID userId) {
-        // Recorded before anything is asked, so a crash between here and the last handler leaves a debt
-        // rather than a silence.
-        for (PluginRegistration registration : plugins.all()) {
-            String pluginId = registration.id();
-            if (!owesErasure(registration)) {
-                continue;
-            }
-            if (erasures.findByUserIdAndPluginId(userId, pluginId).isEmpty()) {
-                erasures.save(new UserDataErasure(userId, pluginId));
-            }
-        }
+        // In its own committed transaction, before anything is asked. The comment here used to promise that
+        // "a crash between here and the last handler leaves a debt rather than a silence" while the debt
+        // rows were written inside this same transaction — so they only became visible on the overall
+        // commit, and a crash or a rollback left exactly no debt, which is the one outcome the promise
+        // rules out (core#167).
+        debts.record(userId, this::owesErasure);
 
         List<String> outstanding = runHandlers(userId);
 
