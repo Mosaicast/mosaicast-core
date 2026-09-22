@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -106,7 +107,7 @@ public class BrandingService {
         // Containment rested entirely on `X-Content-Type-Options: nosniff` being set somewhere else, which is
         // a guarantee held by a different file.
         String declared = file.getContentType();
-        if (declared == null || !ALLOWED_UPLOAD_MIMES.contains(declared.toLowerCase())) {
+        if (declared == null || !ALLOWED_UPLOAD_MIMES.contains(declared.toLowerCase(Locale.ROOT))) {
             throw new IllegalArgumentException(
                     "Only raster images (PNG, ICO, JPEG, WEBP) may be uploaded; SVG is not allowed");
         }

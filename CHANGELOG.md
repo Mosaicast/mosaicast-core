@@ -215,6 +215,31 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Two admins demoting each other at the same time could leave the site with none (`0.7.4`, core#166,
+  core#194, core#197).** The last-admin guard was a read followed by a write in separate transactions, so
+  both requests read "2 admins", both passed, and both committed — and there is no recovery path in the
+  product short of setting `ADMIN_BOOTSTRAP_EXTERNAL_ID` and restarting. The role change is now one
+  transaction that takes a write lock on the admin rows, so the second request sees the row set the first
+  one left behind.
+  Four identity defects go with it. One account could accumulate **two Discord identities** — the database
+  guarantees an identity belongs to one account, not that an account holds one per provider — after which
+  unlinking and avatar selection, which both expect at most one, failed with a 500; reachable by staying
+  logged in and authorising a second Discord account. Two callbacks for the same **new** identity both
+  created a user and one lost the race on the unique constraint, reaching the visitor as a raw 500 instead
+  of the designed failure page. A provider response **without an account id** became the literal string
+  `"null"` as a stable identity key, so the first such case created an account and every later one logged
+  into it. And the **bootstrap admin was re-promoted on every login, silently**: an admin demoting that
+  account saw it succeed, saw it logged, and saw it undone the next time that person signed in, with
+  nothing anywhere saying why — it is a WARN naming the variable now. Expected login outcomes
+  (`account_conflict`, `link_required`) drop from WARN-with-stack-trace to INFO: they are a person's
+  decision, and they were filling the log viewer that a real misconfiguration then disappeared into.
+  Finally, **every `toUpperCase`/`toLowerCase` at a boundary now folds with `Locale.ROOT`**. The default
+  locale comes from the host environment: on a Turkish JVM `"admin".toUpperCase()` is `"ADMİN"`, so *every*
+  role change failed with "Unknown role" and every branding upload was rejected on its MIME type — a
+  "works on my machine, fails on the customer's server" defect that a self-hosted project cannot test its
+  way out of. The two copies of `parseRole` are one, and an unknown role name is now **400 on both routes**
+  rather than 409 on one of them: there is no state conflict, only a word this host does not know.
+
 - **The rate limiter keyed on a header any caller could set (`0.7.4`, core#173, core#174, core#188).**
   `forward-headers-strategy: framework` believes `X-Forwarded-*` from whoever sent them, and the shipped
   compose publishes the app port directly with no proxy in front — so rotating the header handed the

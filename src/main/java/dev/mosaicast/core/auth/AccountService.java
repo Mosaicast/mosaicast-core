@@ -92,10 +92,19 @@ public class AccountService {
                     .orElseThrow(() -> new IllegalStateException("Identity references a missing user"));
         }
 
-        // Case 2: new identity while logged in → attach to the current user (linking). Always safe.
+        // Case 2: new identity while logged in → attach to the current user (linking).
         if (currentUserId != null) {
             User current = users.findById(currentUserId)
                     .orElseThrow(() -> new IllegalStateException("Logged-in user no longer exists"));
+            // One identity per provider per account. The database only guarantees that an identity belongs
+            // to one account (uq_identity_provider_external), not that an account holds one identity per
+            // provider — so authorising a *second* Discord account from settings would silently add a row,
+            // and the single-result lookups that unlinking and avatar selection do would start failing.
+            if (identities.findByUserIdAndProvider(current.getId(), claim.provider()).isPresent()) {
+                throw new ConflictException(
+                        "Your account already has a " + claim.provider() + " account linked. Unlink it "
+                                + "first if you want to use a different one.");
+            }
             attach(current.getId(), claim, email);
             log.info("Linked a {} identity to account {}", claim.provider(), current.getId());
             return current;
@@ -202,11 +211,24 @@ public class AccountService {
         return email.trim().toLowerCase(Locale.ROOT);
     }
 
-    /** Grants ADMIN to the configured bootstrap identity on login (§8.5). */
+    /**
+     * Grants ADMIN to the configured bootstrap identity on login (§8.5).
+     *
+     * <p>This runs on <em>every</em> login of that identity, not only the first, and that is deliberate: it
+     * is the way back in when an install has locked itself out. What was wrong is that it happened in
+     * silence. An admin demoting that account through the users page saw the change succeed and saw it
+     * logged, and it was undone the next time that person signed in, with nothing anywhere saying so
+     * (core#194). The re-promotion is now a WARN naming the variable that causes it, so the admin who
+     * cannot make a demotion stick has something to find.
+     */
     private void applyBootstrap(User user, IdentityClaim claim) {
         if (auth.isBootstrapAdmin(claim.provider(), claim.externalId()) && user.getRole() != Role.ADMIN) {
+            Role previous = user.getRole();
             user.changeRole(Role.ADMIN);
             users.save(user);
+            log.warn("Account {} was promoted from {} to ADMIN on login because it is the configured "
+                    + "bootstrap admin (ADMIN_BOOTSTRAP_EXTERNAL_ID). This happens on every login of that "
+                    + "identity; unset the variable to make a demotion stick.", user.getId(), previous);
         }
     }
 }

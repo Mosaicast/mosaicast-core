@@ -6,6 +6,7 @@ package dev.mosaicast.core.auth.dev;
 import dev.mosaicast.core.auth.AccountService;
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.auth.IdentityClaim;
+import dev.mosaicast.core.auth.Roles;
 import dev.mosaicast.core.auth.MeView;
 import dev.mosaicast.core.auth.User;
 import dev.mosaicast.core.auth.UserRepository;
@@ -61,7 +62,7 @@ public class DevLoginController {
             HttpServletRequest request,
             HttpServletResponse response) {
 
-        Role selected = parseRole(role);
+        Role selected = Roles.parse(role);
         // A stable dev user per role: (provider=dev, external_id=<role>).
         User user = accounts.resolveLogin(
                 new IdentityClaim(DEV_PROVIDER, selected.name(), null, false, "Dev " + selected.name(), null),
@@ -90,12 +91,4 @@ public class DevLoginController {
         contextRepository.saveContext(context, request, response);
     }
 
-    private static Role parseRole(String role) {
-        try {
-            return Role.valueOf(role.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException(
-                    "Unknown role '" + role + "'. Use one of: " + List.of(Role.values()));
-        }
-    }
 }

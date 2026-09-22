@@ -4,6 +4,7 @@
 package dev.mosaicast.core.episode;
 
 import java.text.Normalizer;
+import java.util.Locale;
 import java.util.function.Predicate;
 
 /**
@@ -68,7 +69,7 @@ public final class EpisodeSlug {
             return "";
         }
         String noAccents = Normalizer.normalize(text, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
-        String slug = noAccents.toLowerCase()
+        String slug = noAccents.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", "-")
                 .replaceAll("^-+|-+$", "");
         if (slug.length() > maxLen) {

@@ -120,7 +120,7 @@ final class PluginAccessPolicy {
      * the same policy for the same field, and were two copies of it until a slot needed it server-side.
      *
      * <p>{@code Locale.ROOT}, because the default locale is the host environment's: on a Turkish JVM
-     * {@code "ANONYMOUS".toLowerCase()} is {@code "anonymous"} with a dotless i, which matches nothing and
+     * {@code "ANONYMOUS".toLowerCase(Locale.ROOT)} is {@code "anonymous"} with a dotless i, which matches nothing and
      * would silently promote every entrance to podcaster-only.
      */
     static int visibilityFloorOf(String visibleTo) {
@@ -147,7 +147,7 @@ final class PluginAccessPolicy {
      * @throws IllegalArgumentException if the floor is not a known role name
      */
     static boolean meetsFloor(String floor, Optional<Role> role) {
-        int required = switch (floor == null ? "" : floor.toLowerCase()) {
+        int required = switch (floor == null ? "" : floor.toLowerCase(Locale.ROOT)) {
             case "anonymous" -> ANONYMOUS;
             case "fan" -> FAN;
             case "podcaster" -> PODCASTER;
@@ -169,7 +169,7 @@ final class PluginAccessPolicy {
         if (visibleTo == null) {
             return ANONYMOUS;
         }
-        return switch (visibleTo.toLowerCase()) {
+        return switch (visibleTo.toLowerCase(Locale.ROOT)) {
             case "admin" -> ADMIN;
             case "podcaster" -> PODCASTER;
             case "fan" -> FAN;

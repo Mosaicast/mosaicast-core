@@ -11,6 +11,7 @@ import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.Locale;
 import dev.mosaicast.core.web.PagedResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -159,18 +160,30 @@ public class UserAdminController {
                 .toList();
     }
 
+    /**
+     * Changes a user's role (§8.5).
+     *
+     * <p>Transactional and row-locking, because the "last admin" guard is a read-then-write: without a lock
+     * two admins demoting each other concurrently both read two admins, both commit, and the site is left
+     * with none. {@code findByRoleOrderByIdAsc} takes a write lock on the ADMIN rows, so the second request
+     * waits and then sees the row set the first one left behind.
+     */
     @PutMapping("/{id}/role")
+    @org.springframework.transaction.annotation.Transactional
     public MeView setRole(@PathVariable UUID id, @Valid @RequestBody RoleRequest request,
                           Authentication authentication) {
-        Role newRole = parseRole(request.role());
+        Role newRole = Roles.parse(request.role());
         User user = users.findById(id).orElseThrow(() -> new NotFoundException("No such user: " + id));
         UUID currentUserId = CurrentUser.id(authentication).orElseThrow();
 
         if (user.getId().equals(currentUserId)) {
             throw new ConflictException("You cannot change your own role.");
         }
-        if (user.getRole() == Role.ADMIN && newRole != Role.ADMIN && users.countByRole(Role.ADMIN) <= 1) {
-            throw new ConflictException("Cannot demote the last admin.");
+        if (user.getRole() == Role.ADMIN && newRole != Role.ADMIN) {
+            // Locked, not merely counted — see UserRepository#findByRoleOrderByIdAsc.
+            if (users.findByRoleOrderByIdAsc(Role.ADMIN).size() <= 1) {
+                throw new ConflictException("Cannot demote the last admin.");
+            }
         }
 
         Role previous = user.getRole();
@@ -188,15 +201,7 @@ public class UserAdminController {
                 .toList();
         return new UserAdminView(
                 user.getId(), user.getDisplayName(), MeView.avatarUrlFor(user.getId()),
-                user.getRole().name().toLowerCase(), user.getCreatedAt(), refs);
+                user.getRole().name().toLowerCase(Locale.ROOT), user.getCreatedAt(), refs);
     }
 
-    private static Role parseRole(String role) {
-        try {
-            return Role.valueOf(role.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new ConflictException(
-                    "Unknown role '" + role + "'. Use one of: admin, podcaster, fan.");
-        }
-    }
 }

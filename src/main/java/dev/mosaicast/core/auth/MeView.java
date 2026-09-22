@@ -4,6 +4,7 @@
 package dev.mosaicast.core.auth;
 
 import java.util.UUID;
+import java.util.Locale;
 
 /**
  * The current user as exposed to the shell (ARCHITECTURE §8.5). The role is lower-cased to match the
@@ -29,6 +30,6 @@ public record MeView(
                 user.getDisplayName(),
                 avatarUrlFor(user.getId()),
                 user.getAvatarProvider(),
-                user.getRole().name().toLowerCase());
+                user.getRole().name().toLowerCase(Locale.ROOT));
     }
 }

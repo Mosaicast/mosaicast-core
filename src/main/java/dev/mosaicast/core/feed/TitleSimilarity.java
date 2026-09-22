@@ -4,6 +4,7 @@
 package dev.mosaicast.core.feed;
 
 import java.text.Normalizer;
+import java.util.Locale;
 import org.apache.commons.text.similarity.JaroWinklerSimilarity;
 
 /**
@@ -53,7 +54,7 @@ public final class TitleSimilarity {
         }
         String noAccents = Normalizer.normalize(title, Normalizer.Form.NFD)
                 .replaceAll("\\p{M}+", "");
-        return noAccents.toLowerCase()
+        return noAccents.toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9]+", " ")
                 .trim();
     }

@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import java.util.Locale;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
@@ -109,7 +110,7 @@ public class PluginDataService {
     @Transactional(readOnly = true)
     public List<DocEntry> query(String pluginId, Scope scope, String keyPrefix) {
         return repository
-                .findInScope(pluginId, scope.type().name().toLowerCase(), scopeIds.canonical(scope), keyPrefix)
+                .findInScope(pluginId, scope.type().name().toLowerCase(Locale.ROOT), scopeIds.canonical(scope), keyPrefix)
                 .stream()
                 .map(d -> new DocEntry(d.getId().getKey(), d.getValue()))
                 .toList();

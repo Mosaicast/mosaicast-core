@@ -7,6 +7,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -71,7 +72,7 @@ public final class ConsentCookie {
         }
         Set<String> categories = new LinkedHashSet<>();
         for (String part : value.split("\\.")) {
-            String trimmed = part.trim().toLowerCase();
+            String trimmed = part.trim().toLowerCase(Locale.ROOT);
             if (!trimmed.isEmpty() && trimmed.matches("[a-z0-9_-]{1,40}")) {
                 categories.add(trimmed);
             }

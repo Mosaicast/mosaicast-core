@@ -31,6 +31,10 @@ public class OAuthLoginFailureHandler implements AuthenticationFailureHandler {
 
     private static final Logger log = LoggerFactory.getLogger(OAuthLoginFailureHandler.class);
 
+    /** Outcomes that are a person's choice rather than a fault — logged, but not as a problem. */
+    private static final java.util.Set<String> EXPECTED =
+            java.util.Set.of("account_conflict", "link_required");
+
     @Override
     public void onAuthenticationFailure(
             HttpServletRequest request, HttpServletResponse response, AuthenticationException exception)
@@ -42,9 +46,17 @@ public class OAuthLoginFailureHandler implements AuthenticationFailureHandler {
                 code = error.getErrorCode();
             }
         }
-        // WARN (not DEBUG) so a misconfigured deployment is diagnosable from the logs; the cause carries the
-        // underlying reason (bad credentials, token/userinfo error, lost session, …).
-        log.warn("Social login failed (login_error={}): {}", code, exception.getMessage(), exception);
+        // A user's decision is not a fault. `account_conflict` (this identity belongs to somebody else) and
+        // `link_required` (log in the other way first, then link) are the designed answers to two ordinary
+        // situations, and logging them at WARN with a full stack trace filled the admin log viewer with
+        // noise that a real misconfiguration then disappeared into (core#194). Everything else keeps WARN
+        // and its cause: a lost session, a bad client secret and a token-endpoint error are all things an
+        // operator has to be able to diagnose from the log.
+        if (EXPECTED.contains(code)) {
+            log.info("Social login declined (login_error={}): {}", code, exception.getMessage());
+        } else {
+            log.warn("Social login failed (login_error={}): {}", code, exception.getMessage(), exception);
+        }
         response.sendRedirect("/?login_error=" + URLEncoder.encode(code, StandardCharsets.UTF_8));
     }
 }
