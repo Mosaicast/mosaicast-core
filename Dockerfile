@@ -62,6 +62,15 @@ COPY --from=backend /build/build/libs/*.jar /app/app.jar
 COPY scripts/install-plugin.sh /app/bin/install-plugin.sh
 COPY docker/entrypoint.sh /app/bin/entrypoint.sh
 RUN chmod +x /app/bin/install-plugin.sh /app/bin/entrypoint.sh
+# Not root. The entrypoint unpacks plugin tarballs into /app/plugins and the JVM then loads that code
+# in-process, so the one account that writes there and the one that runs it are the same account either
+# way — but as root it is also the account that owns the rest of the filesystem and the mounted volumes.
+# /app/plugins is chowned because compose mounts a host directory over it; the rest stays root-owned and
+# read-only to the app.
+RUN groupadd --system --gid 10001 mosaicast \
+    && useradd --system --uid 10001 --gid 10001 --home-dir /app --shell /usr/sbin/nologin mosaicast \
+    && chown -R mosaicast:mosaicast /app/plugins
+USER 10001:10001
 EXPOSE 8080
 # The entrypoint resolves MOSAICAST_PLUGINS and then `exec`s the JVM, so the JVM keeps PID 1 and signals
 # still reach it — a plain `java -jar` wrapper that forgot to exec would break container shutdown.

@@ -46,6 +46,11 @@ REPO_SPEC='^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(@.+)?$'
 PLUGINS_DIR="${MOSAICAST_PLUGINS_DIR:-./plugins}"
 FORCE=0
 SKIP_EXISTING=0
+# Installing a plugin is installing in-process, unsandboxed code (ARCHITECTURE §7.1), so the default is
+# "verified or not at all": a spec without `#sha256:` is refused unless the operator says `--unverified`
+# in so many words. The old default printed one line saying the download was unverified and installed it
+# anyway, which is the same as having no check.
+ALLOW_UNVERIFIED=0
 
 # Written into each installed plugin, recording the spec that produced it. It is what makes `--skip-existing`
 # able to answer "is this already installed?" *before* downloading anything — which matters because the
@@ -69,6 +74,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --force) FORCE=1 ;;
         --skip-existing) SKIP_EXISTING=1 ;;
+        --unverified) ALLOW_UNVERIFIED=1 ;;
         --dir) shift; PLUGINS_DIR="${1:?--dir needs a path}" ;;
         -h|--help) usage 0 ;;
         -*) die "unknown option: $1 (try --help)" ;;
@@ -111,7 +117,12 @@ install_one() {
         https://github.com/*) source="${source#https://github.com/}"; source="${source%.git}"; source="${source%/}" ;;
     esac
 
-    if [[ "$source" == http://* || "$source" == https://* || "$source" == file://* ]]; then
+    if [[ "$source" == http://* ]]; then
+        # Plaintext: whoever is on the path chooses what this host executes in-process. There is no
+        # checksum spelling that makes this safe either, because the spec travels the same way.
+        die "refusing to download plugin code over http:// — use https:// (or a local file)"
+    fi
+    if [[ "$source" == https://* || "$source" == file://* ]]; then
         case "$source" in
             *.tgz|*.tar.gz) fetch "$source" "$tarball" || die "could not download $source" ;;
             *) die "'$source' is not a .tgz — pass a tarball URL or an owner/repo spec" ;;
@@ -159,6 +170,10 @@ Expected one of:
         # A source build produces a different archive every time (timestamps, file order), so a digest
         # cannot mean anything here. Saying so is better than verifying nothing while looking verified.
         die "a #sha256 digest cannot be checked on a source build — pin a released tarball instead"
+    elif [ "$ALLOW_UNVERIFIED" -ne 1 ]; then
+        # Nothing was verified on this path either: the clone came from whatever the branch or tag points
+        # at today. Same rule as an unpinned tarball — it needs saying out loud.
+        die "a source build cannot be checksummed — pin a released tarball, or pass --unverified"
     fi
 
     place "$WORK/dist" "$spec"
@@ -178,15 +193,29 @@ already_installed() {
     return 1
 }
 
-# curl to a file, non-zero if the server said no. `-L` because a release download is always a redirect.
+# curl to a file, non-zero if the server said no.
+# `-L` because a release download is always a redirect — and `--proto`/`--proto-redir` because without them
+# `-L` will happily follow that redirect down to http:// or file://, which is the same plaintext problem one
+# hop later.
 fetch() {
-    curl -fsSL --retry 2 --connect-timeout 15 -o "$2" "$1" 2>/dev/null
+    curl -fsSL --proto '=https' --proto-redir '=https' --retry 2 --connect-timeout 15 \
+        -o "$2" "$1" 2>/dev/null
 }
 
 verify_digest() {
     local file="$1" expected="$2"
-    [ -n "$expected" ] || { info "no checksum given — the download is unverified"; return 0; }
+    if [ -z "$expected" ]; then
+        [ "$ALLOW_UNVERIFIED" -eq 1 ] || die "no checksum in the spec, and plugin code runs in-process.
+Pin it:   <spec>#sha256:<64 hex digits>
+Or say so explicitly:   --unverified
+Nothing was installed."
+        info "--unverified: installing without checking the download"
+        return 0
+    fi
+    # A truncated or mistyped digest used to fall through the empty check above and install unverified.
+    [[ "$expected" =~ ^[0-9a-fA-F]{64}$ ]] || die "'$expected' is not a sha256 digest (64 hex digits)"
     command -v sha256sum >/dev/null 2>&1 || die "sha256sum is required to verify a pinned checksum"
+    expected="$(printf '%s' "$expected" | tr '[:upper:]' '[:lower:]')"
     local actual
     actual="$(sha256sum "$file" | cut -d' ' -f1)"
     [ "$actual" = "$expected" ] || die "checksum mismatch

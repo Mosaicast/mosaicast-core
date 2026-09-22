@@ -17,8 +17,13 @@ spring:
         max-page-size: ${MOSAICAST_MAX_PAGE_SIZE:100}
   datasource:
     url: ${MOSAICAST_DB_URL:jdbc:postgresql://localhost:5432/mosaicast}
-    username: ${MOSAICAST_DB_USER:mosaicast}
-    password: ${MOSAICAST_DB_PASSWORD:mosaicast}
+    # No default credentials. They used to be `mosaicast`/`mosaicast`, in the clear, in the repository —
+    # unused by the compose path, which supplies its own, but silently in force for the fat jar started
+    # directly. That is the documented route for `migrateBlobs`, `draftCatalog` and every non-Docker
+    # install, so the convenience amounted to shipping a known password for the deployments least likely
+    # to notice (core#186). Unset now: the app fails to start rather than connecting as a guessable user.
+    username: ${MOSAICAST_DB_USER:}
+    password: ${MOSAICAST_DB_PASSWORD:}
   jpa:
     open-in-view: false
     hibernate:
