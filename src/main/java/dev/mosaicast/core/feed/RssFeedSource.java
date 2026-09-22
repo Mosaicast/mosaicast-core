@@ -3,6 +3,8 @@
 
 package dev.mosaicast.core.feed;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.rometools.modules.itunes.EntryInformation;
 import com.rometools.modules.itunes.FeedInformation;
 import com.rometools.rome.feed.synd.SyndCategory;
@@ -38,6 +40,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class RssFeedSource implements FeedSource {
 
+    private static final Logger log = LoggerFactory.getLogger(RssFeedSource.class);
+
     private static final SourceCapabilities CAPABILITIES =
             new SourceCapabilities(true, false, true, false);
 
@@ -62,6 +66,17 @@ public class RssFeedSource implements FeedSource {
      * a decade-long weekly show with generous show notes is a low single-digit number of megabytes.
      */
     static final long MAX_BODY_BYTES = 16L * 1024 * 1024;
+
+    /**
+     * The most items one feed body may contribute.
+     *
+     * <p>The byte cap alone does not bound the work: 16 MB of minimal {@code <item>} elements is well over a
+     * hundred thousand of them, and {@link Reconciler} spends several statements per item inside one
+     * transaction (a ref upsert, a snapshot upsert, a tag wipe and a vocabulary lookup per keyword). That is
+     * a single feed holding the poll thread and a database connection for minutes. 20,000 is two orders of
+     * magnitude above a real show — a weekly podcast reaches 1,000 items after nineteen years.
+     */
+    static final int MAX_ITEMS = 20_000;
 
     /** Redirect hops followed before giving up. Enough for the usual CDN/canonical-host shuffle, not a loop. */
     private static final int MAX_REDIRECTS = 5;
@@ -102,6 +117,7 @@ public class RssFeedSource implements FeedSource {
         if (status != 200) {
             throw new FetchException("Feed fetch failed with HTTP " + status + " for " + cfg.url());
         }
+        requireFeedLikeBody(response, cfg.url());
         ParsedFeed parsed = parse(response.body(), cfg.url());
         String etag = response.headers().firstValue("ETag").orElse(null);
         String lastModified = response.headers().firstValue("Last-Modified").orElse(null);
@@ -211,11 +227,20 @@ public class RssFeedSource implements FeedSource {
             // Both channel-level sources through the same door as the item-level ones.
             feedImageUrl = mediaUrl(feedImageUrl);
             String feedDescription = blankToNull(feed.getDescription());
-            List<RawEpisode> episodes = new ArrayList<>(feed.getEntries().size());
-            for (SyndEntry entry : feed.getEntries()) {
+            List<SyndEntry> entries = feed.getEntries();
+            if (entries.size() > MAX_ITEMS) {
+                throw new FetchException("Feed carries " + entries.size() + " items, past the " + MAX_ITEMS
+                        + " item limit, for " + url);
+            }
+            List<RawEpisode> episodes = new ArrayList<>(entries.size());
+            for (SyndEntry entry : entries) {
                 episodes.add(toRawEpisode(entry, feedImageUrl, feedAuthor));
             }
             return new ParsedFeed(feed.getTitle(), feedImageUrl, feedAuthor, feedDescription, episodes);
+        } catch (FetchException e) {
+            // Already the right exception with the right message — the catch-all below would bury it under
+            // "Failed to parse feed body", which is not what happened.
+            throw e;
         } catch (Exception e) {
             throw new FetchException("Failed to parse feed body from " + url, e);
         }
@@ -226,9 +251,9 @@ public class RssFeedSource implements FeedSource {
         String title = entry.getTitle() != null ? entry.getTitle() : "";
         String description = entry.getDescription() != null ? entry.getDescription().getValue() : "";
         String audioUrl = mediaUrl(firstAudioEnclosure(entry));
-        Instant publishedAt = entry.getPublishedDate() != null
+        Instant publishedAt = notInTheFuture(entry.getPublishedDate() != null
                 ? entry.getPublishedDate().toInstant()
-                : (entry.getUpdatedDate() != null ? entry.getUpdatedDate().toInstant() : null);
+                : (entry.getUpdatedDate() != null ? entry.getUpdatedDate().toInstant() : null));
 
         Integer season = null;
         Integer episodeNumber = null;
@@ -300,6 +325,52 @@ public class RssFeedSource implements FeedSource {
         String trimmed = url.trim();
         String lower = trimmed.toLowerCase(Locale.ROOT);
         return lower.startsWith("http://") || lower.startsWith("https://") ? trimmed : null;
+    }
+
+    /**
+     * Refuses a 200 that is plainly not a feed.
+     *
+     * <p>An {@code Accept} header is sent and the answer's type was never looked at, so a host replying 200
+     * with an HTML login page or a captcha — which is what a paywalled or rate-limiting host does — failed
+     * inside Rome as "Failed to parse feed body", and the admin could not tell a broken feed from a wrong
+     * URL or an expired subscription (core#184).
+     *
+     * <p>Deliberately a denylist of one, not an allowlist. Feeds are served as {@code application/rss+xml},
+     * {@code application/atom+xml}, {@code application/xml}, {@code text/xml}, sometimes
+     * {@code text/plain}, and sometimes with no type at all; refusing everything unfamiliar would break
+     * working feeds to catch a mistake Rome will catch anyway. What {@code text/html} buys is the *message*:
+     * the one wrong answer common enough to name.
+     */
+    private static void requireFeedLikeBody(HttpResponse<byte[]> response, String url) throws FetchException {
+        String contentType = response.headers().firstValue("content-type").orElse("")
+                .split(";")[0].trim().toLowerCase(Locale.ROOT);
+        if (contentType.equals("text/html") || contentType.equals("application/xhtml+xml")) {
+            throw new FetchException("The feed URL answered with a web page (" + contentType
+                    + ") rather than a feed — check the address, or whether the host needs a login: " + url);
+        }
+    }
+
+    /**
+     * A publication date, unless the feed claims one in the future.
+     *
+     * <p>Nothing in the feed path compared a {@code pubDate} against now, so one typo in a feed — or a host
+     * with a wrong clock — pinned an episode at the top of {@code ?order=newest} <em>permanently</em> and
+     * made it the last element of {@code findNavSequenceIds}, with no admin correction and no warning
+     * (core#184). A *missing* date was already handled cleanly; a wrong one was not.
+     *
+     * <p>Treated as absent rather than clamped to now: a date this host invented is a worse answer than no
+     * date, and the surrounding code already knows what to do without one. The tolerance is a day, because
+     * a feed generator in a timezone ahead of UTC publishing "today" is ordinary and not an error.
+     */
+    private static Instant notInTheFuture(Instant published) {
+        if (published == null) {
+            return null;
+        }
+        if (published.isAfter(Instant.now().plus(Duration.ofDays(1)))) {
+            log.warn("Ignoring a publication date in the future: {}", published);
+            return null;
+        }
+        return published;
     }
 
     private static String firstAudioEnclosure(SyndEntry entry) {

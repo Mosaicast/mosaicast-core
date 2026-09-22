@@ -157,7 +157,13 @@ public class FeedService {
      */
     public FeedView createRss(String url, String title) {
         validateHttpUrl(url);
-        String resolvedTitle = (title == null || title.isBlank()) ? deriveTitle(url) : title;
+        if (feeds.existsByUrl(url)) {
+            // A 409, because the feed exists: this is a state conflict, not a malformed request. Adding it
+            // twice produced two rows, two complete episode sets and every episode listed twice, since the
+            // GUID uniqueness constraint is scoped to a feed.
+            throw new ConflictException("This feed is already here.");
+        }
+        String resolvedTitle = (title == null || title.isBlank()) ? channelTitle(url) : title;
         Feed feed = Feed.rss(url, resolvedTitle);
         // Minted here rather than in a lifecycle hook so it exists before the first poll writes episodes:
         // episode slugs read the feed's title, and plugin scope ids read this one.
@@ -320,6 +326,29 @@ public class FeedService {
 
     private void validateHttpUrl(String url) {
         targets.validate(url);
+    }
+
+    /**
+     * The feed's own channel title, for an add that left the title blank.
+     *
+     * <p>{@code CreateFeed} documents a blank title as "defaults to the feed's channel title", and the
+     * fetched {@code FetchResult.feedTitle()} was never used by any writing path — the poll only carries
+     * image/author/description into {@code updateChannelMeta}, so the feed kept the host name
+     * ({@link #deriveTitle}) forever. That name is not only what the admin list and the feed panel show: the
+     * feed slug and every episode slug are minted from it, and both are immutable once set, so getting it
+     * right has to happen here rather than on a later poll.
+     *
+     * <p>Costs one fetch, only on the blank-title path, and falls back to the host name when the feed cannot
+     * be read — an unreachable feed is still added, exactly as before.
+     */
+    private String channelTitle(String url) {
+        try {
+            String channel = fetchOrThrow(url).feedTitle();
+            return channel == null || channel.isBlank() ? deriveTitle(url) : channel.trim();
+        } catch (RuntimeException unreadable) {
+            log.warn("Could not read a channel title from '{}'; naming the feed after its host", url);
+            return deriveTitle(url);
+        }
     }
 
     private static String deriveTitle(String url) {

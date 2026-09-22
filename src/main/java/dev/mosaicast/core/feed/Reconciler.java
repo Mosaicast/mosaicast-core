@@ -3,6 +3,9 @@
 
 package dev.mosaicast.core.feed;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import dev.mosaicast.core.log.LogSafe;
 import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
 import dev.mosaicast.core.episode.EpisodeRef;
@@ -42,6 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class Reconciler {
 
+    private static final Logger log = LoggerFactory.getLogger(Reconciler.class);
+
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
     private final EpisodeTagRepository tags;
@@ -76,13 +81,32 @@ public class Reconciler {
         int updated = 0;
         int bound = 0;
         Set<String> seenGuids = new HashSet<>();
+        int skipped = 0;
         List<ReconcileResult.Suggestion> suggestions = new ArrayList<>();
 
         for (RawEpisode raw : rawEpisodes) {
             if (raw.externalGuid() == null) {
-                continue; // a source that yields no stable id cannot be reconciled by GUID
+                // Counted and named. An item with neither <guid> nor <link> cannot be reconciled, and it
+                // used to vanish here with no log and no counter — so the poll reported "N item(s) fetched
+                // — 0 new", which is indistinguishable from "nothing changed" (core#184).
+                skipped++;
+                log.warn("Feed {}: skipping an item with no guid and no link (title: '{}')",
+                        feedId, LogSafe.of(raw.title()));
+                continue;
             }
-            seenGuids.add(raw.externalGuid());
+            if (!seenGuids.add(raw.externalGuid())) {
+                log.warn("Feed {}: <guid> '{}' appears more than once in this body; keeping the first "
+                        + "occurrence", feedId, LogSafe.of(raw.externalGuid()));
+                // The same GUID twice in one body is one episode published twice, not two episodes. Without
+                // this guard the second occurrence falls into the "new GUID" branch below — `byGuid` holds
+                // only refs that existed before this run — and the INSERT it schedules violates
+                // uq_episode_ref_feed_guid. That exception escapes the reconcile transaction, so nothing at
+                // all from the poll is written; and because FeedPipeline records a failure only for a
+                // FetchException, the feed's lastFetchedAt is never updated either, so the scheduler finds
+                // it due again on the very next tick and retries forever without backing off. One
+                // duplicated <guid> would otherwise keep a whole feed permanently empty.
+                continue;
+            }
 
             EpisodeRef known = byGuid.get(raw.externalGuid());
             if (known != null) {
@@ -113,6 +137,9 @@ public class Reconciler {
             EpisodeRef fresh =
                     EpisodeRef.published(feedId, raw.externalGuid(), raw.season(), raw.episodeNumber(), slug);
             refs.save(fresh);
+            // Registered like the bound PLANNED ref above, so the rest of this run treats it as known
+            // rather than as another unseen GUID.
+            byGuid.put(raw.externalGuid(), fresh);
             upsertDisplay(fresh.getId(), raw);
             created++;
         }
@@ -135,7 +162,7 @@ public class Reconciler {
         // the scores. Working out *which* cached answers moved costs more than dropping them (§6.3).
         related.invalidate();
 
-        return new ReconcileResult(created, updated, withdrawn, bound, suggestions);
+        return new ReconcileResult(created, updated, withdrawn, bound, skipped, suggestions);
     }
 
     /** Finds a PLANNED ref whose declared season AND episode number both equal the raw item's (§5.3). */

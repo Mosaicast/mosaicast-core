@@ -83,14 +83,39 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     /**
      * Visible episodes of a feed, optionally filtered by season, in canonical order (§6.2): season then
      * episode number, nulls last. WITHDRAWN items are excluded from listings.
+     *
+     * <p>This is deliberately <em>not</em> the site list's order, and the difference is the product: a feed
+     * page is browsed a season at a time, oldest first within one; the site list is a reverse-chronological
+     * river across every feed. What was wrong is only the tie-break. A feed whose host leaves
+     * {@code itunes:season} and {@code itunes:episode} unset — Acast does — has nothing to sort by but the
+     * tie-break, so the whole list fell back to {@code first_seen_at}: the order the host happened to
+     * *ingest* them in, presented to a listener as if it were the order they were released in (core#184).
+     * It is the snapshot's {@code publishedAt} now, with {@code first_seen_at} behind it for an episode that
+     * carries no date at all. Native, and joined the way the site list is, because {@code publishedAt} lives
+     * in the snapshot JSONB and there is no column to order by.
      */
-    @Query("""
-            select e from EpisodeRef e
-            where e.feedId = :feedId and e.status <> 'WITHDRAWN'
-              and (:season is null or e.season = :season)
-              and e.feedId in (select f.id from Feed f where f.enabled = true)
-            order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
-            """)
+    @Query(value = """
+            select er.*
+            from episode_ref er
+            left join episode_display ed on ed.episode_ref_id = er.id
+            where er.feed_id = cast(:feedId as uuid) and er.status <> 'WITHDRAWN'
+              and (cast(:season as int) is null or er.season = :season)
+              and er.feed_id in (select f.id from feed f where f.enabled = true)
+            order by
+              er.season asc nulls last,
+              er.episode_no asc nulls last,
+              (ed.snapshot->>'publishedAt')::numeric asc nulls first,
+              er.first_seen_at desc,
+              er.id asc
+            """,
+            countQuery = """
+            select count(*)
+            from episode_ref er
+            where er.feed_id = cast(:feedId as uuid) and er.status <> 'WITHDRAWN'
+              and (cast(:season as int) is null or er.season = :season)
+              and er.feed_id in (select f.id from feed f where f.enabled = true)
+            """,
+            nativeQuery = true)
     Page<EpisodeRef> findVisible(@Param("feedId") UUID feedId, @Param("season") Integer season, Pageable pageable);
 
     /**

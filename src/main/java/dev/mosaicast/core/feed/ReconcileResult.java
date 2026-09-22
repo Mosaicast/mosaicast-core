@@ -16,7 +16,8 @@ import java.util.UUID;
  * @param bound       PLANNED refs auto-bound to a feed item by matching season/episode (§5.3)
  * @param suggestions fuzzy-title binding proposals awaiting confirmation (never auto-applied, §5.3)
  */
-public record ReconcileResult(int created, int updated, int withdrawn, int bound, List<Suggestion> suggestions) {
+public record ReconcileResult(int created, int updated, int withdrawn, int bound, int skipped,
+                             List<Suggestion> suggestions) {
 
     public ReconcileResult {
         suggestions = suggestions == null ? List.of() : List.copyOf(suggestions);

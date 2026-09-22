@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.sun.net.httpserver.HttpServer;
+import dev.mosaicast.core.web.ConflictException;
 import dev.mosaicast.core.episode.EpisodeQueryService;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.episode.EpisodeStatus;
@@ -171,6 +172,30 @@ class FeedPipelineIntegrationTest {
         assertThat(episodes.seasons(feed.id())).containsExactly(2);
         assertThat(episodes.search("pigeons", PageRequest.of(0, 20)).getContent())
                 .extracting(EpisodeSummary::title).containsExactly("Why pigeons secretly hate us");
+    }
+
+    @Test
+    void theSameFeedUrlCannotBeAddedTwice() {
+        // Two rows meant two complete episode sets, and every episode appeared twice on the site: the GUID
+        // uniqueness constraint is scoped to a feed, and findSiteVisibleIds has no cross-feed dedup
+        // (core#184).
+        feedService.createRss(feedUrl, "Test Cast");
+
+        assertThatThrownBy(() -> feedService.createRss(feedUrl, "Test Cast Again"))
+                .isInstanceOf(ConflictException.class);
+        assertThat(feedService.catalog()).hasSize(1);
+    }
+
+    @Test
+    void aBlankTitleTakesTheFeedsOwnChannelTitle() {
+        // CreateFeed documents a blank title as "defaults to the feed's channel title"; the parsed title was
+        // read only by preview(), so the feed was named after its host forever — and because the feed slug
+        // and every episode slug prefix are minted from that name and are immutable, the mistake outlived
+        // any later poll (core#184).
+        FeedView feed = feedService.createRss(feedUrl, "  ");
+
+        assertThat(feed.title()).isEqualTo("Test Cast");
+        assertThat(feed.slug()).doesNotContain("127-0-0-1").doesNotContain("localhost");
     }
 
     @Test
