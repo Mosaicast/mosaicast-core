@@ -182,24 +182,36 @@ class PluginLoadingIntegrationTest {
         // The admin view shows every declared entry, including the one an anonymous visitor cannot see.
         assertThat(before).contains("Good Fixture").contains("Staff only");
 
-        // Hide the root entry and push the other to the front. A stale decision for an entry nobody
-        // declares is accepted and stored — a plugin may be mid-upgrade — and simply resolves to nothing.
-        String body = """
-                [{"pluginId":"good","path":"","enabled":false,"order":5},
-                 {"pluginId":"good","path":"_secret","enabled":true,"order":1},
-                 {"pluginId":"good","path":"_gone","enabled":true,"order":0}]
-                """;
-        ResponseEntity<String> saved = rest.exchange(
-                "/api/admin/navigation", HttpMethod.PUT, admin.write(body, true), String.class);
-        assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.OK);
+        try {
+            // Hide the root entry and push the other to the front. A stale decision for an entry nobody
+            // declares is accepted and stored — a plugin may be mid-upgrade — and simply resolves to nothing.
+            String body = """
+                    [{"pluginId":"good","path":"","enabled":false,"order":5},
+                     {"pluginId":"good","path":"_secret","enabled":true,"order":1},
+                     {"pluginId":"good","path":"_gone","enabled":true,"order":0}]
+                    """;
+            ResponseEntity<String> saved = rest.exchange(
+                    "/api/admin/navigation", HttpMethod.PUT, admin.write(body, true), String.class);
+            assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        String anonymous = rest.getForEntity("/api/plugins/navigation", String.class).getBody();
-        assertThat(anonymous).doesNotContain("Good Fixture");
-        assertThat(anonymous).doesNotContain("_gone");
+            String anonymous = rest.getForEntity("/api/plugins/navigation", String.class).getBody();
+            assertThat(anonymous).doesNotContain("Good Fixture");
+            assertThat(anonymous).doesNotContain("_gone");
 
-        String forStaff = rest.exchange("/api/plugins/navigation", HttpMethod.GET,
-                devLogin("podcaster").get(), String.class).getBody();
-        assertThat(forStaff).contains("Staff only").doesNotContain("Good Fixture");
+            String forStaff = rest.exchange("/api/plugins/navigation", HttpMethod.GET,
+                    devLogin("podcaster").get(), String.class).getBody();
+            assertThat(forStaff).contains("Staff only").doesNotContain("Good Fixture");
+        } finally {
+            // Put the entry back. The overrides are rows in the shared database and this context is shared
+            // with every other test in the class, so hiding "Good Fixture" and leaving it hidden made every
+            // later assertion about the anonymous navigation depend on this test running after them. It did,
+            // under JUnit's default ordering, until the randomised CI run said otherwise (core#189).
+            // In a finally, so a failing assertion above does not take the rest of the class with it.
+            rest.exchange("/api/admin/navigation", HttpMethod.PUT, admin.write("""
+                    [{"pluginId":"good","path":"","enabled":true,"order":0},
+                     {"pluginId":"good","path":"_secret","enabled":true,"order":1}]
+                    """, true), String.class);
+        }
     }
 
     @Test
