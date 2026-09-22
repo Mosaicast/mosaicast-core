@@ -16,6 +16,9 @@ import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
@@ -28,9 +31,10 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 /**
  * The plugin user directory end to end (ARCHITECTURE §8.8).
  *
- * <p>Two fixtures carry the two cases: {@code directory} declares an {@code identity} block, and every
- * other fixture declares none — which is a 404 rather than a 403, the same answer {@code blobs} and
- * {@code tags} give a plugin that never asked.
+ * <p>Three fixtures carry the cases: {@code directory} declares an {@code identity} block at an anonymous
+ * read floor, {@code directorylocked} declares the same behind a podcaster one, and every other fixture
+ * declares none — which is a 404 rather than a 403, the same answer {@code blobs} and {@code tags} give a
+ * plugin that never asked.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -118,6 +122,27 @@ class PluginUsersIntegrationTest {
                 rest.getForEntity("/api/plugins/directory/users", String.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo("[]");
+    }
+
+    @Test
+    void aReadFloorAboveAnonymousKeepsTheRolesOutOfAnonymousReach() {
+        // `GET /api/plugins/{id}/users` sat under the permitAll rule and checked no read floor, unlike
+        // every other plugin surface. The class comment reasoned "nothing here a visitor could not already
+        // see" — true of a name and an avatar, and not of the role: a UserRef carries it, and core
+        // publishes no other anonymous surface that says who the admins are (core#180).
+        assertThat(rest.getForEntity("/api/plugins/directorylocked/users?ids=" + fanId, String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        // The same plugin, a caller who meets its floor.
+        DevLogin.Cookies podcaster = DevLogin.login(rest, "podcaster");
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, podcaster.session() + "; " + podcaster.xsrf());
+        ResponseEntity<String> allowed = rest.exchange(
+                "/api/plugins/directorylocked/users?ids=" + fanId, HttpMethod.GET,
+                new HttpEntity<>(headers), String.class);
+
+        assertThat(allowed.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(allowed.getBody()).contains(fanId.toString());
     }
 
     @Test

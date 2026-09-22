@@ -215,6 +215,27 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Seven plugin boundaries the host described and did not enforce (`0.7.4`, core#161, core#180, core#181).**
+  The architecture's promise is that a plugin's manifest *is* its permission (§7.6), and the code around
+  these surfaces says so repeatedly. `POST /api/plugins/{id}/notify` checked that the caller was signed in
+  and nothing else, so **any fan could write into any account's inbox in a plugin's name** — both shipped
+  plugins that declare notifications declare `writableBy: podcaster`, so a fan was below the floor on every
+  other surface and above it here. `GET /api/plugins/{id}/users` answered anonymously and returns each
+  person's **role**, which is not among the things "a visitor could already see": core publishes no other
+  anonymous surface that says who the admins are. A slot's `visibleTo` was a browser-side gate — the
+  manifest endpoint handed every caller every slot, and a podcaster-only deep-link page answered 200 to
+  anyone and gave an anonymous crawler its title and description through `ShareMetadataProvider`. Site
+  search, `sitemap.xml` and share previews reach a plugin's own code rather than the host's store, and so
+  bypassed the read floor entirely. A `feed` scope accepted any well-formed UUID, so a caller above the
+  write floor could create unbounded doc partitions no feed will ever reclaim. And two paths were confined
+  by a `startsWith` that confines nothing: `ctx.api` let `../../admin/plugins` resolve against the document
+  URL with the session cookie attached, and a sitemap `<loc>` of `/p/wiki/../../legal/impressum` was
+  published as one of the plugin's own pages. Alongside them, `frontend.entry` — the one manifest string
+  that becomes a path and had no grammar — is now refused rather than normalised, like a nav path; the
+  sitemap escapes quotes, since a plugin supplies both halves of an `hreflang` attribute; and a deep link's
+  subpath reaches the plugin **decoded**, so a wiki page whose title carries a non-ASCII character stops
+  404ing on a hard navigation while working in the SPA.
+
 - **Four accessibility and correctness defects a linter found on its first run (`0.7.3`, core#190).** Adding
   `react-hooks` and `jsx-a11y` to the build was meant to be tooling; the run that proved it worked also
   reported these, each of which had been shipped. The dropdown panel carries `role="menu"` and handles the

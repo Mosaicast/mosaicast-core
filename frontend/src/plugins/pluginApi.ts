@@ -30,6 +30,14 @@ import { DISPLAY_BATCH_LIMIT, DOC_KEY_PATTERN, declaredTypeFor } from '@mosaicas
 
 import { api, ApiError } from '../api/client';
 
+/** Splits a request path into its path and its `?query#hash` tail, whichever comes first. */
+function splitQuery(path: string): [string, string] {
+  const cut = Math.min(
+    ...['?', '#'].map((mark) => (path.includes(mark) ? path.indexOf(mark) : path.length)),
+  );
+  return [path.slice(0, cut), path.slice(cut)];
+}
+
 /** Resolves a rejection to `null` when it was a 404, and re-rejects anything else. */
 function nullOn404(error: unknown): null {
   if (error instanceof ApiError && error.status === 404) {
@@ -56,7 +64,18 @@ function absentAsNull<T>(value: T | undefined): T | null {
  */
 export function makePluginApi(pluginId: string): PluginApiClient {
   const base = `/api/plugins/${pluginId}/`;
-  const url = (path: string) => base + path.replace(/^\//, '');
+  // Confined the way `ctx.route.navigate` and a `SearchHit`'s subpath already are: a leading `/` is
+  // stripped so an absolute target cannot escape the namespace, and `.`/`..` segments are dropped so a
+  // relative one cannot climb out of it either. Without this, `fetch` resolved the concatenation against
+  // the document URL and `../../admin/plugins` became a call to a core endpoint with the session cookie
+  // and the CSRF header attached — a boundary this file's own comment already promised.
+  const url = (path: string) => {
+    const [rawPath = '', suffix = ''] = splitQuery(path ?? '');
+    const segments = rawPath
+      .split('/')
+      .filter((segment) => segment !== '' && segment !== '.' && segment !== '..');
+    return base + segments.join('/') + suffix;
+  };
   return {
     get: <T>(path: string) => api.get<T>(url(path)),
     // The 404-shaped answer, given a name (§7.5). Every plugin wrote `catch(() => undefined)` around a

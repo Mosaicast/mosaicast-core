@@ -112,9 +112,19 @@ public class FeedAccessImpl implements FeedAccess {
      * Resolves a feed scope id. It is the feed's **public slug** — the same value that appears in the URL
      * and partitions the plugin's doc store, matching how the episode scope has worked since slugs landed.
      * A UUID still resolves, because a plugin that stored one before this release must keep working.
+     *
+     * <p><strong>The UUID has to name a feed</strong>, and the feed has to be enabled. It used to be enough
+     * that the string parsed: every one of the 2^122 well-formed UUIDs was a valid scope, so a caller above
+     * the write floor could create unbounded doc partitions under {@code feed/<any-uuid>} that no feed will
+     * ever reclaim. The episode scope has always been strict here ({@code findVisibleBySlug} — not
+     * withdrawn, feed active); this is the same standard applied to the sibling scope, which is what the
+     * method's own promise — "naming something is at least a claim that it exists" — already said.
      */
     private Optional<UUID> resolveFeed(String id) {
-        return feeds.findBySlug(id).map(Feed::getId).or(() -> parseUuid(id));
+        return feeds.findBySlug(id)
+                .or(() -> parseUuid(id).flatMap(feeds::findById))
+                .filter(Feed::isEnabled)
+                .map(Feed::getId);
     }
 
     private static Optional<UUID> parseUuid(String s) {

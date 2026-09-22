@@ -3,12 +3,15 @@
 
 package dev.mosaicast.core.plugin;
 
+import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.auth.UserRepository;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.UserRef;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -57,8 +60,9 @@ public class PluginUserController {
      * @param ids  comma-separated user UUIDs; beyond {@link UsersImpl#MAX_IDS} the rest are ignored
      */
     @GetMapping("/api/plugins/{id}/users")
-    public List<UserRef> resolve(@PathVariable String id, @RequestParam(defaultValue = "") String ids) {
-        requireIdentityPlugin(id);
+    public List<UserRef> resolve(@PathVariable String id, @RequestParam(defaultValue = "") String ids,
+                                 Authentication authentication) {
+        requireIdentityPlugin(id, authentication);
         return users.resolve(parseIds(ids));
     }
 
@@ -89,11 +93,18 @@ public class PluginUserController {
      * user directory" are the same answer to a caller who should not have reached here either way, and
      * telling them apart would let a page probe an install's manifest set.
      */
-    private void requireIdentityPlugin(String id) {
+    private void requireIdentityPlugin(String id, Authentication authentication) {
         PluginRegistration registration = plugins.active(id)
                 .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id));
         if (!registration.manifest().declaresIdentity()) {
             throw new NotFoundException("Unknown plugin: " + id);
+        }
+        // After the 404, like every other declared surface, so a caller below the floor learns nothing
+        // about which plugins this install runs. The floor is the plugin's own data.readableBy: a
+        // UserRef carries the person's role (SDK 0.13.0), which is not part of what a visitor "can
+        // already see" — core publishes no other anonymous surface that says who the admins are.
+        if (!PluginAccessPolicy.canRead(registration.manifest(), CurrentUser.role(authentication))) {
+            throw new AccessDeniedException("Not allowed to resolve users for plugin: " + id);
         }
     }
 }

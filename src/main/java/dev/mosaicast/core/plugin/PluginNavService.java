@@ -170,22 +170,11 @@ public class PluginNavService {
     }
 
     /**
-     * The rank a caller needs to see an entry.
-     *
-     * <p>An unrecognised {@code visibleTo} resolves to {@code podcaster}, not to anonymous: a typo in a
-     * manifest should hide an entrance rather than publish one, and it matches what the shell already does
-     * for slots. This is the one place nav policy differs from the doc-store floors, which fail open — hence
-     * the two mappings rather than one shared helper.
+     * The rank a caller needs to see an entry — the shared {@code visibleTo} mapping, which slots now use
+     * too. It still differs from the doc-store floors, which fail open on an unrecognised value; that
+     * distinction is documented where the mapping lives.
      */
     private static int floorOf(String visibleTo) {
-        if (visibleTo == null || visibleTo.isBlank()) {
-            return 0;
-        }
-        return switch (visibleTo.toLowerCase()) {
-            case "anonymous" -> 0;
-            case "fan" -> 1;
-            case "admin" -> 3;
-            default -> 2;
-        };
+        return PluginAccessPolicy.visibilityFloorOf(visibleTo);
     }
 }

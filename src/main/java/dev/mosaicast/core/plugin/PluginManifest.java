@@ -680,6 +680,14 @@ public record PluginManifest(
      *
      * @throws PluginValidationException if the manifest is unusable or incompatible
      */
+    /**
+     * The grammar of {@code frontend.entry}: relative, one or more {@code [A-Za-z0-9._-]} segments joined by
+     * {@code /}. A {@code .} or {@code ..} segment is excluded by the alternation rather than by a filter,
+     * so the pattern is the whole rule and there is nothing to keep in step with it.
+     */
+    private static final java.util.regex.Pattern FRONTEND_ENTRY_PATTERN = java.util.regex.Pattern.compile(
+            "(?!\\.{1,2}(/|$))[A-Za-z0-9._-]+(/(?!\\.{1,2}(/|$))[A-Za-z0-9._-]+)*");
+
     public void validate() {
         if (id == null || id.isBlank()) {
             throw new PluginValidationException("manifest has no id");
@@ -698,6 +706,7 @@ public record PluginManifest(
                 }
             }
         }
+        validateFrontend();
         validateConfig();
         validateData();
         validateBlobs();
@@ -705,6 +714,34 @@ public record PluginManifest(
         validateExternal();
         validateConsent();
         validateNav();
+    }
+
+    /**
+     * Validates {@code frontend.entry} (§7.3).
+     *
+     * <p>It is the one manifest string that becomes a path and had no grammar. The shell builds
+     * {@code /plugins/<id>/assets/<entry>} by interpolation, so an entry carrying {@code ../}, a {@code ?}
+     * or a {@code #} addresses something other than what its author wrote — same-origin, so not an
+     * escalation, but not the boundary the code around it assumes either. Every sibling string already has
+     * a grammar: nav paths, schema names, {@code data.backendOwned} keys, consent hosts,
+     * {@code external.kinds}, config types.
+     *
+     * <p>Refused rather than normalised, exactly as a nav path is: rewriting an author's declaration into a
+     * different URL and then loading <em>that</em> is worse than saying it was wrong. A plugin whose bundle
+     * silently never loads is the failure this replaces.
+     */
+    private void validateFrontend() {
+        if (frontend == null || frontend.entry() == null || frontend.entry().isBlank()) {
+            // Absent is legal: a backend-only plugin declares no frontend at all.
+            return;
+        }
+        String entry = frontend.entry();
+        if (!FRONTEND_ENTRY_PATTERN.matcher(entry).matches()) {
+            throw new PluginValidationException(
+                    ("frontend.entry '%s' is not usable: it must be a relative path under the plugin's own "
+                            + "assets/ — one or more [A-Za-z0-9._-] segments joined by '/', with no leading "
+                            + "slash, no '.' or '..' segment, and no query or fragment").formatted(entry));
+        }
     }
 
     /**
