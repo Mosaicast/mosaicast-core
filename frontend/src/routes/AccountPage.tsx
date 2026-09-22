@@ -48,8 +48,11 @@ export function AccountPage() {
   // (which `refresh()` does after a successful rename) must not overwrite what someone is mid-way through
   // typing.
   useEffect(() => {
-    if (user && displayName === '') {
-      setDisplayName(user.displayName);
+    if (user) {
+      // Through the updater rather than reading `displayName` from the closure: the condition is about the
+      // field's current value, but the effect must run when the *user* arrives and never when the field
+      // changes — and depending on both would re-seed the field the moment someone cleared it.
+      setDisplayName((current) => (current === '' ? user.displayName : current));
     }
   }, [user]);
 

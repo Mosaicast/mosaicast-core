@@ -21,7 +21,7 @@ import { PluginMount } from './PluginMount';
  */
 
 let playerTime = 0;
-let setPlayerTime: (seconds: number) => void = () => {};
+const setPlayerTime: (seconds: number) => void = () => {};
 
 vi.mock('../player/PlayerContext', () => ({
   // Rebuilt on every read, exactly like the real provider's value: the point is that PluginMount does not

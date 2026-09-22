@@ -69,8 +69,10 @@ version in `gradle/libs.versions.toml` and `frontend/package.json` (currently `0
     `GITHUB_ACTOR` / `GITHUB_TOKEN`. Note that a `gh auth token` does **not** carry `read:packages` by
     default, so borrowing one gets you a `401 Unauthorized` from Gradle rather than a clear message; **or**
   - for offline/local work, publish the SDK to your Maven Local from the sibling repo
-    (`../mosaicast-plugin-sdk`): `./gradlew publishToMavenLocal` — Gradle checks `mavenLocal()` first, so
-    no token is needed.
+    (`../mosaicast-plugin-sdk`): `./gradlew publishToMavenLocal`, then build with `-PuseMavenLocal` (or set
+    `useMavenLocal=true` in `~/.gradle/gradle.properties`) — no token is needed. It is opt-in because
+    `mavenLocal()` outranks everything else: with it always on, a stale artifact in `~/.m2` silently beats
+    the version the catalog pins, and the build says nothing about it.
 
 ## A disposable dev instance
 

@@ -18,7 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.test.context.ActiveProfiles;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -35,7 +35,7 @@ class PluginDataServiceIntegrationTest {
 
     @Container
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
     @Autowired
     private PluginDataService data;
@@ -91,7 +91,7 @@ class PluginDataServiceIntegrationTest {
 
         assertThat(data.get("p1", Scope.site(), "greeting", String.class)).contains("hello");
         assertThat(data.getRaw("p1", Scope.episode("e1"), "note"))
-                .hasValueSatisfying(node -> assertThat(node.get("text").asText()).isEqualTo("hi"));
+                .hasValueSatisfying(node -> assertThat(node.get("text").asString()).isEqualTo("hi"));
     }
 
     @Test

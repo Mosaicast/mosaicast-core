@@ -433,6 +433,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       <PlayerStateContext.Provider value={state}>
         {children}
         {/* One audio element for the whole app; the bar shows once something is loaded. */}
+        {/* No <track>: the source is a third-party podcast enclosure and there is no caption file to point
+            at. Transcripts are a feed-level feature, not something the player can synthesise. */}
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <audio ref={audioRef} preload="metadata" />
         {current && <PlayerBar />}
       </PlayerStateContext.Provider>

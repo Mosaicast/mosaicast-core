@@ -86,6 +86,9 @@ export function SearchPage() {
             type="search"
             name="q"
             value={draft}
+            // The search page exists to be typed into; arriving with the caret anywhere else is the
+            // surprising version.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             placeholder={t('search.placeholder')}
             onChange={(e) => setDraft(e.target.value)}

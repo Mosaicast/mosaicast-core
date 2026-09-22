@@ -194,6 +194,9 @@ export function Dropdown({
           ref={panelRef}
           className={`mc-menu__panel${align === 'start' ? ' mc-menu__panel--start' : ''}`}
           role="menu"
+          // Not in the tab order, but focusable: the panel handles arrow keys, Home/End and Escape, and a
+          // role="menu" that cannot take focus never receives any of them.
+          tabIndex={-1}
           onClick={onPanelClick}
           onKeyDown={onPanelKeyDown}
         >

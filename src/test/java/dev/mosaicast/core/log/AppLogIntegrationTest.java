@@ -21,7 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.data.domain.PageRequest;
-import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
@@ -50,7 +50,7 @@ class AppLogIntegrationTest {
 
     @Container
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
     @Autowired
     private AppLogService logs;
@@ -95,7 +95,7 @@ class AppLogIntegrationTest {
         AppLogEntry entry = awaitMessage("a plugin misbehaved");
         assertThat(entry.getPluginId()).isEqualTo("acme");
         // Anything else the call site knew travels as structured context rather than needing its own column.
-        assertThat(entry.getContext().get("feedId").asText()).isEqualTo("feed-7");
+        assertThat(entry.getContext().get("feedId").asString()).isEqualTo("feed-7");
     }
 
     @Test

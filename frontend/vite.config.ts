@@ -25,5 +25,26 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
+    // Reported, not enforced (core#190). A threshold picked today would either sit below where the suite
+    // already is — and measure nothing — or fail the build on work that has nothing to do with it. The
+    // number is here so "is this module tested?" stops being a question answered by reading file names,
+    // which is how the audit had to answer it.
+    coverage: {
+      provider: 'v8',
+      reporter: ['text-summary', 'html', 'lcov'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      // Generated artefacts, the test harness itself, and type-only modules: counting them would move the
+      // number without telling anyone anything.
+      exclude: [
+        'src/**/*.test.{ts,tsx}',
+        'src/test/**',
+        'src/generated/**',
+        'src/components/Icon.tsx',
+        'src/**/types.ts',
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+      ],
+    },
   },
 });
