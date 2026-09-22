@@ -41,17 +41,25 @@ export function Modal({
       }
     };
     document.addEventListener('keydown', onKey);
+    // Captured while the effect runs rather than read in the cleanup: by then React may already have
+    // detached the node, and `sheet.current` would be null — so the focus would never be restored.
+    const dialog = sheet.current;
     return () => {
       document.removeEventListener('keydown', onKey);
       // Only if focus is still inside the dialog: a close that happened *because* the visitor clicked
       // somewhere else should not yank them back.
-      if (opener && sheet.current?.contains(document.activeElement)) {
+      if (opener && dialog?.contains(document.activeElement)) {
         opener.focus();
       }
     };
   }, [onClose]);
 
   return createPortal(
+    // The scrim is a pointer affordance; Escape is the keyboard one, registered on `document` in the
+    // effect above, so there is nothing a pointer can do here that a keyboard cannot. A key handler on
+    // the scrim would be the wrong place for it — the scrim is not focusable and must not become so, or
+    // Tab would land on the backdrop.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
     <div
       className="mc-dialog__overlay"
       role="dialog"

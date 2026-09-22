@@ -24,3 +24,6 @@ dist/
 # Claude Code: shared settings are committed, personal ones are not
 # (`*.local` above does not match `settings.local.json`)
 .claude/settings.local.json
+
+# Coverage reports (generated; the numbers live in CI, not in the repo).
+frontend/coverage/

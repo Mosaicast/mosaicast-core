@@ -7,6 +7,7 @@ import java.util.zip.ZipFile
 
 plugins {
     java
+    jacoco
     alias(libs.plugins.spring.boot)
 }
 
@@ -21,9 +22,30 @@ java {
 }
 
 repositories {
-    // Local convenience: a developer who ran the SDK's publishToMavenLocal resolves it here without a
-    // token (see README dev setup).
-    mavenLocal()
+    // Local convenience, opt-in: a developer who ran the SDK's publishToMavenLocal resolves it here
+    // without a token (see README dev setup) by building with `-PuseMavenLocal` (or setting it in
+    // ~/.gradle/gradle.properties).
+    //
+    // Not on by default any more, and the reason is a drift this repo actually experienced: as the first
+    // repository it outranked GitHub Packages and Maven Central, so a stale artifact in ~/.m2 silently won
+    // over the version the catalog pins — the audit found a build resolving SDK 0.5.0 while the catalog
+    // said 0.15.0, with nothing in the output to say so. Container and CI builds have an empty ~/.m2 and
+    // were never affected, which is exactly what makes it hard to see (core#190).
+    val useMavenLocal = providers.gradleProperty("useMavenLocal").isPresent
+    if (useMavenLocal) {
+        logger.lifecycle("mavenLocal() is enabled: ~/.m2 outranks the pinned versions.")
+        mavenLocal()
+    } else if (providers.gradleProperty("gpr.user").orNull == null &&
+        providers.environmentVariable("GITHUB_ACTOR").orNull == null
+    ) {
+        // Without this the build dies on `Username must not be null!` from a repository the developer never
+        // asked for, which says nothing about either of the two things they can do about it.
+        logger.warn(
+            "No GitHub Packages credentials (gpr.user / GITHUB_ACTOR) and mavenLocal() is off, so the " +
+                "plugin SDK cannot be resolved. Either set a PAT with read:packages, or publish the SDK " +
+                "from the sibling repo and build with -PuseMavenLocal. See the README."
+        )
+    }
     // The plugin SDK's Java artifacts (dev.mosaicast:plugin-api / plugin-testkit) live in GitHub
     // Packages, which requires authentication even for reads. Credentials come from the GITHUB_ACTOR /
     // GITHUB_TOKEN environment (set automatically in GitHub Actions) or the gpr.user / gpr.key Gradle
@@ -168,6 +190,30 @@ val stageTestPlugins = fixtureProject?.let { fixture ->
             }
         }
     }
+}
+
+// Coverage is reported, never enforced (core#190). A threshold picked today would either sit below where
+// the suite already is — measuring nothing — or fail a build for work unrelated to it. The point is that
+// "is core/erasure tested?" stops being a question that has to be answered by grepping for class names,
+// which is how the audit had to answer it. The report rides on `test` so a normal run produces it.
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+    classDirectories.setFrom(files(classDirectories.files.map {
+        fileTree(it) {
+            // Generated or declaration-only: counting them moves the number without saying anything about
+            // what is tested. Flyway's Java migrations run once against a real database and are covered by
+            // the integration suite booting at all, not by a unit test.
+            exclude("**/dev/mosaicast/core/**/*Properties.class", "**/db/migration/**")
+        }
+    }))
+}
+
+tasks.test {
+    finalizedBy(tasks.jacocoTestReport)
 }
 
 tasks.withType<Test>().configureEach {

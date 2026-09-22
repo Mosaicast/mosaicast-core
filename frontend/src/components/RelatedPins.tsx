@@ -116,6 +116,9 @@ export function RelatedPins({ slug, onChange }: { slug: string; onChange: () => 
           <input
             className="mc-input"
             type="search"
+            // The field appears because the visitor just pressed the button that opens it, so focus is
+            // following their action rather than being taken from them.
+            // eslint-disable-next-line jsx-a11y/no-autofocus
             autoFocus
             value={query}
             placeholder={t('episode.pinSearch')}

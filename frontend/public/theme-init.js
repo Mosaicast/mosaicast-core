@@ -40,7 +40,7 @@
     } else {
       root.setAttribute('data-theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
     }
-  } catch (e) {
+  } catch {
     /* theming is non-critical; the CSS defaults keep the shell readable */
   }
 })();

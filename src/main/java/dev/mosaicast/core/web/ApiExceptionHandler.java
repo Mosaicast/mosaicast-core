@@ -83,7 +83,7 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(dev.mosaicast.core.plugin.BlobQuotaExceededException.class)
     public ProblemDetail handleBlobQuota(dev.mosaicast.core.plugin.BlobQuotaExceededException ex,
                                          WebRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE, ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONTENT_TOO_LARGE, ex.getMessage());
         problem.setTitle("Payload Too Large");
         problem.setType(URI.create("https://mosaicast.dev/problems/blob-quota-exceeded"));
         return problem;

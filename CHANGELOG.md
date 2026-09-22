@@ -215,6 +215,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Four accessibility and correctness defects a linter found on its first run (`0.7.3`, core#190).** Adding
+  `react-hooks` and `jsx-a11y` to the build was meant to be tooling; the run that proved it worked also
+  reported these, each of which had been shipped. The dropdown panel carries `role="menu"` and handles the
+  arrow keys, Home/End and Escape, but was not focusable — so it could never receive any of them, and the
+  keyboard support that had been written for it was unreachable. A modal's cleanup read its sheet element
+  from a ref *after* React may already have detached it, so the focus it promises to return to the control
+  that opened it was silently not returned. The account page re-seeded the display-name field from an
+  effect that read the field's own value out of a stale closure. And the player's `<audio>` and the modal
+  scrim now say in the code why they are exceptions rather than looking like oversights. None of this is
+  visible to the type checker, which is the argument for the linter: `exhaustive-deps` describes the same
+  defect as the request storm above and as the Media Session handler leak, and `jsx-a11y` decides from the
+  markup what an audit otherwise finds by hand.
+
 - **One visitor with audio playing drove ~304 requests a second (`0.7.2`, core#158, core#159).** Two
   independent causes, one symptom. Every slot region writes its scope inline — `scope={{ type: 'episode',
   id: slug }}` — so the object is a new one on every render of whatever hosts it, and `PluginMount` took

@@ -52,13 +52,46 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew --no-daemon build
 
-      # Frontend: install from the public npm registry (SDK included), test, build the shell bundle.
+      # A number, printed where anyone reading the run can see it. Not a gate: a threshold picked today
+      # would either sit below where the suite already is, and measure nothing, or fail builds for work
+      # unrelated to it (core#190).
+      - name: Backend coverage
+        if: always()
+        run: |
+          report=build/reports/jacoco/test/jacocoTestReport.xml
+          [ -f "$report" ] || { echo "no JaCoCo report"; exit 0; }
+          python3 - "$report" <<'PY'
+          import sys, xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          for counter in root.findall('counter'):
+              kind = counter.get('type')
+              if kind in ('INSTRUCTION', 'BRANCH', 'LINE'):
+                  covered, missed = int(counter.get('covered')), int(counter.get('missed'))
+                  total = covered + missed
+                  print(f"{kind.title():12} {covered}/{total}  {100 * covered / total:.1f}%")
+          PY
+
+      # Frontend: install from the public npm registry (SDK included), lint, test with coverage, build.
+      #
+      # The lint is not a style pass — it is `react-hooks/exhaustive-deps` and `jsx-a11y`, which between
+      # them describe several defects this project has shipped (core#158, core#170, core#163, core#200)
+      # and which `tsc --noEmit` cannot see.
       - name: Build frontend
         working-directory: frontend
         run: |
           npm ci
-          npm test
+          npm run lint
+          npm run test:coverage
           npm run build
+
+      # Advisory, not a gate: a transitive advisory with no fix available should not stop a PR that has
+      # nothing to do with it. It is here so `npm audit` runs somewhere at all — the image build passes
+      # --no-audit, correctly, and that meant it ran nowhere.
+      - name: Frontend advisories
+        if: always()
+        working-directory: frontend
+        continue-on-error: true
+        run: npm audit --audit-level=high
 
       # `src/components/Icon.tsx` and `src/styles/icons.css` are generated from `dev/icons.txt`.
       # Regenerating and diffing is what keeps the committed artefacts honest: an edited whitelist
@@ -153,3 +186,29 @@ jobs:
           ./gradlew --no-daemon test \
             -Djunit.jupiter.testclass.order.default=org.junit.jupiter.api.ClassOrderer\$Random \
             -Djunit.jupiter.testmethod.order.default=org.junit.jupiter.api.MethodOrderer\$Random
+
+  # Backend CVEs. Dependabot watches the manifests; what it could not see was the transitive graph, so a
+  # vulnerable dependency-of-a-dependency was reported nowhere (core#190). Submitting the resolved graph
+  # puts those under the same Dependabot alerts as everything else — and costs one short job, rather than
+  # the NVD download and API key an OWASP dependency-check task would need on every run.
+  dependency-graph:
+    name: Submit dependency graph
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Resolve and submit
+        uses: gradle/actions/dependency-submission@v4
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
