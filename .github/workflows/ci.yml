@@ -127,3 +127,29 @@ jobs:
             fi
           done
           exit "$missing"
+
+  # An order-dependent test passes in whatever ordering it was written under and fails in someone else's
+  # PR months later (core#189). This runs the same suite with class and method order randomised, so the
+  # dependence surfaces here rather than as a mystery red build on an unrelated change. Kept as its own
+  # job: it is a second full six-minute run, and it should not delay the signal from the first one.
+  shuffled-tests:
+    name: Tests, randomised order
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Run the suite in a random order
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew --no-daemon test \
+            -Djunit.jupiter.testclass.order.default=org.junit.jupiter.api.ClassOrderer\$Random \
+            -Djunit.jupiter.testmethod.order.default=org.junit.jupiter.api.MethodOrderer\$Random
