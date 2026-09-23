@@ -82,7 +82,9 @@ public class EpisodeQueryService {
 
     /**
      * The previous/next episode for the detail page and the player's auto-advance. Navigation follows the
-     * feed's <em>release order</em> (publishedAt) — the same order the browsable feed uses — so prev/next
+     * feed's <em>release order</em> (publishedAt) — the order the site list uses, and since core#184 the
+     * tie-break the feed page uses too, though that page is primarily ordered by season and episode — so
+     * prev/next
      * match what the listener sees and do not depend on episode numbers, which some hosts (e.g. Acast) leave
      * unset in the RSS. {@code prev} is the previously-released episode, {@code next} the next-released one.
      * A missing/withdrawn id is a 404. The neighbours are found in the feed's ordered list (fine for feed

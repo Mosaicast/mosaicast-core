@@ -30,6 +30,17 @@ public interface FeedRepository extends JpaRepository<Feed, UUID> {
     /** Resolves a feed by its public slug — the identifier in URLs, the feed API and the plugin contract. */
     Optional<Feed> findBySlug(String slug);
 
+    /**
+     * Whether a feed with this exact URL is already here (§5.1).
+     *
+     * <p>Exact, not normalised, and that is the honest limit: {@code http://x/feed} and
+     * {@code https://x/feed/} are the same feed and this will not say so. What it catches is the case that
+     * actually happens — the same address pasted twice — where every episode appeared twice on the site,
+     * because the GUID unique constraint is feed-scoped and {@code findSiteVisibleIds} has no cross-feed
+     * dedup (core#184).
+     */
+    boolean existsByUrl(String url);
+
     /** Uniqueness check for slug minting. */
     boolean existsBySlug(String slug);
 

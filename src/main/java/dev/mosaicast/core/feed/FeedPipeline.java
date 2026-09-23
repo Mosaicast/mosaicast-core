@@ -77,10 +77,10 @@ public class FeedPipeline {
             }
             ReconcileResult reconciled = store.applyChanged(feedId, result);
             log.info("Polled feed '{}': {} item(s) fetched in {} ms — {} new, {} updated, {} withdrawn, "
-                            + "{} bound to planned, {} suggestion(s)",
+                            + "{} bound to planned, {} skipped, {} suggestion(s)",
                     LogSafe.of(poll.title()), result.episodes().size(), millisSince(startedAt),
                     reconciled.created(), reconciled.updated(), reconciled.withdrawn(), reconciled.bound(),
-                    reconciled.suggestions().size());
+                    reconciled.skipped(), reconciled.suggestions().size());
             return PollOutcome.reconciled(reconciled);
         } catch (FetchException e) {
             // A fetch error (thrown before any reconcile write) backs off; the last good state stays visible.

@@ -82,6 +82,26 @@ class RssFeedSourceLimitsTest {
             }
         });
 
+        // A host that answers 200 with a web page — a login wall, a captcha, a "this podcast has moved"
+        // landing page. The most common wrong answer there is, and the one Rome reported as an
+        // unexplainable parse failure.
+        server.createContext("/a-web-page", exchange -> {
+            byte[] page = "<!doctype html><html><body>Sign in to continue</body></html>"
+                    .getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().add("Content-Type", "text/html; charset=utf-8");
+            exchange.sendResponseHeaders(200, page.length);
+            try (OutputStream os = exchange.getResponseBody()) {
+                os.write(page);
+            }
+        });
+
+        // A feed whose pubDate is years ahead, which one typo or a wrong clock produces.
+        server.createContext("/future.xml", exchange -> respond(exchange, ("""
+                <?xml version="1.0"?><rss version="2.0"><channel><title>Future Cast</title>
+                <item><title>Tomorrow</title><guid>f1</guid>
+                <pubDate>Tue, 01 Jan 2999 00:00:00 GMT</pubDate></item>
+                </channel></rss>""").getBytes(StandardCharsets.UTF_8)));
+
         server.start();
         base = "http://127.0.0.1:" + server.getAddress().getPort();
 
@@ -113,6 +133,28 @@ class RssFeedSourceLimitsTest {
 
     private RssFeedSource permissiveSource() {
         return new RssFeedSource(new OutboundTargetPolicy(true, true));
+    }
+
+    @Test
+    void aWebPageIsNotAFeedAndTheMessageSaysSo() {
+        // An Accept header was sent and the answer's type was never inspected, so this failed inside Rome
+        // as "Failed to parse feed body" and an admin could not tell a broken feed from a wrong URL or a
+        // subscription that had lapsed (core#184).
+        assertThatThrownBy(() -> permissiveSource().fetch(SourceConfig.initial(base + "/a-web-page")))
+                .isInstanceOf(FetchException.class)
+                .hasMessageContaining("web page")
+                .hasMessageContaining("text/html");
+    }
+
+    @Test
+    void aPublicationDateInTheFutureIsIgnoredRatherThanBelieved() throws Exception {
+        // Nothing compared pubDate against now, so one typo pinned an episode at the top of ?order=newest
+        // permanently and made it the last element of findNavSequenceIds, with no admin correction and no
+        // warning (core#184). Treated as absent: a date this host invented would be a worse answer.
+        FetchResult result = permissiveSource().fetch(SourceConfig.initial(base + "/future.xml"));
+
+        assertThat(result.episodes()).singleElement()
+                .extracting(RawEpisode::publishedAt).isNull();
     }
 
     @Test

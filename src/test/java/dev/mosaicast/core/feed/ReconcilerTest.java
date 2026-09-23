@@ -120,6 +120,39 @@ class ReconcilerTest {
     }
 
     @Test
+    void aDuplicateGuidInOneBodyDoesNotLoseTheWholePoll() {
+        // The second occurrence used to fall into the "new GUID" branch — byGuid holds only refs that
+        // existed before the run — and the INSERT it scheduled violated uq_episode_ref_feed_guid. That
+        // exception escaped the @Transactional reconcile, so *nothing* was written, not even the items
+        // that parsed cleanly before the duplicate, and the feed stayed permanently empty (core#160).
+        when(refs.findByFeedId(FEED)).thenReturn(List.of());
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(
+                raw("g1", "Pigeons", 2, 12),
+                raw("g1", "Pigeons, again", 2, 12),
+                raw("g2", "Kraken", 2, 13)));
+
+        // Counted once, and the item after it still lands.
+        assertThat(result.created()).isEqualTo(2);
+        verify(refs, times(2)).save(any(EpisodeRef.class));
+    }
+
+    @Test
+    void anItemWithNoGuidAndNoLinkIsCountedRatherThanVanishing() {
+        // `guid = entry.getUri() != null ? entry.getUri() : entry.getLink()` — both may be null, and the
+        // reconciler simply continued, so a poll reported "N item(s) fetched — 0 new", which reads exactly
+        // like "nothing changed" (core#184).
+        when(refs.findByFeedId(FEED)).thenReturn(List.of());
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(
+                raw(null, "Nameless", null, null),
+                raw("g2", "Kraken", 2, 13)));
+
+        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.created()).isEqualTo(1);
+    }
+
+    @Test
     void case2_knownGuid_refreshesWithoutCreating() {
         EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11, "test-s02e11");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(known));

@@ -215,6 +215,35 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **One duplicated `<guid>` kept a whole feed permanently empty (`0.7.4`, core#160, core#184).** The second
+  occurrence fell into the "new GUID" branch — the lookup holds only refs that existed before the run — and
+  the insert it scheduled violated `uq_episode_ref_feed_guid`. That exception escaped the reconcile
+  transaction, so **nothing** was written, not even the items that parsed cleanly before it; and because
+  the pipeline records a failure only for a fetch error, the feed's `lastFetchedAt` was never updated
+  either, so the scheduler found it due again on the very next tick and retried forever without backing
+  off. A duplicate GUID is not exotic: a mis-templated generator, a re-publish, or a host emitting an
+  `<atom:id>` and a `<guid>` that collapse to the same value all produce one.
+  Six more on the same path. An item with **neither `guid` nor `link`** vanished with no log and no
+  counter, so the poll reported "N item(s) fetched — 0 new", which reads exactly like "nothing changed" —
+  it is counted and named now, and the count reaches the poll summary. A **`pubDate` in the future** was
+  taken at face value, so one typo or a host with a wrong clock pinned an episode at the top of
+  `?order=newest` permanently, with no admin correction; it is treated as absent. **Item count was
+  unbounded** where bytes and wall time were not: 16 MB of minimal `<item>` elements is over a hundred
+  thousand of them, each costing several statements inside one transaction on the single scheduler thread.
+  A **200 carrying a web page** — a login wall or a captcha — failed inside the parser as "Failed to parse
+  feed body", so an admin could not tell a broken feed from a wrong URL or a lapsed subscription. **The
+  same feed URL could be added twice**, producing two complete episode sets and every episode listed
+  twice. And a **blank title no longer names the feed after its host**: `CreateFeed` documented it as
+  "defaults to the feed's channel title", the parsed title was read only by `preview()`, and since the feed
+  slug and every episode slug prefix are minted from that name and are immutable, the wrong one outlived
+  every later poll.
+  Finally, a feed page whose host leaves `itunes:season` and `itunes:episode` unset — Acast does — had
+  nothing to sort by but its tie-break, so the whole list fell back to the order the host happened to
+  **ingest** episodes in, presented to a listener as if it were the order they were released in. The
+  tie-break is the snapshot's `publishedAt` now. The season-then-episode ordering above it is unchanged and
+  deliberate: a feed page is browsed a season at a time, which is a different thing from the site list's
+  reverse-chronological river.
+
 - **Encoding narrower than the context it was written into (`0.7.4`, core#196, core#198).** The JSON-LD
   block neutralised `</` and nothing else, but the HTML tokenizer also leaves script-data state on `<!--`,
   and a following `<script` puts it into the double-escaped state where the block's own `</script>` no
