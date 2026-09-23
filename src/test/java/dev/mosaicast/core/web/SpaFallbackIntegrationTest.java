@@ -4,12 +4,15 @@
 package dev.mosaicast.core.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,6 +41,21 @@ class SpaFallbackIntegrationTest {
 
     @Autowired
     private TestRestTemplate rest;
+
+    /**
+     * The built shell has to exist for any of this to mean anything.
+     *
+     * <p>CI builds the backend before the frontend, so {@code static/index.html} is absent there and every
+     * path 404s for a reason that has nothing to do with the rule under test — which is how this class
+     * passed locally and failed on the first CI run. Skipped rather than asserted around: a test that
+     * cannot see the artefact it is about has nothing to say, and one that quietly passes on its absence
+     * is worse than one that is not run.
+     */
+    @BeforeEach
+    void requireTheBuiltShell() {
+        assumeTrue(new ClassPathResource("/static/index.html").exists(),
+                "the shell has not been built into static resources");
+    }
 
     @Test
     void anUnknownTopLevelPathIs404AndStillRendersTheShell() {
