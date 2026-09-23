@@ -178,7 +178,7 @@ class PluginBlobBackendRoutingIntegrationTest {
         headers.add(HttpHeaders.COOKIE, admin.session() + "; " + admin.xsrf());
         headers.add("X-XSRF-TOKEN", admin.token());
 
-        rest.exchange("/api/admin/plugins/blobs/purge", HttpMethod.POST, new HttpEntity<>("", headers),
+        rest.exchange("/api/admin/plugins/blobs/purge?confirm=blobs", HttpMethod.POST, new HttpEntity<>("", headers),
                 String.class);
 
         assertThat(memory.count("plugin/blobs")).isZero();

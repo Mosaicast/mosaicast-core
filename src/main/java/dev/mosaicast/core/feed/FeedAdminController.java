@@ -98,6 +98,28 @@ public class FeedAdminController {
     }
 
     /** Dismiss a suggestion without applying it (§5.3). */
+    /**
+     * Removes a feed and everything that only existed because of it (§5.1).
+     *
+     * <p>{@code confirm} must repeat the feed's slug. The guarantee was UI-only everywhere else in this
+     * product — one tester called {@code POST /api/admin/plugins/{id}/purge} while checking that the role
+     * floor held, and it purged (core#193). A typed word in a dialog protects the person using the page
+     * and nobody else; a script, a stale tab or a mis-click reaches the endpoint directly. So the endpoint
+     * asks too, and it asks for something specific to the row rather than a constant, which a retry loop
+     * would carry along without noticing.
+     */
+    @DeleteMapping("/{id}")
+    public FeedService.DeletedFeed delete(@PathVariable UUID id,
+                                          @RequestParam(defaultValue = "") String confirm) {
+        FeedView feed = feeds.get(id);
+        String expected = feed.slug() == null ? feed.id().toString() : feed.slug();
+        if (!expected.equals(confirm)) {
+            throw new IllegalArgumentException(
+                    "Deleting a feed needs ?confirm=" + expected + " — everything it brought in goes too.");
+        }
+        return feeds.delete(id);
+    }
+
     @DeleteMapping("/suggestions/{id}")
     public ResponseEntity<Void> dismissSuggestion(@PathVariable UUID id) {
         feeds.dismissSuggestion(id);

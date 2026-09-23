@@ -227,20 +227,29 @@ afterEach(() => vi.unstubAllGlobals());
     });
   });
 
-  it('purges only after an explicit confirmation', async () => {
+  it('purges only after the plugin id has been typed', async () => {
+    // The app's own dialog with a typed word, not window.confirm: this is the most destructive action in
+    // the product, and it was the one with the weakest gate (core#193). The word is the plugin's own id,
+    // so the muscle memory of purging one does not carry over to purging another.
     const calls = stubFetch();
-    vi.stubGlobal('confirm', vi.fn(() => false));
-    vi.stubGlobal('alert', vi.fn());
     render(<AdminPlugins />);
 
     expect(await screen.findByText('Sample')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Purge data'));
+
+    // Opening the dialog asks for nothing yet, and the confirm button will not act on an empty field.
+    const confirmButton = screen.getAllByText('Purge data').at(-1)!;
+    fireEvent.click(confirmButton);
     expect(calls.some((c) => c.method === 'POST')).toBe(false);
 
-    vi.stubGlobal('confirm', vi.fn(() => true));
-    fireEvent.click(screen.getByText('Purge data'));
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'sample' } });
+    fireEvent.click(screen.getAllByText('Purge data').at(-1)!);
     await waitFor(() => {
-      expect(calls.some((c) => c.method === 'POST' && c.url === '/api/admin/plugins/sample/purge')).toBe(true);
+      expect(
+        calls.some(
+          (c) => c.method === 'POST' && c.url === '/api/admin/plugins/sample/purge?confirm=sample',
+        ),
+      ).toBe(true);
     });
   });
 

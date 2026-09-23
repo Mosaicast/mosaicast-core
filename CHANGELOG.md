@@ -14,6 +14,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A feed can be deleted (`0.7.4`, core#175).** There was no `DELETE` on the feed surface at all — not in
+  the UI and not in the API. Disabling correctly removes a feed and its episodes from every public
+  surface, but the row, the episode refs, the display snapshots and the fetched show notes stayed in the
+  database with no supported way to remove them, so a feed added by typo, a feed whose URL was hijacked
+  and a feed pulling content that must come down were all permanent. For a project that takes erasure
+  seriously for *people* — an account-erasure pipeline with an admin retry queue — third-party content
+  having no equivalent path was the gap. The confirmation spells out what goes (every episode, their show
+  notes and tags, everyone's listening position in them, and what plugins stored about them) and what
+  stays (the tag vocabulary, which is the site's and may be carried by other feeds).
+
 - **A plugin config field can say what it is (`0.7.2`, ARCHITECTURE §7.2, core#145).** `label` and `description` on a
   field are rendered in place of the raw identifier, each either a plain string or an object keyed by locale,
   resolved in the browser against the language the operator is reading in — the same shape and the same
@@ -214,6 +224,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   `app_user.avatar_url` is gone.
 
 ### Fixed
+
+- **Three answers to "are you sure?", and the weakest one on the heaviest action (`0.7.4`, core#193).**
+  Purging a plugin's data — irreversible, and it affects every user of that plugin — was one OK-click away
+  in an unstyled `window.confirm` followed by a `window.alert`, while account deletion, with a narrower
+  blast radius and the same finality, correctly required typing a word. Admin user actions and legal-page
+  deletion used the browser dialog too. They all use the app's own dialog now, with the typed word where
+  there is nothing to undo — the plugin's id, the page's slug, the feed's slug, each specific to the row so
+  the muscle memory of confirming one does not carry to another. Revoking an access token, which had **no**
+  confirmation at all while removing a highlight on the same kind of surface had one, now asks.
+  **And the guarantee is no longer UI-only.** One tester called `POST /api/admin/plugins/{id}/purge` while
+  checking that the role floor held — it does, and it also purged. Both destructive endpoints now require
+  the confirmation as a parameter, so a script, a stale tab or a mis-click meets the same gate a person does.
 
 - **One duplicated `<guid>` kept a whole feed permanently empty (`0.7.4`, core#160, core#184).** The second
   occurrence fell into the "new GUID" branch — the lookup holds only refs that existed before the run — and

@@ -3,6 +3,10 @@
 
 package dev.mosaicast.core.feed;
 
+import dev.mosaicast.core.plugin.PluginDataKey;
+import dev.mosaicast.core.plugin.PluginData;
+import tools.jackson.databind.node.JsonNodeFactory;
+import dev.mosaicast.core.plugin.PluginDataRepository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -69,6 +73,9 @@ class FeedPipelineIntegrationTest {
 
     @Autowired
     private BindingSuggestionRepository suggestionRepository;
+
+    @Autowired
+    private PluginDataRepository pluginData;
 
     @Autowired
     private dev.mosaicast.core.progress.ListeningProgressRepository progressRepository;
@@ -172,6 +179,46 @@ class FeedPipelineIntegrationTest {
         assertThat(episodes.seasons(feed.id())).containsExactly(2);
         assertThat(episodes.search("pigeons", PageRequest.of(0, 20)).getContent())
                 .extracting(EpisodeSummary::title).containsExactly("Why pigeons secretly hate us");
+    }
+
+    @Test
+    void aFeedCanBeDeletedAndTakesWhatItBroughtWithIt() {
+        // A feed could be disabled but never deleted — there was no DELETE on this surface at all, so a
+        // feed added by typo, one whose URL was hijacked, and one pulling content that must come down were
+        // all permanent (core#175). Disabling hid it; the rows stayed.
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        assertThat(refRepository.countByFeedId(feed.id())).isPositive();
+
+        FeedService.DeletedFeed removed = feedService.delete(feed.id());
+
+        assertThat(removed.episodes()).isPositive();
+        assertThat(feedRepository.findById(feed.id())).isEmpty();
+        // The refs go, and their snapshots, tags, listening progress and pins go with them by cascade.
+        assertThat(refRepository.findByFeedId(feed.id())).isEmpty();
+        assertThat(feedService.catalog()).isEmpty();
+    }
+
+    @Test
+    void deletingAFeedTakesThePluginDocumentsItsScopesNamed() {
+        // A plugin's store is keyed by the host's scope strings rather than by a foreign key, so nothing
+        // cascades: without this, a deleted feed leaves partitions behind that nothing will ever reclaim.
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        String episodeSlug = refRepository.findByFeedId(feed.id()).getFirst().getSlug();
+        // Written through the repository rather than the service: DataScope is package-private, and
+        // widening it so a test in another package can name a scope would be the tail wagging the dog.
+        pluginData.save(new PluginData(
+                new PluginDataKey("good", "feed", feed.slug(), "note"),
+                JsonNodeFactory.instance.objectNode()));
+        pluginData.save(new PluginData(
+                new PluginDataKey("good", "episode", episodeSlug, "note"),
+                JsonNodeFactory.instance.objectNode()));
+
+        FeedService.DeletedFeed removed = feedService.delete(feed.id());
+
+        assertThat(removed.pluginDocuments()).isEqualTo(2);
+        assertThat(pluginData.findAll())
+                .noneMatch(d -> episodeSlug.equals(d.getId().getScopeId()))
+                .noneMatch(d -> feed.slug().equals(d.getId().getScopeId()));
     }
 
     @Test

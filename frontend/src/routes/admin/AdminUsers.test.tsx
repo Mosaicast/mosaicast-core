@@ -69,11 +69,13 @@ describe('AdminUsers', () => {
 
   it('reverts a name without ever choosing one (ARCHITECTURE §8.6.1)', async () => {
     const calls = stubFetch();
-    vi.stubGlobal('confirm', vi.fn(() => true));
     render(<AdminUsers />);
 
     await screen.findByText('Fan Bob');
+    // Opens the app's own dialog rather than window.confirm (core#193); no typed word, because reverting
+    // a name is something an admin can simply do again.
     fireEvent.click(screen.getAllByRole('button', { name: 'Revert name' })[1]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Revert name' }).at(-1)!);
 
     await waitFor(() => {
       const post = calls.find((c) => c.method === 'POST' && c.url.includes('/name/revert'));

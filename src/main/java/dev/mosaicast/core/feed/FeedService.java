@@ -3,6 +3,8 @@
 
 package dev.mosaicast.core.feed;
 
+import java.util.Objects;
+import dev.mosaicast.core.plugin.PluginDataRepository;
 import dev.mosaicast.core.log.LogSafe;
 import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
@@ -37,10 +39,12 @@ public class FeedService {
     private final FeedPipeline pipeline;
     private final FeedSourceRegistry registry;
     private final OutboundTargetPolicy targets;
+    private final PluginDataRepository pluginData;
 
     public FeedService(FeedRepository feeds, EpisodeRefRepository refs, EpisodeDisplayRepository displays,
                        BindingSuggestionRepository suggestions, FeedPipeline pipeline,
-                       FeedSourceRegistry registry, OutboundTargetPolicy targets) {
+                       FeedSourceRegistry registry, OutboundTargetPolicy targets,
+                       PluginDataRepository pluginData) {
         this.feeds = feeds;
         this.refs = refs;
         this.displays = displays;
@@ -48,6 +52,7 @@ public class FeedService {
         this.pipeline = pipeline;
         this.registry = registry;
         this.targets = targets;
+        this.pluginData = pluginData;
     }
 
     @Transactional(readOnly = true)
@@ -172,6 +177,65 @@ public class FeedService {
         log.info("Feed added: '{}' ({}) — polling now", LogSafe.of(resolvedTitle), LogSafe.of(url));
         pipeline.poll(feed);
         return FeedView.of(feed, refs.countByFeedId(feed.getId()));
+    }
+
+    /**
+     * Removes a feed and everything that only existed because of it (§5.1).
+     *
+     * <p>A feed could be disabled but never deleted — there was no {@code DELETE} on this surface at all,
+     * only in the UI. Disabling correctly hides a feed from every public surface, but the row, its episode
+     * refs, the display snapshots and the fetched show notes stayed in the database with no supported way
+     * to remove them. A feed added by typo, a feed whose URL was hijacked, and a feed pulling content that
+     * must come down were all permanent (core#175). For a project with an account-erasure pipeline and an
+     * admin retry queue, third-party content having no equivalent path was the gap.
+     *
+     * <p>What goes: the feed, its episode refs, and — by {@code ON DELETE CASCADE} from {@code episode_ref}
+     * — their display snapshots, tags, listening progress and pins. Plus the plugin documents stored
+     * against the scopes those slugs named, which cascade from nothing because a plugin's store is keyed
+     * by the host's scope strings rather than by a foreign key. What stays: the tag vocabulary, which is
+     * the site's and may still be carried by other feeds' episodes.
+     *
+     * @return what was removed, so the admin UI can say it rather than claim it
+     */
+    @Transactional
+    public DeletedFeed delete(UUID id) {
+        Feed feed = feeds.findById(id).orElseThrow(() -> new NotFoundException("No such feed: " + id));
+        List<EpisodeRef> episodes = refs.findByFeedId(id);
+
+        // The scope ids as plugins addressed them — the episode slug, the feed slug, and every season of
+        // this feed. Collected before the rows go, because afterwards there is nothing left to derive them
+        // from.
+        List<String> episodeScopes = episodes.stream().map(EpisodeRef::getSlug).filter(Objects::nonNull)
+                .toList();
+        List<String> feedScopes = feed.getSlug() == null ? List.of(feed.getId().toString())
+                : List.of(feed.getSlug(), feed.getId().toString());
+        List<String> seasonScopes = episodes.stream()
+                .map(EpisodeRef::getSeason)
+                .filter(Objects::nonNull)
+                .distinct()
+                .map(season -> (feed.getSlug() == null ? feed.getId().toString() : feed.getSlug())
+                        + ":" + season)
+                .toList();
+
+        int documents = 0;
+        if (!episodeScopes.isEmpty()) {
+            documents += pluginData.deleteByScope("episode", episodeScopes);
+        }
+        documents += pluginData.deleteByScope("feed", feedScopes);
+        if (!seasonScopes.isEmpty()) {
+            documents += pluginData.deleteByScope("season", seasonScopes);
+        }
+
+        refs.deleteAll(episodes);
+        feeds.delete(feed);
+
+        log.info("Deleted feed '{}' ({}): {} episode(s), {} plugin document(s)",
+                LogSafe.of(feed.getTitle()), id, episodes.size(), documents);
+        return new DeletedFeed(episodes.size(), documents);
+    }
+
+    /** What a feed deletion removed. */
+    public record DeletedFeed(int episodes, int pluginDocuments) {
     }
 
     /**

@@ -276,6 +276,8 @@ export interface Meta {
 /** Admin-facing feed (`feed/FeedView.java`), `GET /api/admin/feeds` — includes poll state. */
 export interface AdminFeed {
   id: string;
+  /** The public slug. Also what `DELETE /api/admin/feeds/{id}` wants echoed back as `?confirm=`. */
+  slug: string | null;
   type: string;
   url: string;
   title: string;

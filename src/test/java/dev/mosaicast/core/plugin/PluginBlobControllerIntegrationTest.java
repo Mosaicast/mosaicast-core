@@ -335,7 +335,7 @@ class PluginBlobControllerIntegrationTest {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, admin.session() + "; " + admin.xsrf());
         headers.add("X-XSRF-TOKEN", admin.token());
-        ResponseEntity<String> purge = rest.exchange("/api/admin/plugins/blobs/purge", HttpMethod.POST,
+        ResponseEntity<String> purge = rest.exchange("/api/admin/plugins/blobs/purge?confirm=blobs", HttpMethod.POST,
                 new HttpEntity<>("", headers), String.class);
 
         assertThat(purge.getStatusCode()).isEqualTo(HttpStatus.OK);

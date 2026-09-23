@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { api, ApiError } from '../api/client';
 import type { CreatedToken, Identity, Token } from '../api/types';
 import { useUser } from '../auth/UserContext';
@@ -22,6 +23,10 @@ export function AccountPage() {
 
   const [identities, setIdentities] = useState<Identity[]>([]);
   const [tokens, setTokens] = useState<Token[]>([]);
+  // Revoking a token had no confirmation at all, while removing a highlight on the same kind of surface
+  // did — and the token is gone instantly, taking whatever automation used it with it (core#193). No typed
+  // word: it is undoable in the sense that matters, by minting a new one.
+  const [revoking, setRevoking] = useState<Token | null>(null);
   const [confirm, setConfirm] = useState('');
   /** The receipt, once the account is gone — including whatever a plugin has not finished erasing. */
   const [deleted, setDeleted] = useState<{ complete: boolean; outstanding: string[] } | null>(null);
@@ -147,6 +152,7 @@ export function AccountPage() {
     }
   };
   const revoke = async (id: string) => {
+    setRevoking(null);
     await api.del(`/api/me/tokens/${id}`);
     await loadTokens();
   };
@@ -294,7 +300,7 @@ export function AccountPage() {
             <span className="mc-muted">
               <code>{token.prefix}…</code> · {formatDate(token.createdAt, i18n.language)}
             </span>
-            <button type="button" className="mc-btn" onClick={() => revoke(token.id)}>
+            <button type="button" className="mc-btn" onClick={() => setRevoking(token)}>
               {t('account.revoke')}
             </button>
           </li>
@@ -321,6 +327,16 @@ export function AccountPage() {
         of getting this wrong is not recoverable — and the copy says what actually happens, including the
         part core cannot promise on a plugin's behalf (§12).
       */}
+      {revoking && (
+        <ConfirmDialog
+          title={t('account.revoke')}
+          body={t('account.revokeConfirm', { name: revoking.name })}
+          confirmLabel={t('account.revoke')}
+          onConfirm={() => void revoke(revoking.id)}
+          onCancel={() => setRevoking(null)}
+        />
+      )}
+
       <h2>{t('account.deleteHeading')}</h2>
       <div className="mc-danger">
         <p>{t('account.deleteBody')}</p>
