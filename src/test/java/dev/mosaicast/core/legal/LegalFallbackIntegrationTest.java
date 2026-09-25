@@ -43,9 +43,36 @@ class LegalFallbackIntegrationTest {
         siteConfig.update(null, null, null, "de");
         assertThat(legal.render("imprint-fb", "fr").title()).isEqualTo("Impressum");
 
-        // With the default set to English (which has no translation here), the same request 404s.
+        // With the default set to English, which has no translation here, the page is still served in the
+        // language it does have. It used to 404, so a page written only in German existed for German readers
+        // and nobody else — and a hard load, which resolves the default locale, answered 404 for a page the
+        // SPA then rendered (core#164).
         siteConfig.update(null, null, null, "en");
-        assertThatThrownBy(() -> legal.render("imprint-fb", "fr")).isInstanceOf(NotFoundException.class);
+        assertThat(legal.render("imprint-fb", "fr").title()).isEqualTo("Impressum");
+        assertThat(legal.footer("en")).extracting(LegalViews.FooterEntry::slug).contains("imprint-fb");
+        // Crawlers are still told only the truth: the one language it is written in.
+        assertThat(legal.translatedLocales("imprint-fb")).containsExactly("de");
+    }
+
+    @Test
+    void aPageWithNoTranslationAtAllIsStillNotFound() {
+        legal.createPage("empty-fb", null, 0);
+        assertThatThrownBy(() -> legal.render("empty-fb", "en")).isInstanceOf(NotFoundException.class);
+        assertThat(legal.footer("en")).extracting(LegalViews.FooterEntry::slug).doesNotContain("empty-fb");
+    }
+
+    @Test
+    void aSlugOutsideTheGrammarIsRefusedAtCreation() {
+        // `qa test/2` became a page no link reached and no delete could route to (core#164).
+        for (String bad : new String[] {"qa test/2", "Privacy", "a--b", "-a", "a-", "ü", "a".repeat(65)}) {
+            assertThatThrownBy(() -> legal.createPage(bad, null, 0))
+                    .as(bad)
+                    .isInstanceOf(dev.mosaicast.core.web.CodedBadRequest.class)
+                    .satisfies(e -> assertThat(((dev.mosaicast.core.web.CodedBadRequest) e).code())
+                            .isEqualTo("legal.slug.invalid"));
+        }
+        legal.createPage("terms-of-use-2", null, 0);
+        legal.createPage("a".repeat(64), null, 0);
     }
 
     @Test

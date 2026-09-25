@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
+import { problemMessage } from '../../api/problemMessage';
 import { contrastRatio } from '../../theme/contrast';
 import type { ModePolicy, SiteView } from '../../api/types';
 import { useSite } from '../../theme/SiteContext';
@@ -46,9 +47,17 @@ export function AdminSite() {
     }
   }, [site]);
 
+  const [saveError, setSaveError] = useState<string | null>(null);
   const save = async () => {
     setSaved(false);
-    await api.put<SiteView>('/api/admin/site', { siteName, accentSeed, modePolicy });
+    setSaveError(null);
+    try {
+      await api.put<SiteView>('/api/admin/site', { siteName, accentSeed, modePolicy });
+    } catch (err) {
+      // A refusal used to be an unhandled rejection: the button did nothing and said nothing (core#164).
+      setSaveError(problemMessage(err, t, t('admin.site.saveFailed')));
+      return;
+    }
     // Refresh the shared site payload so the whole shell (and this form) reflects the saved theme live.
     await refresh();
     setSaved(true);
@@ -88,7 +97,13 @@ export function AdminSite() {
 
       <label className="mc-field">
         <span>{t('admin.site.name')}</span>
-        <input className="mc-input" type="text" value={siteName} onChange={(e) => setSiteName(e.target.value)} />
+        <input
+          className="mc-input"
+          type="text"
+          maxLength={100}
+          value={siteName}
+          onChange={(e) => setSiteName(e.target.value)}
+        />
       </label>
 
       <label className="mc-field">
@@ -146,6 +161,7 @@ export function AdminSite() {
         </button>
         <SavedNote show={saved}>{t('admin.site.saved')}</SavedNote>
       </div>
+      {saveError && <p className="mc-error">{saveError}</p>}
 
       <h2>{t('admin.site.branding')}</h2>
       <p className="mc-muted" id="mc-branding-hint">

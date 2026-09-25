@@ -4,20 +4,14 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ApiError, api } from '../../api/client';
+import { api } from '../../api/client';
+import { problemMessage } from '../../api/problemMessage';
 import type { AdminKindSection, LegalAdminPage, LegalDraft } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { contentLocales, localeName } from '../../i18n';
 
 const ROLE_MARKERS = ['', 'privacy', 'imprint', 'terms'];
 
-/** Prefers the server's problem+json detail (e.g. "slug 'privacy' already exists") over a generic message. */
-function messageOf(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) {
-    return error.detail ?? error.message ?? fallback;
-  }
-  return fallback;
-}
 
 /**
  * Editor for one legal page: role marker + sort order, and a **tabbed** title/markdown body per language
@@ -27,12 +21,10 @@ function messageOf(error: unknown, fallback: string): string {
 function PageEditor({
   page,
   onChanged,
-  onError,
   canPrefill,
 }: {
   page: LegalAdminPage;
   onChanged: () => void;
-  onError: (message: string | null) => void;
   /** Whether the site has a translation provider configured at all. */
   canPrefill: boolean;
 }) {
@@ -52,14 +44,17 @@ function PageEditor({
     return map;
   });
 
-  // Every write goes through here: a rejected request has to say so, never fail silently.
+  // Every write goes through here: a rejected request has to say so, never fail silently. Said inside the
+  // editor, beside the button that was pressed — it used to go to the top of the page, above a list that
+  // can push it out of view, which read as a save that did nothing (core#164).
+  const [error, setError] = useState<string | null>(null);
   const run = async (action: () => Promise<unknown>) => {
-    onError(null);
+    setError(null);
     try {
       await action();
       onChanged();
     } catch (e) {
-      onError(messageOf(e, t('admin.legal.saveFailed')));
+      setError(problemMessage(e, t, t('admin.legal.saveFailed')));
     }
   };
 
@@ -163,6 +158,7 @@ function PageEditor({
           className="mc-input"
           type="text"
           placeholder={t('admin.legal.pageTitle')}
+          maxLength={200}
           value={body.title}
           onChange={(e) => setBodies({ ...bodies, [activeLocale]: { ...body, title: e.target.value } })}
         />
@@ -177,6 +173,8 @@ function PageEditor({
           <button
             type="button"
             className="mc-btn mc-btn--accent"
+            // A title is required; the server refused a blank one with a generic English sentence.
+            disabled={!body.title.trim()}
             onClick={() => saveTranslation(activeLocale)}
           >
             {t('admin.legal.saveLang', { lang: localeName(activeLocale) })}
@@ -191,6 +189,11 @@ function PageEditor({
           // Stays until they save or switch tabs: an admin who walked away mid-review should not come back
           // to something that looks like their own writing.
           <p className="mc-error">{t('admin.legal.draftWarning')}</p>
+        )}
+        {error && (
+          <p className="mc-error" role="alert">
+            {error}
+          </p>
         )}
       </div>
     </div>
@@ -227,7 +230,7 @@ export function AdminLegal() {
     api
       .get<LegalAdminPage[]>('/api/admin/legal')
       .then(setPages)
-      .catch((e) => setError(messageOf(e, t('admin.legal.loadFailed'))));
+      .catch((e) => setError(problemMessage(e, t, t('admin.legal.loadFailed'))));
   useEffect(() => {
     void load();
     // `t` is stable for a given language and reloading on a language switch would be pointless work.
@@ -247,7 +250,7 @@ export function AdminLegal() {
     } catch (e) {
       // The common case is a duplicate slug (409). Before this, the rejection was thrown into the void and
       // the button looked dead.
-      setError(messageOf(e, t('admin.legal.createFailed')));
+      setError(problemMessage(e, t, t('admin.legal.createFailed')));
     }
   };
 
@@ -259,6 +262,7 @@ export function AdminLegal() {
           className="mc-input"
           type="text"
           placeholder={t('admin.legal.newSlug')}
+          maxLength={64}
           value={newSlug}
           onChange={(e) => setNewSlug(e.target.value)}
         />
@@ -300,7 +304,6 @@ export function AdminLegal() {
                 onChanged={() => {
                   void load();
                 }}
-                onError={setError}
                 canPrefill={canPrefill}
               />
             )}
