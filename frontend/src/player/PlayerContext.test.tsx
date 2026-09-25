@@ -262,6 +262,36 @@ describe('PlayerProvider', () => {
     });
   });
 
+  it('keeps playing when storage refuses every write (core#185)', async () => {
+    // Blocked or full storage used to throw from the `timeupdate` handler several times a second, where no
+    // error boundary can reach.
+    renderPlayer();
+    await act(() => actions.play(EPISODE));
+    const errors: unknown[] = [];
+    const onError = (event: ErrorEvent) => errors.push(event.error);
+    window.addEventListener('error', onError);
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('quota', 'QuotaExceededError');
+    });
+    try {
+      for (let i = 1; i <= 3; i++) {
+        Object.defineProperty(audio(), 'currentTime', { configurable: true, writable: true, value: i });
+        act(() => {
+          audio().dispatchEvent(new Event('timeupdate'));
+        });
+      }
+      act(() => {
+        audio().dispatchEvent(new Event('ended'));
+      });
+
+      expect(errors).toEqual([]);
+      expect(setItem).toHaveBeenCalled();
+    } finally {
+      setItem.mockRestore();
+      window.removeEventListener('error', onError);
+    }
+  });
+
   it('remembers the volume across page loads, as it does the speed', () => {
     const first = renderPlayer();
     act(() => actions.setVolume(0.35));

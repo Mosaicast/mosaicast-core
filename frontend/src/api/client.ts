@@ -46,9 +46,127 @@ function readCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/**
+ * How long a request may take, headers and body together, before it counts as failed (core#185).
+ *
+ * There was no limit: a request the server never answered kept its caller loading forever, and a page whose
+ * only request hung showed "Loading…" for as long as the tab stayed open. Thirty seconds is far past any
+ * answer this API gives in normal operation and well short of a visitor giving up.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+/** What a caller can say about one request. */
+export interface RequestOptions {
+  /** Cancels the request — for a component that unmounts, or a newer request that replaces this one. */
+  signal?: AbortSignal;
+  /** Overrides {@link REQUEST_TIMEOUT_MS}; `null` for no limit (an upload of a large file). */
+  timeoutMs?: number | null;
+}
+
+/**
+ * Something that should happen when the session is gone, not just when one call failed.
+ *
+ * A session that expires made every later call throw on its own, each caller handling a 401 its own way (or
+ * not), and the shell kept showing a signed-in header over a page that could no longer load anything
+ * (core#185). One place now hears about it; `UserContext` listens and falls back to anonymous.
+ */
+const unauthorizedListeners = new Set<() => void>();
+
+/** Subscribes to "a request came back 401"; the returned function unsubscribes. */
+export function onUnauthorized(listener: () => void): () => void {
+  unauthorizedListeners.add(listener);
+  return () => {
+    unauthorizedListeners.delete(listener);
+  };
+}
+
+/**
+ * `fetch`, bounded: cancellable by the caller, abandoned after the timeout, and reading the body inside the
+ * same window — a server that sends headers and then stalls is as stuck as one that sends nothing.
+ */
+async function exchange<T>(
+  path: string,
+  init: RequestInit,
+  options: RequestOptions,
+  read: (response: Response) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const { signal, timeoutMs = REQUEST_TIMEOUT_MS } = options;
+  const forward = () => controller.abort(signal?.reason);
+  if (signal?.aborted) {
+    forward();
+  } else {
+    signal?.addEventListener('abort', forward, { once: true });
+  }
+  let timedOut = false;
+  const timer =
+    timeoutMs == null
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs);
+  try {
+    const response = await fetch(path, { ...init, credentials: 'include', signal: controller.signal });
+    if (response.status === 401 && path !== '/api/me') {
+      // `/api/me` is how the shell asks whether anyone is signed in; its 401 is an answer, not news.
+      unauthorizedListeners.forEach((listener) => listener());
+    }
+    return await read(response);
+  } catch (cause) {
+    if (timedOut) {
+      // Status 0, like a request that never got an answer: callers that branch on `status` treat it as a
+      // failure to reach the server, which is what it is.
+      throw new ApiError(0, `No answer from the server within ${Math.round((timeoutMs ?? 0) / 1000)} s`);
+    }
+    throw cause;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', forward);
+  }
+}
+
+/**
+ * A non-2xx response as an {@link ApiError}, preferring the problem+json detail. One copy for both kinds of
+ * request — there used to be two, and they had already started to disagree.
+ *
+ * `statusText` is empty under HTTP/2, and the security filters' 401/403 carry no body, so there is always a
+ * non-empty fallback: the UI never shows a blank error. For an upload the detail matters most of all — a
+ * file is refused for reasons only the server knows, and "that PNG is 12 MB and you may store 5" is useful
+ * where "Payload Too Large" is not.
+ */
+async function failure(response: Response): Promise<ApiError> {
+  let problem: ProblemBody | undefined;
+  try {
+    problem = (await response.json()) as ProblemBody;
+  } catch {
+    /* no/!json body */
+  }
+  const detail = problem?.detail ?? problem?.title;
+  const message = detail || response.statusText || `HTTP ${response.status}`;
+  return new ApiError(response.status, message, detail, problem);
+}
+
+/** The body of a successful response: nothing for a 204 or an empty body, else parsed JSON. */
+async function body<T>(response: Response): Promise<T> {
+  if (!response.ok) {
+    throw await failure(response);
+  }
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  payload?: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (body !== undefined) {
+  if (payload !== undefined) {
     headers['Content-Type'] = 'application/json';
   }
   if (UNSAFE.has(method)) {
@@ -57,72 +175,26 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       headers['X-XSRF-TOKEN'] = token;
     }
   }
-
-  const response = await fetch(path, {
-    method,
-    headers,
-    credentials: 'include',
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    // Prefer the problem+json detail/title; fall back to the status text.
-    let problem: ProblemBody | undefined;
-    try {
-      problem = (await response.json()) as ProblemBody;
-    } catch {
-      /* no/!json body */
-    }
-    const detail = problem?.detail ?? problem?.title;
-    // statusText is empty under HTTP/2, and bodiless errors (401/403 from the security filters) carry no
-    // problem+json — always fall back to a non-empty message so the UI never shows a blank error.
-    const message = detail || response.statusText || `HTTP ${response.status}`;
-    throw new ApiError(response.status, message, detail, problem);
-  }
-
-  // Tolerate empty bodies (204, or a 201/200 with no content) — only parse JSON when there is a body.
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  return exchange(
+    path,
+    { method, headers, body: payload === undefined ? undefined : JSON.stringify(payload) },
+    options,
+    (response) => body<T>(response),
+  );
 }
 
 /**
- * Multipart upload — lets the browser set the multipart boundary; CSRF header added.
- *
- * Errors carry the RFC-7807 `detail` when there is one, which matters more here than on any other call:
- * an upload is refused for reasons only the server knows (too large, wrong type, over quota), and the
- * person who chose the file is the only one who can act on the answer. Falling back to `statusText` would
- * turn "that PNG is 12 MB and you may store 5" into "Payload Too Large".
+ * Multipart upload — lets the browser set the multipart boundary; CSRF header added. No timeout unless the
+ * caller sets one: how long a large file takes is the visitor's connection's business.
  */
-async function uploadFor<T>(path: string, formData: FormData): Promise<T> {
+async function uploadFor<T>(path: string, formData: FormData, options: RequestOptions = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const token = readCookie('XSRF-TOKEN');
   if (token) {
     headers['X-XSRF-TOKEN'] = token;
   }
-  const response = await fetch(path, { method: 'POST', headers, credentials: 'include', body: formData });
-  if (!response.ok) {
-    let problem: ProblemBody | undefined;
-    try {
-      problem = (await response.json()) as ProblemBody;
-    } catch {
-      /* no/!json body */
-    }
-    const detail = problem?.detail ?? problem?.title;
-    throw new ApiError(
-      response.status,
-      detail || response.statusText || `HTTP ${response.status}`,
-      detail,
-      problem,
-    );
-  }
-  if (response.status === 204) {
-    return undefined as T;
-  }
-  const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  const init = { method: 'POST', headers, body: formData };
+  return exchange(path, init, { timeoutMs: null, ...options }, (response) => body<T>(response));
 }
 
 /** Multipart upload with no response body of interest (e.g. branding assets). */
@@ -131,11 +203,14 @@ async function upload(path: string, formData: FormData): Promise<void> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>('GET', path),
-  post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
-  put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),
-  patch: <T>(path: string, body?: unknown) => request<T>('PATCH', path, body),
-  del: <T>(path: string) => request<T>('DELETE', path),
+  get: <T>(path: string, options?: RequestOptions) => request<T>('GET', path, undefined, options),
+  post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>('POST', path, body, options),
+  put: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>('PUT', path, body, options),
+  patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
+    request<T>('PATCH', path, body, options),
+  del: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
   upload,
   uploadFor,
 };

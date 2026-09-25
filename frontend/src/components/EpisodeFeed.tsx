@@ -52,6 +52,12 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     if (tag) q.set('tag', tag);
     return q.toString();
   }, [feedId, season, tag, order]);
+  // The query the list currently holds. `loadMore` is fired from an IntersectionObserver and from a button,
+  // so a page-2 request can still be in flight when the visitor changes a filter — and its answer belongs to
+  // a list that no longer exists. Without this the old page was appended to the new one, its `totalPages`
+  // overwrote the new one's, and its `finally` cleared the loading state of the request that replaced it.
+  const queryBaseRef = useRef(queryBase);
+  queryBaseRef.current = queryBase;
 
   // Season options (defined within a feed, §4.4) — only when scoped to one.
   useEffect(() => {
@@ -95,16 +101,22 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
   const loadMore = useCallback(() => {
     if (loading || page >= totalPages - 1) return;
     const next = page + 1;
+    const forQuery = queryBase;
     setLoading(true);
     api
       .get<Paged<EpisodeSummary>>(`/api/episodes?${queryBase}&page=${next}`)
       .then((res) => {
+        if (queryBaseRef.current !== forQuery) return;
         setItems((prev) => [...prev, ...res.items]);
         setPage(next);
         setTotalPages(res.totalPages);
       })
-      .catch(() => setFailed(true))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (queryBaseRef.current === forQuery) setFailed(true);
+      })
+      .finally(() => {
+        if (queryBaseRef.current === forQuery) setLoading(false);
+      });
   }, [loading, page, totalPages, queryBase]);
 
   // Auto-load as the sentinel scrolls into view.

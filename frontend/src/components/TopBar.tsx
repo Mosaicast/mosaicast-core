@@ -47,7 +47,11 @@ export function TopBar() {
     // A drop-in language has no compiled-in catalog, so fetch it before switching — otherwise the first
     // render in that language is entirely fallback English and only corrects itself on the next keystroke.
     void ensureCatalog(code).then(() => i18n.changeLanguage(code));
-    localStorage.setItem('mc.locale', code);
+    try {
+      localStorage.setItem('mc.locale', code);
+    } catch {
+      // Storage blocked or full: the switch still applies to this page view, it just is not remembered.
+    }
   };
 
   const discordLogin = () => {

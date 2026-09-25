@@ -410,6 +410,7 @@
   "error.body": "Auf dieser Seite ist ein unerwarteter Fehler aufgetreten. Du kannst es erneut versuchen oder zur Startseite zurückkehren.",
   "error.retry": "Erneut versuchen",
   "error.home": "Zur Startseite",
+  "slot.error": "Dieser Teil der Seite konnte nicht angezeigt werden.",
   "admin.legal.title": "Rechtliche Seiten",
   "admin.legal.newSlug": "Neuer Seiten-Slug (z. B. privacy)",
   "admin.legal.create": "Seite erstellen",

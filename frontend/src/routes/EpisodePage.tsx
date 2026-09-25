@@ -62,7 +62,7 @@ export function EpisodePage() {
   // still open the episode (§6.4).
   const startAt = parseTimestamp(params.get('t'));
 
-  const { data: episode, error } = useResource<EpisodeDetail>(`/api/episodes/${slug}`);
+  const { data: episode, error, loading, reload } = useResource<EpisodeDetail>(`/api/episodes/${slug}`);
   const { data: adjacent } = useResource<AdjacentEpisodes>(`/api/episodes/${slug}/adjacent`);
   // Fetched here, not in the widget: pinning changes this list, so the curator and the reader have to
   // share one source of truth about when to re-read it.
@@ -94,10 +94,24 @@ export function EpisodePage() {
   if (error instanceof ApiError && error.status === 404) {
     return <NotFound />;
   }
+  // Anything else that failed — a 5xx, a dropped connection, an offline tab — is a failure, not a slow
+  // load. Falling through to the loading copy left the visitor on "Loading…" forever with no way to retry,
+  // which is the one state a page must never end in.
+  if (error) {
+    return (
+      <section className="mc-page" role="alert">
+        <h1 className="mc-page__title">{t('error.title')}</h1>
+        <p className="mc-muted">{t('error.body')}</p>
+        <button type="button" className="mc-btn" onClick={reload}>
+          {t('error.retry')}
+        </button>
+      </section>
+    );
+  }
   if (!episode) {
     return (
       <section className="mc-page">
-        <p className="mc-muted">{t('common.loading')}</p>
+        <p className="mc-muted">{loading ? t('common.loading') : t('error.body')}</p>
       </section>
     );
   }

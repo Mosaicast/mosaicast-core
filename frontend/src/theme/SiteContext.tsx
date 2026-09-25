@@ -57,7 +57,13 @@ export function SiteProvider({ children }: { children: ReactNode }) {
     try {
       const payload = await api.get<SiteView>('/api/site');
       setSite(payload);
-      localStorage.setItem(SITE_CACHE_KEY, JSON.stringify(payload));
+      // Its own try: this is only the cache the no-flash script reads next time. Inside the outer one, a
+      // full or blocked storage threw past everything below, and the site's theme was never applied at all.
+      try {
+        localStorage.setItem(SITE_CACHE_KEY, JSON.stringify(payload));
+      } catch {
+        // Next page load flashes the default theme once; this one is still themed.
+      }
       applyDefaultLocale(payload.defaultLocale);
       const resolved = resolveMode(payload.modePolicy);
       applyTheme(payload.theme, resolved);
