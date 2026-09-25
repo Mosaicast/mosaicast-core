@@ -50,10 +50,6 @@ public interface AppLogRepository extends JpaRepository<AppLogEntry, Long> {
     @Query("select distinct e.pluginId from AppLogEntry e where e.pluginId is not null order by e.pluginId")
     List<String> distinctPluginIds();
 
-    /** {@code [level, count]} rows since a cut-off — the health card's error/warning counters. */
-    @Query("select e.level, count(e) from AppLogEntry e where e.at >= :since group by e.level")
-    List<Object[]> countByLevelSince(@Param("since") Instant since);
-
     /** Same, split by subsystem: {@code [subsystem, level, count]}. */
     @Query("""
             select e.subsystem, e.level, count(e) from AppLogEntry e
@@ -69,11 +65,18 @@ public interface AppLogRepository extends JpaRepository<AppLogEntry, Long> {
     int deleteOlderThan(@Param("cutoff") Instant cutoff);
 
     /**
-     * Retention by row count: keeps the newest {@code maxRows}. Ids are monotonic, so the cut-off can be
-     * computed from the maximum without ordering the whole table.
+     * Retention by row count: keeps the newest {@code maxRows}.
+     *
+     * <p>The cut-off is the first row past the newest {@code maxRows} — it and everything older go — found by
+     * walking the primary key backwards. It used to be {@code max(id) - maxRows}, justified by "ids are monotonic" — but that
+     * arithmetic needs <em>dense</em> ids, and a {@code BIGSERIAL} is not: a failed insert or a cached
+     * sequence block leaves gaps, and the writer does fail inserts under load. With gaps it deleted rows while
+     * the table was still under its limit (core#201). Only {@code maxRows} index entries are read either way.
      */
     @Modifying
-    @Query(value = "delete from app_log where id <= (select coalesce(max(id), 0) - :maxRows from app_log)",
-            nativeQuery = true)
+    @Query(value = """
+            delete from app_log
+            where id <= (select id from app_log order by id desc offset :maxRows limit 1)
+            """, nativeQuery = true)
     int trimToMaxRows(@Param("maxRows") long maxRows);
 }

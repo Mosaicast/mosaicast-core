@@ -206,16 +206,30 @@ public class PluginSchemaMigrator {
      * An index name that fits Postgres's 63-byte limit.
      *
      * <p>Truncation is silent, and two truncated-alike names would make the second {@code create index if
-     * not exists} a no-op — an index the declaration asked for and never got. Trimming the table part first
-     * keeps the field name, which is what makes two indexes on one table distinguishable.
+     * not exists} a no-op — an index the declaration asked for and never got. Trimming only the table part
+     * did not close that: two entities of one plugin whose table names differ past the cut, with a field of
+     * the same name, still produced one name (core#201). So a name that has to be shortened carries a
+     * checksum of the whole name it stands for: distinct inputs, distinct names, whatever was cut.
+     *
+     * <p>A name that fits is unchanged, which is every name an install has in practice; one that was
+     * already shortened the old way gets a new name, and its old index is left in place beside it.
      */
-    private static String indexName(String table, String field, String suffix) {
-        String name = "%s_%s_%s".formatted(table, field.toLowerCase(Locale.ROOT), suffix);
+    static String indexName(String table, String field, String suffix) {
+        String column = field.toLowerCase(Locale.ROOT);
+        String name = "%s_%s_%s".formatted(table, column, suffix);
         if (name.length() <= 63) {
             return name;
         }
-        int room = 63 - field.length() - suffix.length() - 2;
-        return "%s_%s_%s".formatted(table.substring(0, Math.max(1, room)), field.toLowerCase(Locale.ROOT), suffix);
+        java.util.zip.CRC32 crc = new java.util.zip.CRC32();
+        crc.update(name.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String hash = "%08x".formatted(crc.getValue());
+        // The field stays while it fits, since it is what tells two indexes on one table apart to a reader;
+        // the checksum is what tells them apart to Postgres.
+        String tail = "_%s_%s_%s".formatted(hash, column, suffix);
+        if (tail.length() > 62) {
+            tail = "_%s_%s".formatted(hash, suffix);
+        }
+        return table.substring(0, Math.min(table.length(), 63 - tail.length())) + tail;
     }
 
     /**

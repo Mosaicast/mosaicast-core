@@ -71,6 +71,8 @@ public class PluginLoaderService {
      * object rather than two built from the same manifest.
      */
     private final Map<String, SchemaStoreImpl> schemaStores = new LinkedHashMap<>();
+    /** The context each loaded plugin's {@code register(ctx)} received, for the HTTP surfaces that act for it. */
+    private final Map<String, PluginContextImpl> contexts = new LinkedHashMap<>();
 
     /**
      * The site's language registry, shared by every plugin (§12.7).
@@ -229,6 +231,7 @@ public class PluginLoaderService {
             }
             List<PluginBackend> backends = manager.getExtensions(PluginBackend.class, pluginId);
             PluginContextImpl ctx = buildContext(manifest);
+            contexts.put(manifest.id(), ctx);
             for (PluginBackend backend : backends) {
                 backend.register(ctx);
             }
@@ -382,6 +385,22 @@ public class PluginLoaderService {
      */
     public Optional<SchemaStoreImpl> schemaOf(String id) {
         return active(id).map(r -> schemaStores.get(r.id()));
+    }
+
+    /**
+     * The identity client a plugin's backend was given, for the HTTP surface that resolves users for its UI —
+     * empty for an inactive plugin or one that declared no {@code identity}.
+     *
+     * <p>From the same context rather than built again: a second construction site is how the notify
+     * endpoint came to lack the write floor the context's copy had (core#201).
+     */
+    public Optional<dev.mosaicast.plugin.api.Users> usersOf(String id) {
+        return active(id).map(r -> contexts.get(r.id())).map(PluginContextImpl::users);
+    }
+
+    /** The notifier a plugin's backend was given — the same reasoning as {@link #usersOf}. */
+    public Optional<dev.mosaicast.plugin.api.Notifier> notifierOf(String id) {
+        return active(id).map(r -> contexts.get(r.id())).map(PluginContextImpl::notifier);
     }
 
     /** Every plugin that is loaded and switched on, in discovery order. */

@@ -440,16 +440,6 @@ public class ConsentService {
         return approvals.isApproved(pluginId, service) ? CATEGORY_NECESSARY : CATEGORY_NECESSARY_UNAPPROVED;
     }
 
-    /**
-     * Whether a service's origins belong in every visitor's policy regardless of what they chose.
-     *
-     * <p>True only for an <em>approved</em> necessary claim. An unapproved one is prompted, so it is subject
-     * to {@code grantedCategories} like anything else.
-     */
-    private boolean isUnconditional(String pluginId, PluginManifest.Service service) {
-        return CATEGORY_NECESSARY.equals(effectiveCategory(pluginId, service));
-    }
-
     private static List<PluginManifest.Service> declaredServices(PluginRegistration registration) {
         PluginManifest manifest = registration.manifest();
         if (manifest == null || manifest.consent() == null) {

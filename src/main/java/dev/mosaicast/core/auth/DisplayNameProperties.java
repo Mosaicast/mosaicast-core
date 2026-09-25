@@ -33,7 +33,8 @@ public record DisplayNameProperties(
         List<String> blocked) {
 
     private static final int DEFAULT_MIN = 3;
-    private static final int DEFAULT_MAX = 32;
+    /** The default longest name, in codepoints; public for the migration that has to respect it before the bean exists. */
+    public static final int DEFAULT_MAX = 32;
     private static final Duration DEFAULT_COOLDOWN = Duration.ofHours(24);
 
     public DisplayNameProperties {

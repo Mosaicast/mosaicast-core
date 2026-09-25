@@ -3,14 +3,13 @@
 
 package dev.mosaicast.core.db.migration;
 
+import dev.mosaicast.core.auth.DisplayNameProperties;
 import dev.mosaicast.core.auth.DisplayNames;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.flywaydb.core.api.migration.BaseJavaMigration;
@@ -66,34 +65,68 @@ public class V33__display_name extends BaseJavaMigration {
      * name — the alternative orderings all amount to renaming whoever the query happened to return second.
      */
     private void backfillKeys(Connection connection) throws Exception {
-        Map<UUID, String[]> resolved = new LinkedHashMap<>();
+        // Only the taken keys stay in memory, which uniqueness needs. It used to hold every user as well and
+        // send one batch for the whole table — a heap risk in a migration that blocks startup (core#201).
+        // The rows are streamed through a cursor (a fetch size inside the migration's transaction) and
+        // written in bounded batches.
         Set<String> taken = new HashSet<>();
+        int maxLength = maxLength();
 
         try (PreparedStatement select = connection.prepareStatement(
                 "SELECT id, display_name FROM app_user ORDER BY created_at ASC, id ASC");
-             ResultSet rows = select.executeQuery()) {
-            while (rows.next()) {
-                UUID id = (UUID) rows.getObject("id");
-                String cleaned = DisplayNames.clean(rows.getString("display_name"));
-                if (cleaned.isEmpty()) {
-                    cleaned = DisplayNames.generatedFor(id);
+             PreparedStatement update = connection.prepareStatement(
+                     "UPDATE app_user SET display_name = ?, display_key = ? WHERE id = ?")) {
+            select.setFetchSize(BATCH);
+            int pending = 0;
+            try (ResultSet rows = select.executeQuery()) {
+                while (rows.next()) {
+                    UUID id = (UUID) rows.getObject("id");
+                    String cleaned = DisplayNames.clean(rows.getString("display_name"));
+                    if (cleaned.isEmpty()) {
+                        cleaned = DisplayNames.generatedFor(id);
+                    }
+                    String name = disambiguate(cleaned, id, taken, maxLength);
+                    String key = DisplayNames.canonicalise(name);
+                    taken.add(key);
+                    update.setString(1, name);
+                    update.setString(2, key);
+                    update.setObject(3, id);
+                    update.addBatch();
+                    if (++pending == BATCH) {
+                        update.executeBatch();
+                        pending = 0;
+                    }
                 }
-                String name = disambiguate(cleaned, id, taken);
-                taken.add(DisplayNames.canonicalise(name));
-                resolved.put(id, new String[] {name, DisplayNames.canonicalise(name)});
+            }
+            if (pending > 0) {
+                update.executeBatch();
             }
         }
+    }
 
-        try (PreparedStatement update = connection.prepareStatement(
-                "UPDATE app_user SET display_name = ?, display_key = ? WHERE id = ?")) {
-            for (Map.Entry<UUID, String[]> entry : resolved.entrySet()) {
-                update.setString(1, entry.getValue()[0]);
-                update.setString(2, entry.getValue()[1]);
-                update.setObject(3, entry.getKey());
-                update.addBatch();
-            }
-            update.executeBatch();
+    /** Rows per fetch and per update batch. */
+    private static final int BATCH = 500;
+
+    /**
+     * The longest name the runtime accepts, read the way the application reads it — the bean does not exist
+     * yet while migrations run. Names written longer than this were ones the validator then rejected on the
+     * first edit (core#201).
+     */
+    static int maxLength() {
+        String configured = System.getenv("MOSAICAST_DISPLAY_NAME_MAX");
+        try {
+            return configured == null ? DisplayNameProperties.DEFAULT_MAX : Integer.parseInt(configured.trim());
+        } catch (NumberFormatException e) {
+            return DisplayNameProperties.DEFAULT_MAX;
         }
+    }
+
+    /** The first {@code limit} codepoints of a name, whitespace at the cut removed. */
+    static String fit(String name, int limit) {
+        if (name.codePointCount(0, name.length()) <= limit) {
+            return name;
+        }
+        return name.substring(0, name.offsetByCodePoints(0, Math.max(0, limit))).strip();
     }
 
     /**
@@ -104,13 +137,15 @@ public class V33__display_name extends BaseJavaMigration {
      * rather than a counter keeps the result the same whichever order two installs happen to run in, which
      * is what makes this reproducible against a restored backup.
      */
-    private static String disambiguate(String cleaned, UUID id, Set<String> taken) {
+    static String disambiguate(String cleaned, UUID id, Set<String> taken, int maxLength) {
         String plain = id.toString().replace("-", "");
+        // Each candidate fits the configured maximum: the suffix used to be appended to a name of any length,
+        // so a 32-character name became 37 or 65, and a long name from the login provider was kept whole.
         String[] candidates = {
-            cleaned,
-            cleaned + " " + plain.substring(0, 4),
-            cleaned + " " + plain.substring(0, 8),
-            cleaned + " " + plain,
+            fit(cleaned, maxLength),
+            fit(cleaned, maxLength - 5) + " " + plain.substring(0, 4),
+            fit(cleaned, maxLength - 9) + " " + plain.substring(0, 8),
+            plain.substring(0, Math.min(plain.length(), maxLength)),
         };
         for (String candidate : candidates) {
             if (!taken.contains(DisplayNames.canonicalise(candidate))) {

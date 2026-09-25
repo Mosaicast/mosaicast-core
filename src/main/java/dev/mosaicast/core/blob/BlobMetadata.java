@@ -16,12 +16,19 @@ import java.time.Instant;
  * @param updatedAt last modification (drives the ETag / Last-Modified, §12.2)
  * @param filename  the original filename for display, or {@code null} — branding assets have none, and a
  *                  plugin's media library is a list a human reads
+ * @param uploader  who stored it, or {@code null} for a backend write or a store that never recorded it —
+ *                  what decides whether a caller below the podcaster floor may delete it (core#201)
  */
 public record BlobMetadata(BlobRef ref, String key, String mime, long size, Instant updatedAt,
-                           String filename) {
+                           String filename, java.util.UUID uploader) {
+
+    /** Metadata with a filename and no recorded uploader. */
+    public BlobMetadata(BlobRef ref, String key, String mime, long size, Instant updatedAt, String filename) {
+        this(ref, key, mime, size, updatedAt, filename, null);
+    }
 
     /** Metadata for a blob nobody named — branding's shape, and what the store returned before §11 grew. */
     public BlobMetadata(BlobRef ref, String key, String mime, long size, Instant updatedAt) {
-        this(ref, key, mime, size, updatedAt, null);
+        this(ref, key, mime, size, updatedAt, null, null);
     }
 }

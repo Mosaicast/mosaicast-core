@@ -32,8 +32,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class ProgressController {
 
     private final ListeningProgressRepository progress;
+    private final dev.mosaicast.core.episode.EpisodeRefRepository episodes;
 
-    public ProgressController(ListeningProgressRepository progress) {
+    public ProgressController(ListeningProgressRepository progress,
+                              dev.mosaicast.core.episode.EpisodeRefRepository episodes) {
+        this.episodes = episodes;
         this.progress = progress;
     }
 
@@ -81,7 +84,16 @@ public class ProgressController {
                     existing.update(body.positionSeconds());
                     return existing;
                 })
-                .orElseGet(() -> new ListeningProgress(userId, episodeId, body.positionSeconds()));
+                .orElseGet(() -> {
+                    // A new row only for an episode this listener can see. Any UUID used to be accepted, so a
+                    // signed-in account could fill its own partition with rows about nothing, and an unknown
+                    // id answered 204 where the episode does not exist (core#201). An existing row may still
+                    // move after its episode is hidden; it is the listener's.
+                    if (episodes.findVisibleById(episodeId).isEmpty()) {
+                        throw new dev.mosaicast.core.web.NotFoundException("Episode not found: " + episodeId);
+                    }
+                    return new ListeningProgress(userId, episodeId, body.positionSeconds());
+                });
         progress.save(entity);
         return ResponseEntity.noContent().build();
     }

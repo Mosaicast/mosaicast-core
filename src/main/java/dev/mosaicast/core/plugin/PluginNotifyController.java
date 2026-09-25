@@ -4,7 +4,6 @@
 package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.core.auth.CurrentUser;
-import dev.mosaicast.core.notification.NotificationService;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.NotificationException;
 import dev.mosaicast.plugin.api.NotifyMessage;
@@ -40,16 +39,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class PluginNotifyController {
 
     private final PluginLoaderService plugins;
-    private final PluginDataRepository data;
-    private final NotificationService notifications;
-    private final PluginNotifyRateLimiter limiter;
 
-    public PluginNotifyController(PluginLoaderService plugins, PluginDataRepository data,
-                                  NotificationService notifications, PluginNotifyRateLimiter limiter) {
+    public PluginNotifyController(PluginLoaderService plugins) {
         this.plugins = plugins;
-        this.data = data;
-        this.notifications = notifications;
-        this.limiter = limiter;
     }
 
     /**
@@ -91,7 +83,10 @@ public class PluginNotifyController {
         // Constructed here rather than injected, so the SDK's own validation — a non-blank sentence per
         // locale, and an `en` entry — runs on browser input exactly as it does on a backend call.
         NotifyMessage message = new NotifyMessage(request.text(), request.link());
-        return new NotifierImpl(registration.manifest(), data, notifications, limiter)
+        // The notifier the plugin's own backend holds. Built here per request, this was a second
+        // construction site — which is how it came to lack the write floor in the first place (core#201).
+        return plugins.notifierOf(id)
+                .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id))
                 .send(request.userIds(), message);
     }
 }

@@ -64,7 +64,7 @@ public class NotifierImpl implements Notifier {
         if (userIds == null || userIds.isEmpty()) {
             return List.of();
         }
-        String link = validateLink(message.link());
+        String link = validateLink(pluginId, message.link());
 
         Set<UUID> asked = userIds.stream().filter(java.util.Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -106,7 +106,7 @@ public class NotifierImpl implements Notifier {
      *
      * @return the normalised absolute path, or null when there was no link
      */
-    private String validateLink(String link) throws NotificationException {
+    static String validateLink(String pluginId, String link) throws NotificationException {
         if (link == null || link.isBlank()) {
             return null;
         }
@@ -123,7 +123,13 @@ public class NotifierImpl implements Notifier {
         }
         // A plugin may point at its own subtree or at a core page, never at another plugin's — the latter
         // would let one plugin drive traffic into a surface it does not own.
-        if (path.startsWith("/p/") && !path.startsWith("/p/" + pluginId + "/")) {
+        //
+        // The plugin's own root counts as its own: `/p/<id>` with no trailing slash is where its default nav
+        // entry and the first entries of both shipped plugins point, and it was refused as "foreign" (core#201).
+        String root = "/p/" + pluginId;
+        boolean own = path.equals(root) || path.startsWith(root + "/") || path.startsWith(root + "?")
+                || path.startsWith(root + "#");
+        if (path.startsWith("/p/") && !own) {
             throw new NotificationException(NotificationException.Reason.INVALID_LINK,
                     "A notification link may only point at this plugin's own pages");
         }

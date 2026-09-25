@@ -3,8 +3,36 @@
 
 import { progressEnabled } from '../consent/ConsentContext';
 
-/** Where the player stores a position; the key shape is disclosed as `mc.progress.*` (§12.5). */
-const progressKey = (episodeId: string) => `mc.progress.${episodeId}`;
+/**
+ * Where the player stores a position; the key shape is disclosed as `mc.progress.*` (§12.5).
+ *
+ * The one definition. There were three — two helpers and an inline template in `buildCtx` — and the inline
+ * one was the one that missed the "remember playback position" switch (core#201).
+ */
+export const progressKey = (episodeId: string) => `mc.progress.${episodeId}`;
+
+/**
+ * The position stored on this device for an episode, in seconds, or null.
+ *
+ * Null when the visitor switched remembering off, without consulting storage — the positions were deleted
+ * then, and one written since by anything else is not one we may hand out. `ctx.progress.get` read the key
+ * directly and still returned a position after the switch was off (core#201).
+ */
+export function storedPosition(episodeId: string): number | null {
+  if (!progressEnabled()) {
+    return null;
+  }
+  try {
+    const raw = localStorage.getItem(progressKey(episodeId));
+    if (raw == null) {
+      return null;
+    }
+    const seconds = Number(raw);
+    return Number.isFinite(seconds) && seconds >= 0 ? seconds : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * How far into an episode this device got, as `0…1`, or `0` when there is nothing worth drawing.

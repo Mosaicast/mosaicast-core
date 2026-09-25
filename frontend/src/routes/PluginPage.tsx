@@ -6,7 +6,7 @@ import { useParams } from 'react-router-dom';
 
 import { SlotRegion } from '../components/SlotRegion';
 import { usePluginRegistry } from '../plugins/PluginRegistry';
-import { NotFound } from './Placeholder';
+import { NotFound } from './NotFound';
 import { useDocumentTitle } from '../a11y/documentTitle';
 
 /**

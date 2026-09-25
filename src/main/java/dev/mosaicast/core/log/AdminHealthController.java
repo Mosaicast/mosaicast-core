@@ -31,13 +31,16 @@ public class AdminHealthController {
     private final PluginLoaderService plugins;
     private final FeedService feeds;
     private final AppLogService logs;
+    private final AppLogProperties logProperties;
     private final String version;
 
     public AdminHealthController(PluginLoaderService plugins, FeedService feeds, AppLogService logs,
+                                 AppLogProperties logProperties,
                                  @Value("${mosaicast.version:dev}") String version) {
         this.plugins = plugins;
         this.feeds = feeds;
         this.logs = logs;
+        this.logProperties = logProperties;
         this.version = version;
     }
 
@@ -62,7 +65,8 @@ public class AdminHealthController {
                 pluginHealth,
                 feedHealth,
                 logs.countsSince(since),
-                since);
+                since,
+                logProperties.threshold().name());
     }
 
     private static long uptimeSeconds() {
@@ -70,11 +74,13 @@ public class AdminHealthController {
     }
 
     /**
-     * @param counts ERROR/WARN tallies per subsystem since {@code countsSince}
+     * @param counts       ERROR/WARN tallies per subsystem since {@code countsSince} — of <em>stored</em> rows
+     * @param captureLevel the lowest level stored; a count below it is not zero but unknown, and the card
+     *                     must say so rather than read "0 warnings" while warnings run on stdout (core#201)
      */
     public record HealthView(String version, long uptimeSeconds, List<PluginHealth> plugins,
                              List<FeedHealth> feeds, List<AppLogService.SubsystemCount> counts,
-                             Instant countsSince) {
+                             Instant countsSince, String captureLevel) {
     }
 
     /**

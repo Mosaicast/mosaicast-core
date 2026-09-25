@@ -61,7 +61,7 @@ export function PluginRegistryProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<RegistryValue['status']>('loading');
   const [attempt, setAttempt] = useState(0);
   const reload = useCallback(() => setAttempt((n) => n + 1), []);
-  const devProfile = useMeta()?.devLoginEnabled ?? false;
+  const devProfile = useMeta()?.devProfile ?? false;
   const consent = useConsent();
 
   // Dev only, and before any bundle is imported: a plugin that writes storage it never declared makes the

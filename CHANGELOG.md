@@ -225,6 +225,36 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Code that said one thing and did another (`0.7.4`, core#201).** A hygiene pass that turned up several
+  real defects under comments asserting invariants the code did not have.
+  - `ctx.progress.get` read `mc.progress.<id>` directly and still handed a plugin a stored position after
+    the visitor switched "remember playback position" off. The three definitions of that key are now one
+    (`progressKey`), and every read goes through `storedPosition`, which honours the switch.
+  - `PUT /api/me/progress/{id}` accepted any UUID and stored a row for an episode that does not exist or
+    that the caller cannot see; it now answers 404 for those.
+  - A plugin's notification could not link to its own root page (`/p/<id>`), nor to one with a query or
+    fragment. It can now.
+  - A fan could delete a blob another user had uploaded, whenever the plugin's write floor let them upload.
+    Below podcaster, only the uploader may delete now; blob metadata records who that was.
+  - The log retention trim assumed ids had no gaps, so after a sequence jump it kept fewer rows than
+    configured. It now counts rows. The admin health view says when capture is set to `ERROR`, instead of
+    showing a permanent "0 warnings" while warnings go to stdout.
+  - Log shutdown could lose buffered lines and miscount dropped ones; the writer is now joined before the
+    drain, and the drop count is only reset once the notice was actually written.
+  - A plugin schema index name cut to Postgres's 63-byte limit could collide with a sibling's; truncated
+    names now carry a hash of the full one.
+  - `V33__display_name` loaded every user at once, could cut a name mid-character, and could produce a
+    disambiguated name longer than the configured maximum. It now streams, truncates on code points and
+    fits every candidate. The external cache counted payload size in UTF-16 units instead of bytes.
+  - Logout sent two `Set-Cookie` headers for the session cookie, one of them without `HttpOnly`. Only
+    Spring Session's own expiry is sent now.
+  - The per-request role refresh mutated the session's security context in place instead of replacing it
+    for the request.
+  - `devLoginEnabled` stood in for "is this the dev profile" in the frontend; `/api/meta` now says
+    `devProfile` directly. Notify and user-lookup endpoints use the plugin's loaded context instead of
+    building their own. Dead code removed (`isUnconditional`, `countByLevelSince`, `common.comingSoon`);
+    the 404 page lives in `NotFound.tsx` instead of `Placeholder.tsx`.
+
 - **The privacy settings say what is kept in an account, and stop claiming a completeness they did not
   have (`0.7.4`, core#176).** The playback-position switch said positions were "only kept on this device"
   while a signed-in listener's position is also written to their account; it says so now, and that turning
@@ -234,6 +264,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   nowhere on it. The settings now list what core keeps in a signed-in account, with purpose and retention,
   and a migration rewords the sentence to say what the lists cover (as V16 did, only where the operator
   has not already edited it).
+
 
 - **A batch of small things that each made a page feel unfinished (`0.7.4`, #199).** A fan was shown the
   personal-access-token section with no way to use it; it appears only for roles that can create a token,

@@ -251,6 +251,32 @@ public class PluginBlobService {
     }
 
     /**
+     * Deletes one of a plugin's files on behalf of a person, who may delete their own and — from podcaster up
+     * — anyone's.
+     *
+     * <p>The write floor alone decided it, and the uploader recorded on every upload was never read: with a
+     * manifest that lets fans write, any fan could delete any other fan's file (core#201). A backend delete
+     * has no person behind it and uses {@link #delete(String, String)}.
+     *
+     * @throws org.springframework.security.access.AccessDeniedException for someone else's file below podcaster
+     */
+    @Transactional
+    public boolean delete(String pluginId, String ref, UUID caller, Optional<dev.mosaicast.plugin.api.Role> role) {
+        Optional<BlobMetadata> found = find(pluginId, ref);
+        if (found.isEmpty()) {
+            return false;
+        }
+        boolean staff = role.filter(r -> r == dev.mosaicast.plugin.api.Role.ADMIN
+                || r == dev.mosaicast.plugin.api.Role.PODCASTER).isPresent();
+        if (!staff && (caller == null || !caller.equals(found.get().uploader()))) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Only the person who uploaded this file may delete it");
+        }
+        blobs.delete(found.get().ref());
+        return true;
+    }
+
+    /**
      * What a plugin has used and what it is allowed, as this install sees it.
      *
      * @param manifest the plugin's manifest

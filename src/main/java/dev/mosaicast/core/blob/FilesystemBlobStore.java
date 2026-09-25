@@ -468,7 +468,13 @@ public class FilesystemBlobStore implements NamedBlobStore {
         }
 
         BlobMetadata toMetadata(BlobRef ref) {
-            return new BlobMetadata(ref, key, mime, size, updatedAtInstant(), filename);
+            UUID by = null;
+            try {
+                by = uploader == null ? null : UUID.fromString(uploader);
+            } catch (IllegalArgumentException e) {
+                // A sidecar written by something else: no uploader rather than no file.
+            }
+            return new BlobMetadata(ref, key, mime, size, updatedAtInstant(), filename, by);
         }
     }
 

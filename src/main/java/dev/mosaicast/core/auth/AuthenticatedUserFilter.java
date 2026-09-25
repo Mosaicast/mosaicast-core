@@ -40,12 +40,18 @@ public class AuthenticatedUserFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
-        SecurityContext context = SecurityContextHolder.getContext();
-        Authentication current = context.getAuthentication();
-        CurrentUser.id(current).ifPresent(userId ->
-                context.setAuthentication(users.findById(userId)
-                        .map(user -> CurrentUser.authenticationFor(user, effectiveRole(user, request)))
-                        .orElse(null))); // user gone (deleted/banned) → immediately unauthenticated
+        Authentication current = SecurityContextHolder.getContext().getAuthentication();
+        CurrentUser.id(current).ifPresent(userId -> {
+            // A fresh context, never the restored one mutated in place: that object is the one held in the
+            // HTTP session, so setting on it rewrote the session for every request sharing it — a token
+            // request's capped role, or null for a deleted user, leaking into a concurrent cookie request
+            // (core#201). This request's view changes; what the session holds is the login's business.
+            SecurityContext fresh = SecurityContextHolder.createEmptyContext();
+            fresh.setAuthentication(users.findById(userId)
+                    .map(user -> CurrentUser.authenticationFor(user, effectiveRole(user, request)))
+                    .orElse(null)); // user gone (deleted/banned) → immediately unauthenticated
+            SecurityContextHolder.setContext(fresh);
+        });
         chain.doFilter(request, response);
     }
 

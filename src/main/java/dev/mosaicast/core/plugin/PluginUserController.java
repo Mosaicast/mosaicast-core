@@ -4,7 +4,6 @@
 package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.core.auth.CurrentUser;
-import dev.mosaicast.core.auth.UserRepository;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.plugin.api.UserRef;
 import java.util.ArrayList;
@@ -38,11 +37,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class PluginUserController {
 
     private final PluginLoaderService plugins;
-    private final UsersImpl users;
 
-    public PluginUserController(PluginLoaderService plugins, UserRepository userRepository) {
+    public PluginUserController(PluginLoaderService plugins) {
         this.plugins = plugins;
-        this.users = new UsersImpl(userRepository);
     }
 
     /**
@@ -63,7 +60,10 @@ public class PluginUserController {
     public List<UserRef> resolve(@PathVariable String id, @RequestParam(defaultValue = "") String ids,
                                  Authentication authentication) {
         requireIdentityPlugin(id, authentication);
-        return users.resolve(parseIds(ids));
+        // The client the plugin's own backend holds, not a second one built here (core#201).
+        return plugins.usersOf(id)
+                .orElseThrow(() -> new NotFoundException("Unknown plugin: " + id))
+                .resolve(parseIds(ids));
     }
 
     /** The requested ids: parseable ones only, de-duplicated by the resolver, clamped there too. */

@@ -38,7 +38,7 @@ import { EpisodePage } from './routes/EpisodePage';
 import { FeedPage } from './routes/FeedPage';
 import { Home } from './routes/Home';
 import { LegalPage } from './routes/LegalPage';
-import { NotFound } from './routes/Placeholder';
+import { NotFound } from './routes/NotFound';
 import { PluginPage } from './routes/PluginPage';
 import { SiteProvider } from './theme/SiteContext';
 
