@@ -153,14 +153,6 @@
   padding: 1rem;
   margin: 0.75rem 0 1rem;
 }
-.mc-token-secret__value {
-  display: block;
-  word-break: break-all;
-  margin: 0.5rem 0;
-  padding: 0.5rem;
-  background: var(--mc-bg);
-  border-radius: 6px;
-}
 .mc-token-create {
   display: flex;
   gap: 0.5rem;
@@ -275,6 +267,10 @@
   align-items: center;
   gap: 0.6rem;
 }
+.mc-colorpick__hex {
+  width: 8rem;
+  font-family: var(--mc-font-mono);
+}
 .mc-colorpick__input {
   -webkit-appearance: none;
   appearance: none;
@@ -353,4 +349,20 @@
 .mc-upload:focus-within {
   outline: var(--mc-focus-width) solid var(--mc-focus);
   outline-offset: var(--mc-focus-offset);
+}
+
+/* A value to copy: the field and its button on one row (#199). */
+.mc-copyfield {
+  display: grid;
+  gap: var(--mc-space-2);
+}
+.mc-copyfield__row {
+  display: flex;
+  gap: var(--mc-space-2);
+}
+.mc-copyfield__value {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mc-font-mono);
+  font-size: var(--mc-text-xs);
 }

@@ -133,7 +133,7 @@ export function PluginStorage({
           disabled={!valid}
           onClick={() => onSave(quotaMib * MIB, maxFileMib * MIB)}
         >
-          {t('common.save')}
+          {t('admin.plugins.storage.save')}
         </button>
         {overridden && (
           <button type="button" className="mc-btn" onClick={onClear}>

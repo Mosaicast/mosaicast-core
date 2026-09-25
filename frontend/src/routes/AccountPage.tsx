@@ -13,6 +13,7 @@ import { ProgressPreference } from '../consent/ProgressPreference';
 import { formatDate } from '../util/format';
 import { useDocumentTitle } from '../a11y/documentTitle';
 import { SavedNote } from '../a11y/SavedNote';
+import { CopyField } from '../components/CopyField';
 
 /**
  * The current user's account (ARCHITECTURE §8.4/§8.5): profile, linked identities (connect / unlink with
@@ -283,13 +284,20 @@ export function AccountPage() {
         ))}
       </ul>
 
-      <h2>{t('account.tokens')}</h2>
-      <p className="mc-muted">{t('account.tokensHelp')}</p>
+      {/* Only for someone who can create one, or still holds one to revoke (a demoted podcaster): a fan was
+          shown the feature described with no way to use it, which read as broken (#199). */}
+      {(canCreateToken || tokens.length > 0) && (
+        <>
+          <h2>{t('account.tokens')}</h2>
+          <p className="mc-muted">{t('account.tokensHelp')}</p>
+        </>
+      )}
 
       {created && (
         <div className="mc-token-secret">
           <p>{t('account.tokenOnce')}</p>
-          <code className="mc-token-secret__value">{created.secret}</code>
+          {/* The one moment copying is mandatory: this is never shown again (#199). */}
+          <CopyField value={created.secret} label={t('account.tokenSecret')} />
           <button type="button" className="mc-btn" onClick={() => setCreated(null)}>
             {t('common.dismiss')}
           </button>
@@ -312,7 +320,11 @@ export function AccountPage() {
 
       {canCreateToken && (
         <div className="mc-token-create">
+          <label className="mc-sr-only" htmlFor="mc-token-name">
+            {t('account.tokenName')}
+          </label>
           <input
+            id="mc-token-name"
             className="mc-input"
             type="text"
             value={newName}

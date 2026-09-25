@@ -3,7 +3,6 @@
 
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Navigate } from 'react-router-dom';
 
 import type { Role } from '../api/types';
 import { useUser } from './UserContext';
@@ -21,7 +20,15 @@ export function RequireRole({ roles, children }: { roles: Role[]; children: Reac
     return null;
   }
   if (!user) {
-    return <Navigate to="/" replace />;
+    // Said, not redirected: a visitor who followed a link to /admin or /account was dropped on the front page
+    // with nothing to say why, while a signed-in fan got an explanation (#199). Staying on the URL also means
+    // signing in from the header shows the page they asked for.
+    return (
+      <section className="mc-page">
+        <h1 className="mc-page__title">{t('auth.signInRequired')}</h1>
+        <p className="mc-muted">{t('auth.signInRequiredBody')}</p>
+      </section>
+    );
   }
   if (!roles.includes(user.role)) {
     return (

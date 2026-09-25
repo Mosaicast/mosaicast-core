@@ -29,6 +29,20 @@ export function AdminPlugins() {
   const [plugins, setPlugins] = useState<AdminPlugin[] | null>(null);
   /** Unsaved form input, keyed `${pluginId} ${field}`; absent means "unchanged from the server value". */
   const [drafts, setDrafts] = useState<Record<string, string | boolean>>({});
+
+  // Leaving with unsaved edits used to discard them without a word (#199). The browser's own prompt, for a
+  // reload or a closed tab; an in-app link is covered by the "unsaved" marker next to each Save.
+  const unsaved = Object.keys(drafts).length > 0;
+  useEffect(() => {
+    if (!unsaved) {
+      return;
+    }
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved]);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [purged, setPurged] = useState<string | null>(null);
@@ -227,7 +241,10 @@ export function AdminPlugins() {
               )}
 
               {Object.keys(plugin.config ?? {}).length > 0 && (
+                // Its own titled box, like the storage block above it: two Save buttons separated by a hairline
+                // gave no way to tell which fields each one covered (#199).
                 <div className="mc-pluginrow__config">
+                  <h3 className="mc-pluginrow__storageTitle">{t('admin.plugins.settingsTitle')}</h3>
                   {Object.entries(plugin.config).map(([field, declared]) => (
                     <SettingsFieldInput
                       key={field}
@@ -275,8 +292,11 @@ export function AdminPlugins() {
                       className="mc-btn mc-btn--accent"
                       onClick={() => saveConfig(plugin)}
                     >
-                      {t('common.save')}
+                      {t('admin.plugins.saveSettings')}
                     </button>
+                    {hasDrafts(drafts, plugin.id) && (
+                      <span className="mc-muted">{t('admin.plugins.unsaved')}</span>
+                    )}
                     <SavedNote show={saved === plugin.id}>{t('admin.plugins.saved')}</SavedNote>
                   </div>
                 </div>
@@ -291,6 +311,11 @@ export function AdminPlugins() {
 
 function draftKey(pluginId: string, field: string) {
   return `${pluginId} ${field}`;
+}
+
+/** Whether a plugin has edits not yet saved. */
+function hasDrafts(drafts: Record<string, unknown>, pluginId: string) {
+  return Object.keys(drafts).some((key) => key.startsWith(`${pluginId} `));
 }
 
 function statusKey(plugin: AdminPlugin) {

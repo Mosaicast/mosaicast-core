@@ -62,7 +62,7 @@ afterEach(() => vi.unstubAllGlobals());
     expect(input.value).toBe('30');
 
     fireEvent.change(input, { target: { value: '5' } });
-    fireEvent.click(screen.getByText('Save'));
+    fireEvent.click(screen.getByText('Save settings'));
 
     await waitFor(() => {
       const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/plugins/sample/config');
@@ -102,7 +102,7 @@ afterEach(() => vi.unstubAllGlobals());
     expect(select.value).toBe('3');
 
     fireEvent.change(select, { target: { value: '5' } });
-    fireEvent.click(screen.getByText('Save'));
+    fireEvent.click(screen.getByText('Save settings'));
 
     await waitFor(() => {
       const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/plugins/sample/config');
@@ -139,7 +139,9 @@ afterEach(() => vi.unstubAllGlobals());
     expect([...select.options].map((o) => o.textContent)).toEqual(['Shown', 'Hidden']);
 
     fireEvent.change(select, { target: { value: 'false' } });
-    fireEvent.click(screen.getByText('Save'));
+    // Marked until it is saved: leaving used to discard an edit without a word (#199).
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Save settings'));
 
     await waitFor(() => {
       const put = calls.find((c) => c.method === 'PUT' && c.url === '/api/admin/plugins/sample/config');

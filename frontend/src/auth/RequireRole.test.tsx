@@ -50,4 +50,16 @@ describe('RequireRole', () => {
     expect(await screen.findByText('Not allowed')).toBeInTheDocument();
     expect(screen.queryByText('secret area')).not.toBeInTheDocument();
   });
+
+  it('tells an anonymous visitor to sign in, and stays on the page (#199)', async () => {
+    // It used to redirect to the front page without a word, while a fan got an explanation.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve({ ok: false, status: 401, statusText: '', json: () => Promise.reject(new Error()) })),
+    );
+    renderGuarded(['admin']);
+
+    expect(await screen.findByText('Sign in to see this page')).toBeInTheDocument();
+    expect(screen.queryByText('secret area')).not.toBeInTheDocument();
+  });
 });

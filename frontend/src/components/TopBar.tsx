@@ -206,6 +206,12 @@ export function TopBar() {
                 {t('nav.logout')}
               </button>
             </Dropdown>
+          ) : !devLogin ? (
+            // One way in, so no menu: a menu holding a single item is a click that decides nothing (#199).
+            // The title says where the button leads, since the label alone does not.
+            <button type="button" className="mc-btn mc-btn--accent" title={t('login.discord')} onClick={discordLogin}>
+              {t('nav.login')}
+            </button>
           ) : (
             <Dropdown
               triggerClassName="mc-btn mc-btn--accent"

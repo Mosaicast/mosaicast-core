@@ -500,3 +500,12 @@
 .mc-search__hit-snippet {
   font-size: var(--mc-text-sm);
 }
+
+/* What a filter left, and the one way to undo it (#199). */
+.mc-filtered {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-3);
+  margin: 0 0 var(--mc-space-4);
+}

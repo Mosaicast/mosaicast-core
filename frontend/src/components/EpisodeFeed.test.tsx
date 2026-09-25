@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '../i18n';
 import { PlayerProvider } from '../player/PlayerContext';
 import { EpisodeFeed } from './EpisodeFeed';
+import { FeedsProvider } from './FeedsContext';
 
 /** Routes a fetch by URL to canned JSON, so the feed can render without a backend. */
 function mockApi(url: string) {
@@ -113,5 +114,23 @@ describe('EpisodeFeed', () => {
     });
 
     expect(screen.queryByRole('link', { name: 'From the old list' })).not.toBeInTheDocument();
+  });
+
+  it('says how many a filter left out of how many, and clears it in one go (#199)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/?tag=history']}>
+        <FeedsProvider>
+          <PlayerProvider>
+            <EpisodeFeed />
+          </PlayerProvider>
+        </FeedsProvider>
+      </MemoryRouter>,
+    );
+
+    // One match (the stub's page) of the two episodes the feed list says the site has.
+    expect(await screen.findByText('1 of 2 episodes')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
 });

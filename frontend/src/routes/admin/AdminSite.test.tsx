@@ -31,7 +31,7 @@ describe('AdminSite', () => {
     render(<AdminSite />);
     const selects = screen.getAllByRole('combobox') as HTMLSelectElement[];
     expect(selects.some((s) => s.value === 'dark')).toBe(true); // theme mode
-    expect(screen.getByText('#2e7d6b')).toBeInTheDocument();
+    expect(screen.getByLabelText('Accent colour as hex')).toHaveValue('#2e7d6b');
     expect((screen.getByDisplayValue('My Cast') as HTMLInputElement).value).toBe('My Cast');
   });
 
@@ -79,6 +79,24 @@ describe('AdminSite', () => {
     } finally {
       site.theme = original;
     }
+  });
+});
+
+describe('AdminSite accent hex (#199)', () => {
+  it('takes a pasted brand colour, and refuses to save one that is not whole', () => {
+    render(<AdminSite />);
+    const hex = screen.getByLabelText('Accent colour as hex');
+    const swatch = container().querySelector('input[type="color"]') as HTMLInputElement;
+
+    fireEvent.change(hex, { target: { value: '1A5FB4' } });
+    expect(swatch.value).toBe('#1a5fb4');
+    expect(screen.getByRole('button', { name: 'Save & preview' })).toBeEnabled();
+
+    fireEvent.change(hex, { target: { value: '#1a5f' } });
+    expect(screen.getByText(/six hex digits/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save & preview' })).toBeDisabled();
+    // The swatch keeps the last whole colour rather than guessing at a partial one.
+    expect(swatch.value).toBe('#1a5fb4');
   });
 });
 

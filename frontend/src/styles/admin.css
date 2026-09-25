@@ -258,21 +258,31 @@
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+/* Each block that saves on its own is a box of its own, so a Save button plainly covers what is in its box
+   and nothing else (#199). */
 .mc-pluginrow__config {
   margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--mc-border);
+  padding: 0.85rem;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
   display: grid;
   gap: 0.6rem;
 }
 /* The per-plugin storage panel (§11.1) and the external-services declaration (§16) — same divided-block
    treatment as the config form above them, so a plugin row reads as one card with sections rather than as
    stacked widgets. */
-.mc-pluginrow__storage,
 .mc-pluginrow__external {
   margin-top: 0.85rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--mc-border);
+  display: grid;
+  gap: 0.5rem;
+}
+.mc-pluginrow__storage {
+  margin-top: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
   display: grid;
   gap: 0.5rem;
 }
