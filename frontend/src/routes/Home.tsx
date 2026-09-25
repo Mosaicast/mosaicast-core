@@ -19,6 +19,12 @@ export function Home() {
   if (loaded && feeds.length === 1) {
     return <Navigate to={`/feeds/${feeds[0].slug}`} replace />;
   }
+  // Nothing until the feed list is in: rendering the unified feed straight away started its page-0 query,
+  // tags and plugin fan-out — and on a single-feed site, the default, the redirect above then threw all of it
+  // away and the feed page asked again (core#195). `loaded` settles on failure too, so this cannot hang.
+  if (!loaded) {
+    return <section className="mc-page" aria-busy="true" />;
+  }
 
   return (
     <section className="mc-page">

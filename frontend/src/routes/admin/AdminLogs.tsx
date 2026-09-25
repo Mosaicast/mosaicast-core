@@ -19,6 +19,13 @@ import { Icon } from '../../components/Icon';
 const LEVELS = ['ERROR', 'WARN', 'INFO', 'DEBUG', ''] as const;
 const PAGE_SIZE = 50;
 const REFRESH_MS = 10_000;
+/**
+ * How long typing has to stop before the free-text filter is sent. The query behind it is a
+ * case-insensitive `like '%…%'` over a table the row cap lets reach 100 000 entries, and no index can
+ * serve a leading wildcard — so it is a sequential scan, plus a row count for the page envelope, plus a
+ * second request for the health card. One per keystroke turns a search box into a scan per character.
+ */
+const SEARCH_DEBOUNCE_MS = 300;
 
 interface Filters {
   level: string;
@@ -89,7 +96,14 @@ export function AdminLogs() {
   }, []);
 
   useEffect(() => {
-    void load();
+    // Only the text filter waits for a pause; every other filter is a discrete choice a reader makes once,
+    // and delaying those would make the page feel broken for no saving.
+    if (filters.q.trim() === '') {
+      void load();
+      return;
+    }
+    const handle = window.setTimeout(() => void load(), SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
   }, [load, filters, page]);
 
   useEffect(() => {

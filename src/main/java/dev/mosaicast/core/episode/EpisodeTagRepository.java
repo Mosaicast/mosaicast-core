@@ -25,6 +25,17 @@ public interface EpisodeTagRepository extends JpaRepository<EpisodeTag, EpisodeT
     void deleteByEpisodeRefIdAndSource(@Param("refId") UUID refId, @Param("source") String source);
 
     /**
+     * The tag keys one source has on an episode — what a feed poll compares against before rewriting them, so
+     * an unchanged item costs one read instead of a delete and an insert per tag (core#195).
+     *
+     * @param refId  the episode
+     * @param source the owner of the assignments, e.g. {@code feed}
+     * @return the canonical keys, in no particular order
+     */
+    @Query("select t.id.tag from EpisodeTag t where t.id.episodeRefId = :refId and t.id.source = :source")
+    java.util.List<String> tagKeysFrom(@Param("refId") UUID refId, @Param("source") String source);
+
+    /**
      * Distinct tags across visible episodes with their display labels, optionally scoped to one feed (§6.1) —
      * the options for the shell's tag filter, alphabetical by key. Excludes WITHDRAWN episodes.
      *

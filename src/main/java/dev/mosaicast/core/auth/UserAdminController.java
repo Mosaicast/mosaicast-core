@@ -94,7 +94,12 @@ public class UserAdminController {
         Page<User> found = fragment.isEmpty()
                 ? users.findAll(pageable)
                 : users.findByDisplayKeyContaining(fragment, pageable);
-        return PagedResponse.of(found, this::toView);
+        // The identities of the whole page in one query: resolved per user they were 51 queries for the
+        // default page and 201 for the largest, each on its own connection (core#195).
+        java.util.Map<UUID, List<LinkedIdentity>> byUser = identities.findByUserIdIn(
+                        found.getContent().stream().map(User::getId).toList()).stream()
+                .collect(java.util.stream.Collectors.groupingBy(LinkedIdentity::getUserId));
+        return PagedResponse.of(found, user -> toView(user, byUser.getOrDefault(user.getId(), List.of())));
     }
 
     /**
@@ -196,7 +201,11 @@ public class UserAdminController {
     }
 
     private UserAdminView toView(User user) {
-        List<IdentityRef> refs = identities.findByUserId(user.getId()).stream()
+        return toView(user, identities.findByUserId(user.getId()));
+    }
+
+    private UserAdminView toView(User user, List<LinkedIdentity> linked) {
+        List<IdentityRef> refs = linked.stream()
                 .map(i -> new IdentityRef(i.getProvider(), i.getEmail()))
                 .toList();
         return new UserAdminView(

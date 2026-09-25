@@ -76,9 +76,10 @@ public class SitemapController {
         // Every legal page once, with its own alternates: these are the one core surface whose *text*
         // differs per language, and listing only the default locale's set is why a German-only imprint was
         // never in the sitemap at all.
+        java.util.Map<String, List<String>> translated = legal.translatedLocalesBySlug();
         for (FooterEntry page : legal.footer(siteConfig.get().getDefaultLocale())) {
             entries.add(Entry.samePath("/legal/" + page.slug(), null,
-                    uiSubset(legal.translatedLocales(page.slug()))));
+                    uiSubset(translated.getOrDefault(page.slug(), List.of()))));
         }
         for (SitemapUrl url : extensions.sitemapUrls()) {
             // Taken from the plugin, never assumed. A plugin's pages may be one path rendered per language

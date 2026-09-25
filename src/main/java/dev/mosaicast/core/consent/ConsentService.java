@@ -292,7 +292,62 @@ public class ConsentService {
 
     /** Whether any declared service is gated at all — i.e. whether the policy varies between visitors. */
     public boolean hasOptionalSources() {
-        return !declaredExternalSources().equals(allowedSources(Set.of()));
+        return policySources(Set.of()).varies();
+    }
+
+    /**
+     * Everything {@link dev.mosaicast.core.config.PluginCspHeaderWriter} needs, from <em>one</em> sweep.
+     *
+     * <p>It used to ask three questions — the visitor's allow-list, the whole declared list, and the
+     * unconditional list — and each one walked every active plugin's services calling
+     * {@link NecessaryApprovalService#isApproved}, which opens a read-only transaction of its own and hits
+     * the database. That is three sweeps and one query per {@code necessary}-claiming service on
+     * <em>every HTTP response</em>, static assets included, to produce a header that is the same for the
+     * whole of that request. One sweep answers all three, so the per-response cost is the manifest scan the
+     * class note already accounts for.
+     *
+     * @param grantedCategories the categories this visitor granted
+     * @return the visitor's allow-list, and whether the policy varies between visitors at all
+     */
+    public PolicySources policySources(Set<String> grantedCategories) {
+        Set<String> all = new LinkedHashSet<>();
+        Set<String> unconditional = new LinkedHashSet<>();
+        Set<String> allowed = new LinkedHashSet<>();
+        for (PluginRegistration registration : plugins.allActive()) {
+            for (PluginManifest.Service service : declaredServices(registration)) {
+                String category = effectiveCategory(registration.id(), service);
+                if (category == null) {
+                    continue;
+                }
+                boolean necessary = CATEGORY_NECESSARY.equals(category);
+                boolean granted = necessary || grantedCategories.contains(category);
+                for (String host : service.hostsOrEmpty()) {
+                    if (host == null || host.isBlank()) {
+                        continue;
+                    }
+                    String trimmed = host.trim();
+                    all.add(trimmed);
+                    if (necessary) {
+                        unconditional.add(trimmed);
+                    }
+                    if (granted) {
+                        allowed.add(trimmed);
+                    }
+                }
+            }
+        }
+        // The same comparison hasOptionalSources() always made: a host that only appears once something
+        // optional is granted is what makes the policy per-visitor.
+        return new PolicySources(allowed, !all.equals(unconditional));
+    }
+
+    /**
+     * One request's policy inputs.
+     *
+     * @param allowed the origins this visitor's policy may be widened by
+     * @param varies  whether the policy differs between visitors, i.e. whether {@code Vary: Cookie} is owed
+     */
+    public record PolicySources(Set<String> allowed, boolean varies) {
     }
 
     private Set<String> hosts(java.util.function.Predicate<String> categoryAllowed) {

@@ -14,6 +14,7 @@ import dev.mosaicast.core.web.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -60,10 +61,11 @@ public class LegalService {
     /** Every page with all its locales' raw title + markdown, for the admin editor (§12.6). */
     @Transactional(readOnly = true)
     public List<AdminPage> adminList() {
+        java.util.Map<UUID, List<LegalPageTranslation>> byPage = translationsByPage();
         return pages.findAllByOrderBySortOrderAscSlugAsc().stream()
                 .map(page -> new AdminPage(
                         page.getSlug(), page.getRoleMarker(), page.getSortOrder(),
-                        translations.findByPageId(page.getId()).stream()
+                        byPage.getOrDefault(page.getId(), List.of()).stream()
                                 .sorted(Comparator.comparing(LegalPageTranslation::getLocale))
                                 .map(tr -> new AdminTranslation(tr.getLocale(), tr.getTitle(), tr.getMarkdown()))
                                 .toList()))
@@ -90,12 +92,16 @@ public class LegalService {
      */
     @Transactional(readOnly = true)
     public List<FooterEntry> footer(String locale) {
+        // Two queries, whatever the number of pages. It was up to two per page (the exact locale, then the
+        // fallback) on a public path — the consent payload names the privacy page through this (core#195).
+        java.util.Map<UUID, List<LegalPageTranslation>> byPage = translationsByPage();
+        String fallback = fallbackLocale();
         List<FooterEntry> entries = new ArrayList<>();
         for (LegalPage page : pages.findAllByOrderBySortOrderAscSlugAsc()) {
             if (ROLE_ABOUT.equals(page.getRoleMarker())) {
                 continue;
             }
-            resolveTranslation(page, locale).ifPresent(t ->
+            resolveIn(byPage.getOrDefault(page.getId(), List.of()), locale, fallback).ifPresent(t ->
                     entries.add(new FooterEntry(page.getSlug(), t.getTitle(), page.getRoleMarker())));
         }
         return entries;
@@ -108,6 +114,25 @@ public class LegalService {
      * fallback is right for a visitor, who would rather read the imprint in English than see nothing, and
      * wrong for a crawler, which would be told a German version exists and be handed the English text. An
      * alternate is a claim about content, so it is answered from the translation rows and nothing else.
+     *
+     * @return the locales with a row of their own, ordered; empty when the page has no content at all
+     */
+    @Transactional(readOnly = true)
+    public java.util.Map<String, List<String>> translatedLocalesBySlug() {
+        java.util.Map<UUID, List<LegalPageTranslation>> byPage = translationsByPage();
+        java.util.Map<String, List<String>> bySlug = new java.util.HashMap<>();
+        for (LegalPage page : pages.findAllByOrderBySortOrderAscSlugAsc()) {
+            bySlug.put(page.getSlug(), byPage.getOrDefault(page.getId(), List.of()).stream()
+                    .map(LegalPageTranslation::getLocale)
+                    .filter(locale -> locale != null && !locale.isBlank())
+                    .sorted()
+                    .toList());
+        }
+        return bySlug;
+    }
+
+    /**
+     * The same, for one page.
      *
      * @return the locales with a row of their own, ordered; empty when the page has no content at all
      */
@@ -130,6 +155,21 @@ public class LegalService {
                 .orElseThrow(() -> new NotFoundException("Page has no content: " + slug));
         return new RenderedPage(page.getSlug(), t.getTitle(), page.getRoleMarker(),
                 markdown.toSafeHtml(t.getMarkdown()));
+    }
+
+    /** Every translation, grouped by page: the table is a handful of rows, so one read beats one per page. */
+    private java.util.Map<UUID, List<LegalPageTranslation>> translationsByPage() {
+        return translations.findAll().stream()
+                .collect(java.util.stream.Collectors.groupingBy(LegalPageTranslation::getPageId));
+    }
+
+    /** {@link #resolveTranslation} over rows already in hand: the exact locale, else the site default. */
+    private static Optional<LegalPageTranslation> resolveIn(
+            List<LegalPageTranslation> rows, String locale, String fallback) {
+        Optional<LegalPageTranslation> exact = rows.stream()
+                .filter(row -> java.util.Objects.equals(row.getLocale(), locale)).findFirst();
+        return exact.isPresent() ? exact
+                : rows.stream().filter(row -> java.util.Objects.equals(row.getLocale(), fallback)).findFirst();
     }
 
     private Optional<LegalPageTranslation> resolveTranslation(LegalPage page, String locale) {
