@@ -76,6 +76,23 @@ code {
   padding: var(--mc-space-6) var(--mc-space-5);
 }
 
+/*
+ * The 404 page. It is a dead end otherwise — a statement with nothing to do next — so it carries a search
+ * field, a way home and the newest episodes, spaced apart enough that they read as three separate offers
+ * rather than one form (core#179).
+ */
+.mc-notfound {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-5);
+}
+/* The gap is the spacing; a heading's or paragraph's own margin on top of it doubles every step. */
+.mc-notfound > h1,
+.mc-notfound > p,
+.mc-notfound > form {
+  margin: 0;
+}
+
 .mc-page__title {
   margin: 0 0 var(--mc-space-5);
   font-size: var(--mc-text-2xl);

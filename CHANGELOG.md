@@ -225,6 +225,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Closing a dialog dropped keyboard focus at the top of the page (`0.7.4`).** `Modal` promised to hand
+  focus back to whatever opened it, and checked "is focus still inside the dialog?" before doing so — in a
+  cleanup that React runs after it has already removed the dialog, when focus has fallen to `<body>`. The
+  answer was always no, so every dialog on the site (share, confirmations, account deletion) left a
+  keyboard visitor at the top of the document with no way back to the button they pressed. Separately,
+  `onClose` was an effect dependency and every caller passes an inline arrow, so any re-render of the page
+  behind an open dialog tore the effect down and set it up again, moving focus out of the field being
+  typed into. Found by driving the new feed-delete dialog in a real browser; jsdom cannot show the first
+  half, because a scripted click never moves focus. The same pass fixed "6 episode(s)" into a real plural
+  and quoted the word to type.
+
 - **Three answers to "are you sure?", and the weakest one on the heaviest action (`0.7.4`, core#193).**
   Purging a plugin's data — irreversible, and it affects every user of that plugin — was one OK-click away
   in an unstyled `window.confirm` followed by a `window.alert`, while account deletion, with a narrower
@@ -265,6 +276,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   tie-break is the snapshot's `publishedAt` now. The season-then-episode ordering above it is unchanged and
   deliberate: a feed page is browsed a season at a time, which is a different thing from the site list's
   reverse-chronological river.
+
+- **Search truncated at twenty with no way to say so, and unmatched routes answered 200 (`0.7.4`,
+  core#178, core#179).** `/search` returned exactly twenty results with no total, no "load more" and no
+  indication whether more existed — every other list on the site pages, and search was the one that
+  silently cut off, so a visitor could not tell "twenty results" from "the first twenty of hundreds". It
+  pages now, with the count the query was already computing. The ordering had to be fixed first: it sorted
+  by `ts_rank` alone, and short show notes produce long runs of identical scores, so an `ORDER BY` that is
+  not a total order lets Postgres return tied rows in any order per `LIMIT`/`OFFSET` — the same episode on
+  page one *and* page two while another never appears. Both this and the site list now end on the ref id.
+  Separately, `/totally/unknown/route` answered **200** with the shell: `SpaResourceConfig` returned the
+  SPA entry point for anything that was not a real file and did not start with a backend prefix, so a
+  crawler indexed arbitrary junk URLs as valid pages. The episode route has always got this right; this is
+  the general case. The shell is still served — its own not-found view is a better page than a bare error —
+  but the status is honest. And that page is no longer a dead end: it offers a search field, a way home and
+  the newest episodes, which are the three things somebody who followed a broken link actually wants.
 
 - **Encoding narrower than the context it was written into (`0.7.4`, core#196, core#198).** The JSON-LD
   block neutralised `</` and nothing else, but the HTML tokenizer also leaves script-data state on `<!--`,

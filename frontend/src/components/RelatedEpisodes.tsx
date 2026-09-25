@@ -18,7 +18,16 @@ import { Cover } from './Cover';
  * The list is fetched by the page rather than here, because pinning (`RelatedPins`) changes it and the two
  * components have to agree on when to re-read.
  */
-export function RelatedEpisodes({ episodes, error }: { episodes: EpisodeSummary[] | null; error: unknown }) {
+export function RelatedEpisodes({
+  episodes,
+  error,
+  title,
+}: {
+  episodes: EpisodeSummary[] | null;
+  error: unknown;
+  /** Overrides the heading — the 404 page borrows this list to offer recent episodes instead. */
+  title?: string;
+}) {
   const { t } = useTranslation();
 
   // Nothing to suggest, or the request failed: stay silent. This is a sidebar extra, and a failed
@@ -31,7 +40,7 @@ export function RelatedEpisodes({ episodes, error }: { episodes: EpisodeSummary[
   return (
     <section className="mc-related" aria-labelledby="mc-related-heading">
       <h2 className="mc-related__heading" id="mc-related-heading">
-        {t('episode.related')}
+        {title ?? t('episode.related')}
       </h2>
       <ul className="mc-related__list">
         {data.map((episode) => (

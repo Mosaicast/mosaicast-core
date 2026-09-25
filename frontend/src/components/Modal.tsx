@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
@@ -32,27 +32,40 @@ export function Modal({
 }) {
   const sheet = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  // The latest `onClose`, read at the moment of closing. Every caller passes an inline arrow, so as an
+  // effect dependency it re-ran the effect on each render of the page behind: focus went to the opener and
+  // back to the sheet, out of whatever field was being typed into.
+  const close = useRef(onClose);
+  useLayoutEffect(() => {
+    close.current = onClose;
+  });
+
+  // A layout effect, so the cleanup runs while the sheet is still in the document. A passive one runs after
+  // React has removed it, when focus has already fallen to <body> — too late to tell "focus was in here"
+  // from "the visitor clicked somewhere else", and the restore never happened.
+  useLayoutEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
     sheet.current?.focus();
+
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        onClose();
+        close.current();
       }
     };
     document.addEventListener('keydown', onKey);
-    // Captured while the effect runs rather than read in the cleanup: by then React may already have
-    // detached the node, and `sheet.current` would be null — so the focus would never be restored.
+
     const dialog = sheet.current;
     return () => {
       document.removeEventListener('keydown', onKey);
-      // Only if focus is still inside the dialog: a close that happened *because* the visitor clicked
-      // somewhere else should not yank them back.
-      if (opener && dialog?.contains(document.activeElement)) {
+      // Only if nothing else has taken focus: a close that happened *because* the visitor focused something
+      // else should not yank them back. <body> counts as nothing — pressing on the scrim, which is not
+      // focusable, drops focus there before the click that dismisses the dialog.
+      const active = document.activeElement;
+      if (opener?.isConnected && (active === document.body || dialog?.contains(active))) {
         opener.focus();
       }
     };
-  }, [onClose]);
+  }, []);
 
   return createPortal(
     // The scrim is a pointer affordance; Escape is the keyboard one, registered on `document` in the

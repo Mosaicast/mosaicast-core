@@ -21,6 +21,10 @@ interface PluginSection {
 interface SearchResults {
   query: string;
   episodes: EpisodeSummary[];
+  /** Zero-based, as the API counts. */
+  page: number;
+  totalPages: number;
+  totalElements: number;
   plugins: PluginSection[];
 }
 
@@ -42,34 +46,51 @@ export function SearchPage() {
   // submit, and the URL is what the request follows.
   const [draft, setDraft] = useState(query);
   const [results, setResults] = useState<SearchResults | null>(null);
+  // Accumulated across pages, like the feed list: a visitor reading results should not lose the ones they
+  // have already read to see the next twenty.
+  const [episodes, setEpisodes] = useState<EpisodeSummary[]>([]);
+  const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => setDraft(query), [query]);
 
+  // A new query starts again from the first page.
+  useEffect(() => {
+    setPage(0);
+    setEpisodes([]);
+  }, [query]);
+
   useEffect(() => {
     if (!query.trim()) {
       setResults(null);
+      setEpisodes([]);
       return;
     }
     let active = true;
     setLoading(true);
     setFailed(false);
     api
-      .get<SearchResults>(`/api/search?q=${encodeURIComponent(query)}`)
-      .then((res) => active && setResults(res))
+      .get<SearchResults>(`/api/search?q=${encodeURIComponent(query)}&page=${page}`)
+      .then((res) => {
+        if (!active) return;
+        setResults(res);
+        // Appended for a later page, replaced for the first — which is also what a re-submitted query is.
+        setEpisodes((current) => (res.page === 0 ? res.episodes : [...current, ...res.episodes]));
+      })
       .catch(() => active && setFailed(true))
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [query]);
+  }, [query, page]);
 
   const empty =
-    results != null && results.episodes.length === 0 && results.plugins.every((p) => p.hits.length === 0);
+    results != null && episodes.length === 0 && results.plugins.every((p) => p.hits.length === 0);
+  const hasMore = results != null && results.page < results.totalPages - 1;
 
   return (
-    <section className="mc-search">
+    <section className="mc-page mc-search">
       <h1 className="mc-search__heading">{t('search.title')}</h1>
 
       <form
@@ -83,6 +104,7 @@ export function SearchPage() {
         <label className="mc-search__field">
           <span className="mc-sr-only">{t('search.label')}</span>
           <input
+            className="mc-input"
             type="search"
             name="q"
             value={draft}
@@ -104,14 +126,31 @@ export function SearchPage() {
       {!query.trim() && !loading && <p className="mc-muted">{t('search.hint')}</p>}
       {empty && !loading && <p className="mc-muted">{t('search.none', { query: results?.query })}</p>}
 
-      {results != null && results.episodes.length > 0 && (
+      {results != null && episodes.length > 0 && (
         <section className="mc-search__group">
-          <h2 className="mc-search__group-heading">{t('search.episodes')}</h2>
+          {/*
+            The count, because twenty results and the first twenty of hundreds looked identical: search was
+            the only list on the site that silently truncated, with no total and no way to ask for more
+            (core#178). `role="status"` so the number is announced when it changes.
+          */}
+          <h2 className="mc-search__group-heading" role="status">
+            {t('search.episodes')}{' '}
+            <span className="mc-muted">
+              {t('search.count', { shown: episodes.length, total: results.totalElements })}
+            </span>
+          </h2>
           <div className="mc-feed">
-            {results.episodes.map((episode) => (
+            {episodes.map((episode) => (
               <EpisodeCard key={episode.id} episode={episode} />
             ))}
           </div>
+          {hasMore && !loading && (
+            <div className="mc-feed-more">
+              <button type="button" className="mc-btn" onClick={() => setPage((current) => current + 1)}>
+                {t('feed.loadMore')}
+              </button>
+            </div>
+          )}
         </section>
       )}
 

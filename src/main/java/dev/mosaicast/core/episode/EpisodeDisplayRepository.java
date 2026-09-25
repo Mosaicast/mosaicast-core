@@ -17,6 +17,11 @@ public interface EpisodeDisplayRepository extends JpaRepository<EpisodeDisplay, 
      * Full-text search over the display snapshots (ARCHITECTURE §E1), backed by the GIN index from V2.
      * Returns matching {@link EpisodeRef} ids ranked by relevance, excluding WITHDRAWN episodes. The
      * {@code simple} config keeps it language-agnostic (feed content stays in its original language).
+     *
+     * <p>The ref id breaks ties in the rank. It is not cosmetic: {@code ts_rank} produces long runs of
+     * identical scores over short show notes, and an {@code ORDER BY} that does not totally order the rows
+     * lets Postgres return them in any order it likes per {@code LIMIT}/{@code OFFSET} — so the same episode
+     * shows up on page one and page two while another is never shown at all.
      */
     @Query(value = """
             select ed.episode_ref_id
@@ -29,7 +34,8 @@ public interface EpisodeDisplayRepository extends JpaRepository<EpisodeDisplay, 
                   @@ plainto_tsquery('simple', :q)
             order by ts_rank(to_tsvector('simple',
                     coalesce(ed.snapshot ->> 'title', '') || ' ' || coalesce(ed.snapshot ->> 'description', '')),
-                    plainto_tsquery('simple', :q)) desc
+                    plainto_tsquery('simple', :q)) desc,
+                ed.episode_ref_id
             """,
             countQuery = """
             select count(*)
