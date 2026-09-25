@@ -101,6 +101,25 @@ class UserAdminIntegrationTest {
     }
 
     @Test
+    void aPodcasterChangesNoRolesNotEvenTheirOwn() {
+        // Implicit until now, via the catch-all admin rule; stated here so that loosening the rule for some
+        // other podcaster surface under /api/admin cannot quietly hand out promotions too (core#191).
+        devLogin("fan");
+        Session podcaster = devLogin("podcaster");
+        UUID fanId = userId("FAN");
+        UUID podcasterId = userId("PODCASTER");
+
+        assertThat(rest.exchange("/api/admin/users/" + fanId + "/role", HttpMethod.PUT,
+                podcaster.write("{\"role\":\"podcaster\"}", true), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(rest.exchange("/api/admin/users/" + podcasterId + "/role", HttpMethod.PUT,
+                podcaster.write("{\"role\":\"admin\"}", true), String.class).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(users.findById(fanId).orElseThrow().getRole()).isEqualTo(Role.FAN);
+        assertThat(users.findById(podcasterId).orElseThrow().getRole()).isEqualTo(Role.PODCASTER);
+    }
+
+    @Test
     void anUnknownRoleNameIsAClientErrorAndTheSameOneOnBothRoutes() {
         // It used to be a ConflictException → 409 here and an IllegalArgumentException → 400 on the
         // dev-login route, for the same input. 409 on this endpoint means a state conflict — the last

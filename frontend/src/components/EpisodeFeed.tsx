@@ -116,6 +116,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     if (loading || page >= totalPages - 1) return;
     const next = page + 1;
     const forQuery = queryBase;
+    setFailed(false);
     setLoading(true);
     api
       .get<Paged<EpisodeSummary>>(`/api/episodes?${queryBase}&page=${next}`)
@@ -133,17 +134,20 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
       });
   }, [loading, page, totalPages, queryBase]);
 
-  // Auto-load as the sentinel scrolls into view.
+  // Auto-load as the sentinel scrolls into view — but not after a failure. The observer is rebuilt whenever
+  // `loadMore` changes, which is on every settle, and a new observer reports a sentinel already in view at
+  // once: a failing page was retried about sixty times a second for as long as it stayed on screen
+  // (core#191). After a failure only the button retries, and a success hands control back to scrolling.
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el) return;
+    if (!el || failed) return;
     const observer = new IntersectionObserver((entries) => {
       if (entries[0]?.isIntersecting) loadMore();
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [loadMore]);
+  }, [loadMore, failed]);
 
   // Everything in scope, unfiltered: this feed's count, or every feed's on the site list.
   const total = fixedFeedId
@@ -232,6 +236,10 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
           {loading && items.length > 0 && (
             <p className="mc-muted mc-feed-loading">{t('common.loading')}</p>
           )}
+          {/* A later page that failed keeps what is already on screen and says so beside the button that
+              retries it. It used to fail silently: the button simply came back, as if nothing had happened
+              (core#191). */}
+          {failed && items.length > 0 && <p className="mc-error">{t('feed.loadMoreError')}</p>}
           {hasMore && !loading && (
             <div className="mc-feed-more">
               <button type="button" className="mc-btn" onClick={loadMore}>

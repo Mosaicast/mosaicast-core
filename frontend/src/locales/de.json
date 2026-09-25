@@ -49,6 +49,7 @@
   "feed.empty": "Noch keine Folgen.",
   "feed.emptyHint": "Andere Staffel oder anderes Tag probieren — oder die Filter zurücksetzen.",
   "feed.loadMore": "Mehr laden",
+  "feed.loadMoreError": "Weitere Folgen konnten nicht geladen werden. Bitte erneut versuchen.",
   "feed.episodeCount_one": "{{count}} Folge",
   "feed.episodeCount_other": "{{count}} Folgen",
   "feed.filteredCount": "{{count}} von {{total}} Folgen",
