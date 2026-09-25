@@ -49,6 +49,7 @@
   "feed.empty": "No episodes yet.",
   "feed.emptyHint": "Try a different season or tag, or clear the filters.",
   "feed.loadMore": "Load more",
+  "feed.loadMoreError": "Could not load more episodes. Try again.",
   "feed.episodeCount_one": "{{count}} episode",
   "feed.episodeCount_other": "{{count}} episodes",
   "feed.filteredCount": "{{count}} of {{total}} episodes",

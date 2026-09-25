@@ -913,6 +913,15 @@ class PluginLoadingIntegrationTest {
         HttpHeaders forged = rest.exchange("/api/meta", HttpMethod.GET,
                 new HttpEntity<>(cookieHeader("mc_consent=analytics.evil")), String.class).getHeaders();
         assertThat(forged.getFirst("Content-Security-Policy")).doesNotContain("evil");
+
+        // Withdrawal: switching the category off rewrites the cookie without it (empty, when it was the only
+        // one), and the very next response narrows again — no session, no cache, nothing remembered (core#191).
+        for (String withdrawn : new String[] {"mc_consent=", "mc_consent=functional"}) {
+            assertThat(rest.exchange("/api/meta", HttpMethod.GET, new HttpEntity<>(cookieHeader(withdrawn)),
+                    String.class).getHeaders().getFirst("Content-Security-Policy"))
+                    .as(withdrawn)
+                    .doesNotContain("https://plausible.example");
+        }
     }
 
     private static HttpHeaders cookieHeader(String cookie) {

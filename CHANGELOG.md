@@ -225,6 +225,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Tests where the audit found none (`0.7.4`, core#191).** The horizontal axis — may one signed-in person
+  reach another's notifications, listening positions or access tokens — now has an end-to-end test, and a
+  deliberately loosened ownership check fails it. Also newly covered: a podcaster changing roles, an empty
+  `<channel>` (withdraws, deletes nothing) and a withdrawn episode reviving with the same identity, the dev
+  profile's start-up gate and the `devLoginEnabled` flag in both directions, the session cookie's attributes,
+  the Discord client registration, the scheduler lock against Postgres, CSP narrowing after consent is
+  withdrawn, and the episode list's error, empty and load-more paths. The last of these found two bugs. A
+  later page that failed to load did so silently; the list now says so beside the button that retries it.
+  And while the end of the list was on screen, the failing page was re-requested about sixty times a second
+  — the scroll observer was rebuilt on every settle and fired again at once. After a failure only the button
+  retries now.
+
 - **Code that said one thing and did another (`0.7.4`, core#201).** A hygiene pass that turned up several
   real defects under comments asserting invariants the code did not have.
   - `ctx.progress.get` read `mc.progress.<id>` directly and still handed a plugin a stored position after
@@ -254,6 +266,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
     `devProfile` directly. Notify and user-lookup endpoints use the plugin's loaded context instead of
     building their own. Dead code removed (`isUnconditional`, `countByLevelSince`, `common.comingSoon`);
     the 404 page lives in `NotFound.tsx` instead of `Placeholder.tsx`.
+
 
 - **The privacy settings say what is kept in an account, and stop claiming a completeness they did not
   have (`0.7.4`, core#176).** The playback-position switch said positions were "only kept on this device"

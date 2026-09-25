@@ -6,10 +6,10 @@ package dev.mosaicast.core.feed;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.never;
 
 import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
@@ -178,6 +178,45 @@ class ReconcilerTest {
         assertThat(result.withdrawn()).isEqualTo(1);
         assertThat(result.created()).isEqualTo(1);
         assertThat(gone.getStatus()).isEqualTo(EpisodeStatus.WITHDRAWN);
+    }
+
+    @Test
+    void anEmptyChannelWithdrawsEveryEpisodeButDeletesNone() {
+        // Pinned rather than guarded (core#191). A body with no items at all is indistinguishable here from a
+        // show that removed everything, so the reconciler does what §5.2 says for each vanished GUID and
+        // withdraws it. What makes that survivable when it was a publishing glitch is that it is reversible:
+        // nothing is deleted, and the next poll that lists them revives the same refs (below).
+        EpisodeRef one = EpisodeRef.published(FEED, "g-1", 1, 1, "test-s01e01");
+        EpisodeRef two = EpisodeRef.published(FEED, "g-2", 1, 2, "test-s01e02");
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(one, two));
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of());
+
+        assertThat(result.withdrawn()).isEqualTo(2);
+        assertThat(one.getStatus()).isEqualTo(EpisodeStatus.WITHDRAWN);
+        assertThat(two.getStatus()).isEqualTo(EpisodeStatus.WITHDRAWN);
+        verify(refs, never()).delete(any());
+        verify(refs, never()).deleteAll(any());
+    }
+
+    @Test
+    void aWithdrawnEpisodeThatReappearsIsRevivedWithItsIdentityIntact() {
+        // The revive branch in EpisodeRef.refreshFromFeed had no test: the same ref — same id, same slug, so
+        // the same plugin data and the same links — comes back, rather than a new episode being created.
+        EpisodeRef back = EpisodeRef.published(FEED, "g-back", 1, 5, "test-s01e05");
+        back.withdraw();
+        UUID id = back.getId();
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(back));
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(raw("g-back", "Back", 1, 5)));
+
+        assertThat(back.getStatus()).isEqualTo(EpisodeStatus.PUBLISHED);
+        assertThat(back.getId()).isEqualTo(id);
+        assertThat(back.getSlug()).isEqualTo("test-s01e05");
+        assertThat(result.created()).isZero();
+        assertThat(result.withdrawn()).isZero();
+        // A revival changes what the public sees, so it counts even though the snapshot may be identical.
+        assertThat(result.updated()).isEqualTo(1);
     }
 
     @Test

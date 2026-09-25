@@ -133,4 +133,118 @@ describe('EpisodeFeed', () => {
 
     expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
   });
+
+  describe('the paths other than the happy one (core#191)', () => {
+    const card = (id: string, title: string) => ({
+      id, feedId: 'f1', season: 1, episodeNo: 1, status: 'PUBLISHED', access: 'PUBLIC', accessTierRef: null,
+      title, publishedAt: '2026-06-21T00:00:00Z', durationSeconds: 60, hasAudio: true,
+    });
+    const ok = (data: unknown) =>
+      Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(data)) });
+    const serverError = () =>
+      Promise.resolve({ ok: false, status: 500, statusText: '', json: () => Promise.reject(new Error()) });
+    const pageOf = (items: unknown[], page: number, totalPages: number) =>
+      ok({ items, page, size: 1, totalElements: totalPages, totalPages });
+
+    /** Episodes answered by `episodes(page)`; everything else by the shared mock. */
+    function stubEpisodes(episodes: (page: number) => Promise<unknown>) {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((url: string) => {
+          if (!url.startsWith('/api/episodes')) {
+            return mockApi(url);
+          }
+          return episodes(Number(new URLSearchParams(url.split('?')[1]).get('page') ?? '0'));
+        }),
+      );
+    }
+
+    function renderFeed() {
+      render(
+        <MemoryRouter initialEntries={['/']}>
+          <PlayerProvider>
+            <EpisodeFeed />
+          </PlayerProvider>
+        </MemoryRouter>,
+      );
+    }
+
+    it('says it could not load, rather than that there is nothing', async () => {
+      stubEpisodes(() => serverError());
+      renderFeed();
+
+      expect(await screen.findByText('Could not load episodes.')).toBeInTheDocument();
+      // "No episodes yet" would be a false statement about the show, not about the request.
+      expect(screen.queryByText('No episodes yet.')).not.toBeInTheDocument();
+    });
+
+    it('says there is nothing when there is nothing', async () => {
+      stubEpisodes(() => pageOf([], 0, 0));
+      renderFeed();
+
+      expect(await screen.findByText('No episodes yet.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    });
+
+    it('appends the next page and stops offering more after the last', async () => {
+      stubEpisodes((page) => (page === 0 ? pageOf([card('a', 'First')], 0, 2) : pageOf([card('b', 'Second')], 1, 2)));
+      renderFeed();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+
+      expect(await screen.findByRole('link', { name: 'Second' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'First' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Load more' })).not.toBeInTheDocument();
+    });
+
+    it('does not retry a failed page on its own while the sentinel stays in view', async () => {
+      // A real observer reports a sentinel that is already visible as soon as it observes it, and the list
+      // rebuilds its observer on every settle — so a failing page was fetched about sixty times a second.
+      class InViewObserver {
+        constructor(private readonly callback: IntersectionObserverCallback) {}
+        observe() {
+          // A macrotask, not a microtask: on a regression the storm then stays interruptible, so this
+          // test fails on the count instead of hanging the event loop.
+          setTimeout(() => this.callback([{ isIntersecting: true } as IntersectionObserverEntry], this as never));
+        }
+        disconnect() {}
+        unobserve() {}
+        takeRecords() {
+          return [];
+        }
+      }
+      vi.stubGlobal('IntersectionObserver', InViewObserver);
+      let laterPageRequests = 0;
+      stubEpisodes((page) => {
+        if (page === 0) return pageOf([card('a', 'First')], 0, 2);
+        laterPageRequests++;
+        return serverError();
+      });
+      renderFeed();
+
+      expect(await screen.findByText('Could not load more episodes. Try again.')).toBeInTheDocument();
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      });
+      expect(laterPageRequests).toBe(1);
+    });
+
+    it('keeps what it has when a later page fails, says so, and lets the button retry', async () => {
+      let secondPageWorks = false;
+      stubEpisodes((page) => {
+        if (page === 0) return pageOf([card('a', 'First')], 0, 2);
+        return secondPageWorks ? pageOf([card('b', 'Second')], 1, 2) : serverError();
+      });
+      renderFeed();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
+      expect(await screen.findByText('Could not load more episodes. Try again.')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'First' })).toBeInTheDocument();
+
+      secondPageWorks = true;
+      fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
+      expect(await screen.findByRole('link', { name: 'Second' })).toBeInTheDocument();
+      expect(screen.queryByText('Could not load more episodes. Try again.')).not.toBeInTheDocument();
+    });
+  });
 });

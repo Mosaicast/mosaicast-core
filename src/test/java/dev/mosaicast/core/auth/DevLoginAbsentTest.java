@@ -55,6 +55,13 @@ class DevLoginAbsentTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void metaTellsTheShellThereIsNoDevLoginWithoutTheProfile() {
+        // The shell draws the dev sign-in buttons from this flag; the handler's absence alone would leave them
+        // on screen, each answering 404 (core#191).
+        assertThat(rest.getForEntity("/api/meta", String.class).getBody()).contains("\"devLoginEnabled\":false");
+    }
+
     private static String cookieValue(HttpHeaders headers, String name) {
         return headers.get(HttpHeaders.SET_COOKIE).stream()
                 .filter(c -> c.startsWith(name + "="))

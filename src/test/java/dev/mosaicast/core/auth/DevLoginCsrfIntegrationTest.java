@@ -83,6 +83,12 @@ class DevLoginCsrfIntegrationTest {
     }
 
     @Test
+    void metaTellsTheShellThatDevLoginIsOnUnderTheProfile() {
+        // The positive counterpart of DevLoginAbsentTest's flag check (core#191).
+        assertThat(rest.getForEntity("/api/meta", String.class).getBody()).contains("\"devLoginEnabled\":true");
+    }
+
+    @Test
     void devLoginWithAValidTokenStillWorks() {
         DevLogin.Cookies cookies = DevLogin.login(rest, "admin");
 
