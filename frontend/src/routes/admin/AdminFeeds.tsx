@@ -120,7 +120,13 @@ export function AdminFeeds() {
         />
       )}
       <div className="mc-feedadd">
+        {/* A real label: the placeholder was the field's only name, and it disappears at the first keystroke
+            (#200). Visually hidden, because the section heading above already says what this is. */}
+        <label className="mc-sr-only" htmlFor="mc-feedadd-url">
+          {t('admin.feeds.url')}
+        </label>
         <input
+          id="mc-feedadd-url"
           className="mc-input"
           type="url"
           placeholder="https://…/feed.xml"

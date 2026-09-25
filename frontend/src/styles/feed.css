@@ -84,8 +84,8 @@
   color: var(--mc-text);
 }
 .mc-tab--active {
-  color: var(--mc-accent);
-  border-bottom-color: var(--mc-accent);
+  color: var(--mc-accent-text);
+  border-bottom-color: var(--mc-accent-text);
 }
 
 /* ---- two-column feed layout: scope panel | list ---- */
@@ -300,7 +300,7 @@
   color: var(--mc-text);
 }
 .mc-card__title a:hover {
-  color: var(--mc-accent);
+  color: var(--mc-accent-text);
   text-decoration: none;
 }
 .mc-card__subtitle {

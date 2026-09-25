@@ -58,9 +58,11 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
   automatically. Renaming or dropping one breaks every plugin. Add tokens freely; change existing names only
   deliberately. Style with tokens, not literals — `styles/tokens.css` documents the full set, and the eight
   colour tokens are the only ones also delivered as JS (`ctx.theme`), mirrored in `theme/applyTheme.ts` and
-  `public/theme-init.js`. The same goes for the published `--mc-icon-*` subset: plugins consume them as
-  `mask-image` + `background: currentColor` (never `background-image`, or the icon cannot take their
-  colour), and a published icon name can be added but never renamed.
+  `public/theme-init.js` — which also set the CSS-only `--mc-accent-text`, the accent clamped for text and
+  focus rings (use it there; `--mc-accent` is for fills paired with `--mc-accent-contrast`). The same goes
+  for the published `--mc-icon-*` subset: plugins consume them as `mask-image` + `background: currentColor`
+  (never `background-image`, or the icon cannot take their colour), and a published icon name can be added
+  but never renamed.
 - **Light and dark are both first-class** (`data-theme` on the root; `frontend/public/theme-init.js` sets it
   before first paint to avoid a flash). Check both for every visual change.
 - **i18n:** flat dotted keys in `frontend/src/locales/{en,de}.json`. **Both locales, always** — German is a

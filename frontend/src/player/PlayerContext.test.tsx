@@ -292,6 +292,16 @@ describe('PlayerProvider', () => {
     }
   });
 
+  it('reads its sliders as positions, not raw numbers (#200)', () => {
+    localStorage.setItem(NOW_PLAYING_KEY, JSON.stringify({ episode: EPISODE, position: 192, duration: 2140 }));
+    localStorage.setItem('mc.prefs.volume', '0.35');
+
+    renderPlayer();
+
+    expect(screen.getByRole('slider', { name: 'Seek' })).toHaveAttribute('aria-valuetext', '3:12 of 35:40');
+    expect(screen.getByRole('slider', { name: 'Volume' })).toHaveAttribute('aria-valuetext', '35 percent');
+  });
+
   it('remembers the volume across page loads, as it does the speed', () => {
     const first = renderPlayer();
     act(() => actions.setVolume(0.35));

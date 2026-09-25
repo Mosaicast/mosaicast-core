@@ -225,6 +225,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **The accent can no longer erase the focus ring, and the remaining keyboard and contrast gaps are closed
+  (`0.7.4`, core#162, core#163, #200).** The seed generator clamped text colours to WCAG AA but emitted the
+  accent raw, and the accent was used as link text, the active tab and — through `--mc-focus` — the
+  keyboard focus ring: a pale seed like `#FFF176` measured 1.12:1, links invisible and the focus ring gone.
+  A new token, `--mc-accent-text`, is the accent clamped against both page colours; links, the active tab,
+  the seek bar, native controls and the focus ring use it, while `--mc-accent` keeps its meaning for fills
+  (plugin contract, unchanged; `ctx.theme` stays the SDK's eight). The admin colour picker warns while an
+  accent is being chosen that would not read as text. Logo, favicon and dark-logo uploads could not be
+  reached by keyboard (`hidden` inputs inside a label); they can, with a focus ring, the accepted formats
+  and size stated, and the server's reason shown when a file is refused. From the accessibility sweep:
+  the seek slider has a visible focus ring and a 24px target, both sliders read as "3:12 of 35:40" and a
+  percentage; menus close when Tab leaves them; the consent banner is a named region that announces itself
+  and hands focus back when its settings close; the feed URL field has a real label; the account menu has
+  a name on a phone; the admin tab strip shows that it scrolls; footer links are 24px targets; and the skip
+  link is a strip over the header instead of a box half over the logo.
+
 - **Pages say what language they are in, what they are called, and when they have changed (`0.7.4`,
   core#171, core#172).** `<html lang>` never followed the interface: a screen reader read the German shell
   with an English voice. It follows every language change now, and the stored choice is applied before

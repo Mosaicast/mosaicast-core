@@ -103,6 +103,19 @@ const FALLBACK_THEME: ThemeTokens = {
   border: '#e7ddcf',
 };
 
+/**
+ * The eight colours the SDK's `ThemeTokens` promises, and nothing else. The site payload carries more — the
+ * clamped `accentText` (core#162) — which plugins read as `--mc-accent-text` through CSS; handing the extra
+ * field over here would make it an undocumented part of `ctx.theme` that a plugin could come to rely on.
+ */
+function sdkTheme(theme: ThemeTokenSet | undefined): ThemeTokens {
+  if (!theme) {
+    return FALLBACK_THEME;
+  }
+  const { bg, surface, text, textMuted, accent, accentContrast, accent2, border } = theme;
+  return { bg, surface, text, textMuted, accent, accentContrast, accent2, border };
+}
+
 export function buildCtx(inputs: CtxInputs): HostPluginContext {
   // Subscription handlers must hand back an unsubscribe (SDK 0.4.0). Where the shell has nothing to
   // subscribe to yet, this returns a no-op *unsubscribe* rather than nothing — a plugin calling it inside a
@@ -190,7 +203,7 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
         return Promise.resolve(stored != null ? Number(stored) : null);
       },
     },
-    theme: inputs.theme ?? FALLBACK_THEME,
+    theme: sdkTheme(inputs.theme),
     /**
      * Plugin-reported entries go to the host's log endpoint, which is what the admin viewer reads. Failures
      * are swallowed on purpose: a plugin trying to report a problem must never turn that into a second,

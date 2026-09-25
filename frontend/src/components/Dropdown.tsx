@@ -101,11 +101,23 @@ export function Dropdown({
         close();
       }
     };
+    // And when Tab takes focus somewhere else: the panel stayed open over the page while the keyboard had
+    // already moved on (#200). Only for a real destination — `relatedTarget` is null when the window itself
+    // loses focus, which is not the visitor leaving the menu.
+    const wrapper = ref.current;
+    const onFocusOut = (e: FocusEvent) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && wrapper && !wrapper.contains(next)) {
+        close(false);
+      }
+    };
     document.addEventListener('pointerdown', onPointerDown);
     document.addEventListener('keydown', onKeyDown);
+    wrapper?.addEventListener('focusout', onFocusOut);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('keydown', onKeyDown);
+      wrapper?.removeEventListener('focusout', onFocusOut);
     };
   }, [open, close]);
 

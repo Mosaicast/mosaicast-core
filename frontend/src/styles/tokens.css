@@ -18,6 +18,14 @@
  * `theme/applyTheme.ts` and the no-flash script in `public/theme-init.js`, which set them as inline
  * styles on `:root`. Keep those three lists in step.
  *
+ * ## One more from the generator, CSS-only
+ *
+ * `--mc-accent-text` is the accent clamped to WCAG AA as a *foreground* (core#162). The generator emits it
+ * beside the eight and `applyTheme.ts` / `theme-init.js` set it, but it is not part of `ctx.theme` — the
+ * SDK's `ThemeTokens` is the eight, and `buildCtx` hands over exactly those. Plugins read it here, through
+ * CSS, like every other token. Use it wherever the accent colours text or a ring; keep `--mc-accent` for
+ * fills paired with `--mc-accent-contrast`.
+ *
  * ## Everything else is derived, on purpose
  *
  * The generator only knows about those eight, so every other colour token here is a `color-mix()`
@@ -53,9 +61,13 @@
   --mc-accent-soft: color-mix(in srgb, var(--mc-accent) 12%, transparent);
   /** Scrim behind modals and over artwork. */
   --mc-overlay: color-mix(in srgb, #000 55%, transparent);
-  /** Focus ring colour. The seed generator clamps the accent for contrast, so this is safe on both
-      `--mc-bg` and `--mc-surface`. */
-  --mc-focus: var(--mc-accent);
+  /** The accent as a *foreground* — links, the active tab, anything the accent colours as text. The seed
+      generator clamps it to WCAG AA on both `--mc-bg` and `--mc-surface`; `--mc-accent` itself is the raw
+      seed, for backgrounds paired with `--mc-accent-contrast` (core#162). A plugin colouring text with the
+      accent should read this one. */
+  --mc-accent-text: #bc5039; /* the brand accent darkened to 4.5:1 on --mc-bg; #c8553d itself is 4.1:1 */
+  /** Focus ring colour — the clamped accent, so no theme can erase it (WCAG 2.4.11). */
+  --mc-focus: var(--mc-accent-text);
   --mc-focus-width: 2px;
   --mc-focus-offset: 2px;
 
@@ -127,6 +139,8 @@
   --mc-accent-contrast: #1c1712;
   --mc-border: #342d23;
   --mc-accent-2: #6bb0c0;
+  /* 6.2:1 on --mc-bg and 5.7:1 on --mc-surface: the dark accent already reads as text. */
+  --mc-accent-text: #e07a5f;
 
   /* Light text on a dark ground reads the same tint as heavier, so the state layers are lighter. */
   --mc-hover: color-mix(in srgb, var(--mc-text) 8%, transparent);

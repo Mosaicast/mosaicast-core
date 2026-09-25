@@ -80,7 +80,7 @@
 }
 .mc-adminnav__link--active {
   background: var(--mc-surface);
-  color: var(--mc-accent);
+  color: var(--mc-accent-text);
   font-weight: 600;
 }
 .mc-admin__main {
@@ -123,6 +123,16 @@
   .mc-adminnav::-webkit-scrollbar {
     display: none;
   }
+  /* The side that hides more tabs fades out, so the strip reads as something that continues (#200). */
+  .mc-adminnav--more-end {
+    mask-image: linear-gradient(to right, #000 calc(100% - 3rem), transparent);
+  }
+  .mc-adminnav--more-start {
+    mask-image: linear-gradient(to left, #000 calc(100% - 3rem), transparent);
+  }
+  .mc-adminnav--more-start.mc-adminnav--more-end {
+    mask-image: linear-gradient(to right, transparent, #000 3rem, #000 calc(100% - 3rem), transparent);
+  }
   .mc-adminnav__link {
     flex: none;
     white-space: nowrap;
@@ -134,7 +144,7 @@
   }
   .mc-adminnav__link--active {
     background: none;
-    border-bottom-color: var(--mc-accent);
+    border-bottom-color: var(--mc-accent-text);
   }
 }
 

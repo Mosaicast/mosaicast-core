@@ -64,4 +64,27 @@ describe('Dropdown', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByText('Item')).not.toBeInTheDocument();
   });
+
+  it('closes when Tab takes focus out of it (#200)', () => {
+    renderMenu();
+    open();
+    const item = screen.getByText('Item');
+    item.focus();
+
+    // What the browser dispatches when Tab moves on: focus leaves for an element outside the menu.
+    fireEvent.focusOut(item, { relatedTarget: screen.getByText('outside') });
+
+    expect(screen.queryByText('Item')).not.toBeInTheDocument();
+  });
+
+  it('stays open when focus only moves within it, or the window loses focus', () => {
+    renderMenu();
+    open();
+    const item = screen.getByText('Item');
+
+    fireEvent.focusOut(item, { relatedTarget: screen.getByText('Tick') });
+    fireEvent.focusOut(item, { relatedTarget: null });
+
+    expect(screen.getByText('Item')).toBeInTheDocument();
+  });
 });

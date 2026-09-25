@@ -30,6 +30,7 @@
         accentContrast: '--mc-accent-contrast',
         border: '--mc-border',
         accent2: '--mc-accent-2',
+        accentText: '--mc-accent-text',
       };
       for (var key in map) {
         if (tokens[key]) {

@@ -36,7 +36,8 @@ public class ThemeSeedGenerator {
         String textMuted = clampText(new Color(0.50, 0.02, hue), bg, true);
         String accentHex = Oklch.oklchToHex(accent);
         return new ThemeTokenSet(bg, surface, text, textMuted,
-                accentHex, accentContrast(accentHex), border, secondaryAccent(accent));
+                accentHex, accentContrast(accentHex), border, secondaryAccent(accent),
+                accentText(accent, bg, surface, true));
     }
 
     private ThemeTokenSet dark(Color accent, double hue) {
@@ -46,9 +47,25 @@ public class ThemeSeedGenerator {
         String text = clampText(new Color(0.95, 0.015, hue), bg, false);
         String textMuted = clampText(new Color(0.72, 0.015, hue), bg, false);
         // On a dark page the accent needs enough lightness to read as a colour, not a smudge.
-        String accentHex = Oklch.oklchToHex(new Color(Math.max(accent.l(), 0.62), accent.c(), hue));
+        Color darkAccent = new Color(Math.max(accent.l(), 0.62), accent.c(), hue);
+        String accentHex = Oklch.oklchToHex(darkAccent);
         return new ThemeTokenSet(bg, surface, text, textMuted,
-                accentHex, accentContrast(accentHex), border, secondaryAccent(accent));
+                accentHex, accentContrast(accentHex), border, secondaryAccent(accent),
+                accentText(darkAccent, bg, surface, false));
+    }
+
+    /**
+     * The accent, moved only as far as it must be to read as text on both page colours (core#162).
+     *
+     * <p>The raw seed was used for link text, the active tab and — through {@code --mc-focus} — the keyboard
+     * focus ring, while only {@code text} and {@code textMuted} were clamped. A pale seed ({@code #FFF176})
+     * measured 1.12:1 on the light background: links and the active nav invisible, and a focus ring a theme
+     * could erase. Clamped against both colours a foreground sits on; the lightness search is monotonic, so
+     * the second clamp only continues the first.
+     */
+    private static String accentText(Color accent, String bgHex, String surfaceHex, boolean lightTheme) {
+        String againstBg = clampText(accent, bgHex, lightTheme);
+        return clampText(Oklch.hexToOklch(againstBg), surfaceHex, lightTheme);
     }
 
     private static String neutral(double lightness, double hue) {

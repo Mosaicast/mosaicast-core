@@ -5,6 +5,7 @@ import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
+import { announce } from '../a11y/LiveRegion';
 import { CookieSettings } from './CookieSettings';
 import { useConsent } from './ConsentContext';
 
@@ -31,6 +32,29 @@ export function ConsentBanner() {
   const { t } = useTranslation();
   const { categories, privacySlug, decide, decided, settingsOpen, openSettings, closeSettings, reloadPending,
     applyNow } = useConsent();
+
+  // Back to the button that opened the settings when they close without a decision. The banner is rendered
+  // afresh in place of the dialog, so the dialog's own restore finds its opener gone and focus fell to
+  // <body> — a keyboard visitor sent back to the top of the page with the question still unanswered (#200).
+  // Said once when the question appears. As a region it does not take focus — the page stays usable — so
+  // without this a screen-reader user was never told a decision was pending (#200).
+  const asking = categories.length > 0 && !decided && !settingsOpen;
+  const announced = useRef(false);
+  useEffect(() => {
+    if (asking && !announced.current) {
+      announced.current = true;
+      announce(t('consent.pendingAnnouncement'));
+    }
+  }, [asking, t]);
+
+  const customiseRef = useRef<HTMLButtonElement>(null);
+  const openedHere = useRef(false);
+  useEffect(() => {
+    if (!settingsOpen && openedHere.current) {
+      openedHere.current = false;
+      customiseRef.current?.focus();
+    }
+  }, [settingsOpen]);
 
   // Said while it waits, so a plugin that still shows its placeholder after "Accept all" is explained: the
   // choice needs a reload to reach this page's security policy, and that is holding for the audio (core#168).
@@ -59,7 +83,10 @@ export function ConsentBanner() {
     .filter((provider, index, list) => list.indexOf(provider) === index);
 
   return (
-    <section className="mc-consent mc-consent--banner" role="dialog" aria-label={t('consent.title')}>
+    // A region, not a dialog: the page stays usable while the question is open, so claiming a dialog —
+    // without `aria-modal` and without taking focus — told assistive tech something that was not true (#200).
+    // A named section is a landmark a screen-reader user can jump to.
+    <section className="mc-consent mc-consent--banner" aria-label={t('consent.title')}>
       <h2 className="mc-consent__title">{t('consent.title')}</h2>
       <p>{t('consent.intro')}</p>
       {/* The companies, named — this is what a visitor is actually deciding about. */}
@@ -72,7 +99,15 @@ export function ConsentBanner() {
         <button type="button" className="mc-btn mc-btn--accent" onClick={() => decide(all(false))}>
           {t('consent.rejectAll')}
         </button>
-        <button type="button" className="mc-btn" onClick={openSettings}>
+        <button
+          ref={customiseRef}
+          type="button"
+          className="mc-btn"
+          onClick={() => {
+            openedHere.current = true;
+            openSettings();
+          }}
+        >
           {t('consent.customise')}
         </button>
         {privacySlug && (
