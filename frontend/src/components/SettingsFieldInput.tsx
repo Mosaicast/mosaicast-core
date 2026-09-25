@@ -33,6 +33,12 @@ export interface SettingsFieldSpec {
   overridden?: boolean;
   /** Whether the caller may actually change this. A redacted row is shown, not made editable. */
   disabled?: boolean;
+  /**
+   * The server withheld the value from this caller. Rendered as "hidden", never as a control: a select has
+   * no empty state and showed its *first option* as if it were the setting, and a checkbox showed "off"
+   * (core#156). The absence is the truth to show.
+   */
+  withheld?: boolean;
 }
 
 export type DraftValue = string | boolean;
@@ -130,7 +136,9 @@ export function SettingsFieldInput({
       </span>
       {field.description && <span className="mc-muted">{field.description}</span>}
 
-      {field.type === 'BOOLEAN' || field.type === 'boolean' ? (
+      {field.withheld ? (
+        <span className="mc-muted mc-field__withheld">{t('admin.plugins.valueHidden')}</span>
+      ) : field.type === 'BOOLEAN' || field.type === 'boolean' ? (
         <input
           type="checkbox"
           checked={Boolean(current)}
@@ -138,7 +146,18 @@ export function SettingsFieldInput({
           onChange={(e) => onChange(e.target.checked)}
         />
       ) : field.type === 'SELECT' ? (
-        <select value={String(current)} disabled={field.disabled} onChange={(e) => onChange(e.target.value)}>
+        <select
+          // A value none of the options carries selects nothing rather than falling back to the first
+          // option — which a browser would otherwise show as the answer (core#156).
+          value={(field.options ?? []).some((o) => o.value === String(current)) ? String(current) : ''}
+          disabled={field.disabled}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {!(field.options ?? []).some((o) => o.value === String(current)) && (
+            <option value="" disabled>
+              {t('admin.plugins.noChoice')}
+            </option>
+          )}
           {(field.options ?? []).map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

@@ -249,6 +249,13 @@ export function AdminPlugins() {
                         // all-or-nothing, so a podcaster typing into an admin-only row would lose the edits
                         // they were allowed to make along with the one they were not.
                         disabled: !isAdmin && declared.editableBy !== 'podcaster',
+                        // The server nulls both value and default for a field this role may not see — the
+                        // redaction that keeps a secret out of a podcaster's browser (core#156).
+                        withheld:
+                          !isAdmin &&
+                          declared.editableBy !== 'podcaster' &&
+                          declared.value == null &&
+                          declared.defaultValue == null,
                         overridden: declared.overridden,
                       }}
                       value={drafts[draftKey(plugin.id, field)] ?? (declared.value as DraftValue) ?? ''}
@@ -257,7 +264,9 @@ export function AdminPlugins() {
                       }
                       onReset={() => resetField(plugin, field)}
                       resetLabel={t('admin.plugins.resetField')}
-                      hint={t('admin.plugins.editableBy', { role: declared.editableBy })}
+                      hint={t('admin.plugins.editableBy', {
+                        role: t(`role.${declared.editableBy ?? 'admin'}`, { defaultValue: declared.editableBy }),
+                      })}
                     />
                   ))}
                   <div className="mc-form__actions">

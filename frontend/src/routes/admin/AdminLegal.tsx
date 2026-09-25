@@ -107,7 +107,7 @@ function PageEditor({
           <select value={roleMarker} onChange={(e) => setRoleMarker(e.target.value)}>
             {ROLE_MARKERS.map((r) => (
               <option key={r} value={r}>
-                {r || t('admin.legal.roleNone')}
+                {r ? t(`admin.legal.roles.${r}`, { defaultValue: r }) : t('admin.legal.roleNone')}
               </option>
             ))}
           </select>
@@ -198,8 +198,14 @@ function PageEditor({
 }
 
 /** Legal-pages mini-CMS admin (ARCHITECTURE §12.6, ADMIN only): a page list; each opens a tabbed editor. */
+/** A page's title in the admin's language, else the first title it has in any. */
+function pageTitle(page: LegalAdminPage, locale: string): string | null {
+  const own = page.translations.find((x) => x.locale === locale)?.title?.trim();
+  return own || page.translations.find((x) => x.title?.trim())?.title?.trim() || null;
+}
+
 export function AdminLegal() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [pages, setPages] = useState<LegalAdminPage[]>([]);
   const [newSlug, setNewSlug] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
@@ -267,9 +273,16 @@ export function AdminLegal() {
           <li key={page.slug} className="mc-legalrow">
             <div className="mc-legalrow__head">
               <div>
-                <strong>{page.slug}</strong>
+                {/* The page's own title where it has one, with the slug as its address beside it — the row
+                    printed the slug twice and the title never, and "#10" was an unlabelled sort order (#192). */}
+                <strong>{pageTitle(page, i18n.language.slice(0, 2)) ?? page.slug}</strong>
                 <span className="mc-muted mc-legalrow__meta">
-                  {page.roleMarker ?? t('admin.legal.roleNone')} · #{page.sortOrder} ·{' '}
+                  <code>/legal/{page.slug}</code> ·{' '}
+                  {page.roleMarker
+                    ? t(`admin.legal.roles.${page.roleMarker}`, { defaultValue: page.roleMarker })
+                    : t('admin.legal.roleNone')}{' '}
+                  ·{' '}
+                  {t('admin.legal.position', { position: page.sortOrder })} ·{' '}
                   {page.translations.map((x) => x.locale.toUpperCase()).join(', ') || t('admin.legal.noLangs')}
                 </span>
               </div>

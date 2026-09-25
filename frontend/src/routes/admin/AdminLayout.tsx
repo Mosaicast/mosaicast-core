@@ -102,11 +102,11 @@ export function AdminLayout() {
               {t('admin.nav.users')}
             </NavLink>
           )}
-          {isAdmin && (
-            <NavLink to="/admin/plugins" className={tab}>
-              {t('admin.nav.plugins')}
-            </NavLink>
-          )}
+          {/* For a podcaster too: the route admits them for the fields a manifest delegates to them, and
+              nothing linked to it, so the page existed only for someone who knew the URL (#192). */}
+          <NavLink to="/admin/plugins" className={tab}>
+            {t('admin.nav.plugins')}
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin/navigation" className={tab}>
               {t('admin.nav.navigation')}
