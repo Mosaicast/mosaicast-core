@@ -202,6 +202,68 @@
   align-items: center;
   gap: var(--mc-space-3);
 }
+
+/* Why nothing plays — replaces the silence of an unplayable source or a refused autoplay (core#170). A strip
+   riding on the bar's top edge, full width at every size, so neither the words nor the retry get squeezed. */
+.mc-player__problem {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  margin: 0;
+  padding: var(--mc-space-2) var(--mc-space-5);
+  background: var(--mc-surface);
+  border-top: 1px solid var(--mc-border);
+  color: var(--mc-text);
+  font-size: var(--mc-text-sm);
+  text-align: center;
+}
+.mc-player__retry {
+  padding: var(--mc-space-1) var(--mc-space-3);
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-pill);
+  background: none;
+  color: var(--mc-accent);
+  font: inherit;
+  cursor: pointer;
+}
+.mc-player__retry:hover {
+  border-color: var(--mc-accent);
+}
+
+/* Drawn from the published close icon: the button carries the label, so the artwork needs no element. */
+.mc-player__close {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--mc-radius-pill);
+  background: none;
+  color: var(--mc-text-muted);
+  cursor: pointer;
+}
+.mc-player__close::before {
+  content: '';
+  display: block;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: auto;
+  background: currentColor;
+  mask-image: var(--mc-icon-close);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+}
+.mc-player__close:hover {
+  color: var(--mc-text);
+  background: var(--mc-surface-2);
+}
 .mc-player__vol {
   width: 90px;
   accent-color: var(--mc-accent);

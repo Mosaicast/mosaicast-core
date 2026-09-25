@@ -158,11 +158,12 @@ class ConsentServiceTest {
         assertThat(view.essential().storage())
                 .extracting(CoreStorageInventory.Item::name)
                 .contains("mc.locale", "mc.consent", "mc.progress.*");
-        // Listening progress is the one item a visitor can switch off, which is why it is marked.
+        // Listening progress is the one thing a visitor can switch off, which is why it is marked — the
+        // positions, and which episode was playing, both under that one switch (core#168).
         assertThat(view.essential().storage())
                 .filteredOn(CoreStorageInventory.Item::optional)
                 .extracting(CoreStorageInventory.Item::name)
-                .containsExactly("mc.progress.*");
+                .containsExactly("mc.progress.*", "mc.nowplaying");
     }
 
     @Test

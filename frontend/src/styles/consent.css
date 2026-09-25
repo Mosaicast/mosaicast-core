@@ -174,3 +174,20 @@
 .mc-foot__consent {
   color: inherit;
 }
+
+/* A decision that needs a reload, waiting for playback to pause (core#168). A strip, not a dialog: nothing is
+   being asked, and it must not cover the player it is waiting for. */
+.mc-consent-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mc-space-2) var(--mc-space-3);
+  margin: 0;
+  padding: var(--mc-space-2) var(--mc-space-5);
+  background: var(--mc-surface);
+  border-bottom: 1px solid var(--mc-border);
+  color: var(--mc-text);
+  font-size: var(--mc-text-sm);
+  text-align: center;
+}

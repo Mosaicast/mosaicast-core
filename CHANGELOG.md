@@ -225,6 +225,28 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **The player now survives a page reload, says why it is silent, and keeps playing when a show-notes link is
+  followed (`0.7.4`, core#168, core#169, core#170).** Playback survived every client-side navigation and
+  nothing else: F5, a typed URL and — worst — the reload a consent decision needs all ended it, with the
+  episode and position gone, because nothing recorded *which* episode was playing. A now-playing record
+  (`mc.nowplaying`, under the same "remember playback position" switch as the positions, and disclosed with
+  them) brings the bar back paused where it was, without requesting the audio until play is pressed. A
+  consent decision that changes the CSP no longer reloads mid-playback: it waits for the next pause, and
+  says so. Links in show notes carried no `target`, so following one tore down the page and the audio with
+  it; external links now open a new tab with `rel="noopener noreferrer nofollow ugc"` — the same policy the
+  server now writes into the no-JS copy, where jsoup had applied a different one — and internal links go
+  through the router. An unplayable source failed in complete silence (no `error` listener existed): the bar
+  now says "This episode could not be played" with a retry, and the listener's browser reports it once so
+  the operator sees a WARN under the feed in Logs & health — anonymous, and bounded to one line per episode
+  per 15 minutes however many browsers report. A refused autoplay (every `?t=` deep link) says "Press play
+  to start" instead of showing a dead bar. `play()` could be overtaken by a slower earlier call and load one
+  episode while showing another; the last call wins now, and the source is set last. The Media Session
+  effect re-registered every handler about four times a second with no cleanup; it runs per episode,
+  cleans up, and fills the show name, playback state and position. The volume is remembered like the
+  speed (`mc.prefs.volume`), and the bar can be closed. `dev/instance.sh --audio` now serves byte ranges:
+  `http.server` ignores them, and a browser cannot seek in audio served without — every skip restarted the
+  file, which looked exactly like a player bug.
+
 - **Plugin files: a quota two uploads could overrun together, a limit the server would not honour, and a
   cache header that ignored who was allowed to read (`0.7.4`, core#183).** The quota was read, compared and
   written with nothing held in between, so uploads in flight together all saw the same usage and all

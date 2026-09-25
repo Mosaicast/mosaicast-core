@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,6 +9,7 @@ import type { ConsentPayload } from '../api/types';
 import '../i18n';
 import { ConsentProvider } from './ConsentContext';
 import { CookieSettings } from './CookieSettings';
+import { notifyPlaybackIdle, registerPlayback } from '../player/playbackGate';
 
 const PAYLOAD: ConsentPayload = {
   fingerprint: 'abc123',
@@ -128,6 +129,42 @@ describe('Cookie settings (§12.5)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Allow all' }));
 
     await waitFor(() => expect(reload).toHaveBeenCalled());
+  });
+
+  it('waits for playback to pause before reloading, instead of ending it', async () => {
+    // The reload ends playback — the one thing navigation must never do — and a first-time visitor who
+    // pressed play and then answered the banner met it in their first minute (core#168).
+    const reload = vi.fn();
+    vi.stubGlobal('location', { ...window.location, reload });
+    const unregister = registerPlayback(() => true);
+    try {
+      stubConsent(PAYLOAD);
+      renderSettings();
+
+      fireEvent.click(await screen.findByRole('button', { name: 'Allow all' }));
+      await waitFor(() => expect(localStorage.getItem('mc.consent')).toContain('analytics'));
+      expect(reload).not.toHaveBeenCalled();
+
+      // The next pause is the moment: the now-playing record brings the bar back where it was.
+      act(() => notifyPlaybackIdle());
+      expect(reload).toHaveBeenCalledTimes(1);
+    } finally {
+      unregister();
+    }
+  });
+
+  it('forgets which episode was playing when remembering is switched off', async () => {
+    localStorage.setItem('mc.nowplaying', '{"episode":{"id":"a","slug":"a","title":"A"},"position":5}');
+    localStorage.setItem('mc.progress.a', '5');
+    stubConsent(PAYLOAD);
+    renderSettings();
+
+    const toggle = await screen.findByLabelText('Remember where I stopped listening');
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(localStorage.getItem('mc.prefs.progress')).toBe('off'));
+    expect(localStorage.getItem('mc.progress.a')).toBeNull();
+    expect(localStorage.getItem('mc.nowplaying')).toBeNull();
   });
 
   it('does not reload when the answer changes nothing the browser would enforce', async () => {

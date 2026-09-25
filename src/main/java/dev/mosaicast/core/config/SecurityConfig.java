@@ -172,6 +172,10 @@ public class SecurityConfig {
                         // split the doc-store reads above use. A plugin that declared no `external` block is
                         // a 404 there, so this widens nothing for anyone who did not ask.
                         .requestMatchers(HttpMethod.POST, "/api/plugins/*/external/**").permitAll()
+                        // A listener's browser saying it could not play an episode. Anonymous on purpose —
+                        // most listeners are not signed in — and bounded in the controller to one log line
+                        // per episode per quiet period, however many requests arrive (core#170).
+                        .requestMatchers(HttpMethod.POST, "/api/episodes/*/playback-error").permitAll()
                         .requestMatchers("/api/plugins/**").authenticated()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()

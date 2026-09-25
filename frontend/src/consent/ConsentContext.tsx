@@ -16,6 +16,8 @@ import { api } from '../api/client';
 import { useMeta } from '../api/MetaContext';
 import type { ConsentPayload } from '../api/types';
 import { CONSENT_COOKIE, PROGRESS_PREF_KEY, STORAGE_KEY, purgeUndeclared } from './purge';
+import { NOW_PLAYING_KEY } from '../player/nowPlaying';
+import { isPlaybackBusy, whenPlaybackIdle } from '../player/playbackGate';
 
 /**
  * The shell's side of the consent service (ARCHITECTURE §12.5).
@@ -145,6 +147,12 @@ interface ConsentValue extends ConsentPayload {
   /** Whether playback positions are being stored — an off switch, not a consent gate (see below). */
   progressEnabled: boolean;
   setProgressEnabled: (on: boolean) => void;
+  /**
+   * A decision changed the response CSP, which only a reload can apply, and the reload is waiting for
+   * playback to pause (core#168). The banner area says so and offers to apply it now.
+   */
+  reloadPending: boolean;
+  applyNow: () => void;
 }
 
 const EMPTY: ConsentPayload = {
@@ -171,6 +179,8 @@ const ConsentContext = createContext<ConsentValue>({
   settingsOpen: false,
   progressEnabled: true,
   setProgressEnabled: () => {},
+  reloadPending: false,
+  applyNow: () => {},
 });
 
 /**
@@ -258,6 +268,14 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
   const [record, setRecord] = useState<ConsentRecord | null>(() => readRecord());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [progressOn, setProgressOn] = useState(() => progressEnabled());
+  const [reloadPending, setReloadPending] = useState(false);
+
+  useEffect(() => {
+    if (!reloadPending) {
+      return;
+    }
+    return whenPlaybackIdle(() => window.location.reload());
+  }, [reloadPending]);
   const gpc = useMemo(readGpc, []);
   const devProfile = useMeta()?.devLoginEnabled ?? false;
   /** Subscribers (plugins) and in-flight `request()` calls awaiting the visitor's next decision. */
@@ -364,8 +382,20 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       //
       // Only when the policy actually changes. A visitor who reopens the settings and saves the same answer,
       // or toggles a category no service declares hosts for, should not lose their place in an episode.
+      //
+      // **Not while something is playing** (core#168). The reload ends playback, which is the one thing the
+      // product promises navigation never does — and a first-time visitor who presses play and then answers
+      // the banner met it in their first minute. So while audio plays the reload waits for the next pause,
+      // and the notice says so; the player's now-playing record brings the bar back where it was. Until then
+      // the *previous* policy stays in force for this document: a grant takes effect a little late, and a
+      // withdrawal leaves the wider policy up that long — but the listeners above have already told every
+      // plugin to stop, and the sweep has removed what they stored.
       if (cspRelevantGrants(next, payload) !== before) {
-        window.location.reload();
+        if (isPlaybackBusy()) {
+          setReloadPending(true);
+        } else {
+          window.location.reload();
+        }
       }
     },
     [effective, payload],
@@ -416,7 +446,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
         // Switching it off is also a request to forget: leaving the positions behind would keep storing
         // exactly what the visitor just asked not to have stored.
         Object.keys(localStorage)
-          .filter((key) => key.startsWith('mc.progress.'))
+          .filter((key) => key.startsWith('mc.progress.') || key === NOW_PLAYING_KEY)
           .forEach((key) => localStorage.removeItem(key));
       }
     } catch {
@@ -453,9 +483,11 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
       settingsOpen,
       progressEnabled: progressOn,
       setProgressEnabled: setProgress,
+      reloadPending,
+      applyNow: () => window.location.reload(),
     }),
     [payload, has, granted, request, subscribe, decide, withdraw, stored, record, gpc, settingsOpen,
-      closeSettings, progressOn, setProgress],
+      closeSettings, progressOn, setProgress, reloadPending],
   );
 
   return <ConsentContext.Provider value={value}>{children}</ConsentContext.Provider>;

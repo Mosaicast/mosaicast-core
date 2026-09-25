@@ -18,6 +18,7 @@ import { SlotRegion } from '../components/SlotRegion';
 import { usePlayerActions, type PlayableEpisode } from '../player/PlayerContext';
 import { formatDate, formatDuration } from '../util/format';
 import { sanitizeFeedHtml } from '../util/sanitize';
+import { useRoutedLinks } from '../util/useRoutedLinks';
 import { parseTimestamp } from '../util/timestamp';
 import { NotFound } from './Placeholder';
 
@@ -73,6 +74,9 @@ export function EpisodePage() {
   //
   // The browser may refuse to start audio without a gesture; that rejection is swallowed in the player and
   // the seek is applied on `loadedmetadata` regardless, so the first press of play still lands on the spot.
+  // Internal links in the notes stay in the shell; external ones open a new tab (core#169).
+  const notesRef = useRoutedLinks<HTMLDivElement>();
+
   const armedRef = useRef<string | null>(null);
   useEffect(() => {
     if (!episode || startAt == null || !isPlayable(episode)) {
@@ -173,7 +177,7 @@ export function EpisodePage() {
           <div className="mc-plugin" data-slot="main-notes">
             <h2>{t('episode.shownotes')}</h2>
             {safeNotes ? (
-              <div className="mc-shownotes" dangerouslySetInnerHTML={{ __html: safeNotes }} />
+              <div ref={notesRef} className="mc-shownotes" dangerouslySetInnerHTML={{ __html: safeNotes }} />
             ) : (
               <p className="mc-muted">{t('episode.noNotes')}</p>
             )}
