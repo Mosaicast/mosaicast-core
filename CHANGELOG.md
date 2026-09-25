@@ -225,6 +225,17 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Closing a dialog dropped keyboard focus at the top of the page (`0.7.4`).** `Modal` promised to hand
+  focus back to whatever opened it, and checked "is focus still inside the dialog?" before doing so — in a
+  cleanup that React runs after it has already removed the dialog, when focus has fallen to `<body>`. The
+  answer was always no, so every dialog on the site (share, confirmations, account deletion) left a
+  keyboard visitor at the top of the document with no way back to the button they pressed. Separately,
+  `onClose` was an effect dependency and every caller passes an inline arrow, so any re-render of the page
+  behind an open dialog tore the effect down and set it up again, moving focus out of the field being
+  typed into. Found by driving the new feed-delete dialog in a real browser; jsdom cannot show the first
+  half, because a scripted click never moves focus. The same pass fixed "6 episode(s)" into a real plural
+  and quoted the word to type.
+
 - **Three answers to "are you sure?", and the weakest one on the heaviest action (`0.7.4`, core#193).**
   Purging a plugin's data — irreversible, and it affects every user of that plugin — was one OK-click away
   in an unstyled `window.confirm` followed by a `window.alert`, while account deletion, with a narrower

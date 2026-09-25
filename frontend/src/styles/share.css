@@ -60,6 +60,7 @@
   margin-top: var(--mc-space-5);
 }
 .mc-dialog__sheet > .mc-dialog__actions {
+  margin-top: var(--mc-space-4);
   margin-bottom: var(--mc-space-5);
 }
 
