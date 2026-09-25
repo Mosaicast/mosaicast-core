@@ -71,6 +71,7 @@ FEED_DIR="$RUN_DIR/feed"
 # including the one running this script, which is a self-kill that reads as a mysterious exit code.
 kill_feed_server() {
   pkill -f "^python3 -m http\.server $FEED_PORT" 2>/dev/null || true
+  pkill -f "^python3 dev/feed-server\.py $FEED_PORT" 2>/dev/null || true
 }
 
 # Copies the sample feed somewhere writable and, with --audio, repoints its enclosures at local files.
@@ -84,7 +85,7 @@ stage_feed() {
     return
   fi
   # A symlink rather than a copy: these files are the user's, they can be large, and nothing should end up
-  # duplicated under /tmp because a dev instance was started. http.server serves through it happily.
+  # duplicated under /tmp because a dev instance was started. The feed server follows it like any other path.
   ln -s "$(cd "$AUDIO_DIR" && pwd)" "$FEED_DIR/audio"
   python3 - "$FEED_DIR/sample-feed.xml" "$AUDIO_DIR" "http://localhost:$FEED_PORT/audio" <<'PYTHON'
 import pathlib, re, sys, urllib.parse
@@ -155,7 +156,10 @@ up() {
   # /dev/null), and the instance would come up seeded from whatever that other process serves — which is
   # how a rewritten feed was staged, served from somewhere else, and the episodes stayed unplayable.
   kill_feed_server
-  python3 -m http.server "$FEED_PORT" --directory "$FEED_DIR" >/dev/null 2>&1 &
+  # Not `python3 -m http.server`: it ignores Range, and a browser cannot seek in audio served without it —
+  # every skip restarted the file from 0 under --audio. Loopback only, too: with --audio this serves a
+  # directory of your own files, and the default bind would offer it to the whole network.
+  python3 dev/feed-server.py "$FEED_PORT" "$FEED_DIR" >/dev/null 2>&1 &
   echo $! > "$RUN_DIR/feed.pid"
   local staged_check="https://example.com/audio"
   [ -n "$AUDIO_DIR" ] && staged_check="http://localhost:$FEED_PORT/audio"

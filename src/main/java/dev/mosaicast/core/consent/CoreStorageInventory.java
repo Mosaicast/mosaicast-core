@@ -47,8 +47,9 @@ public final class CoreStorageInventory {
      * @param purposeKey  i18n key for the plain-language purpose
      * @param durationKey i18n key for how long it lasts
      * @param optional    whether the visitor can switch it off without breaking the service — true only for
-     *                    listening progress, which gets a switch rather than a consent gate because it is
-     *                    first-party, local, never profiled, and written only after a deliberate press of play
+     *                    listening progress (the positions, and which episode was playing), which gets a switch
+     *                    rather than a consent gate because it is first-party, local, never profiled, and
+     *                    written only after a deliberate press of play
      */
     public record Item(String name, String type, String purposeKey, String durationKey, boolean optional) {
     }
@@ -69,10 +70,16 @@ public final class CoreStorageInventory {
                     "consent.purpose.consentCookie", "consent.duration.months12", false),
             new Item("mc.progress.*", "localStorage",
                     "consent.purpose.progress", "consent.duration.persistent", true),
+            // Which episode, for the bar after a full page load (core#168). Under the same switch as the
+            // positions: it is the same kind of fact about what someone listened to.
+            new Item("mc.nowplaying", "localStorage",
+                    "consent.purpose.nowPlaying", "consent.duration.persistent", true),
             new Item(PROGRESS_PREF_KEY, "localStorage",
                     "consent.purpose.progressPref", "consent.duration.persistent", false),
             new Item("mc.prefs.rate", "localStorage",
-                    "consent.purpose.rate", "consent.duration.persistent", false));
+                    "consent.purpose.rate", "consent.duration.persistent", false),
+            new Item("mc.prefs.volume", "localStorage",
+                    "consent.purpose.volume", "consent.duration.persistent", false));
 
     /** Every item core stores, in the order the disclosure lists them. */
     public static List<Item> items() {

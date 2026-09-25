@@ -11,6 +11,7 @@ import { Cover } from './Cover';
 import { ShareButton } from './ShareButton';
 import { SlotRegion } from './SlotRegion';
 import { sanitizeFeedHtml } from '../util/sanitize';
+import { useRoutedLinks } from '../util/useRoutedLinks';
 
 /**
  * The feed-scope panel (ARCHITECTURE §6.1, mockup left column): the show cover, title, author, description
@@ -34,6 +35,7 @@ export function FeedPanel({ feedSlug }: { feedSlug: string }) {
   }, [feedSlug]);
 
   const description = sanitizeFeedHtml(feed?.description);
+  const descriptionRef = useRoutedLinks<HTMLDivElement>();
 
   return (
     <aside className="mc-scope-panel">
@@ -44,7 +46,11 @@ export function FeedPanel({ feedSlug }: { feedSlug: string }) {
         <p className="mc-scope-panel__count mc-muted">{t('feed.episodeCount', { count: feed.episodeCount })}</p>
       )}
       {description && (
-        <div className="mc-scope-panel__desc mc-muted" dangerouslySetInnerHTML={{ __html: description }} />
+        <div
+          ref={descriptionRef}
+          className="mc-scope-panel__desc mc-muted"
+          dangerouslySetInnerHTML={{ __html: description }}
+        />
       )}
       {/* Shared with the filters that are showing: a filtered view is part of what is being shared (§6.1). */}
       {feed && (

@@ -29,16 +29,28 @@ import { useConsent } from './ConsentContext';
  */
 export function ConsentBanner() {
   const { t } = useTranslation();
-  const { categories, privacySlug, decide, decided, settingsOpen, openSettings, closeSettings } = useConsent();
+  const { categories, privacySlug, decide, decided, settingsOpen, openSettings, closeSettings, reloadPending,
+    applyNow } = useConsent();
+
+  // Said while it waits, so a plugin that still shows its placeholder after "Accept all" is explained: the
+  // choice needs a reload to reach this page's security policy, and that is holding for the audio (core#168).
+  const pendingNotice = reloadPending && (
+    <p className="mc-consent-pending" role="status">
+      <span>{t('consent.reloadPending')}</span>{' '}
+      <button type="button" className="mc-btn mc-btn--sm" onClick={applyNow}>
+        {t('consent.reloadNow')}
+      </button>
+    </p>
+  );
 
   if (categories.length === 0) {
-    return settingsOpen ? <SettingsDialog onClose={closeSettings} /> : null;
+    return settingsOpen ? <SettingsDialog onClose={closeSettings} /> : pendingNotice || null;
   }
   if (settingsOpen) {
     return <SettingsDialog onClose={closeSettings} />;
   }
   if (decided) {
-    return null;
+    return pendingNotice || null;
   }
 
   const all = (on: boolean) => Object.fromEntries(categories.map((category) => [category.id, on]));

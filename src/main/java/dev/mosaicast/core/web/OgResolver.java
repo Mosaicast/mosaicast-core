@@ -56,8 +56,11 @@ public class OgResolver {
      * for (paragraphs, lists, links, emphasis) and drops everything else — including {@code <img>}: feed
      * descriptions are third-party HTML, and an image there is an arbitrary-origin request the visitor never
      * asked for, which is the same one-way beacon §12.5 narrows {@code img-src} against.
+     *
+     * <p>Without {@code basic()}'s enforced {@code rel="nofollow"}: links get the one policy the shell also
+     * applies, from {@link ExternalLinks}, instead of a second one of jsoup's (core#169).
      */
-    private static final Safelist SHOW_NOTES = Safelist.basic();
+    private static final Safelist SHOW_NOTES = Safelist.basic().removeEnforcedAttribute("a", "rel");
 
     private final SiteConfigService siteConfig;
     private final FeedService feeds;
@@ -345,7 +348,8 @@ public class OgResolver {
         }
         if (episode.description() != null && !episode.description().isBlank()) {
             // Feed HTML, sanitized — never trusted, and never a route for an arbitrary-origin request.
-            html.append(Jsoup.clean(episode.description(), SHOW_NOTES)).append('\n');
+            html.append(ExternalLinks.mark(Jsoup.clean(episode.description(), SHOW_NOTES), urls.base()))
+                    .append('\n');
         }
         return html.toString();
     }

@@ -51,8 +51,10 @@ export function ownsItsKeys(target: EventTarget | null): boolean {
 
 export function PlayerBar() {
   const { t } = useTranslation();
-  const { current, playing, currentTime, duration, volume, rate, toggle, seek, skip, setVolume, setRate } =
-    usePlayer();
+  const {
+    current, playing, currentTime, duration, volume, rate, problem, toggle, seek, skip, setVolume, setRate,
+    retry, stop,
+  } = usePlayer();
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -104,6 +106,20 @@ export function PlayerBar() {
 
   return (
     <div className="mc-player" data-slot="player" role="region" aria-label={t('player.region')}>
+      {/* What used to be a dead, paused bar with nothing said (core#170). Its own strip along the bar's top
+          edge rather than a line under the title: the title column is a hundred-odd pixels on a phone, and
+          a notice that has to be truncated there — with its button cut off — says nothing. A status, so a
+          screen reader hears it without the focus moving. */}
+      {problem && (
+        <p className="mc-player__problem" role="status">
+          {problem === 'error' ? t('player.unplayable') : t('player.blocked')}
+          {problem === 'error' && (
+            <button type="button" className="mc-player__retry" onClick={retry}>
+              {t('player.retry')}
+            </button>
+          )}
+        </p>
+      )}
       <div className="mc-player__now">
         <Link to={detailPath} className="mc-player__cover" aria-hidden="true" tabIndex={-1}>
           <Cover id={current.id} imageUrl={current.imageUrl ?? null} size={52} />
@@ -185,6 +201,8 @@ export function PlayerBar() {
           onChange={(e) => setVolume(Number(e.target.value))}
           aria-label={t('player.volume')}
         />
+        {/* There was no way to close the bar: `current` never went back to null once anything had played. */}
+        <button type="button" className="mc-player__close" onClick={stop} aria-label={t('player.close')} />
       </div>
     </div>
   );
