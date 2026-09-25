@@ -222,6 +222,10 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
         problem.setTitle("Bad Request");
         problem.setType(URI.create("https://mosaicast.dev/problems/bad-request"));
+        if (ex instanceof CodedBadRequest coded) {
+            // For the shell to say it in the visitor's language; `detail` stays the English fallback.
+            problem.setProperty("code", coded.code());
+        }
         return problem;
     }
 

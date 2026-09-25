@@ -138,7 +138,8 @@ describe('AdminExternal', () => {
 
     const test = await screen.findByRole<HTMLButtonElement>('button', { name: 'Test' });
     expect(test.disabled).toBe(true);
-    expect(screen.getByText(/Still needs: baseUrl/)).toBeInTheDocument();
+    // Named by its label, as the field above is, not by its storage key (#192).
+    expect(screen.getByText(/Still needs: Base URL/)).toBeInTheDocument();
   });
 
   it('offers "None", because selecting nothing is a real choice', async () => {

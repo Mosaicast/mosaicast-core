@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.external.http;
 
+import dev.mosaicast.core.web.CodedBadRequest;
 import dev.mosaicast.core.feed.OutboundTargetPolicy;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -51,6 +52,9 @@ public class ExternalTargetPolicy {
      * is admin-supplied and the outcome is rendered back to them, so distinguishable failures would make the
      * settings form a probe for whatever is listening on the internal network.
      */
+    /** The code for {@link #BLOCKED_MESSAGE}, which the shell translates (core#192). */
+    public static final String BLOCKED_CODE = "external.url.blocked";
+
     public static final String BLOCKED_MESSAGE =
             "That address cannot be used. It must be publicly reachable, or explicitly allow-listed via "
                     + "MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS.";
@@ -113,21 +117,21 @@ public class ExternalTargetPolicy {
      */
     public URI validate(String url) {
         if (url == null || url.isBlank()) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         URI uri;
         try {
             uri = new URI(url.trim());
         } catch (URISyntaxException problem) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         String scheme = uri.getScheme();
         if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         // Credentials in the authority make a URL read as one host and resolve as another. Never needed here.
         if (uri.getRawUserInfo() != null || uri.getHost() == null || uri.getHost().isBlank()) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         if (allowedPrivateOrigins.contains(origin(uri))) {
             return uri;
@@ -137,7 +141,7 @@ public class ExternalTargetPolicy {
         } catch (IllegalArgumentException refused) {
             // The real reason goes to the log; the caller gets one opaque sentence.
             log.warn("Refused outbound external-service request to '{}'", uri.getHost());
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         return uri;
     }

@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { ApiError, api } from '../../api/client';
+import { api } from '../../api/client';
 import type { AdminKindSection, AdminProbeResult } from '../../api/types';
 import {
   SettingsFieldInput,
@@ -12,6 +12,7 @@ import {
   toJsonValue,
   type DraftValue,
 } from '../../components/SettingsFieldInput';
+import { problemMessage } from '../../api/problemMessage';
 import { SavedNote } from '../../a11y/SavedNote';
 
 /**
@@ -42,8 +43,9 @@ export function AdminExternal() {
       (current ?? []).map((section) => (section.kind === updated.kind ? updated : section)),
     );
 
-  const messageOf = (problem: unknown, fallback: string) =>
-    problem instanceof ApiError ? (problem.detail ?? problem.message) : fallback;
+  // In the admin's language when the server named the reason (e.g. an address it refused), else its English
+  // detail (#192).
+  const messageOf = (problem: unknown, fallback: string) => problemMessage(problem, t, fallback);
 
   const selectProvider = async (kind: string, providerId: string) => {
     setError(null);
@@ -146,7 +148,11 @@ export function AdminExternal() {
 
             {selected && (
               <>
-                <p className="mc-muted">{selected.description}</p>
+                {/* A built-in provider's texts are the host's, so they are translated here; the server's English
+                    stays the fallback for a provider the catalog has no entry for (#192). */}
+                <p className="mc-muted">
+                  {t(`admin.external.providers.${selected.id}.description`, { defaultValue: selected.description })}
+                </p>
                 <p className="mc-extkind__notes">
                   {selected.selfHosted && (
                     <span className="mc-chip mc-chip--quiet">{t('admin.external.selfHosted')}</span>
@@ -171,7 +177,15 @@ export function AdminExternal() {
                 {selected.fields.map((field) => (
                   <SettingsFieldInput
                     key={field.key}
-                    field={field}
+                    field={{
+                      ...field,
+                      label: t(`admin.external.providers.${selected.id}.fields.${field.key}.label`, {
+                        defaultValue: field.label,
+                      }),
+                      description: t(`admin.external.providers.${selected.id}.fields.${field.key}.hint`, {
+                        defaultValue: field.description,
+                      }),
+                    }}
                     value={
                       drafts[draftKey(section.kind, selected.id, field.key)] ??
                       (isSecretType(field.type) ? '' : ((field.value as DraftValue) ?? ''))
@@ -215,7 +229,16 @@ export function AdminExternal() {
 
                 {!section.ready && section.missingSettings.length > 0 && (
                   <p className="mc-muted">
-                    {t('admin.external.stillNeeds', { fields: section.missingSettings.join(', ') })}
+                    {/* By label, as the fields above are named — the raw key read "Fehlt noch: baseUrl" (#192). */}
+                    {t('admin.external.stillNeeds', {
+                      fields: section.missingSettings
+                        .map((key) =>
+                          t(`admin.external.providers.${selected.id}.fields.${key}.label`, {
+                            defaultValue: selected.fields.find((f) => f.key === key)?.label ?? key,
+                          }),
+                        )
+                        .join(', '),
+                    })}
                   </p>
                 )}
               </>

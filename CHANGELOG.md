@@ -225,6 +225,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Admin pages speak the admin's language and stop showing identifiers as if they were words (`0.7.4`,
+  core#192, core#156).** A podcaster was shown the *first option* of a config select whose value the server
+  had withheld — "Lines" for a leaderboard that ranks by fields — and an unchecked box for a withheld
+  boolean; a withheld field now says it is hidden. Feed status (`NOT_MODIFIED`), the navigation's "Visible
+  to" (`anonymous` beside "Everyone"), branding rows (`dark-logo`), legal page rows (the slug twice, the
+  title never, an unlabelled `#10`, raw role markers) and the plugin config's role hints are all worded
+  through the catalog. Server refusals now carry a stable `code` beside their English detail
+  (`CodedBadRequest`), so the feed URL and external-service address errors appear in German on a German
+  page; the built-in translation provider's field labels and help are translated the same way, as the
+  settings API always intended. `/admin/plugins` is linked for a podcaster, who could only reach it by URL.
+  And a new feed preview clears the old one, which used to stay on screen beside a new error with its
+  "Add" button live for the previous URL.
+
 - **Less work per request, per keystroke and per poll (`0.7.4`, core#195).** The CSP header writer, which runs
   on every response including assets and 304s, walked every plugin manifest three times and asked the
   approvals table once per `necessary` claim each time; it is one sweep now. The log viewer's search sent a

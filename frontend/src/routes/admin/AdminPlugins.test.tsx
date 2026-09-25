@@ -177,10 +177,37 @@ afterEach(() => vi.unstubAllGlobals());
     expect(screen.queryByText('Purge data')).not.toBeInTheDocument();
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
-    // And the admin-only row is readable, not editable: a save is all-or-nothing, so typing into it would
-    // cost the podcaster the edits they were allowed to make.
-    const inputs = screen.getAllByRole('textbox') as HTMLInputElement[];
-    expect(inputs.some((i) => i.disabled)).toBe(true);
+    // And the admin-only row says its value is hidden rather than showing an empty box as if it were one.
+    expect(screen.getByText('Hidden — only an admin can see and change this')).toBeInTheDocument();
+  });
+
+  it('never shows a podcaster a withheld choice as one of the real options (core#156)', async () => {
+    // A redacted `<select>` has no empty state, so the browser selected the first option — "Lines" — and a
+    // podcaster was told the leaderboard ranks by lines when it ranks by fields.
+    role = 'podcaster';
+    stubFetch([
+      {
+        ...PLUGIN,
+        config: {
+          rankBy: {
+            type: 'string',
+            editableBy: 'admin',
+            defaultValue: null,
+            value: null,
+            overridden: true,
+            options: [
+              { value: 'lines', label: { en: 'Lines' } },
+              { value: 'fields', label: { en: 'Fields' } },
+            ],
+          },
+        },
+      },
+    ]);
+    render(<AdminPlugins />);
+
+    expect(await screen.findByText('Hidden — only an admin can see and change this')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lines')).not.toBeInTheDocument();
   });
 
   it('reads a field by its label, in the language the operator is using', async () => {

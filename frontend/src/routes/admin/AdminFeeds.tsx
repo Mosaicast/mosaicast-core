@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { api, ApiError } from '../../api/client';
+import { problemMessage } from '../../api/problemMessage';
 import type { AdminFeed, FeedPreview, Suggestion } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Icon } from '../../components/Icon';
@@ -37,10 +38,13 @@ export function AdminFeeds() {
 
   const doPreview = async () => {
     setError(null);
+    // A new preview replaces the old one, whatever it finds: a failed lookup used to leave the previous
+    // success on screen beside the error, its "Add" button still live for the old URL (#199).
+    setPreview(null);
     try {
       setPreview(await api.post<FeedPreview>('/api/admin/feeds/preview', { url: url.trim() }));
     } catch (e) {
-      setError((e instanceof ApiError && e.message) || t('admin.feeds.previewFailed'));
+      setError(problemMessage(e, t, t('admin.feeds.previewFailed')));
     }
   };
   const doAdd = async () => {
@@ -51,7 +55,7 @@ export function AdminFeeds() {
       setPreview(null);
       await load();
     } catch (e) {
-      setError((e instanceof ApiError && e.message) || t('admin.feeds.addFailed'));
+      setError(problemMessage(e, t, t('admin.feeds.addFailed')));
     }
   };
   const removeFeed = async (feed: AdminFeed) => {
@@ -131,7 +135,11 @@ export function AdminFeeds() {
           type="url"
           placeholder="https://…/feed.xml"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            // The preview belongs to the URL it was made for.
+            setPreview(null);
+          }}
         />
         <button type="button" className="mc-btn" disabled={!url.trim()} onClick={doPreview}>
           {t('admin.feeds.preview')}
@@ -163,7 +171,10 @@ export function AdminFeeds() {
                 <div className="mc-muted mc-feedrow__url">{feed.url}</div>
                 <div className="mc-muted">
                   {t('feed.episodeCount', { count: feed.episodeCount })} ·{' '}
-                  {feed.lastFetchStatus ?? '—'}
+                  {/* Through the catalog: `NOT_MODIFIED` is an HTTP status name, not something to show (#192). */}
+                  {t(`admin.feeds.status.${feed.lastFetchStatus ?? 'NEVER'}`, {
+                    defaultValue: feed.lastFetchStatus ?? '—',
+                  })}
                   {feed.consecutiveFailures > 0 && (
                     <>
                       {' · '}

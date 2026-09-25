@@ -16,6 +16,11 @@ export interface ProblemBody {
   title?: string;
   detail?: string;
   instance?: string;
+  /**
+   * A stable name for why a request was refused (`CodedBadRequest`), for saying it in the visitor's language;
+   * `detail` stays the English fallback (core#192).
+   */
+  code?: string;
 }
 
 /**

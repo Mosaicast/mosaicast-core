@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.feed;
 
+import dev.mosaicast.core.web.CodedBadRequest;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -83,13 +84,13 @@ public class OutboundTargetPolicy {
      */
     public URI validate(String url) {
         if (url == null || url.isBlank()) {
-            throw new IllegalArgumentException("Feed URL must be an http(s) URL");
+            throw new CodedBadRequest(NOT_HTTP_CODE, "Feed URL must be an http(s) URL");
         }
         URI uri;
         try {
             uri = new URI(url.trim());
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException("Feed URL must be an http(s) URL");
+            throw new CodedBadRequest(NOT_HTTP_CODE, "Feed URL must be an http(s) URL");
         }
         return validate(uri);
     }
@@ -98,16 +99,16 @@ public class OutboundTargetPolicy {
     public URI validate(URI uri) {
         String scheme = uri.getScheme();
         if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https"))) {
-            throw new IllegalArgumentException("Feed URL must be an http(s) URL");
+            throw new CodedBadRequest(NOT_HTTP_CODE, "Feed URL must be an http(s) URL");
         }
         // Credentials in the authority are never needed for a public feed and are a reliable way to make a URL
         // read as one host while resolving as another.
         if (uri.getRawUserInfo() != null) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         String host = uri.getHost();
         if (host == null || host.isBlank()) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         if (allowPrivateTargets) {
             return uri;
@@ -116,12 +117,12 @@ public class OutboundTargetPolicy {
         try {
             addresses = InetAddress.getAllByName(host);
         } catch (UnknownHostException e) {
-            throw new IllegalArgumentException(BLOCKED_MESSAGE);
+            throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
         }
         for (InetAddress address : addresses) {
             if (!isPubliclyRoutable(address)) {
                 log.warn("Refused outbound feed request to '{}': resolves to non-public address", host);
-                throw new IllegalArgumentException(BLOCKED_MESSAGE);
+                throw new CodedBadRequest(BLOCKED_CODE, BLOCKED_MESSAGE);
             }
         }
         return uri;
@@ -135,6 +136,15 @@ public class OutboundTargetPolicy {
      * "HTTP 403" — all three surfaced verbatim in the 400 body. A single opaque message costs an operator who
      * typo'd a URL very little and costs a scanner everything.
      */
+    /** The code for {@link #BLOCKED_MESSAGE}, which the shell translates (core#192). */
+    public static final String BLOCKED_CODE = "feed.url.blocked";
+
+    /**
+     * A URL that is not http(s) at all — the one rejection safe to tell apart, since it says nothing about
+     * the network behind the server.
+     */
+    public static final String NOT_HTTP_CODE = "feed.url.notHttp";
+
     public static final String BLOCKED_MESSAGE =
             "Feed URL could not be used. It must be a publicly reachable http(s) address.";
 

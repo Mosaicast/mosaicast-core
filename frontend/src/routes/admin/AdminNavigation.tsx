@@ -163,8 +163,14 @@ export function AdminNavigation() {
                       </div>
                     </th>
                     <td>{entry.pluginName}</td>
-                    {/* Everyone, when a plugin named no floor — the same default a slot gets. */}
-                    <td>{entry.visibleTo ?? t('admin.navigation.everyone')}</td>
+                    {/* Everyone, when a plugin named no floor — the same default a slot gets. The column mixed
+                        that label with raw manifest values, "anonymous" among them, which means the same thing
+                        as "Everyone" to anyone reading it (#192). */}
+                    <td>
+                      {!entry.visibleTo || entry.visibleTo === 'anonymous'
+                        ? t('admin.navigation.everyone')
+                        : t(`role.${entry.visibleTo}`, { defaultValue: entry.visibleTo })}
+                    </td>
                     <td>
                       <label className="mc-toggle">
                         <input

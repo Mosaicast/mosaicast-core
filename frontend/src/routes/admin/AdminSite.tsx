@@ -126,7 +126,8 @@ export function AdminSite() {
       <div className="mc-branding">
         {BRANDING_KEYS.map((key) => (
           <div key={key} className="mc-branding__item">
-            <span className="mc-branding__label">{key}</span>
+            {/* The asset's name, not its storage key: rows read "logo", "favicon", "dark-logo" (#192). */}
+            <span className="mc-branding__label">{t(`admin.site.asset.${key}`)}</span>
             <div className="mc-branding__previews">
               <span className="mc-branding__swatch mc-branding__swatch--light">
                 <img src={`/branding/${key}?b=${bust}`} alt="" />
