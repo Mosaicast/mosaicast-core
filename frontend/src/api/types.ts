@@ -484,12 +484,23 @@ export interface EssentialStorage {
   optional: boolean;
 }
 
+/** One kind of personal data kept in a signed-in account; every field is an i18n key. */
+export interface AccountDataItem {
+  nameKey: string;
+  purposeKey: string;
+  retentionKey: string;
+}
+
 /** The public consent payload, `GET /api/consent`. */
 export interface ConsentPayload {
   /** Digest of everything declared; a change means a stored answer no longer answers the question. */
   fingerprint: string;
   categories: ConsentCategory[];
-  essential: { storage: EssentialStorage[] };
+  essential: {
+    storage: EssentialStorage[];
+    /** What core keeps on the server for a signed-in account (`CoreStorageInventory.AccountItem`), core#176. */
+    account?: AccountDataItem[];
+  };
   /**
    * Services a plugin declared as `necessary`: disclosed, never asked about. Separate from `categories`
    * because appearing there would imply a toggle that does not exist — and because what they store is

@@ -96,6 +96,32 @@ export function CookieSettings({
             duration: t(item.durationKey),
           }))}
         />
+        {/* The server half: the table above is only what is on this device, and the page called it the
+            complete list while a signed-in listener's email, name and playback position live in the
+            database (core#176). */}
+        {(essential.account?.length ?? 0) > 0 && (
+          <>
+            <p className="mc-muted mc-consent__hint">{t('consent.account.intro')}</p>
+            <table className="mc-consent__storage">
+              <thead>
+                <tr>
+                  <th>{t('consent.account.what')}</th>
+                  <th>{t('consent.storage.purpose')}</th>
+                  <th>{t('consent.storage.duration')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {essential.account?.map((item) => (
+                  <tr key={item.nameKey}>
+                    <td>{t(item.nameKey)}</td>
+                    <td>{t(item.purposeKey)}</td>
+                    <td>{t(item.retentionKey)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
         {/* Services a plugin declared as `necessary`. Not a choice, so not a toggle — but they put things on
             the device just the same, and §25 TDDDG asks for disclosure whether or not consent is required. */}
         {necessaryServices.length > 0 && (

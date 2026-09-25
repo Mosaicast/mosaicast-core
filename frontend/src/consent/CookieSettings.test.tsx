@@ -131,6 +131,25 @@ describe('Cookie settings (§12.5)', () => {
     await waitFor(() => expect(reload).toHaveBeenCalled());
   });
 
+  it('lists what is kept in a signed-in account, not only what is on the device (core#176)', async () => {
+    stubConsent({
+      ...PAYLOAD,
+      essential: {
+        ...PAYLOAD.essential,
+        account: [
+          { nameKey: 'consent.account.email', purposeKey: 'consent.account.emailPurpose',
+            retentionKey: 'consent.retention.untilAccountDeleted' },
+        ],
+      },
+    });
+    renderSettings();
+
+    expect(await screen.findByText('Email address')).toBeInTheDocument();
+    expect(screen.getByText('Until you delete your account')).toBeInTheDocument();
+    // And the playback-position switch no longer says the position stays on this device.
+    expect(screen.getByText(/in your account so it follows you to other devices/)).toBeInTheDocument();
+  });
+
   it('waits for playback to pause before reloading, instead of ending it', async () => {
     // The reload ends playback — the one thing navigation must never do — and a first-time visitor who
     // pressed play and then answered the banner met it in their first minute (core#168).

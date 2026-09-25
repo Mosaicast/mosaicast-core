@@ -878,7 +878,10 @@ class PluginLoadingIntegrationTest {
         assertThat(consent.getBody())
                 .contains("\"essential\"")
                 .contains("mc.consent")
-                .contains("consent.purpose.progress");
+                .contains("consent.purpose.progress")
+                // And what it keeps in a signed-in account, which the device list alone left out (core#176).
+                .contains("\"account\"")
+                .contains("consent.account.email");
         // The visitor-facing payload names services and providers, never plugins: the wording rules for
         // §12.5 are enforced by what the endpoint is able to say, not by review. It also carries no `hosts`
         // — an origin is an operator's unit, not a visitor's, and it belongs to the audit and the CSP.
