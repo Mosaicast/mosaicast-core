@@ -18,6 +18,7 @@ import { Icon } from './Icon';
 import { NavMenu } from './NavMenu';
 import { SearchLink } from '../routes/SearchPage';
 import { SlotRegion } from './SlotRegion';
+import { SkipLink } from '../a11y/SkipLink';
 
 const DEV_ROLES: Role[] = ['admin', 'podcaster', 'fan'];
 
@@ -68,6 +69,8 @@ export function TopBar() {
 
   return (
     <header className="mc-top" data-slot="top">
+      {/* First in the tab order: a keyboard visitor otherwise tabs through the whole header on every page. */}
+      <SkipLink />
       <div className="mc-top__inner">
         {/*
           The brand stays the way home — one affordance, the one every site trains people to expect. The nav

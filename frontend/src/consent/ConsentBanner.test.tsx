@@ -216,4 +216,23 @@ describe('Consent (§12.5)', () => {
     renderBanner();
     await waitFor(() => expect(screen.getByTestId('granted')).toHaveTextContent('false'));
   });
+
+  it('is a named region, and hands focus back when the settings close undecided (#200)', async () => {
+    stubConsent(WITH_CATEGORY);
+    renderBanner();
+
+    // A landmark, not a dialog it never was: the page stays usable while the question is open.
+    const banner = await screen.findByRole('region', { name: TITLE });
+    expect(banner).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose individually' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    // It used to fall to <body>: the banner is rendered afresh, so the button that opened the sheet was gone.
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Choose individually' })),
+    );
+  });
 });

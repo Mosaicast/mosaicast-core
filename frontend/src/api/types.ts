@@ -22,6 +22,11 @@ export interface ThemeTokenSet {
   accentContrast: string;
   border: string;
   accent2: string;
+  /**
+   * The accent as a foreground, clamped to WCAG AA on `bg` and `surface` (`--mc-accent-text`, core#162).
+   * Optional because the no-flash cache written by an older version has no such field.
+   */
+  accentText?: string;
 }
 
 /** The generated theme (`branding/GeneratedTheme.java`): seed + light/dark token sets. */

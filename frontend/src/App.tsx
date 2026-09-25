@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import type { MouseEvent } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { LiveRegion } from './a11y/LiveRegion';
@@ -48,21 +46,8 @@ import { SiteProvider } from './theme/SiteContext';
  * The shell layout (ARCHITECTURE §6): persistent chrome, the routed main area, the footer, and the persistent
  * player, under the site/user providers. Auth (E4c) gates the account page and the admin area (E4d).
  */
-/**
- * Follows the skip link without touching the URL: a `#main` in the address bar would be carried into every
- * link copied from the page afterwards, and the router has no use for it.
- */
-function skipToMain(event: MouseEvent<HTMLAnchorElement>) {
-  const main = document.getElementById('main');
-  if (main) {
-    event.preventDefault();
-    main.focus();
-  }
-}
-
 export default function App() {
   const location = useLocation();
-  const { t } = useTranslation();
   return (
     <SiteProvider>
       <MetaProvider>
@@ -72,11 +57,6 @@ export default function App() {
             <ConsentProvider>
             <PluginRegistryProvider>
             <div className="mc-root">
-              {/* First in the tab order, visible on focus: a keyboard visitor otherwise tabs through the
-                  whole header on every page to reach its content (WCAG 2.4.1). */}
-              <a className="mc-skip" href="#main" onClick={skipToMain}>
-                {t('a11y.skip')}
-              </a>
               <TopBar />
               <LiveRegion />
               <RouteFocus />

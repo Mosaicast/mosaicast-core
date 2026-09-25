@@ -151,16 +151,34 @@
 .mc-player__scrub {
   flex: 1;
   appearance: none;
-  height: 1rem;
+  /* The hit area, not the drawn track (which the pseudo-elements keep at 4px): 24px is the WCAG 2.5.8 target
+     minimum, and the track was 16px tall on a phone (#200). */
+  height: 1.5rem;
   background: none;
   cursor: pointer;
 }
+/* Its own ring, stated rather than inherited: the audit found no visible focus on the seek slider at all,
+   while the arrow keys moved playback — a control that changes what is heard, with nothing showing it has the
+   keys (WCAG 2.4.7, #200). The thumb grows too, so the cue does not rest on the ring's colour alone. */
+.mc-player__scrub:focus-visible {
+  outline: var(--mc-focus-width) solid var(--mc-focus);
+  outline-offset: var(--mc-focus-offset);
+  border-radius: var(--mc-radius-sm);
+}
+.mc-player__scrub:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.35);
+}
+.mc-player__scrub:focus-visible::-moz-range-thumb {
+  transform: scale(1.35);
+}
+/* The played part and the thumb are the position — information, not decoration — so they take the clamped
+   accent: the raw seed of a pale accent was a near-invisible yellow on a near-white track (WCAG 1.4.11). */
 .mc-player__scrub::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: var(--mc-radius-pill);
   background: linear-gradient(
     to right,
-    var(--mc-accent) var(--mc-played, 0%),
+    var(--mc-accent-text) var(--mc-played, 0%),
     var(--mc-border) var(--mc-played, 0%)
   );
 }
@@ -169,7 +187,7 @@
   border-radius: var(--mc-radius-pill);
   background: linear-gradient(
     to right,
-    var(--mc-accent) var(--mc-played, 0%),
+    var(--mc-accent-text) var(--mc-played, 0%),
     var(--mc-border) var(--mc-played, 0%)
   );
 }
@@ -179,7 +197,7 @@
   height: 12px;
   margin-top: -4px;
   border-radius: 50%;
-  background: var(--mc-accent);
+  background: var(--mc-accent-text);
   box-shadow: var(--mc-shadow-1);
 }
 .mc-player__scrub::-moz-range-thumb {
@@ -187,7 +205,7 @@
   height: 12px;
   border: none;
   border-radius: 50%;
-  background: var(--mc-accent);
+  background: var(--mc-accent-text);
 }
 
 .mc-player__time {
@@ -228,7 +246,7 @@
   border: 1px solid var(--mc-border);
   border-radius: var(--mc-radius-pill);
   background: none;
-  color: var(--mc-accent);
+  color: var(--mc-accent-text);
   font: inherit;
   cursor: pointer;
 }
@@ -266,7 +284,7 @@
 }
 .mc-player__vol {
   width: 90px;
-  accent-color: var(--mc-accent);
+  accent-color: var(--mc-accent-text);
 }
 
 /* On a phone the bar keeps play, skip and the scrubber; the rest is what goes first. */

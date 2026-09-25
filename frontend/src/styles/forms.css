@@ -263,7 +263,7 @@
   cursor: pointer;
 }
 .mc-toggle input {
-  accent-color: var(--mc-accent);
+  accent-color: var(--mc-accent-text);
   width: 1rem;
   height: 1rem;
   cursor: pointer;
@@ -343,4 +343,14 @@
   gap: 0.5rem;
   align-items: center;
   cursor: pointer;
+}
+
+/* A file picker styled as a button: the input stays focusable (visually hidden, not `hidden`), and the label
+   draws the ring the input cannot show (core#163). `position` keeps the hidden input inside the label. */
+.mc-upload {
+  position: relative;
+}
+.mc-upload:focus-within {
+  outline: var(--mc-focus-width) solid var(--mc-focus);
+  outline-offset: var(--mc-focus-offset);
 }

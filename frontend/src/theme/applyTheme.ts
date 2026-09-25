@@ -19,6 +19,7 @@ const TOKEN_VARS: Record<keyof ThemeTokenSet, string> = {
   accentContrast: '--mc-accent-contrast',
   border: '--mc-border',
   accent2: '--mc-accent-2',
+  accentText: '--mc-accent-text',
 };
 
 /** Resolves the effective mode: an explicit policy wins; `system` follows the OS preference. */
@@ -34,7 +35,10 @@ export function applyTheme(theme: GeneratedTheme, mode: Mode): void {
   const tokens = mode === 'dark' ? theme.dark : theme.light;
   const root = document.documentElement;
   (Object.keys(TOKEN_VARS) as (keyof ThemeTokenSet)[]).forEach((key) => {
-    root.style.setProperty(TOKEN_VARS[key], tokens[key]);
+    const value = tokens[key];
+    if (value) {
+      root.style.setProperty(TOKEN_VARS[key], value);
+    }
   });
   root.setAttribute('data-theme', mode);
 }

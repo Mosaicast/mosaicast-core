@@ -16,6 +16,11 @@ package dev.mosaicast.core.branding;
  * @param accentContrast readable text on the accent ({@code --mc-accent-contrast})
  * @param border         borders/dividers ({@code --mc-border})
  * @param accent2        secondary accent ({@code --mc-accent-2})
+ * @param accentText     the accent as a <em>foreground</em> — links, the active tab, the focus ring
+ *                       ({@code --mc-accent-text}) — clamped to WCAG AA against both {@code bg} and
+ *                       {@code surface}. {@code accent} stays the raw seed: it is paired with
+ *                       {@code accentContrast} as a background, which is where it belongs, and it is a
+ *                       plugin-facing token whose meaning does not change (core#162).
  */
 public record ThemeTokenSet(
         String bg,
@@ -25,5 +30,6 @@ public record ThemeTokenSet(
         String accent,
         String accentContrast,
         String border,
-        String accent2) {
+        String accent2,
+        String accentText) {
 }

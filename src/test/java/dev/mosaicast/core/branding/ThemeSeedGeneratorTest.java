@@ -26,6 +26,7 @@ class ThemeSeedGeneratorTest {
         "#000080", // dark navy
         "#00FF00", // saturated green
         "#111111", // near-black accent
+        "#FFF176", // the pale yellow that measured 1.12:1 as link text (core#162)
     })
     void generatedTextAlwaysMeetsWcagAa(String accent) {
         GeneratedTheme theme = generator.generate(accent);
@@ -41,6 +42,26 @@ class ThemeSeedGeneratorTest {
         assertThat(Oklch.contrast(tokens.textMuted(), tokens.bg()))
                 .as("muted text vs bg")
                 .isGreaterThanOrEqualTo(ThemeSeedGenerator.MIN_TEXT_CONTRAST);
+        // The accent as a foreground — links, the active tab, the focus ring — on both colours it sits on.
+        assertThat(Oklch.contrast(tokens.accentText(), tokens.bg()))
+                .as("accent text vs bg")
+                .isGreaterThanOrEqualTo(ThemeSeedGenerator.MIN_TEXT_CONTRAST);
+        assertThat(Oklch.contrast(tokens.accentText(), tokens.surface()))
+                .as("accent text vs surface")
+                .isGreaterThanOrEqualTo(ThemeSeedGenerator.MIN_TEXT_CONTRAST);
+    }
+
+    @Test
+    void theRawAccentKeepsItsMeaningAndAReadableAccentIsLeftAlone() {
+        // `--mc-accent` is a plugin contract: it stays the seed. And the clamp moves a colour only as far as
+        // it must — the brand accent already reads on the light page, so its text form is itself.
+        GeneratedTheme theme = generator.generate("#1a5fb4");
+
+        assertThat(theme.light().accent()).isEqualTo("#1a5fb4");
+        assertThat(theme.light().accentText()).isEqualTo("#1a5fb4");
+        GeneratedTheme pale = generator.generate("#FFF176");
+        assertThat(pale.light().accent()).isEqualToIgnoringCase("#fff176");
+        assertThat(pale.light().accentText()).isNotEqualToIgnoringCase("#fff176");
     }
 
     @Test

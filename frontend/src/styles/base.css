@@ -21,7 +21,7 @@ body {
 }
 
 a {
-  color: var(--mc-accent);
+  color: var(--mc-accent-text);
   text-decoration: none;
 }
 a:hover {

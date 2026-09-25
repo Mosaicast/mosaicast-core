@@ -177,6 +177,11 @@ export function PlayerBar() {
           value={Math.floor(currentTime)}
           onChange={(e) => seek(Number(e.target.value))}
           aria-label={t('player.seek')}
+          // "3:12 of 35:40", not the raw number of seconds a screen reader would otherwise read (#200).
+          aria-valuetext={t('player.seekValue', {
+            current: formatDuration(Math.floor(currentTime)),
+            total: formatDuration(Math.floor(duration)),
+          })}
         />
         <span className="mc-player__time">{formatDuration(Math.floor(duration))}</span>
       </div>
@@ -200,6 +205,7 @@ export function PlayerBar() {
           value={volume}
           onChange={(e) => setVolume(Number(e.target.value))}
           aria-label={t('player.volume')}
+          aria-valuetext={t('player.volumeValue', { percent: Math.round(volume * 100) })}
         />
         {/* There was no way to close the bar: `current` never went back to null once anything had played. */}
         <button type="button" className="mc-player__close" onClick={stop} aria-label={t('player.close')} />

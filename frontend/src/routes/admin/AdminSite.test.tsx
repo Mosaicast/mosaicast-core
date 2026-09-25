@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import '../../i18n';
@@ -43,4 +43,43 @@ describe('AdminSite', () => {
     const selects = screen.getAllByRole('combobox') as HTMLSelectElement[];
     expect(selects.some((s) => s.value === 'de')).toBe(false);
   });
+
+  it('can upload every branding asset from the keyboard (core#163)', () => {
+    // `hidden` took the file inputs out of the tab order, and a label is not focusable: no logo, favicon or
+    // dark logo without a mouse.
+    const { container } = render(<AdminSite />);
+    const inputs = [...container.querySelectorAll<HTMLInputElement>('input[type="file"]')];
+
+    expect(inputs.length).toBeGreaterThanOrEqual(3);
+    for (const input of inputs) {
+      expect(input.hidden).toBe(false);
+      expect(input.tabIndex).toBe(0);
+      input.focus();
+      expect(document.activeElement).toBe(input);
+      // Named by its label and told what it accepts.
+      expect(input.closest('label')).toHaveTextContent('Upload');
+      expect(input).toHaveAccessibleDescription(/PNG, JPEG, WEBP or ICO, up to 2 MB/);
+    }
+  });
+
+  it('warns while choosing an accent that would be unreadable as text (core#162)', () => {
+    const original = site.theme;
+    site.theme = {
+      accentSeed: site.accentSeed,
+      light: { bg: '#fbf8f3' } as never,
+      dark: { bg: '#17140f' } as never,
+    };
+    try {
+      render(<AdminSite />);
+      expect(screen.queryByText(/hard to read as text/)).not.toBeInTheDocument();
+
+      fireEvent.change(container().querySelector('input[type="color"]')!, { target: { value: '#fff176' } });
+
+      expect(screen.getByText(/hard to read as text/)).toBeInTheDocument();
+    } finally {
+      site.theme = original;
+    }
+  });
 });
+
+const container = () => document.body;

@@ -148,7 +148,7 @@
   }
 }
 .mc-menu__panel [aria-current='true'] {
-  color: var(--mc-accent);
+  color: var(--mc-accent-text);
   font-weight: 600;
 }
 .mc-menu__panel a,
@@ -219,6 +219,14 @@
   flex-wrap: wrap;
   font-size: var(--mc-text-sm);
 }
+/* 24px targets (WCAG 2.5.8): the links measured 19-22px tall on a phone (#200). They sit in a row of their
+   own rather than in a sentence, so the inline-link exception does not cover them. */
+.mc-foot a,
+.mc-foot button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+}
 .mc-foot__legal {
   display: flex;
   gap: var(--mc-space-4);
@@ -278,8 +286,16 @@
    * is what the control has to convey. Truncating it instead spent up to 5rem on two or three letters and
    * an ellipsis — width the row does not have, and a name clipped to "Alex…" is not the name anyway.
    */
+  /* Hidden from sight, not from the accessibility tree: `display: none` left the account menu a button with
+     no name at all on a phone, unidentifiable to a screen reader (#200). The avatar is decorative. */
   .mc-menu__name {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
   /*
    * The language switcher stops being its own control and rides inside the info menu (`mc-menu__onphone`).
@@ -526,7 +542,7 @@
 }
 .mc-inbox__read:hover {
   border-color: var(--mc-accent);
-  color: var(--mc-accent);
+  color: var(--mc-accent-text);
 }
 .mc-inbox__more {
   display: block;
@@ -543,20 +559,27 @@
   margin-top: var(--mc-space-3);
 }
 
-/* The skip link (WCAG 2.4.1): off-screen until it has focus, then the first thing on the page. */
+/* The skip link (WCAG 2.4.1): out of sight until it has focus, then a strip over the whole header — its first
+   child, so `inset: 0` fits the header at every width. A small box in the corner half-covered the logo and
+   read as a layout bug; covering the header whole reads as the one thing on offer, and Tab puts it back. */
 .mc-skip {
   position: absolute;
-  top: var(--mc-space-2);
-  left: var(--mc-space-3);
-  z-index: 100;
-  padding: var(--mc-space-2) var(--mc-space-4);
-  border-radius: var(--mc-radius-md);
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: var(--mc-accent);
   color: var(--mc-accent-contrast);
   font-weight: var(--mc-weight-medium);
-  text-decoration: none;
-  transform: translateY(calc(-100% - var(--mc-space-4)));
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+  transform: translateY(-100%);
+  clip-path: inset(100% 0 0 0);
 }
 .mc-skip:focus {
   transform: none;
+  clip-path: none;
+  outline-offset: calc(-1 * var(--mc-focus-width) - 2px);
+  outline-color: var(--mc-accent-contrast);
 }
