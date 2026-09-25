@@ -3,7 +3,9 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { sanitizeFeedHtml } from './sanitize';
+import DOMPurify from 'dompurify';
+
+import { EXTERNAL_LINK_REL, sanitizeFeedHtml } from './sanitize';
 
 /**
  * Feed HTML is the only markup on the site that arrives from a third party and is inserted as markup.
@@ -78,5 +80,60 @@ describe('Feed HTML sanitizer', () => {
     expect(sanitizeFeedHtml(null)).toBe('');
     expect(sanitizeFeedHtml(undefined)).toBe('');
     expect(sanitizeFeedHtml('')).toBe('');
+  });
+
+  describe('links (core#169)', () => {
+    const parse = (html: string) => {
+      const template = document.createElement('template');
+      template.innerHTML = sanitizeFeedHtml(html);
+      return [...template.content.querySelectorAll('a')];
+    };
+
+    it('sends a link that leaves the site to a new tab, unendorsed', () => {
+      // Following it in this tab tears the shell down and the audio with it — the one interruption the
+      // persistent player exists to prevent.
+      const [link] = parse('<p><a href="https://example.com/notes">notes</a></p>');
+
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe(EXTERNAL_LINK_REL);
+      expect(EXTERNAL_LINK_REL.split(' ')).toEqual(
+        expect.arrayContaining(['noopener', 'noreferrer', 'nofollow', 'ugc']),
+      );
+    });
+
+    it('leaves same-origin, mailto and fragment links in this tab', () => {
+      const links = parse(
+        `<a href="${window.location.origin}/episodes/x">abs</a><a href="/feeds/y">rel</a>` +
+          '<a href="mailto:hi@example.com">mail</a><a href="#part-2">frag</a>',
+      );
+
+      expect(links).toHaveLength(4);
+      links.forEach((link) => {
+        expect(link.hasAttribute('target')).toBe(false);
+        expect(link.hasAttribute('rel')).toBe(false);
+      });
+    });
+
+    it('never keeps a target or rel the feed supplied', () => {
+      // `target="_self"` on an external link would put the full navigation back; `rel="opener"` would hand
+      // the opened page this one. Neither is the feed's call.
+      const [external, internal] = parse(
+        '<a href="https://example.com" target="_self" rel="opener">x</a>' +
+          '<a href="/feeds/y" target="_top" rel="opener">y</a>',
+      );
+
+      expect(external.getAttribute('target')).toBe('_blank');
+      expect(external.getAttribute('rel')).toBe(EXTERNAL_LINK_REL);
+      expect(internal.hasAttribute('target')).toBe(false);
+      expect(internal.hasAttribute('rel')).toBe(false);
+    });
+
+    it('does not leave its hook installed for anything else DOMPurify sanitizes', () => {
+      sanitizeFeedHtml('<a href="https://example.com">x</a>');
+
+      const other = DOMPurify.sanitize('<a href="https://example.com">x</a>', { ADD_ATTR: ['target'] });
+
+      expect(other).not.toContain('target');
+    });
   });
 });

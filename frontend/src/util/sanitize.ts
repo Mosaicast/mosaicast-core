@@ -44,11 +44,60 @@ const FEED_HTML: Config = {
   ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|#|\/)/i,
 };
 
+/**
+ * What a link leaving the site carries. The same string the server writes into the no-JS copy of the same
+ * show notes (`ExternalLinks.REL`), so one episode's links are not endorsed on one rendering and not the
+ * other (core#169).
+ *
+ * - `noopener noreferrer` — mandatory with `target="_blank"`: without it the opened page gets a handle on
+ *   this one, and the podcast host learns which episode page its visitor came from.
+ * - `nofollow ugc` — this markup is a third party's, published through the operator's site, not written by
+ *   the operator; it is the same statement jsoup's `Safelist.basic()` already made on the server side.
+ */
+export const EXTERNAL_LINK_REL = 'noopener noreferrer nofollow ugc';
+
+/**
+ * Sends every link that leaves the site to a new tab.
+ *
+ * **`target="_blank"` is the playback guarantee, not a preference.** Show notes link to a publisher's own
+ * site, and following one in this tab is a full navigation: the SPA is torn down and the audio element with
+ * it — the one interruption the persistent player exists to prevent (§6.2), triggered by the most ordinary
+ * thing a listener does on an episode page. A new tab is the only way to read what the podcaster linked to
+ * and keep listening.
+ *
+ * Same-origin links are left alone — {@link useRoutedLinks} hands them to the router, which keeps playback
+ * just as well and stays in this tab where an internal link belongs. `mailto:` and `tel:` hand off to another
+ * application and never replace the page. Whatever `target` or `rel` the feed supplied never survives:
+ * neither is in `ALLOWED_ATTR`, and this runs after that filter, so only what is set here remains.
+ */
+function markExternalLinks(node: Element): void {
+  if (node.nodeName !== 'A' || !node.hasAttribute('href')) {
+    return;
+  }
+  let url: URL;
+  try {
+    url = new URL(node.getAttribute('href') ?? '', window.location.href);
+  } catch {
+    return;
+  }
+  if ((url.protocol === 'http:' || url.protocol === 'https:') && url.origin !== window.location.origin) {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', EXTERNAL_LINK_REL);
+  }
+}
+
 /** Sanitizes feed-supplied HTML for rendering. Returns an empty string for absent or empty input. */
 export function sanitizeFeedHtml(html: string | null | undefined): string {
   if (!html) {
     return '';
   }
-  // `RETURN_TRUSTED_TYPE` is off, so this is a string — the overload just cannot prove it from a Config value.
-  return DOMPurify.sanitize(html, FEED_HTML) as unknown as string;
+  // Registered for this call only. DOMPurify's hooks are global, and a hook left installed would rewrite the
+  // links of whatever else is ever sanitized in this realm — policy for feed HTML, applied to everything.
+  DOMPurify.addHook('afterSanitizeAttributes', markExternalLinks);
+  try {
+    // `RETURN_TRUSTED_TYPE` is off, so this is a string — the overload cannot prove it from a Config value.
+    return DOMPurify.sanitize(html, FEED_HTML) as unknown as string;
+  } finally {
+    DOMPurify.removeHook('afterSanitizeAttributes');
+  }
 }
