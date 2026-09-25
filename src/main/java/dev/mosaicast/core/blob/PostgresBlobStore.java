@@ -184,7 +184,8 @@ public class PostgresBlobStore implements NamedBlobStore {
 
     private static BlobMetadata toMetadata(Blob blob) {
         return new BlobMetadata(new BlobRef(blob.getId(), blob.getNamespace()),
-                blob.getKey(), blob.getMime(), blob.getSizeBytes(), blob.getUpdatedAt(), blob.getFilename());
+                blob.getKey(), blob.getMime(), blob.getSizeBytes(), blob.getUpdatedAt(), blob.getFilename(),
+                blob.getCreatedBy());
     }
 
     private static byte[] readAll(InputStream data) {

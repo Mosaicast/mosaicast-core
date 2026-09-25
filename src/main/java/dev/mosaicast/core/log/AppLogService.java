@@ -70,15 +70,35 @@ public class AppLogService {
         writer.start();
     }
 
+    /**
+     * Stops the writer, then flushes what it left behind.
+     *
+     * <p>In that order and on one thread at a time. It used to interrupt the writer and immediately drain on
+     * the shutdown thread: the interrupt could land inside the writer's JDBC call, and the two threads then
+     * shared the queue and the repository while Spring was already closing the pool (core#201). The loop
+     * polls with a one-second timeout, so clearing {@code running} ends it after the batch in hand; the
+     * flush runs only once it has, and is skipped rather than raced if it has not.
+     */
     @PreDestroy
     void stop() {
         running = false;
         if (writer != null) {
-            writer.interrupt();
+            try {
+                writer.join(SHUTDOWN_WAIT_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            if (writer.isAlive()) {
+                System.err.println("[app-log] writer still busy at shutdown; " + queue.size()
+                        + " queued entries were not flushed");
+                return;
+            }
         }
-        // Best-effort flush so entries from a clean shutdown are not lost.
         drainOnce();
     }
+
+    /** How long shutdown waits for the writer to finish the batch it holds. */
+    private static final long SHUTDOWN_WAIT_MS = 5_000;
 
     /** Whether the calling thread is the log writer — the appender's guard against feeding itself. */
     public boolean isWriterThread() {
@@ -187,11 +207,14 @@ public class AppLogService {
         }
     }
 
-    private void persist(List<AppLogEntry> batch) {
+    /** Writes a batch; whether it reached the table, since the only report of a failure is stderr. */
+    private boolean persist(List<AppLogEntry> batch) {
         try {
             repository.saveAll(batch);
+            return true;
         } catch (Throwable t) {
             System.err.println("[app-log] could not persist " + batch.size() + " entries: " + t);
+            return false;
         }
     }
 
@@ -209,9 +232,13 @@ public class AppLogService {
             return;
         }
         lastDropNotice = now;
-        dropped.addAndGet(-lost);
-        persist(List.of(new AppLogEntry(now, AppLogLevel.WARN, "log", "AppLogService", null,
+        // Counted off only once the notice is written. It was subtracted first, and a failed write — the
+        // likeliest reason the queue filled at all — lost both the line and the count (core#201).
+        boolean written = persist(List.of(new AppLogEntry(now, AppLogLevel.WARN, "log", "AppLogService", null,
                 lost + " log entries were dropped because the write queue was full", null, null)));
+        if (written) {
+            dropped.addAndGet(-lost);
+        }
     }
 
     private static String orEmpty(String value) {

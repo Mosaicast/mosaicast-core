@@ -66,7 +66,7 @@ public class InMemoryBlobStore implements NamedBlobStore {
         BlobRef ref = new BlobRef(id, namespace);
         byId.remove(id);
         byId.put(id, new Stored(
-                new BlobMetadata(ref, key, mime, bytes.length, Instant.now(), filename), bytes));
+                new BlobMetadata(ref, key, mime, bytes.length, Instant.now(), filename, uploader), bytes));
         return ref;
     }
 

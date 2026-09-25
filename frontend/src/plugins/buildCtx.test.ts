@@ -281,4 +281,18 @@ describe('buildCtx', () => {
     // tile. The SlotRegion boundary would catch it, but blanking a tile for a missing router is worse.
     expect(() => buildCtx(base).route.navigate('anywhere')).not.toThrow();
   });
+
+  it('hands a plugin no stored position once remembering is switched off (core#201)', async () => {
+    localStorage.setItem('mc.progress.e1', '754');
+    try {
+      expect(await buildCtx(base).progress.get('e1')).toBe(754);
+
+      localStorage.setItem('mc.prefs.progress', 'off');
+      // It read the key directly, so the position still came back after the visitor said not to keep it.
+      expect(await buildCtx(base).progress.get('e1')).toBeNull();
+    } finally {
+      localStorage.removeItem('mc.progress.e1');
+      localStorage.removeItem('mc.prefs.progress');
+    }
+  });
 });

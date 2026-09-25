@@ -214,8 +214,10 @@ public class SecurityConfig {
                                 "You do not have access to this.")))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
-                        .logoutSuccessHandler((req, res, authn) -> res.setStatus(HttpStatus.NO_CONTENT.value()))
-                        .deleteCookies(SessionConfig.SESSION_COOKIE_NAME))
+                        // No deleteCookies: invalidating the session makes Spring Session's cookie serializer
+                        // expire MOSAICAST_SESSION itself, and a second expiry here answered logout with two
+                        // Set-Cookie headers for the same cookie (core#201).
+                        .logoutSuccessHandler((req, res, authn) -> res.setStatus(HttpStatus.NO_CONTENT.value())))
                 .headers(headers -> headers
                         // The policy is built per request from the third-party hosts active plugins declared
                         // (§12.5) — the declaration is both the notice and the permission.

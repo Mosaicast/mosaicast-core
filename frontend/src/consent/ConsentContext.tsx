@@ -280,7 +280,7 @@ export function ConsentProvider({ children }: { children: ReactNode }) {
     return whenPlaybackIdle(() => window.location.reload());
   }, [reloadPending]);
   const gpc = useMemo(readGpc, []);
-  const devProfile = useMeta()?.devLoginEnabled ?? false;
+  const devProfile = useMeta()?.devProfile ?? false;
   /** Subscribers (plugins) and in-flight `request()` calls awaiting the visitor's next decision. */
   const listeners = useRef(new Set<() => void>());
   const pending = useRef<{ category: string; resolve: (granted: boolean) => void }[]>([]);

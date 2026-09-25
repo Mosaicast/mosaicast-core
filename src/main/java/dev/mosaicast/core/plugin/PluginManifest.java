@@ -31,7 +31,8 @@ import java.util.Locale;
  * @param backend     backend entry points (PF4J extension classes)
  * @param frontend    frontend bundle entry + custom-element tags
  * @param slots       where the plugin mounts its elements in the shell
- * @param storage     {@code "doc"} (generic doc store, the v1 default) or {@code "schema"} (deferred)
+ * @param storage     {@code "doc"} (generic doc store, the v1 default) or {@code "schema"} (platform-mediated
+ *                    tables from the manifest's schema declaration, §7.6)
  * @param config      declared config fields, keyed by field name
  * @param data        the doc-store access floors and backend-owned keys (§7.2); absent means the closed
  *                    default and nothing reserved

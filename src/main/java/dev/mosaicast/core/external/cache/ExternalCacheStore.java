@@ -75,7 +75,10 @@ public class ExternalCacheStore {
                         + "ON CONFLICT (cache_key) DO UPDATE SET payload = EXCLUDED.payload, "
                         + "payload_bytes = EXCLUDED.payload_bytes, expires_at = EXCLUDED.expires_at, "
                         + "created_at = now(), last_read_at = now()",
-                cacheKey, kind.id(), providerId, json, json.length(),
+                // Bytes, as the column says: `length()` counts UTF-16 units, which understates exactly the
+                // payloads this cache holds most — translations of non-ASCII text — and the trim decision is
+                // taken from this number (core#201).
+                cacheKey, kind.id(), providerId, json, json.getBytes(java.nio.charset.StandardCharsets.UTF_8).length,
                 expiresAt == null ? null : java.sql.Timestamp.from(expiresAt));
     }
 

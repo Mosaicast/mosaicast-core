@@ -297,6 +297,7 @@ function HealthCard({ health }: { health: HealthView }) {
   const brokenFeeds = health.feeds.filter((f) => f.consecutiveFailures > 0 || f.lastError);
   const errors = health.counts.filter((c) => c.level === 'ERROR').reduce((sum, c) => sum + c.count, 0);
   const warnings = health.counts.filter((c) => c.level === 'WARN').reduce((sum, c) => sum + c.count, 0);
+  const warningsRecorded = health.captureLevel !== 'ERROR';
   const healthy = brokenPlugins.length === 0 && brokenFeeds.length === 0 && errors === 0;
 
   return (
@@ -304,7 +305,12 @@ function HealthCard({ health }: { health: HealthView }) {
       <div className="mc-health__summary">
         <strong>{healthy ? t('admin.logs.healthOk') : t('admin.logs.healthAttention')}</strong>
         <span className="mc-muted">
-          {t('admin.logs.last24h', { errors, warnings })} · {t('admin.logs.version', { version: health.version })}
+          {/* Counted from stored rows only. With capture set to ERROR, "0 warnings" was a permanent false
+              reading while warnings ran on stdout (core#201), so an uncaptured level says it is not recorded. */}
+          {warningsRecorded
+            ? t('admin.logs.last24h', { errors, warnings })
+            : t('admin.logs.last24hErrorsOnly', { errors })}{' '}
+          · {t('admin.logs.version', { version: health.version })}
         </span>
       </div>
       {brokenPlugins.length > 0 && (

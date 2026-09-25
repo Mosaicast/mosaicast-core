@@ -275,7 +275,10 @@ export interface CreatedToken {
 export interface Meta {
   name: string;
   version: string;
+  /** Whether the dev-login bypass exists — for the login menu, and nothing else. */
   devLoginEnabled: boolean;
+  /** Whether the app runs under the dev profile — for dev-only diagnostics. */
+  devProfile?: boolean;
 }
 
 /** Admin-facing feed (`feed/FeedView.java`), `GET /api/admin/feeds` — includes poll state. */
@@ -430,6 +433,8 @@ export interface HealthView {
   feeds: FeedHealth[];
   counts: { subsystem: string; level: string; count: number }[];
   countsSince: string;
+  /** The lowest level stored; counts below it are unknown, not zero. */
+  captureLevel?: string;
 }
 
 /**

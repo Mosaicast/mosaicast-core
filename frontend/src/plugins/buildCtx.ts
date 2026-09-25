@@ -16,6 +16,7 @@ import {
   makePluginUsers,
   makePluginTranslation,
 } from './pluginApi';
+import { storedPosition } from '../player/progress';
 import { coreLinks } from './coreLinks';
 
 /**
@@ -198,10 +199,8 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // authors to read `ctx.translation` at the point of use rather than caching the handle (§16).
     translation: inputs.hasTranslation ? makePluginTranslation(inputs.pluginId) : null,
     progress: {
-      get: (episodeId: string) => {
-        const stored = localStorage.getItem(`mc.progress.${episodeId}`);
-        return Promise.resolve(stored != null ? Number(stored) : null);
-      },
+      // Through the player's own reader, so the "remember playback position" switch holds here too.
+      get: (episodeId: string) => Promise.resolve(storedPosition(episodeId)),
     },
     theme: sdkTheme(inputs.theme),
     /**

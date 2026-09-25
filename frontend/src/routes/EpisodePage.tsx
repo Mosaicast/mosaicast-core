@@ -20,7 +20,7 @@ import { formatPublishedDate, formatDuration } from '../util/format';
 import { sanitizeFeedHtml } from '../util/sanitize';
 import { useRoutedLinks } from '../util/useRoutedLinks';
 import { parseTimestamp } from '../util/timestamp';
-import { NotFound } from './Placeholder';
+import { NotFound } from './NotFound';
 import { useDocumentTitle } from '../a11y/documentTitle';
 
 /** Whether this episode has audio a visitor may actually play (upcoming/locked ones do not). */

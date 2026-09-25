@@ -221,7 +221,7 @@ public class PluginBlobController {
                                        Authentication authentication) {
         PluginManifest manifest = manifestWithBlobs(id);
         requireWritable(manifest, authentication);
-        blobs.delete(id, ref);
+        blobs.delete(id, ref, CurrentUser.id(authentication).orElse(null), CurrentUser.role(authentication));
         return ResponseEntity.noContent().build();
     }
 

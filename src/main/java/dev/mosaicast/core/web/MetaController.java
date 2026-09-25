@@ -22,12 +22,18 @@ public class MetaController {
 
     private final String version;
     private final boolean devLoginEnabled;
+    private final boolean devProfile;
 
     public MetaController(@Value("${mosaicast.version:dev}") String version, Environment environment) {
         this.version = version;
         // The dev-login bypass exists only under the dev profile (DevLoginController is @Profile("dev")),
         // so the shell shows that login option only when it will actually work (§8).
         this.devLoginEnabled = environment.acceptsProfiles(Profiles.of("dev"));
+        // A separate answer to a separate question, though today it is the same profile: the shell hung its
+        // dev-only diagnostics (the plugin storage audit, a consent warning) off `devLoginEnabled`, which says
+        // whether a login bypass exists. The day those two stop coinciding, one of them would silently change
+        // meaning (core#201).
+        this.devProfile = environment.acceptsProfiles(Profiles.of("dev"));
     }
 
     /**
@@ -42,6 +48,7 @@ public class MetaController {
      */
     @GetMapping("/api/meta")
     public Map<String, Object> meta() {
-        return Map.of("name", "Mosaicast", "version", version, "devLoginEnabled", devLoginEnabled);
+        return Map.of("name", "Mosaicast", "version", version, "devLoginEnabled", devLoginEnabled,
+                "devProfile", devProfile);
     }
 }

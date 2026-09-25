@@ -19,6 +19,7 @@ import type { EpisodeDetail, EpisodeSummary } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import i18n from '../i18n';
 import { clearNowPlaying, readNowPlaying, writeNowPlaying } from './nowPlaying';
+import { progressKey, storedPosition as storedLocalPosition } from './progress';
 import { notifyPlaybackIdle, registerPlayback } from './playbackGate';
 import { PlayerBar } from './PlayerBar';
 
@@ -173,7 +174,6 @@ export function usePlayerActions(): PlayerActionsValue {
   return actions;
 }
 
-const progressKey = (id: string) => `mc.progress.${id}`;
 
 /**
  * How far playback must advance past a shared timestamp before the position is remembered again.
@@ -319,12 +319,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!progressEnabled()) {
       return 0;
     }
-    let saved = 0;
-    try {
-      saved = Number(localStorage.getItem(progressKey(episode.id)) ?? 0) || 0;
-    } catch {
-      saved = 0;
-    }
+    let saved = storedLocalPosition(episode.id) ?? 0;
     if (userRef.current) {
       try {
         const map = await api.get<Record<string, number>>(`/api/me/progress?episodeIds=${episode.id}`);

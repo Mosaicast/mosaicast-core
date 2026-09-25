@@ -141,11 +141,6 @@ public class EpisodeController {
     }
 
     /**
-     * Drops any client-supplied sort. These endpoints have a server-defined order (canonical episode order,
-     * or search relevance), and a client {@code ?sort=} would be spliced into the native/JPQL query and
-     * reference a non-existent column — a 500. Only page/size are honored.
-     */
-    /**
      * Resolves the optional {@code feedId} filter, which the shell now passes as the feed's public slug.
      * A UUID still works, so a link or integration built before slugs keeps filtering correctly.
      *
@@ -168,6 +163,11 @@ public class EpisodeController {
         return feeds.findPublicId(feedRef);
     }
 
+    /**
+     * Drops any client-supplied sort. These endpoints have a server-defined order (canonical episode order,
+     * or search relevance), and a client {@code ?sort=} would be spliced into the native/JPQL query and
+     * reference a non-existent column — a 500. Only page/size are honored.
+     */
     private static Pageable unsorted(Pageable pageable) {
         return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize());
     }

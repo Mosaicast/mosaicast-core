@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.mosaicast.core.support.DevLogin;
 import dev.mosaicast.plugin.api.Role;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -81,6 +82,28 @@ class AuthImmediateEffectIntegrationTest {
         // GET-only public matcher leaves it to /api/** deny-by-default behind that (defense in depth).
         ResponseEntity<String> post = rest.postForEntity("/api/site", null, String.class);
         assertThat(post.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void logoutExpiresTheSessionCookieExactlyOnce() {
+        DevLogin.Cookies cookies = DevLogin.login(rest, "fan");
+        HttpHeaders headers = new HttpHeaders();
+        headers.add(HttpHeaders.COOKIE, cookies.session() + "; " + cookies.xsrf());
+        headers.add("X-XSRF-TOKEN", cookies.token());
+
+        ResponseEntity<String> logout = rest.exchange(
+                "/api/auth/logout", HttpMethod.POST, new HttpEntity<>(headers), String.class);
+
+        assertThat(logout.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        // Spring Session expires its own cookie when the session is invalidated; the logout config expired it
+        // a second time, so the response carried two Set-Cookie headers for one cookie (core#201).
+        List<String> expiries = logout.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE).stream()
+                .filter(c -> c.startsWith("MOSAICAST_SESSION="))
+                .toList();
+        assertThat(expiries).singleElement().satisfies(c -> assertThat(c).contains("Max-Age=0"));
+        // And the session is actually gone, not just the cookie.
+        assertThat(rest.exchange("/api/me", HttpMethod.GET, withSession(cookies.session()), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     /** Logs in via the dev bypass and returns the session cookie to reuse. */
