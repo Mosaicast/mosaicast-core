@@ -607,8 +607,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (!progressEnabled()) {
         return;
       }
-      // localStorage every tick is cheap and covers anonymous + logout; server writes are throttled.
-      localStorage.setItem(progressKey(episode.id), String(seconds));
+      // localStorage every tick is cheap and covers anonymous + logout; server writes are throttled. Guarded:
+      // with storage blocked or full this threw several times a second inside a DOM event handler, where no
+      // boundary reaches it (core#185). The server copy below still goes out for a signed-in listener.
+      try {
+        localStorage.setItem(progressKey(episode.id), String(seconds));
+      } catch {
+        // Not remembered on this device; playback is unaffected.
+      }
       const now = Date.now();
       if (userRef.current && now - lastServerWriteRef.current > 10_000) {
         lastServerWriteRef.current = now;
@@ -635,7 +641,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const onEnded = () => {
       const episode = currentRef.current;
       if (episode) {
-        localStorage.removeItem(progressKey(episode.id));
+        try {
+          localStorage.removeItem(progressKey(episode.id));
+        } catch {
+          // Nothing readable was stored either.
+        }
         // Only when remembering is on. Writing a zero is still writing a row about what this person listened
         // to, on the say-so of a setting they turned off — and it was the one progress write with no gate.
         if (userRef.current && progressEnabled()) {

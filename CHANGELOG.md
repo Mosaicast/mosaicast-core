@@ -225,6 +225,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A request that fails or hangs no longer leaves a page loading forever, a 404 that is not one, or a
+  signed-in header over a dead session (`0.7.4`, core#185).** The API client had no timeout and no
+  cancellation: a request the server never answered kept its caller loading for as long as the tab stayed
+  open, and a cancelled one ran to completion anyway. Requests are abandoned after 30 s (the body read
+  included; uploads excepted) and aborted when their component no longer needs them. A 401 while signed in
+  is now heard in one place, which re-checks the session once and falls back to anonymous — before, every
+  call failed on its own under a header still showing the visitor's name. The episode page showed
+  "Loading…" forever on any failure but a 404; it says what happened and offers a retry. A later page of
+  the episode list that answered after the filters changed was appended to the new list; it is dropped. A
+  plugin tile that failed after render — the element thrown by its own `ctx` assignment, or a bundle that
+  never defined its element — escaped the error boundary as an unhandled rejection with nothing shown; it
+  shows "This part of the page could not be shown", like a render error. `/p/<plugin>` rendered the 404
+  while the plugin list was still loading, and kept it when that request failed. Storage writes that could
+  throw — every `timeupdate` in the player, the language switcher, the site cache — are guarded; the site
+  cache's used to skip applying the site's theme when storage was full.
+
 - **The player now survives a page reload, says why it is silent, and keeps playing when a show-notes link is
   followed (`0.7.4`, core#168, core#169, core#170).** Playback survived every client-side navigation and
   nothing else: F5, a typed URL and — worst — the reload a consent decision needs all ended it, with the
