@@ -4,9 +4,17 @@
 package dev.mosaicast.core.plugin;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.mosaicast.core.support.DevLogin;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.resttestclient.TestRestTemplate;
@@ -23,6 +31,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -58,6 +68,15 @@ class PluginBlobControllerIntegrationTest {
     @Autowired
     private TestRestTemplate rest;
 
+    @Autowired
+    private PluginLoaderService plugins;
+
+    @Autowired
+    private PluginBlobService blobService;
+
+    @Autowired
+    private PlatformTransactionManager transactions;
+
     private static final ObjectMapper JSON = new ObjectMapper();
 
     private static final String BASE = "/api/plugins/blobs/blob";
@@ -73,6 +92,11 @@ class PluginBlobControllerIntegrationTest {
 
     private ResponseEntity<String> upload(byte[] content, String filename, String declaredType,
                                           DevLogin.Cookies session) {
+        return uploadTo(BASE, content, filename, declaredType, session);
+    }
+
+    private ResponseEntity<String> uploadTo(String base, byte[] content, String filename, String declaredType,
+                                            DevLogin.Cookies session) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         ByteArrayResource part = new ByteArrayResource(content) {
             @Override
@@ -90,7 +114,7 @@ class PluginBlobControllerIntegrationTest {
             headers.add(HttpHeaders.COOKIE, session.session() + "; " + session.xsrf());
             headers.add("X-XSRF-TOKEN", session.token());
         }
-        return rest.exchange(BASE, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
+        return rest.exchange(base, HttpMethod.POST, new HttpEntity<>(body, headers), String.class);
     }
 
     private static String refOf(ResponseEntity<String> response) {
@@ -139,6 +163,8 @@ class PluginBlobControllerIntegrationTest {
             assertThat(served.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                     .isEqualTo("inline; filename=\"diagram.png\"");
             assertThat(served.getHeaders().getETag()).isNotBlank();
+            // Anonymous read floor: any cache may keep it, because any caller was going to be given it.
+            assertThat(served.getHeaders().getCacheControl()).contains("public").contains("immutable");
 
             HttpHeaders auth = new HttpHeaders();
             auth.add(HttpHeaders.COOKIE, session.session() + "; " + session.xsrf());
@@ -356,6 +382,84 @@ class PluginBlobControllerIntegrationTest {
             assertThat(JSON.readTree(created.getBody()).path("mime").asString()).isEqualTo("image/gif");
         } finally {
             deleteAll();
+        }
+    }
+
+    // ---- core#183 ----
+
+    @Test
+    void aFileBehindARoleFloorIsNeverMarkedForASharedCache() {
+        // `public` told any shared cache in front of the app to keep the bytes and serve them to the next
+        // caller of the same URL — after the floor had been checked for this caller only.
+        String base = "/api/plugins/blobslocked/blob";
+        DevLogin.Cookies session = DevLogin.login(rest, "podcaster");
+        HttpHeaders auth = new HttpHeaders();
+        auth.add(HttpHeaders.COOKIE, session.session() + "; " + session.xsrf());
+        auth.add("X-XSRF-TOKEN", session.token());
+        String ref = refOf(uploadTo(base, PNG, "diagram.png", "image/png", session));
+        try {
+            ResponseEntity<byte[]> served =
+                    rest.exchange(base + "/" + ref, HttpMethod.GET, new HttpEntity<>(auth), byte[].class);
+
+            assertThat(served.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(served.getHeaders().getCacheControl()).contains("private").doesNotContain("public");
+            // And the floor itself still holds for the caller a shared cache would have served.
+            assertThat(rest.getForEntity(base + "/" + ref, String.class).getStatusCode().value())
+                    .isIn(401, 403);
+        } finally {
+            rest.exchange(base + "/" + ref, HttpMethod.DELETE, new HttpEntity<>(auth), String.class);
+        }
+    }
+
+    @Test
+    void anUploadWaitsForTheOneBeforeItToCommitBeforeCheckingTheQuota() throws Exception {
+        // The quota was read, compared and written with nothing held in between, so two uploads in flight
+        // together both saw the same `used` and both passed. Made deterministic rather than raced: the first
+        // upload's transaction is held open, uncommitted, while the second runs. Without the lock the second
+        // reads usage without the first, passes, and lands; with it, it waits and is then refused.
+        PluginManifest manifest = plugins.active("blobs").orElseThrow().manifest();
+        byte[] chunk = new byte[3000];
+        System.arraycopy(PNG, 0, chunk, 0, PNG.length);
+        TransactionTemplate tx = new TransactionTemplate(transactions);
+        blobService.put(manifest, "committed.png", "image/png", chunk.length,
+                new java.io.ByteArrayInputStream(chunk), null);
+
+        CountDownLatch firstWritten = new CountDownLatch(1);
+        CountDownLatch releaseFirst = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> first = pool.submit(() -> tx.executeWithoutResult(status -> {
+                blobService.put(manifest, "first.png", "image/png", chunk.length,
+                        new java.io.ByteArrayInputStream(chunk), null);
+                firstWritten.countDown();
+                await(releaseFirst);
+            }));
+            assertThat(firstWritten.await(30, TimeUnit.SECONDS)).isTrue();
+
+            Future<Object> second = pool.submit(() -> blobService.put(manifest, "second.png", "image/png",
+                    chunk.length, new java.io.ByteArrayInputStream(chunk), null));
+
+            // 3000 committed + 3000 in flight + 3000 would be 9000 against 8192. Still waiting is the fix.
+            assertThatThrownBy(() -> second.get(1, TimeUnit.SECONDS)).isInstanceOf(TimeoutException.class);
+
+            releaseFirst.countDown();
+            first.get(30, TimeUnit.SECONDS);
+            assertThatThrownBy(() -> second.get(30, TimeUnit.SECONDS))
+                    .isInstanceOf(ExecutionException.class)
+                    .cause().isInstanceOf(BlobQuotaExceededException.class);
+            assertThat(blobService.usedBytes("blobs")).isEqualTo(6000);
+        } finally {
+            releaseFirst.countDown();
+            pool.shutdownNow();
+            deleteAll();
+        }
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await(30, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }

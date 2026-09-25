@@ -210,6 +210,7 @@
   "admin.plugins.storage.fromManifest": "The plugin asks for {{quota}}. Saving a value here overrides that.",
   "admin.plugins.storage.fromDefault": "Using this site's default. Saving a value here overrides it.",
   "admin.plugins.storage.hardCap": "This server allows at most {{max}} per plugin.",
+  "admin.plugins.storage.serverCap": "This server accepts uploads of at most {{max}} per file, so that is the limit in force. A larger value here takes effect once the server allows it (MOSAICAST_MAX_UPLOAD_SIZE).",
   "admin.plugins.storage.belowUsage": "Below what is already stored. Nothing is deleted, but no new uploads will succeed until files are removed.",
   "admin.plugins.storage.clear": "Clear override",
   "admin.plugins.purge": "Purge data",

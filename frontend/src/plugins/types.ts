@@ -225,6 +225,10 @@ export interface AdminBlobs {
   /** The most an admin may grant here; null when the operator set no bound. */
   hardQuotaBytes: number | null;
   hardMaxFileBytes: number | null;
+  /** The largest upload the server accepts at all; null when it sets none. */
+  uploadLimitBytes: number | null;
+  /** Whether that server limit, rather than a grant or the manifest, is what sets `maxFileBytes`. */
+  maxFileLimitedByServer: boolean;
 }
 
 export interface AdminPlugin {

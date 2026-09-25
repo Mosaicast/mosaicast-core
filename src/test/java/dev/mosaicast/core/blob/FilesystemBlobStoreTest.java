@@ -133,6 +133,28 @@ class FilesystemBlobStoreTest {
     }
 
     @Test
+    void aKeyReadBackFromASidecarCannotAddressAnythingOutsideTheStore() throws IOException {
+        // `put` refuses such a key, but `delete` reads the key back from the sidecar on disk, and that file
+        // has other writers — the migration script, a restored backup. The victim holds the object's id,
+        // which is exactly what the "does the key still point here?" check looks for before deleting.
+        BlobRef ref = store.put("plugin/wiki", "k1", bytes("x"), "text/plain");
+        Path victim = root.getParent().resolve("victim-" + ref.id());
+        Files.writeString(victim, ref.id().toString());
+        Path sidecar = root.resolve("plugin/wiki/objects").resolve(ref.id() + ".json");
+        Files.writeString(sidecar, Files.readString(sidecar)
+                .replace("\"k1\"", "\"../../../../victim-" + ref.id() + "\""));
+        try {
+            store.delete(ref);
+
+            assertThat(victim).exists();
+            // The delete itself still happened: an unsafe key costs its key file, not the deletion.
+            assertThat(store.stat(ref)).isEmpty();
+        } finally {
+            Files.deleteIfExists(victim);
+        }
+    }
+
+    @Test
     void anUnreadableSidecarCostsItsOwnFileAndNotTheListing() throws IOException {
         store.put("plugin/wiki", "good", bytes("fine"), "text/plain");
         Files.writeString(root.resolve("plugin/wiki/objects").resolve(UUID.randomUUID() + ".json"),

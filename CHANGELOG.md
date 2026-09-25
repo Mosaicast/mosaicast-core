@@ -225,6 +225,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Plugin files: a quota two uploads could overrun together, a limit the server would not honour, and a
+  cache header that ignored who was allowed to read (`0.7.4`, core#183).** The quota was read, compared and
+  written with nothing held in between, so uploads in flight together all saw the same usage and all
+  passed — over quota by up to (concurrent uploads × per-file limit). The check and the write are one step
+  per plugin now, under a database advisory lock, which holds for the filesystem backend (no row to lock)
+  and across instances (no JVM lock would). An admin could grant a per-file limit above the servlet
+  container's `max-file-size`: the form confirmed it and showed it in force, and every upload above the
+  container's 12 MB failed with an error naming neither number. The server's limit is part of the number
+  in force now, and the form says when it is the binding one. Files were served `Cache-Control: public`
+  even behind a role read floor, so a shared cache could hand one caller's file to the next with no second
+  check; above an `anonymous` floor they are `private`. A failure between opening a file and returning it
+  leaked the stream — every header is decided before the open now. A non-ASCII filename downloaded as
+  mojibake; `Content-Disposition` carries the RFC 6266 `filename*` form. And the filesystem backend's
+  delete re-checks the key it reads back from a sidecar on disk before resolving it, since that file has
+  writers other than this code.
+
 - **Closing a dialog dropped keyboard focus at the top of the page (`0.7.4`).** `Modal` promised to hand
   focus back to whatever opened it, and checked "is focus still inside the dialog?" before doing so — in a
   cleanup that React runs after it has already removed the dialog, when focus has fallen to `<body>`. The
@@ -235,6 +251,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   typed into. Found by driving the new feed-delete dialog in a real browser; jsdom cannot show the first
   half, because a scripted click never moves focus. The same pass fixed "6 episode(s)" into a real plural
   and quoted the word to type.
+
 
 - **Three answers to "are you sure?", and the weakest one on the heaviest action (`0.7.4`, core#193).**
   Purging a plugin's data — irreversible, and it affects every user of that plugin — was one OK-click away

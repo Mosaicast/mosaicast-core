@@ -51,6 +51,8 @@ class PluginBlobLimitsIntegrationTest {
         registry.add("mosaicast.plugins-dir", () -> System.getProperty("mosaicast.test.plugins-dir"));
         // An operator bound, so the clamp has something to clamp against. Unset is the default elsewhere.
         registry.add("mosaicast.plugin-blobs.hard-quota-bytes", () -> 1_048_576L);
+        // A container ceiling below what an admin might grant, so "which limit binds" has two answers.
+        registry.add("spring.servlet.multipart.max-file-size", () -> "256KB");
     }
 
     @Autowired
@@ -139,6 +141,28 @@ class PluginBlobLimitsIntegrationTest {
 
         assertThat(blobsView.path("quotaBytes").asLong()).isEqualTo(1_048_576);
         assertThat(blobsView.path("hardQuotaBytes").asLong()).isEqualTo(1_048_576);
+    }
+
+    @Test
+    void aGrantAboveWhatTheServerAcceptsReportsTheServersLimitAndSaysSo() {
+        // The container refuses a larger upload before any code here runs, with an error naming neither
+        // number. So a 512 KiB grant on a 256 KiB container is 256 KiB in force, and the form is told why
+        // (core#183) — a plugin asking for its quota sees the same number.
+        JsonNode blobsView = adminBlobs(put("{\"quotaBytes\":null,\"maxFileBytes\":524288}", "admin"));
+
+        assertThat(blobsView.path("maxFileBytes").asLong()).isEqualTo(262_144);
+        assertThat(blobsView.path("uploadLimitBytes").asLong()).isEqualTo(262_144);
+        assertThat(blobsView.path("maxFileLimitedByServer").asBoolean()).isTrue();
+        JsonNode quota = JSON.readTree(rest.getForEntity("/api/plugins/blobs/blob/quota", String.class).getBody());
+        assertThat(quota.path("maxFileBytes").asLong()).isEqualTo(262_144);
+    }
+
+    @Test
+    void aGrantTheServerAcceptsIsNotAttributedToIt() {
+        JsonNode blobsView = adminBlobs(put("{\"quotaBytes\":null,\"maxFileBytes\":65536}", "admin"));
+
+        assertThat(blobsView.path("maxFileBytes").asLong()).isEqualTo(65_536);
+        assertThat(blobsView.path("maxFileLimitedByServer").asBoolean()).isFalse();
     }
 
     @Test

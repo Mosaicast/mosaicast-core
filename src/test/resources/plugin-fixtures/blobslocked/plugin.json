@@ -1,0 +1,25 @@
+{
+  "id": "blobslocked",
+  "version": "1.0.0",
+  "platformApi": "0.15.0",
+  "name": "Blob Fixture (locked)",
+  "backend": {
+    "basePath": "/api/plugins/blobslocked",
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin"
+    ]
+  },
+  "storage": "doc",
+  "data": {
+    "readableBy": "podcaster",
+    "writableBy": "podcaster"
+  },
+  "blobs": {
+    "maxFileBytes": 4096,
+    "quotaBytes": 8192,
+    "mimeTypes": [
+      "image/png",
+      "image/gif"
+    ]
+  }
+}

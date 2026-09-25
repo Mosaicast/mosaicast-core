@@ -60,6 +60,11 @@ export function PluginStorage({
   // Lowering below what is already stored is allowed — it is how an admin says "shrink". Nothing is
   // deleted; the plugin's own people have to remove enough before the next upload succeeds.
   const belowUsage = valid && quotaMib * MIB < blobs.usedBytes;
+  // The container refuses a larger upload before the app sees it, with an error that names neither number
+  // (core#183). Said when it is already the binding limit, and as soon as a value typed here exceeds it.
+  const aboveServer =
+    blobs.uploadLimitBytes != null &&
+    (blobs.maxFileLimitedByServer || (valid && maxFileMib * MIB > blobs.uploadLimitBytes));
 
   return (
     <div className="mc-pluginrow__storage">
@@ -107,6 +112,11 @@ export function PluginStorage({
       {blobs.hardQuotaBytes != null && (
         <p className="mc-muted">
           {t('admin.plugins.storage.hardCap', { max: formatBytes(blobs.hardQuotaBytes) })}
+        </p>
+      )}
+      {aboveServer && blobs.uploadLimitBytes != null && (
+        <p className="mc-muted">
+          {t('admin.plugins.storage.serverCap', { max: formatBytes(blobs.uploadLimitBytes) })}
         </p>
       )}
       {belowUsage && (

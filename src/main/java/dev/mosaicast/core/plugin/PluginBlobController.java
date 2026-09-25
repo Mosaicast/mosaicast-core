@@ -13,6 +13,8 @@ import dev.mosaicast.plugin.api.BlobQuota;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -164,7 +166,13 @@ public class PluginBlobController {
      * it either.
      *
      * <p>Cached immutably: a ref is a fresh UUID per upload and never reused, so the bytes behind one cannot
-     * change. The ETag is there for the conditional request a client makes anyway.
+     * change. The ETag is there for the conditional request a client makes anyway. Who may cache it depends
+     * on the read floor — see {@link #cacheControlFor}.
+     *
+     * <p><strong>The stream is opened last.</strong> {@link BlobContent} is the caller's to close, and Spring
+     * closes the resource only once it has one to write — so anything that threw between opening and
+     * returning (a malformed stored type, say) leaked a file descriptor or a pooled connection. Every header
+     * is decided before the open now, and nothing after it can throw.
      *
      * @param id             the plugin id
      * @param ref            the ref
@@ -182,23 +190,22 @@ public class PluginBlobController {
         BlobInfo info = blobs.stat(id, ref).orElseThrow(() -> new NotFoundException("No such blob: " + ref));
 
         Optional<RangeHeader> requested = RangeHeader.parse(range, info.size());
-        BlobContent content = blobs
-                .open(id, ref, requested.map(RangeHeader::start).orElse(-1L),
-                        requested.map(RangeHeader::endInclusive).orElse(-1L))
-                .orElseThrow(() -> new NotFoundException("No such blob: " + ref));
-
         ResponseEntity.BodyBuilder response = requested.isPresent()
                 ? ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
                         .header(HttpHeaders.CONTENT_RANGE, requested.get().contentRange(info.size()))
                 : ResponseEntity.ok();
-        return response
-                .contentType(MediaType.parseMediaType(info.mime()))
+        response.contentType(MediaType.parseMediaType(info.mime()))
                 .contentLength(requested.map(RangeHeader::length).orElse(info.size()))
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .eTag("\"" + Long.toHexString(info.updatedAt().toEpochMilli()) + "\"")
-                .cacheControl(CacheControl.maxAge(java.time.Duration.ofDays(365)).cachePublic().immutable())
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(info))
-                .body(new InputStreamResource(content.stream()));
+                .cacheControl(cacheControlFor(manifest))
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(info.filename()));
+
+        BlobContent content = blobs
+                .open(id, ref, requested.map(RangeHeader::start).orElse(-1L),
+                        requested.map(RangeHeader::endInclusive).orElse(-1L))
+                .orElseThrow(() -> new NotFoundException("No such blob: " + ref));
+        return response.body(new InputStreamResource(content.stream()));
     }
 
     /**
@@ -248,13 +255,54 @@ public class PluginBlobController {
     }
 
     /**
-     * {@code inline}, plus the original filename when there is one.
+     * How long, and for whom, a file may be cached.
+     *
+     * <p>A ref is a fresh UUID per upload and never reused, so the bytes cannot change and a year is honest.
+     * {@code public} is not, above an {@code anonymous} read floor: {@link #requireReadable} has just decided
+     * that <em>this</em> caller may see the file, and a shared cache in front of the app would go on
+     * answering the same URL for everyone else, with no second check (core#183). Only an anonymous floor
+     * describes a file any caller was going to be given anyway.
+     */
+    static CacheControl cacheControlFor(PluginManifest manifest) {
+        CacheControl cacheControl = CacheControl.maxAge(Duration.ofDays(365)).immutable();
+        return "anonymous".equals(manifest.dataOrDefault().readableByOrDefault())
+                ? cacheControl.cachePublic()
+                : cacheControl.cachePrivate();
+    }
+
+    /**
+     * {@code inline}, plus the original filename when there is one — in both RFC 6266 forms.
      *
      * <p>The name is already stripped of quotes, separators and control characters by the service, so it
-     * cannot break out of the header — this only has to put it in the right place.
+     * cannot break out of the header. What it can still carry is non-ASCII, which the plain {@code filename}
+     * parameter cannot: Tomcat writes header values as ISO-8859-1, so {@code Folge-Überblick.png} downloaded
+     * as mojibake (core#183). {@code filename*} carries the real name percent-encoded as UTF-8, and every
+     * current browser prefers it; the plain form stays, reduced to ASCII, for anything that does not.
      */
-    private static String contentDisposition(BlobInfo info) {
-        return info.filename() == null ? "inline" : "inline; filename=\"" + info.filename() + "\"";
+    static String contentDisposition(String filename) {
+        if (filename == null) {
+            return "inline";
+        }
+        StringBuilder ascii = new StringBuilder(filename.length());
+        filename.codePoints().forEach(c -> ascii.append(c >= 0x20 && c < 0x7F ? (char) c : '_'));
+        String header = "inline; filename=\"" + ascii + "\"";
+        return ascii.toString().equals(filename) ? header : header + "; filename*=UTF-8''" + rfc5987(filename);
+    }
+
+    /** RFC 5987 {@code value-chars}: attr-chars as they are, every other byte of the UTF-8 form as {@code %XX}. */
+    private static String rfc5987(String value) {
+        StringBuilder encoded = new StringBuilder();
+        for (byte b : value.getBytes(StandardCharsets.UTF_8)) {
+            int c = b & 0xFF;
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+                    || "!#$&+-.^_`|~".indexOf(c) >= 0) {
+                encoded.append((char) c);
+            } else {
+                encoded.append('%').append(Character.toUpperCase(Character.forDigit(c >> 4, 16)))
+                        .append(Character.toUpperCase(Character.forDigit(c & 0xF, 16)));
+            }
+        }
+        return encoded.toString();
     }
 
     private static StoredBlob toDto(String pluginId, BlobInfo info) {

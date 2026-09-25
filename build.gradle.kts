@@ -169,7 +169,8 @@ tasks.bootJar {
 // with no entities; directory declares identity + notifications at an anonymous read floor and
 // directorylocked the same capabilities behind a podcaster one, plus a podcaster-only `page` slot;
 // wikifix declares a real one readable anonymously and wikilocked the same one behind a
-// podcaster read floor; nopage loads but declares no `page` slot; translator declares external translation at
+// podcaster read floor; blobslocked is the blobs fixture behind a podcaster read floor (for how a file may be
+// cached); nopage loads but declares no `page` slot; translator declares external translation at
 // the default podcaster floor and translatoropen the same kind at `anonymous`, directory an `identity` and a `notifications` block)
 // so the test can assert failure
 // isolation, the deep-link 404, the schema surface's access rules and the external floor.
@@ -184,7 +185,7 @@ val stageTestPlugins = fixtureProject?.let { fixture ->
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         into(layout.buildDirectory.dir("test-plugins"))
         listOf("good", "broken", "schema", "wikifix", "wikilocked", "nopage", "ownedbad", "blobs",
-            "tagger", "tagreader", "translator", "translatoropen", "directory", "directorylocked")
+            "tagger", "tagreader", "translator", "translatoropen", "directory", "directorylocked", "blobslocked")
             .forEach { name ->
             into(name) {
                 from("src/test/resources/plugin-fixtures/$name")

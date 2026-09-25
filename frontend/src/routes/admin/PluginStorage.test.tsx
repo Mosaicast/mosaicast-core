@@ -22,6 +22,8 @@ function blobs(overrides: Partial<AdminBlobs> = {}): AdminBlobs {
     declaredMaxFileBytes: 10 * MIB,
     hardQuotaBytes: null,
     hardMaxFileBytes: null,
+    uploadLimitBytes: 12 * MIB,
+    maxFileLimitedByServer: false,
     ...overrides,
   };
 }
@@ -98,5 +100,32 @@ describe('PluginStorage (§11.1)', () => {
     fireEvent.change(screen.getByLabelText('Total (MiB)'), { target: { value: '' } });
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('says when the server, not this form, decides how large one file may be', () => {
+    // The container refuses a bigger upload before the app sees it, with an error naming neither limit —
+    // so a 50 MiB grant on a 12 MiB server has to say which one is in force (core#183).
+    const { rerender } = render(
+      <PluginStorage blobs={blobs()} onSave={vi.fn()} onClear={vi.fn()} saved={false} />,
+    );
+    expect(screen.queryByText(/accepts uploads of at most/)).not.toBeInTheDocument();
+
+    rerender(
+      <PluginStorage
+        blobs={blobs({ maxFileBytes: 12 * MIB, maxFileOverridden: true, maxFileLimitedByServer: true })}
+        onSave={vi.fn()}
+        onClear={vi.fn()}
+        saved={false}
+      />,
+    );
+    expect(screen.getByText(/accepts uploads of at most 12 MiB per file/)).toBeInTheDocument();
+  });
+
+  it('warns as soon as a typed per-file limit exceeds what the server accepts', () => {
+    render(<PluginStorage blobs={blobs()} onSave={vi.fn()} onClear={vi.fn()} saved={false} />);
+
+    fireEvent.change(screen.getByLabelText('Largest single file (MiB)'), { target: { value: '50' } });
+
+    expect(screen.getByText(/accepts uploads of at most 12 MiB per file/)).toBeInTheDocument();
   });
 });

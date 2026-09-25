@@ -227,8 +227,14 @@ public class FilesystemBlobStore implements NamedBlobStore {
             Files.deleteIfExists(sidecarPath(ref));
             // Last, and only when it still points at this object: a key that was re-put in the meantime
             // belongs to the newer object, and removing it would strand that one.
-            if (sidecar.isPresent()) {
+            //
+            // The key is re-checked here although `put` checked it: this one was read back from a sidecar on
+            // disk, and a file is only as trustworthy as everything that can write to that directory — a
+            // restored backup, a migration, a hand edit. Resolved unchecked, `../..` in it would name a file
+            // outside the store. An unsafe key leaves its key file behind rather than stopping the delete.
+            if (sidecar.isPresent() && SAFE_SEGMENT.matcher(sidecar.get().key()).matches()) {
                 Path keyFile = directory(ref.namespace(), KEYS).resolve(sidecar.get().key());
+                requireInsideRoot(keyFile);
                 if (readKey(keyFile).filter(ref.id()::equals).isPresent()) {
                     Files.deleteIfExists(keyFile);
                 }
