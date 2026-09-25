@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -104,5 +104,37 @@ describe('EpisodePage timestamp links (§6.4)', () => {
 
     expect(await screen.findByText('The Kraken')).toBeInTheDocument();
     expect(play).not.toHaveBeenCalled();
+  });
+});
+
+describe('EpisodePage when the episode cannot be loaded (core#185)', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('says so and offers a retry, instead of "Loading…" forever', async () => {
+    // Only a 404 was inspected: a 5xx, a dropped connection or an offline tab fell through to the loading
+    // copy with no message and no way out.
+    let episodeCalls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        if (url.endsWith('/kraken') && episodeCalls++ === 0) {
+          return Promise.resolve({ ok: false, status: 503, statusText: '', json: () => Promise.reject(new Error()) });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: () =>
+            Promise.resolve(JSON.stringify(url.endsWith('/kraken') ? EPISODE : url.includes('related') ? [] : {})),
+        });
+      }),
+    );
+    renderAt('/episodes/kraken');
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong');
+    expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(await screen.findByText('The Kraken')).toBeInTheDocument();
   });
 });

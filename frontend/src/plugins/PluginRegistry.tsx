@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api } from '../api/client';
 import { useMeta } from '../api/MetaContext';
@@ -20,9 +20,22 @@ import type { PublicPlugin } from './types';
  */
 interface RegistryValue {
   plugins: PublicPlugin[];
+  /**
+   * Whether `plugins` is an answer yet. An empty list meant both "no plugins" and "not asked yet", so a deep
+   * link to `/p/<id>` rendered the 404 while the manifest was still in flight — and permanently when that
+   * request failed, since the failure was swallowed (core#185). Slot regions need none of this: rendering
+   * nothing until the answer arrives is right for them. A page has to tell the three apart.
+   */
+  status: 'loading' | 'ready' | 'failed';
+  /** Asks again after a failure. */
+  reload: () => void;
 }
 
-const PluginRegistryContext = createContext<RegistryValue>({ plugins: [] });
+const PluginRegistryContext = createContext<RegistryValue>({
+  plugins: [],
+  status: 'ready',
+  reload: () => {},
+});
 
 export function usePluginRegistry(): RegistryValue {
   return useContext(PluginRegistryContext);
@@ -45,6 +58,9 @@ function injectBundle(plugin: PublicPlugin): void {
 
 export function PluginRegistryProvider({ children }: { children: ReactNode }) {
   const [plugins, setPlugins] = useState<PublicPlugin[]>([]);
+  const [status, setStatus] = useState<RegistryValue['status']>('loading');
+  const [attempt, setAttempt] = useState(0);
+  const reload = useCallback(() => setAttempt((n) => n + 1), []);
   const devProfile = useMeta()?.devLoginEnabled ?? false;
   const consent = useConsent();
 
@@ -59,6 +75,7 @@ export function PluginRegistryProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    setStatus('loading');
     api
       .get<PublicPlugin[]>('/api/plugins/manifest')
       .then((list) => {
@@ -66,17 +83,21 @@ export function PluginRegistryProvider({ children }: { children: ReactNode }) {
           return;
         }
         setPlugins(list);
+        setStatus('ready');
         list.forEach(injectBundle);
       })
-      .catch(() => {
-        /* no plugins / offline — the zero-plugin shell works unchanged */
+      .catch((err) => {
+        // The zero-plugin shell still works; what must not happen is a plugin page claiming not to exist.
+        if (!cancelled) {
+          console.error('Failed to load the plugin manifest', err);
+          setStatus('failed');
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
 
-  return (
-    <PluginRegistryContext.Provider value={{ plugins }}>{children}</PluginRegistryContext.Provider>
-  );
+  const value = useMemo(() => ({ plugins, status, reload }), [plugins, status, reload]);
+  return <PluginRegistryContext.Provider value={value}>{children}</PluginRegistryContext.Provider>;
 }

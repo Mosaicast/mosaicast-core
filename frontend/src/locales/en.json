@@ -410,6 +410,7 @@
   "error.body": "This page ran into an unexpected error. You can try again or go back to the home page.",
   "error.retry": "Try again",
   "error.home": "Go home",
+  "slot.error": "This part of the page could not be shown.",
   "admin.legal.title": "Legal pages",
   "admin.legal.newSlug": "New page slug (e.g. privacy)",
   "admin.legal.create": "Create page",

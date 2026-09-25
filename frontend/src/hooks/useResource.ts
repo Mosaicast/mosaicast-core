@@ -16,7 +16,8 @@ import { api } from '../api/client';
  *
  * The cancellation is the part worth having in one place. `active` is not about React's warning; it is
  * about a slow response for episode A arriving after the visitor has already navigated to episode B and
- * overwriting it.
+ * overwriting it. The request itself is aborted too, rather than left to run to completion for an answer
+ * nobody will read — which on a page of plugin mounts was a lot of requests (core#185).
  */
 export interface Resource<T> {
   data: T | null;
@@ -47,10 +48,11 @@ export function useResource<T>(path: string | null, deps: unknown[] = []): Resou
       return;
     }
     let active = true;
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
     api
-      .get<T>(path)
+      .get<T>(path, { signal: controller.signal })
       .then((value) => {
         if (active) {
           setData(value);
@@ -66,6 +68,7 @@ export function useResource<T>(path: string | null, deps: unknown[] = []): Resou
     return () => {
       // A response for the page the visitor already left must not land in the page they are on.
       active = false;
+      controller.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, nonce, ...deps]);

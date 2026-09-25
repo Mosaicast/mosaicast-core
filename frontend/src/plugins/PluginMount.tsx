@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 import type { Scope } from '@mosaicast/plugin-sdk';
 
 import { useUser } from '../auth/UserContext';
+import { SlotFailed } from '../components/SlotFailed';
 import { useConsent } from '../consent/ConsentContext';
 import { contentLocaleInfos, uiLocaleInfos } from '../i18n';
 import { usePlayerActions } from '../player/PlayerContext';
@@ -18,8 +19,16 @@ import { buildCtx } from './buildCtx';
  * Mounts one plugin custom element (ARCHITECTURE §7.5). Waits for the element to be defined (its bundle is
  * injected by {@link PluginRegistryProvider}), creates it once, and sets the host {@link PluginContext} on its
  * `ctx` property — reassigning it whenever the user / theme / locale / scope changes, which the SDK element
- * re-renders on. On unmount the element is removed. Each mount sits inside a {@link SlotRegion}'s error
- * boundary, so a throwing element blanks only its own tile.
+ * re-renders on. On unmount the element is removed.
+ *
+ * **Its failures are its own to catch.** It sits inside a {@link SlotRegion}'s error boundary, but a boundary
+ * sees only React render errors, and this component's real work happens after render: the element is created
+ * in a promise callback and renders in the custom-element lifecycle. A throw from creating it or from the
+ * SDK's render on `ctx` assignment became an unhandled rejection — no tile, no `console.error`, and an
+ * isolation promise that did not hold for the most likely failure (core#185). Those are caught here and shown
+ * the same way the boundary would, and a bundle that never defines its element gives up after
+ * {@link DEFINE_TIMEOUT_MS} instead of leaving an empty tile forever. What still escapes is a throw inside
+ * the element's own `connectedCallback`, which the browser reports to `window` rather than to the caller.
  */
 interface PluginMountProps {
   pluginId: string;
@@ -44,6 +53,9 @@ interface PluginMountProps {
   hasTranslation?: boolean;
 }
 
+/** How long a plugin's bundle has to define its element before the tile is given up on. */
+export const DEFINE_TIMEOUT_MS = 10_000;
+
 export function PluginMount({
   pluginId,
   tag,
@@ -67,6 +79,7 @@ export function PluginMount({
 
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
+  const [failed, setFailed] = useState(false);
   const { user } = useUser();
   const { site, mode } = useSite();
   // Every region builds its scope inline — `<SlotRegion scope={{ type: 'episode', id: slug }} />` — so the
@@ -161,23 +174,45 @@ export function PluginMount({
 
   useEffect(() => {
     let cancelled = false;
-    void customElements.whenDefined(tag).then(() => {
-      if (cancelled || !hostRef.current) {
-        return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const fail = (reason: unknown) => {
+      if (!cancelled) {
+        console.error(`Plugin '${pluginId}' could not render <${tag}>`, reason);
+        setFailed(true);
       }
-      let element = elementRef.current;
-      if (!element) {
-        element = document.createElement(tag);
-        hostRef.current.appendChild(element);
-        elementRef.current = element;
-      }
-      // The SDK element re-renders whenever ctx is (re)assigned.
-      (element as HTMLElement & { ctx?: unknown }).ctx = ctx;
-    });
+    };
+    const defined = customElements.get(tag)
+      ? Promise.resolve()
+      : Promise.race([
+          customElements.whenDefined(tag),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(`<${tag}> was not defined within ${DEFINE_TIMEOUT_MS / 1000} s`)),
+              DEFINE_TIMEOUT_MS,
+            );
+          }),
+        ]);
+    defined
+      .then(() => {
+        if (cancelled || !hostRef.current) {
+          return;
+        }
+        let element = elementRef.current;
+        if (!element) {
+          element = document.createElement(tag);
+          hostRef.current.appendChild(element);
+          elementRef.current = element;
+        }
+        // The SDK element re-renders whenever ctx is (re)assigned — synchronously, so its throw lands here.
+        (element as HTMLElement & { ctx?: unknown }).ctx = ctx;
+      })
+      .catch(fail)
+      .finally(() => clearTimeout(timer));
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [tag, ctx]);
+  }, [tag, ctx, pluginId]);
 
   // Remove the element on unmount (the SDK runs the render's cleanup on disconnect).
   useEffect(
@@ -188,5 +223,8 @@ export function PluginMount({
     [],
   );
 
+  if (failed) {
+    return <SlotFailed />;
+  }
   return <div ref={hostRef} className="mc-plugin-mount" data-plugin={pluginId} />;
 }
