@@ -151,8 +151,18 @@ public class AdminPluginController {
      * for this. Activation and config are host settings and are kept.
      */
     @PostMapping("/api/admin/plugins/{id}/purge")
-    public ResponseEntity<PurgeResult> purge(@PathVariable String id) {
+    public ResponseEntity<PurgeResult> purge(@PathVariable String id,
+                                             @RequestParam(defaultValue = "") String confirm) {
         registrationOf(id);
+        // The confirmation is no longer UI-only. One tester called this endpoint while checking that the
+        // role floor held — it does, and it also purged (core#193). A dialog protects the person on the
+        // page; a script, a stale tab or a mis-click reaches here directly, and this is irreversible and
+        // affects every user of the plugin. The plugin's own id, so a retry loop cannot carry one
+        // confirmation across two plugins.
+        if (!id.equals(confirm)) {
+            throw new IllegalArgumentException(
+                    "Purging a plugin's data needs ?confirm=" + id + " — it cannot be undone.");
+        }
         return ResponseEntity.ok(new PurgeResult(settings.purgeData(id)));
     }
 

@@ -95,6 +95,18 @@ public interface PluginDataRepository extends JpaRepository<PluginData, PluginDa
     int deleteByPluginId(@Param("pluginId") String pluginId);
 
     /**
+     * Every plugin's documents for one scope — used when the thing that scope names is deleted (§7.6).
+     *
+     * <p>Across plugins, deliberately: the scope is the host's, not any one plugin's, and a feed that no
+     * longer exists should not leave partitions behind that nothing will ever reclaim or clean up. The
+     * caller names the exact scope ids, because only it knows which slugs belonged to what.
+     */
+    @Modifying
+    @Query("delete from PluginData d where d.id.scopeType = :scopeType and d.id.scopeId in :scopeIds")
+    int deleteByScope(@Param("scopeType") String scopeType,
+                      @Param("scopeIds") java.util.Collection<String> scopeIds);
+
+    /**
      * Deletes every plugin's documents in one <em>user's</em> partition, across all plugins (§12).
      *
      * <p>The one deletion that crosses plugin boundaries, and the reason it may: the {@code USER} scope is

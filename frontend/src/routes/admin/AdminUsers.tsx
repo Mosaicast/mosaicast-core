@@ -9,6 +9,7 @@ import { ApiError, api } from '../../api/client';
 import type { Paged, Role, UserAdminView } from '../../api/types';
 import { useUser } from '../../auth/UserContext';
 import { Avatar } from '../../components/Avatar';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatDate } from '../../util/format';
 
 const ROLES: Role[] = ['fan', 'podcaster', 'admin'];
@@ -24,6 +25,10 @@ export function AdminUsers() {
   const [users, setUsers] = useState<UserAdminView[]>([]);
   const [erasures, setErasures] = useState<ErasureView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // Both confirmations moved out of window.confirm into the app's own dialog (core#193). Neither asks for
+  // a typed word: reverting a name and changing a role are both things an admin can simply do again, and
+  // a word to type on a reversible action trains people to type it without reading.
+  const [pending, setPending] = useState<{ kind: 'revert' | 'admin'; user: UserAdminView } | null>(null);
   /** The submitted search, not the keystroke — typing must not fire a request per character. */
   const [query, setQuery] = useState('');
   const [draftQuery, setDraftQuery] = useState('');
@@ -72,9 +77,7 @@ export function AdminUsers() {
    */
   const revertName = async (u: UserAdminView) => {
     setError(null);
-    if (!window.confirm(t('admin.users.confirmRevert', { name: u.displayName }))) {
-      return;
-    }
+    setPending(null);
     try {
       await api.post(`/api/admin/users/${u.id}/name/revert`);
       load();
@@ -112,9 +115,7 @@ export function AdminUsers() {
 
   const changeRole = async (u: UserAdminView, role: Role) => {
     setError(null);
-    if (role === 'admin' && !window.confirm(t('admin.users.confirmAdmin', { name: u.displayName }))) {
-      return;
-    }
+    setPending(null);
     try {
       await api.put(`/api/admin/users/${u.id}/role`, { role });
       load();
@@ -127,6 +128,28 @@ export function AdminUsers() {
     <div className="mc-form">
       <h2>{t('admin.users.title')}</h2>
       {error && <p className="mc-error">{error}</p>}
+      {pending && (
+        <ConfirmDialog
+          title={pending.kind === 'revert' ? t('admin.users.revertName') : t('admin.users.makeAdmin')}
+          body={
+            pending.kind === 'revert'
+              ? t('admin.users.confirmRevert', { name: pending.user.displayName })
+              : t('admin.users.confirmAdmin', { name: pending.user.displayName })
+          }
+          confirmLabel={
+            pending.kind === 'revert' ? t('admin.users.revertName') : t('admin.users.makeAdmin')
+          }
+          onConfirm={() => {
+            const target = pending.user;
+            if (pending.kind === 'revert') {
+              void revertName(target);
+            } else {
+              void changeRole(target, 'admin');
+            }
+          }}
+          onCancel={() => setPending(null)}
+        />
+      )}
       {/*
         Searching on the canonical key, so an account spelt with a Cyrillic character to imitate somebody
         is found by typing the name it is imitating — which is the search a moderator actually runs.
@@ -171,7 +194,7 @@ export function AdminUsers() {
                 type="button"
                 className="mc-btn"
                 title={t('admin.users.revertHelp')}
-                onClick={() => revertName(u)}
+                onClick={() => setPending({ kind: 'revert', user: u })}
               >
                 {t('admin.users.revertName')}
               </button>
@@ -189,7 +212,14 @@ export function AdminUsers() {
                   value={u.role}
                   disabled={isSelf}
                   title={isSelf ? t('admin.users.selfLocked') : undefined}
-                  onChange={(e) => changeRole(u, e.target.value as Role)}
+                  onChange={(e) => {
+                    const role = e.target.value as Role;
+                    if (role === 'admin') {
+                      setPending({ kind: 'admin', user: u });
+                    } else {
+                      void changeRole(u, role);
+                    }
+                  }}
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>

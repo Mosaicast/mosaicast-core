@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
 import type { AdminKindSection, LegalAdminPage, LegalDraft } from '../../api/types';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { contentLocales, localeName } from '../../i18n';
 
 const ROLE_MARKERS = ['', 'privacy', 'imprint', 'terms'];
@@ -72,10 +73,9 @@ function PageEditor({
     );
   const saveTranslation = (locale: string) =>
     run(() => api.put(`/api/admin/legal/${page.slug}/translations/${locale}`, bodies[locale]));
+  const [confirming, setConfirming] = useState(false);
   const deletePage = () => {
-    if (!window.confirm(t('admin.legal.deleteConfirm', { slug: page.slug }))) {
-      return;
-    }
+    setConfirming(false);
     void run(() => api.del(`/api/admin/legal/${page.slug}`));
   };
 
@@ -124,10 +124,23 @@ function PageEditor({
         <button type="button" className="mc-btn" onClick={saveMeta}>
           {t('common.save')}
         </button>
-        <button type="button" className="mc-btn" onClick={deletePage}>
+        <button type="button" className="mc-btn" onClick={() => setConfirming(true)}>
           {t('common.delete')}
         </button>
       </div>
+
+      {confirming && (
+        <ConfirmDialog
+          title={t('common.delete')}
+          body={t('admin.legal.deleteConfirm', { slug: page.slug })}
+          confirmLabel={t('common.delete')}
+          // The slug: a legal page is a published URL, and typing the one being removed is the difference
+          // between deleting the page you meant and the one above it in the list.
+          confirmWord={page.slug}
+          onConfirm={deletePage}
+          onCancel={() => setConfirming(false)}
+        />
+      )}
 
       <div className="mc-tabs mc-tabs--sub" role="tablist">
         {locales.map((locale) => (

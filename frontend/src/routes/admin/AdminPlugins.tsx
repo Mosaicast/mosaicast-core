@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { SettingsFieldInput, toJsonValue, type DraftValue } from '../../components/SettingsFieldInput';
 import { useUser } from '../../auth/UserContext';
 import { localizedText, optionLabel, type AdminPlugin } from '../../plugins/types';
@@ -29,6 +30,7 @@ export function AdminPlugins() {
   const [drafts, setDrafts] = useState<Record<string, string | boolean>>({});
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [purged, setPurged] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -57,13 +59,20 @@ export function AdminPlugins() {
   const toggle = (plugin: AdminPlugin) =>
     void run(() => api.put(`/api/admin/plugins/${plugin.id}/enabled?value=${!plugin.enabled}`), null);
 
+  // The most destructive action in the product — irreversible, and it affects every user of that plugin —
+  // used to be one OK-click away in an unstyled browser dialog, while account deletion (narrower blast
+  // radius, equally irreversible) correctly required typing a word (core#193).
+  const [purging, setPurging] = useState<AdminPlugin | null>(null);
+
   const purge = (plugin: AdminPlugin) => {
-    if (!window.confirm(t('admin.plugins.purgeConfirm', { name: plugin.name ?? plugin.id }))) {
-      return;
-    }
+    setPurging(null);
     void run(async () => {
-      const result = await api.post<{ purged: number }>(`/api/admin/plugins/${plugin.id}/purge`);
-      window.alert(t('admin.plugins.purged', { count: result.purged }));
+      const result = await api.post<{ purged: number }>(
+        `/api/admin/plugins/${plugin.id}/purge?confirm=${encodeURIComponent(plugin.id)}`,
+      );
+      // A notice in the page rather than window.alert: the count is information, and it belongs where the
+      // rest of this page's feedback is.
+      setPurged(t('admin.plugins.purged', { count: result.purged }));
     }, null);
   };
 
@@ -127,6 +136,23 @@ export function AdminPlugins() {
         </div>
       )}
       {error && <p className="mc-error">{error}</p>}
+      {purged && (
+        <p className="mc-muted" role="status">
+          {purged}
+        </p>
+      )}
+      {purging && (
+        <ConfirmDialog
+          title={t('admin.plugins.purge')}
+          body={t('admin.plugins.purgeConfirm', { name: purging.name ?? purging.id })}
+          confirmLabel={t('admin.plugins.purge')}
+          // The plugin's own id: a typed word that is different for each plugin, so the muscle memory of
+          // purging one does not carry over to purging another.
+          confirmWord={purging.id}
+          onConfirm={() => purge(purging)}
+          onCancel={() => setPurging(null)}
+        />
+      )}
       {plugins.length === 0 ? (
         <p className="mc-muted">{t('admin.plugins.empty')}</p>
       ) : (
@@ -156,7 +182,7 @@ export function AdminPlugins() {
                       plugin that is switched off needs to know that before wondering why nothing happens. */}
                   <span className={statusClass(plugin)}>{t(statusKey(plugin))}</span>
                   {isAdmin && (
-                    <button type="button" className="mc-btn" onClick={() => purge(plugin)}>
+                    <button type="button" className="mc-btn" onClick={() => setPurging(plugin)}>
                       {t('admin.plugins.purge')}
                     </button>
                   )}

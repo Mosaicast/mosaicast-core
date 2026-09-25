@@ -655,6 +655,26 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void purgingNeedsTheConfirmationOnTheEndpointAndNotOnlyInTheDialog() {
+        // One tester called this while checking that the role floor held — it does, and it also purged
+        // (core#193). A typed word in a dialog protects the person on the page and nobody else; a script,
+        // a stale tab or a mis-click reaches the endpoint directly.
+        Session admin = devLogin("admin");
+
+        assertThat(rest.exchange("/api/admin/plugins/good/purge", HttpMethod.POST,
+                admin.write("", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        // Another plugin's id is not this plugin's confirmation.
+        assertThat(rest.exchange("/api/admin/plugins/good/purge?confirm=nopage", HttpMethod.POST,
+                admin.write("", true), String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        // The seeded documents are still there, because nothing ran.
+        assertThat(rest.getForEntity("/api/plugins/good/data/site/main/greeting", String.class)
+                .getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    @Test
     void purgeRemovesDocsButKeepsHostSettings() {
         Session admin = devLogin("admin");
         Session podcaster = devLogin("podcaster");
@@ -670,7 +690,8 @@ class PluginLoadingIntegrationTest {
                 admin.write("{\"refreshIntervalMinutes\":7}", true), String.class);
 
         ResponseEntity<String> purge = rest.exchange(
-                "/api/admin/plugins/good/purge", HttpMethod.POST, admin.write("", true), String.class);
+                "/api/admin/plugins/good/purge?confirm=good", HttpMethod.POST, admin.write("", true),
+                String.class);
         assertThat(purge.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(purge.getBody()).contains("\"purged\":");
 

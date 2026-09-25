@@ -36,6 +36,33 @@
   outline: none;
 }
 
+/*
+ * The generic confirm sheet. Lives beside the scrim rather than in admin.css, because it is offered on the
+ * account page as well as in admin, and a destructive action should not look different depending on which
+ * part of the site it is in (core#193).
+ */
+.mc-dialog__title {
+  margin: 0;
+  font-size: var(--mc-text-lg);
+}
+.mc-dialog__actions {
+  display: flex;
+  gap: var(--mc-space-3);
+  justify-content: flex-end;
+}
+.mc-dialog__sheet > h2,
+.mc-dialog__sheet > p,
+.mc-dialog__sheet > .mc-field,
+.mc-dialog__sheet > .mc-dialog__actions {
+  margin-inline: var(--mc-space-5);
+}
+.mc-dialog__sheet > h2 {
+  margin-top: var(--mc-space-5);
+}
+.mc-dialog__sheet > .mc-dialog__actions {
+  margin-bottom: var(--mc-space-5);
+}
+
 /* ---- the share sheet ---- */
 
 .mc-share {

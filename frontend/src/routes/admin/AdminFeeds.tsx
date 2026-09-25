@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api, ApiError } from '../../api/client';
 import type { AdminFeed, FeedPreview, Suggestion } from '../../api/types';
+import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { Icon } from '../../components/Icon';
 
 /** Poll-interval presets (seconds): 15 min / 30 min / 1 h / 6 h / 24 h. */
@@ -25,6 +26,7 @@ export function AdminFeeds() {
   const [url, setUrl] = useState('');
   const [preview, setPreview] = useState<FeedPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<AdminFeed | null>(null);
   const [openSuggestions, setOpenSuggestions] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
 
@@ -52,6 +54,18 @@ export function AdminFeeds() {
       setError((e instanceof ApiError && e.message) || t('admin.feeds.addFailed'));
     }
   };
+  const removeFeed = async (feed: AdminFeed) => {
+    setError(null);
+    try {
+      await api.del(
+        `/api/admin/feeds/${feed.id}?confirm=${encodeURIComponent(feed.slug ?? feed.id)}`,
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? (e.detail ?? e.message) : String(e));
+    }
+  };
+
   const toggle = async (feed: AdminFeed) => {
     await api.post(`/api/admin/feeds/${feed.id}/enabled?value=${!feed.enabled}`);
     await load();
@@ -86,6 +100,25 @@ export function AdminFeeds() {
     <div className="mc-form">
       <h2>{t('admin.feeds.add')}</h2>
       {error && <p className="mc-error">{error}</p>}
+      {deleting && (
+        <ConfirmDialog
+          title={t('admin.feeds.delete')}
+          // Spells out what goes and what stays, because "delete this feed" does not convey that every
+          // episode, everyone's listening position in them, and what plugins stored about them go too.
+          body={t('admin.feeds.deleteConfirm', {
+            title: deleting.title,
+            count: deleting.episodeCount,
+          })}
+          confirmLabel={t('admin.feeds.delete')}
+          confirmWord={deleting.slug ?? deleting.id}
+          onConfirm={() => {
+            const target = deleting;
+            setDeleting(null);
+            void removeFeed(target);
+          }}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
       <div className="mc-feedadd">
         <input
           className="mc-input"
@@ -162,6 +195,9 @@ export function AdminFeeds() {
                 </button>
                 <button type="button" className="mc-btn" onClick={() => showSuggestions(feed.id)}>
                   {t('admin.feeds.suggestions')}
+                </button>
+                <button type="button" className="mc-btn mc-btn--danger" onClick={() => setDeleting(feed)}>
+                  {t('common.delete')}
                 </button>
               </div>
             </div>
