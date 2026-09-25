@@ -16,7 +16,7 @@ import { RelatedPins } from '../components/RelatedPins';
 import { ShareButton } from '../components/ShareButton';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePlayerActions, type PlayableEpisode } from '../player/PlayerContext';
-import { formatDate, formatDuration } from '../util/format';
+import { formatPublishedDate, formatDuration } from '../util/format';
 import { sanitizeFeedHtml } from '../util/sanitize';
 import { useRoutedLinks } from '../util/useRoutedLinks';
 import { parseTimestamp } from '../util/timestamp';
@@ -152,7 +152,7 @@ export function EpisodePage() {
             ) : (
               <>
                 {episode.publishedAt && (
-                  <span className="mc-chip mc-chip--quiet">{formatDate(episode.publishedAt, i18n.language)}</span>
+                  <span className="mc-chip mc-chip--quiet">{formatPublishedDate(episode.publishedAt, i18n.language)}</span>
                 )}
                 {episode.durationSeconds != null && (
                   <span className="mc-chip mc-chip--quiet">{formatDuration(episode.durationSeconds)}</span>

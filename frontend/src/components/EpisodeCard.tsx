@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import type { EpisodeSummary } from '../api/types';
 import { usePlayerActions } from '../player/PlayerContext';
 import { listenedFraction } from '../player/progress';
-import { formatDate, formatDuration } from '../util/format';
+import { formatPublishedDate, formatDuration } from '../util/format';
 import { Cover } from './Cover';
 import { Icon } from './Icon';
 import { SlotRegion } from './SlotRegion';
@@ -93,7 +93,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
           ) : (
             <>
               {episode.publishedAt && (
-                <span className="mc-chip mc-chip--quiet">{formatDate(episode.publishedAt, i18n.language)}</span>
+                <span className="mc-chip mc-chip--quiet">{formatPublishedDate(episode.publishedAt, i18n.language)}</span>
               )}
               {episode.durationSeconds != null && (
                 <span className="mc-chip mc-chip--quiet">{formatDuration(episode.durationSeconds)}</span>

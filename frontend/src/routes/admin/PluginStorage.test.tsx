@@ -40,7 +40,7 @@ describe('PluginStorage (§11.1)', () => {
     render(<PluginStorage blobs={blobs()} onSave={onSave} onClear={vi.fn()} saved={false} />);
 
     fireEvent.change(screen.getByLabelText('Total (MiB)'), { target: { value: '2048' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save storage limits' }));
 
     expect(onSave).toHaveBeenCalledWith(2048 * MIB, 10 * MIB);
   });
@@ -86,7 +86,7 @@ describe('PluginStorage (§11.1)', () => {
     fireEvent.change(screen.getByLabelText('Total (MiB)'), { target: { value: '10' } });
 
     expect(screen.getByRole('alert')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save storage limits' }));
     expect(onSave).toHaveBeenCalledWith(10 * MIB, 10 * MIB);
   });
 
@@ -95,10 +95,10 @@ describe('PluginStorage (§11.1)', () => {
     render(<PluginStorage blobs={blobs()} onSave={onSave} onClear={vi.fn()} saved={false} />);
 
     fireEvent.change(screen.getByLabelText('Total (MiB)'), { target: { value: '0' } });
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save storage limits' })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText('Total (MiB)'), { target: { value: '' } });
-    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save storage limits' })).toBeDisabled();
     expect(onSave).not.toHaveBeenCalled();
   });
 

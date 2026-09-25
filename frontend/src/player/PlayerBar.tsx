@@ -142,6 +142,10 @@ export function PlayerBar() {
             className="mc-player__skip"
             onClick={() => skip(-15)}
             aria-label={t('player.back15')}
+            // The shortcuts were careful work nothing on screen mentioned (#199): a tooltip for a mouse
+            // user, `aria-keyshortcuts` for a screen reader, which announces it with the control.
+            title={t('player.withKey', { action: t('player.back15'), key: 'J' })}
+            aria-keyshortcuts="J"
           >
             <Icon name="skip-back" />
             <span className="mc-player__skipnum">15</span>
@@ -151,6 +155,11 @@ export function PlayerBar() {
             className="mc-player__play"
             onClick={toggle}
             aria-label={playing ? t('player.pause') : t('player.play')}
+            title={t('player.withKey', {
+              action: playing ? t('player.pause') : t('player.play'),
+              key: t('player.key.space'),
+            })}
+            aria-keyshortcuts="Space"
           >
             <Icon name={playing ? 'pause' : 'play'} />
           </button>
@@ -159,6 +168,8 @@ export function PlayerBar() {
             className="mc-player__skip"
             onClick={() => skip(30)}
             aria-label={t('player.forward30')}
+            title={t('player.withKey', { action: t('player.forward30'), key: 'L' })}
+            aria-keyshortcuts="L"
           >
             <Icon name="skip-forward" />
             <span className="mc-player__skipnum">30</span>
@@ -177,6 +188,8 @@ export function PlayerBar() {
           value={Math.floor(currentTime)}
           onChange={(e) => seek(Number(e.target.value))}
           aria-label={t('player.seek')}
+          title={t('player.withKey', { action: t('player.seekBy5'), key: '← →' })}
+          aria-keyshortcuts="ArrowLeft ArrowRight"
           // "3:12 of 35:40", not the raw number of seconds a screen reader would otherwise read (#200).
           aria-valuetext={t('player.seekValue', {
             current: formatDuration(Math.floor(currentTime)),

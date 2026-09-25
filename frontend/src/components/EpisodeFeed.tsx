@@ -28,7 +28,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
   // `fixedFeedId` is the feed's public slug when the view is scoped to one feed — the same value the URL
   // carries and the plugin `feed` scope is addressed by. The API resolves a UUID here too (older links).
   const { t } = useTranslation();
-  const { titleOf } = useFeeds();
+  const { titleOf, feeds } = useFeeds();
   const [params, setParams] = useSearchParams();
 
   const feedId = fixedFeedId ?? '';
@@ -42,6 +42,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
   const [items, setItems] = useState<EpisodeSummary[]>([]);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [matching, setMatching] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -96,6 +97,7 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
         if (!active) return;
         setItems(res.items);
         setTotalPages(res.totalPages);
+        setMatching(res.totalElements);
         if (announcedOnce.current) {
           announce(tRef.current('feed.episodeCount', { count: res.totalElements }));
         }
@@ -143,6 +145,13 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     return () => observer.disconnect();
   }, [loadMore]);
 
+  // Everything in scope, unfiltered: this feed's count, or every feed's on the site list.
+  const total = fixedFeedId
+    ? (feeds.find((feed) => feed.slug === fixedFeedId || feed.id === fixedFeedId)?.episodeCount ?? null)
+    : feeds.length > 0
+      ? feeds.reduce((sum, feed) => sum + feed.episodeCount, 0)
+      : null;
+
   const updateFilters = (patch: Partial<FilterValues>) => {
     const next = new URLSearchParams(params);
     for (const [key, value] of Object.entries(patch)) {
@@ -160,6 +169,23 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
 
         <div className="mc-feedmain">
           <FilterBar values={values} seasons={seasons} tags={tags} onChange={updateFilters} />
+          {/* Only while something narrows the list: the panel beside it said "6 episodes" while four cards
+              showed, and clearing meant resetting each dropdown by hand (#199). The order sorts; it does
+              not filter, so it is left alone. */}
+          {(season || tag) && (
+            <p className="mc-filtered">
+              <span className="mc-muted">
+                {matching == null
+                  ? null
+                  : total == null
+                    ? t('feed.episodeCount', { count: matching })
+                    : t('feed.filteredCount', { count: matching, total })}
+              </span>
+              <button type="button" className="mc-btn mc-btn--sm" onClick={() => updateFilters({ season: '', tag: '' })}>
+                {t('feed.clearFilters')}
+              </button>
+            </p>
+          )}
 
           {failed && items.length === 0 && (
             <div className="mc-empty">

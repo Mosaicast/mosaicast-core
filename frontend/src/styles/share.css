@@ -145,18 +145,6 @@
   font-size: var(--mc-text-xs);
 }
 
-/* ---- the link itself ---- */
-
-.mc-share__link {
-  display: flex;
-  gap: var(--mc-space-2);
-}
-.mc-share__url {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-family: var(--mc-font-mono);
-  font-size: var(--mc-text-xs);
-}
 .mc-share__actions {
   display: flex;
   justify-content: flex-end;

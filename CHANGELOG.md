@@ -225,6 +225,19 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A batch of small things that each made a page feel unfinished (`0.7.4`, #199).** A fan was shown the
+  personal-access-token section with no way to use it; it appears only for roles that can create a token,
+  or someone who still holds one to revoke. The one-time token secret and the share link have a copy
+  button that, when the browser refuses the clipboard, selects the text and says which keys copy it —
+  copying used to fail silently. The token name field has a label. The accent colour takes a typed or
+  pasted `#rrggbb` beside the picker. On a plugin's admin page, the storage limits and the settings are
+  each a titled box with their own labelled Save, unsaved edits are marked, and a reload or closed tab asks
+  first. `/admin` or `/account` without being signed in says so instead of redirecting to the front page.
+  A filtered episode list says "4 of 6 episodes" and offers one "Clear filters". Episode dates are the
+  calendar date the show published on (UTC), not the local day that instant falls on — the same date the
+  sitemap and the server's copy print. With a single login provider, "Log in" goes straight to it. The
+  player's controls name their keyboard shortcuts.
+
 - **Admin pages speak the admin's language and stop showing identifiers as if they were words (`0.7.4`,
   core#192, core#156).** A podcaster was shown the *first option* of a config select whose value the server
   had withheld — "Lines" for a leaderboard that ranks by fields — and an unchecked box for a withheld

@@ -19,6 +19,9 @@ const BRANDING_KEYS = ['logo', 'favicon', 'dark-logo'] as const;
  * Languages live on their own page (§12.7): the default language has to be checked against the languages
  * content may be authored in, and that check belongs where the lists are edited.
  */
+/** A whole `#rrggbb` colour — the one form the server stores. */
+const HEX = /^#[0-9a-f]{6}$/i;
+
 export function AdminSite() {
   const { t } = useTranslation();
   const { site, refresh } = useSite();
@@ -26,6 +29,8 @@ export function AdminSite() {
   const [siteName, setSiteName] = useState(site?.name ?? '');
   const [modePolicy, setModePolicy] = useState<ModePolicy>(site?.modePolicy ?? 'system');
   const [accentSeed, setAccentSeed] = useState(site?.accentSeed ?? '#c8553d');
+  const [hexDraft, setHexDraft] = useState(site?.accentSeed ?? '#c8553d');
+  const hexValid = HEX.test(hexDraft.startsWith('#') ? hexDraft : `#${hexDraft}`);
   const [saved, setSaved] = useState(false);
   const [bust, setBust] = useState(0);
   const [uploadError, setUploadError] = useState<{ key: string; message: string } | null>(null);
@@ -37,6 +42,7 @@ export function AdminSite() {
       setSiteName(site.name);
       setModePolicy(site.modePolicy);
       setAccentSeed(site.accentSeed);
+      setHexDraft(site.accentSeed);
     }
   }, [site]);
 
@@ -94,18 +100,40 @@ export function AdminSite() {
         </select>
       </label>
 
-      <label className="mc-field">
-        <span>{t('admin.site.accent')}</span>
+      <div className="mc-field">
+        <span id="mc-accent-label">{t('admin.site.accent')}</span>
         <span className="mc-colorpick">
           <input
             className="mc-colorpick__input"
             type="color"
+            aria-labelledby="mc-accent-label"
             value={accentSeed}
-            onChange={(e) => setAccentSeed(e.target.value)}
+            onChange={(e) => {
+              setAccentSeed(e.target.value);
+              setHexDraft(e.target.value);
+            }}
           />
-          <code>{accentSeed}</code>
+          {/* Typed or pasted: the colour picker was the only way in, so a brand hex could not be pasted (#199).
+              The swatch follows as soon as the text is a whole colour. */}
+          <input
+            className="mc-input mc-colorpick__hex"
+            type="text"
+            aria-label={t('admin.site.accentHex')}
+            aria-invalid={!hexValid}
+            value={hexDraft}
+            spellCheck={false}
+            onChange={(e) => {
+              const typed = e.target.value.trim();
+              setHexDraft(typed);
+              const normalised = typed.startsWith('#') ? typed : `#${typed}`;
+              if (HEX.test(normalised)) {
+                setAccentSeed(normalised.toLowerCase());
+              }
+            }}
+          />
         </span>
-      </label>
+        {!hexValid && <span className="mc-error">{t('admin.site.accentInvalid')}</span>}
+      </div>
       {accentHardToRead && (
         <p className="mc-muted" role="status">
           {t('admin.site.accentContrast')}
@@ -113,7 +141,7 @@ export function AdminSite() {
       )}
 
       <div className="mc-form__actions">
-        <button type="button" className="mc-btn mc-btn--accent" onClick={save}>
+        <button type="button" className="mc-btn mc-btn--accent" disabled={!hexValid} onClick={save}>
           {t('admin.site.save')}
         </button>
         <SavedNote show={saved}>{t('admin.site.saved')}</SavedNote>

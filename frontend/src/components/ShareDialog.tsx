@@ -9,6 +9,7 @@ import { absoluteUrl, SHARE_TARGETS, shareHref, type ShareTargetId } from '../ut
 import { parseTimestamp, withTimestamp } from '../util/timestamp';
 import { Icon, type IconName } from './Icon';
 import { Modal } from './Modal';
+import { CopyField } from './CopyField';
 
 /**
  * The icon shown for each prepared destination.
@@ -55,22 +56,10 @@ export function ShareDialog({
   // Captured once, on open: the prefill is "where you are", and a field that kept moving under the cursor
   // while the episode played would be unusable.
   const [text, setText] = useState(() => formatDuration(Math.floor(atTime?.current ?? 0)));
-  const [copied, setCopied] = useState(false);
 
   const parsed = parseTimestamp(text);
   const invalid = enabled && parsed == null;
   const url = absoluteUrl(withTimestamp(path, enabled && parsed != null ? parsed : null));
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard access can be refused (permissions, insecure origin). The URL is on screen and
-      // selectable, so there is still a way to take it — saying nothing is better than a false success.
-    }
-  };
 
   // Only offered where it exists: on a desktop browser without it, a button that throws would be worse
   // than one that was never there.
@@ -140,23 +129,8 @@ export function ShareDialog({
           </div>
         )}
 
-        <div className="mc-share__link">
-          <input
-            className="mc-input mc-share__url"
-            type="text"
-            readOnly
-            value={url}
-            aria-label={t('share.link')}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <button type="button" className="mc-btn mc-btn--accent" onClick={() => void copy()}>
-            {copied ? t('share.copied') : t('share.copy')}
-          </button>
-        </div>
-        {/* The button's own label changing is invisible to a screen reader that is not on it. */}
-        <p className="mc-sr-only" aria-live="polite">
-          {copied ? t('share.copied') : ''}
-        </p>
+        {/* Copies, announces, and on a refused clipboard selects the link and says how to copy it (#199). */}
+        <CopyField value={url} label={t('share.link')} />
 
         <div className="mc-share__actions">
           <button type="button" className="mc-btn mc-btn--ghost" onClick={onClose}>
