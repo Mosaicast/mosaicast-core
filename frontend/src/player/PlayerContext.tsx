@@ -12,10 +12,12 @@ import {
   type ReactNode,
 } from 'react';
 
+import { announce } from '../a11y/LiveRegion';
 import { api } from '../api/client';
 import { progressEnabled } from '../consent/ConsentContext';
 import type { EpisodeDetail, EpisodeSummary } from '../api/types';
 import { useUser } from '../auth/UserContext';
+import i18n from '../i18n';
 import { clearNowPlaying, readNowPlaying, writeNowPlaying } from './nowPlaying';
 import { notifyPlaybackIdle, registerPlayback } from './playbackGate';
 import { PlayerBar } from './PlayerBar';
@@ -547,9 +549,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return;
     }
     const session = 'mediaSession' in navigator ? navigator.mediaSession : null;
+    // Said once per episode, when it actually starts: a press of play on a card changes nothing on the page
+    // a screen-reader user is on, and resuming after a pause is not news (core#172).
+    let announcedId: string | null = null;
     const onPlay = () => {
       setPlaying(true);
       setProblem(null);
+      const episode = currentRef.current;
+      if (episode && episode.id !== announcedId) {
+        announcedId = episode.id;
+        announce(i18n.t('player.nowPlaying', { title: episode.title }));
+      }
       if (session) {
         session.playbackState = 'playing';
       }

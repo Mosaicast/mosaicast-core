@@ -6,17 +6,24 @@ import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { useUser } from '../../auth/UserContext';
+import { useDocumentTitle } from '../../a11y/documentTitle';
 
 /**
  * The admin area shell (ARCHITECTURE §8.5, §12): a role-gated side nav plus the routed section. Site and
  * legal editing are ADMIN-only; feed management is a PODCASTER capability. The server enforces access too.
  */
 export function AdminLayout() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user } = useUser();
   const isAdmin = user?.role === 'admin';
   const nav = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
+  // "Feeds · Admin": the section, which is what differs between the tabs a visitor has open.
+  const section = pathname.split('/')[2] ?? '';
+  const sectionKey = `admin.nav.${section}`;
+  useDocumentTitle(
+    i18n.exists(sectionKey) ? `${t(sectionKey)} · ${t('admin.title')}` : t('admin.title'),
+  );
 
   // On a phone the nav is a horizontal strip (admin.css), and the active section can start off-screen —
   // arriving on a page whose own tab is not visible reads as the wrong page. Scroll it into view, without

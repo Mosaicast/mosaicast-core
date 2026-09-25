@@ -8,6 +8,7 @@ import { api } from '../api/client';
 import type { NotificationView, Paged } from '../api/types';
 import { useUser } from '../auth/UserContext';
 import { NotificationRow } from '../components/NotificationRow';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 const PAGE_SIZE = 25;
 
@@ -19,6 +20,7 @@ const PAGE_SIZE = 25;
  */
 export function NotificationsPage() {
   const { t } = useTranslation();
+  useDocumentTitle(t('notifications.title'));
   const { user } = useUser();
   const [items, setItems] = useState<NotificationView[]>([]);
   const [page, setPage] = useState(0);

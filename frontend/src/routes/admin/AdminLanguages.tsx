@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { ApiError, api } from '../../api/client';
 import type { AdminLocale, AdminLocalesView } from '../../api/types';
 import { loadLocales } from '../../i18n';
+import { SavedNote } from '../../a11y/SavedNote';
 
 /**
  * Languages admin (ARCHITECTURE §12.7, ADMIN only): which languages the shell offers, which content may be
@@ -162,7 +163,7 @@ export function AdminLanguages() {
         <button type="button" className="mc-btn mc-btn--accent" onClick={save}>
           {t('common.save')}
         </button>
-        {saved && <span className="mc-muted">{t('admin.languages.saved')}</span>}
+        <SavedNote show={saved}>{t('admin.languages.saved')}</SavedNote>
       </div>
     </div>
   );

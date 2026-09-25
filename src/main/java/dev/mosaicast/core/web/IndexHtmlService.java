@@ -38,6 +38,7 @@ public class IndexHtmlService {
     /** Stand-in for a build without the frontend bundle: enough of a document to carry meta tags. */
     private static final String MINIMAL_SHELL =
             "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n"
+                    + "    <title>Mosaicast</title>\n"
                     + "  </head>\n  <body>\n    <div id=\"root\"></div>\n  </body>\n</html>\n";
 
     private final SiteConfigService siteConfig;
@@ -118,7 +119,7 @@ public class IndexHtmlService {
         // before any `?lang=` existed.
         String resolved = locale == null || locale.isBlank()
                 ? siteConfig.get().getDefaultLocale() : locale.trim();
-        String html = withLangAttribute(index(), resolved);
+        String html = withTitle(withLangAttribute(index(), resolved), view.meta());
         int headEnd = html.indexOf(HEAD_END);
         if (headEnd < 0) {
             // No head to inject into (a stripped or unexpected build) — serve the shell unchanged rather
@@ -157,6 +158,32 @@ public class IndexHtmlService {
         return html.substring(0, open)
                 + opening.replaceFirst("lang=\"[^\"]*\"", "lang=\"" + escape(tag) + "\"")
                 + html.substring(close);
+    }
+
+    /**
+     * Replaces the shell's fixed {@code <title>} with this page's: {@code Page — Site}, or the site name alone
+     * for a page that is the site (core#172).
+     *
+     * <p>Every page was titled "Mosaicast" — the build's placeholder — in the HTML the server sends, beside
+     * otherwise complete OpenGraph tags. It is the one string a tab, a bookmark, a search result's headline and
+     * a screen reader's page announcement all read. The shell writes the same form on client navigation
+     * ({@code useDocumentTitle}), so a reload and an in-app navigation agree.
+     */
+    private String withTitle(String html, Meta meta) {
+        int open = html.indexOf("<title>");
+        int close = open < 0 ? -1 : html.indexOf("</title>", open);
+        if (close < 0) {
+            return html;
+        }
+        return html.substring(0, open) + "<title>" + escape(pageTitle(meta)) + html.substring(close);
+    }
+
+    /** {@code Page — Site}; the same composition as the shell's {@code composeTitle}. */
+    String pageTitle(Meta meta) {
+        String configured = siteConfig.get().getSiteName();
+        String site = configured == null || configured.isBlank() ? "Mosaicast" : configured.trim();
+        String page = meta == null || meta.title() == null ? "" : meta.title().trim();
+        return page.isEmpty() || page.equals(site) ? site : page + " — " + site;
     }
 
     /**
@@ -231,6 +258,10 @@ public class IndexHtmlService {
             tags.append(meta("og:locale", ogLocale));
         }
         if (meta.description() != null && !meta.description().isBlank()) {
+            // The plain one too: `og:description` is read by link previews, `description` by search engines
+            // for the snippet under a result, and only the first existed (core#172).
+            tags.append("    <meta name=\"description\" content=\"").append(escape(meta.description()))
+                    .append("\" />\n");
             tags.append(meta("og:description", meta.description()));
             tags.append(meta("twitter:description", meta.description()));
         }

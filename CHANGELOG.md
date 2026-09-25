@@ -225,6 +225,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Pages say what language they are in, what they are called, and when they have changed (`0.7.4`,
+  core#171, core#172).** `<html lang>` never followed the interface: a screen reader read the German shell
+  with an English voice. It follows every language change now, and the stored choice is applied before
+  first paint, the way the theme is. Every page was titled "Mosaicast" — server and client alike — while
+  the OpenGraph tags beside it were complete; the server writes `Page — Site` into the shell and the client
+  keeps it current, and pages carry a `<meta name="description">`. A client-side route change moved no
+  focus, so nothing told a screen-reader user the page had changed; focus now moves to the new page's
+  heading (not on a filter change, and not away from a field the page focused itself). There was no live
+  region anywhere: one shell-wide polite region now announces saved settings, a filtered list's new count
+  and the episode that started playing. A skip link leads past the header (WCAG 2.4.1), and the cookie
+  settings page no longer jumps from `h1` to `h3`.
+
 - **A request that fails or hangs no longer leaves a page loading forever, a 404 that is not one, or a
   signed-in header over a dead session (`0.7.4`, core#185).** The API client had no timeout and no
   cancellation: a request the server never answered kept its caller loading for as long as the tab stayed

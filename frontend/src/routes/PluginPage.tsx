@@ -7,6 +7,7 @@ import { useParams } from 'react-router-dom';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePluginRegistry } from '../plugins/PluginRegistry';
 import { NotFound } from './Placeholder';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /**
  * A plugin's deep-link page (ARCHITECTURE §6.4). The host reserves `/p/{pluginId}/*` and hands the subpath
@@ -23,6 +24,7 @@ export function PluginPage() {
   const subpath = params['*'] ?? '';
   const { t } = useTranslation();
   const { plugins, status, reload } = usePluginRegistry();
+  useDocumentTitle(status === 'failed' ? t('error.title') : plugins.find((p) => p.id === pluginId)?.name);
 
   // Not a 404 until the registry has actually answered: a deep link used to flash "Not found" while the
   // manifest was in flight, and keep it when that request failed (core#185).

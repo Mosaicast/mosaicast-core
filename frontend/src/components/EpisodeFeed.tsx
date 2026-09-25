@@ -13,6 +13,7 @@ import { FeedTabs } from './FeedTabs';
 import { useFeeds } from './FeedsContext';
 import { FilterBar, type FilterValues, type TagOption } from './FilterBar';
 import { SitePanel } from './SitePanel';
+import { announce } from '../a11y/LiveRegion';
 
 /**
  * The unified episode feed (§6.1) — the shell's centerpiece. Tabs (feed scope) on top, then a two-column
@@ -74,6 +75,13 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
     api.get<TagOption[]>(`/api/tags${q}`).then(setTags).catch(() => setTags([]));
   }, [feedId]);
 
+  // The first load of a page is announced by the page itself (its title, its heading); a later filter
+  // change is not, and the list changing under a screen-reader user said nothing (core#172).
+  const announcedOnce = useRef(false);
+  // Through a ref: a language switch must not refetch the list, which `t` as a dependency would.
+  const tRef = useRef(t);
+  tRef.current = t;
+
   // Reset + load the first page whenever the scope/filters change.
   useEffect(() => {
     let active = true;
@@ -88,6 +96,10 @@ export function EpisodeFeed({ fixedFeedId }: { fixedFeedId?: string }) {
         if (!active) return;
         setItems(res.items);
         setTotalPages(res.totalPages);
+        if (announcedOnce.current) {
+          announce(tRef.current('feed.episodeCount', { count: res.totalElements }));
+        }
+        announcedOnce.current = true;
       })
       .catch(() => active && setFailed(true))
       .finally(() => active && setLoading(false));

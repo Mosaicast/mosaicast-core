@@ -3,7 +3,9 @@
 
 import { useParams } from 'react-router-dom';
 
+import { useDocumentTitle } from '../a11y/documentTitle';
 import { EpisodeFeed } from '../components/EpisodeFeed';
+import { useFeeds } from '../components/FeedsContext';
 
 /**
  * A single feed's page (`/feeds/:feedSlug`) — the active feed tab. The same episode feed scoped to one feed;
@@ -15,6 +17,8 @@ import { EpisodeFeed } from '../components/EpisodeFeed';
  */
 export function FeedPage() {
   const { feedSlug = '' } = useParams();
+  const { feeds } = useFeeds();
+  useDocumentTitle(feeds.find((feed) => feed.slug === feedSlug || feed.id === feedSlug)?.title);
   return (
     <section className="mc-page">
       <EpisodeFeed fixedFeedId={feedSlug} />

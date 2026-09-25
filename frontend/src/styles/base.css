@@ -130,6 +130,13 @@ code {
   font-style: italic;
 }
 
+/* Focus placed by the shell after a navigation or by the skip link, not by the visitor: the target is a
+   heading or the main landmark, which a ring would only mislabel as something to operate. */
+#main:focus,
+#main h1[tabindex='-1']:focus {
+  outline: none;
+}
+
 .mc-sr-only {
   position: absolute;
   width: 1px;

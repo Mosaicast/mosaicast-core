@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
+import { useTranslation } from 'react-i18next';
+
 import { CookieSettings } from '../consent/CookieSettings';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /**
  * `/cookies` — the settings at a stable address (ARCHITECTURE §12.5).
@@ -12,6 +15,8 @@ import { CookieSettings } from '../consent/CookieSettings';
  * is unconditional for the same reason — before, a core-only install had no withdrawal surface at all.
  */
 export function CookiesPage() {
+  const { t } = useTranslation();
+  useDocumentTitle(t('consent.settingsTitle'));
   return (
     <section className="mc-page">
       {/* The component brings its own heading, promoted to `h1` here — one page, one top-level heading. */}

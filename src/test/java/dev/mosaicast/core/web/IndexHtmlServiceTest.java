@@ -45,12 +45,35 @@ class IndexHtmlServiceTest {
     }
 
     @Test
+    void eachPageIsTitledAsItselfNotAsTheProduct() {
+        // Every page was "Mosaicast" — the build's placeholder — whatever it showed (core#172).
+        String episode = indexHtml.render(new PageView(
+                new IndexHtmlService.Meta("An Episode", "About things", null), null, null, null));
+        String home = indexHtml.render(new PageView(
+                new IndexHtmlService.Meta("Test Cast", "", null), null, null, null));
+
+        assertThat(episode).contains("<title>An Episode — Test Cast</title>").doesNotContain("<title>Mosaicast");
+        // The site's own page is the site: "Test Cast — Test Cast" would say nothing twice.
+        assertThat(home).contains("<title>Test Cast</title>");
+    }
+
+    @Test
+    void theSearchSnippetDescriptionIsThereBesideTheOpenGraphOne() {
+        String html = indexHtml.render(new PageView(
+                new IndexHtmlService.Meta("An Episode", "About \"things\"", null), null, null, null));
+
+        assertThat(html).contains("<meta name=\"description\" content=\"About &quot;things&quot;\" />");
+    }
+
+    @Test
     void aTitleWithMarkupCannotEscapeItsAttribute() {
         String html = indexHtml.render(new PageView(
                 new IndexHtmlService.Meta("\"><script>alert(1)</script>", "", null), null, null, null));
 
         assertThat(html).doesNotContain("<script>alert(1)</script>");
         assertThat(html).contains("&quot;&gt;&lt;script&gt;");
+        // Nor the <title>, which is text rather than an attribute but ends at the first `</title>` all the same.
+        assertThat(html).contains("<title>&quot;&gt;&lt;script&gt;alert(1)&lt;/script&gt; — Test Cast</title>");
     }
 
     @Test
