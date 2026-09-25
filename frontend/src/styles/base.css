@@ -86,10 +86,10 @@ code {
   flex-direction: column;
   gap: var(--mc-space-5);
 }
-.mc-notfound__search {
-  margin-top: var(--mc-space-2);
-}
-.mc-notfound__home {
+/* The gap is the spacing; a heading's or paragraph's own margin on top of it doubles every step. */
+.mc-notfound > h1,
+.mc-notfound > p,
+.mc-notfound > form {
   margin: 0;
 }
 

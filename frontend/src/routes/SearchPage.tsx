@@ -90,7 +90,7 @@ export function SearchPage() {
   const hasMore = results != null && results.page < results.totalPages - 1;
 
   return (
-    <section className="mc-search">
+    <section className="mc-page mc-search">
       <h1 className="mc-search__heading">{t('search.title')}</h1>
 
       <form
@@ -104,6 +104,7 @@ export function SearchPage() {
         <label className="mc-search__field">
           <span className="mc-sr-only">{t('search.label')}</span>
           <input
+            className="mc-input"
             type="search"
             name="q"
             value={draft}

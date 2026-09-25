@@ -34,7 +34,7 @@ export function NotFound() {
       <p className="mc-muted">{t('notFound.body')}</p>
 
       <form
-        className="mc-search__form mc-notfound__search"
+        className="mc-search__form"
         role="search"
         onSubmit={(event) => {
           event.preventDefault();
@@ -47,6 +47,7 @@ export function NotFound() {
         <label className="mc-search__field">
           <span className="mc-sr-only">{t('search.label')}</span>
           <input
+            className="mc-input"
             type="search"
             name="q"
             value={draft}
@@ -59,7 +60,7 @@ export function NotFound() {
         </button>
       </form>
 
-      <p className="mc-notfound__home">
+      <p>
         <Link to="/">{t('notFound.home')}</Link>
       </p>
 
