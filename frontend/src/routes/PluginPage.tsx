@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 
 import { SlotRegion } from '../components/SlotRegion';
@@ -20,7 +21,29 @@ export function PluginPage() {
   const params = useParams();
   const pluginId = params.pluginId ?? '';
   const subpath = params['*'] ?? '';
-  const { plugins } = usePluginRegistry();
+  const { t } = useTranslation();
+  const { plugins, status, reload } = usePluginRegistry();
+
+  // Not a 404 until the registry has actually answered: a deep link used to flash "Not found" while the
+  // manifest was in flight, and keep it when that request failed (core#185).
+  if (status === 'loading') {
+    return (
+      <section className="mc-page">
+        <p className="mc-muted">{t('common.loading')}</p>
+      </section>
+    );
+  }
+  if (status === 'failed') {
+    return (
+      <section className="mc-page" role="alert">
+        <h1 className="mc-page__title">{t('error.title')}</h1>
+        <p className="mc-muted">{t('error.body')}</p>
+        <button type="button" className="mc-btn" onClick={reload}>
+          {t('error.retry')}
+        </button>
+      </section>
+    );
+  }
 
   const plugin = plugins.find((p) => p.id === pluginId);
   const hasPageSlot = plugin?.slots?.some((slot) => slot.placement === 'page') ?? false;

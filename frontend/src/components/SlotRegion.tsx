@@ -10,6 +10,7 @@ import { useUser } from '../auth/UserContext';
 import { PluginMount } from '../plugins/PluginMount';
 import { usePluginRegistry } from '../plugins/PluginRegistry';
 import { selectMounts } from '../plugins/slots';
+import { SlotFailed } from './SlotFailed';
 
 /**
  * A plugin slot region (ARCHITECTURE §7.3/§7.8). Renders a `data-slot` container and mounts every plugin
@@ -55,7 +56,7 @@ class SlotErrorBoundary extends Component<{ children: ReactNode }, BoundaryState
   render() {
     if (this.state.failed) {
       // Isolated failure: a small note in place of this tile, nothing else disturbed.
-      return <div className="mc-slot__error">plugin error</div>;
+      return <SlotFailed />;
     }
     return this.props.children;
   }
@@ -88,13 +89,19 @@ export function SlotRegion({
   const [fetched, setFetched] = useState<{ ids: string[]; labels: Record<string, string> }>(EMPTY_SCOPE);
   const hasMounts = mounts.length > 0;
   useEffect(() => {
+    // A new scope starts empty rather than showing the last one's episodes until its own answer arrives —
+    // and a region that stops needing the answer drops it, so nothing stale is handed over if it needs it
+    // again for a different scope (core#185). The same identity when already empty, so this costs nothing.
+    setFetched(EMPTY_SCOPE);
     if (!hasMounts || known) {
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
     api
       .get<{ id: string; label: string }[]>(
         `/api/plugins/scope-episodes?type=${scope.type}&id=${encodeURIComponent(scope.id)}`,
+        { signal: controller.signal },
       )
       .then((options) => {
         if (!cancelled) {
@@ -111,6 +118,7 @@ export function SlotRegion({
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [hasMounts, known, scope.type, scope.id]);
 

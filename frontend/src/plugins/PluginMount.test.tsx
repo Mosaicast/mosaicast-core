@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import { render, act } from '@testing-library/react';
+import { render, act, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import type { Scope } from '@mosaicast/plugin-sdk';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import '../i18n';
-import { PluginMount } from './PluginMount';
+import { DEFINE_TIMEOUT_MS, PluginMount } from './PluginMount';
 
 /**
  * What this pins is an identity, not a render count (ARCHITECTURE §7.5).
@@ -134,5 +134,55 @@ describe('PluginMount', () => {
     });
 
     expect(assignments.length).toBeGreaterThan(afterMount);
+  });
+
+  describe('failures no error boundary can see (core#185)', () => {
+    it('shows the failed tile when the element throws on its ctx, instead of an unhandled rejection', async () => {
+      // The SDK renders synchronously on assignment, inside a promise callback: the throw used to become an
+      // unhandled rejection — no tile, no console line, and the isolation promise quietly not holding.
+      class ThrowingElement extends HTMLElement {
+        set ctx(_: unknown) {
+          throw new Error('render exploded');
+        }
+      }
+      customElements.define('mc-throwing-plugin', ThrowingElement);
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        render(
+          <MemoryRouter>
+            <PluginMount pluginId="boom" tag="mc-throwing-plugin" scope={SITE_SCOPE} episodes={NO_EPISODES}
+              episodeLabels={NO_LABELS} />
+          </MemoryRouter>,
+        );
+
+        expect(await screen.findByRole('status')).toHaveTextContent('This part of the page could not be shown.');
+        expect(logged).toHaveBeenCalledWith(expect.stringContaining("'boom'"), expect.any(Error));
+      } finally {
+        logged.mockRestore();
+      }
+    });
+
+    it('gives up on a bundle that never defines its element', async () => {
+      vi.useFakeTimers();
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      try {
+        render(
+          <MemoryRouter>
+            <PluginMount pluginId="ghost" tag="mc-never-defined" scope={SITE_SCOPE} episodes={NO_EPISODES}
+              episodeLabels={NO_LABELS} />
+          </MemoryRouter>,
+        );
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(DEFINE_TIMEOUT_MS);
+        });
+
+        expect(screen.getByRole('status')).toHaveTextContent('This part of the page could not be shown.');
+      } finally {
+        logged.mockRestore();
+        vi.useRealTimers();
+      }
+    });
   });
 });
