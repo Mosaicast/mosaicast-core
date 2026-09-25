@@ -308,7 +308,19 @@ public class PluginBlobService {
      * @return the effective limit in bytes
      */
     public long effectiveMaxFileBytes(PluginManifest manifest) {
-        return Math.min(requestedMaxFileBytes(manifest), uploadCeiling);
+        return effectiveMaxFileBytes(manifest, grants.findById(manifest.id()));
+    }
+
+    /**
+     * The same, with the admin's grant already in hand — for a caller that also shows the grant itself and
+     * would otherwise read the same row three times per plugin (core#195).
+     *
+     * @param manifest the plugin's manifest
+     * @param grant    the recorded grant for it, if any
+     * @return the effective limit in bytes
+     */
+    public long effectiveMaxFileBytes(PluginManifest manifest, Optional<PluginBlobGrant> grant) {
+        return Math.min(requestedMaxFileBytes(manifest, grant), uploadCeiling);
     }
 
     /**
@@ -319,7 +331,12 @@ public class PluginBlobService {
      * @return true when the container's limit is the binding one
      */
     public boolean maxFileBoundByServer(PluginManifest manifest) {
-        return requestedMaxFileBytes(manifest) > uploadCeiling;
+        return maxFileBoundByServer(manifest, grants.findById(manifest.id()));
+    }
+
+    /** {@link #maxFileBoundByServer(PluginManifest)} with the grant already in hand. */
+    public boolean maxFileBoundByServer(PluginManifest manifest, Optional<PluginBlobGrant> grant) {
+        return requestedMaxFileBytes(manifest, grant) > uploadCeiling;
     }
 
     /**
@@ -332,8 +349,8 @@ public class PluginBlobService {
     }
 
     /** The per-file limit before the container's ceiling: grant, else manifest, else default; hard-clamped. */
-    private long requestedMaxFileBytes(PluginManifest manifest) {
-        Long granted = grants.findById(manifest.id()).map(PluginBlobGrant::getMaxFileBytes).orElse(null);
+    private long requestedMaxFileBytes(PluginManifest manifest, Optional<PluginBlobGrant> grant) {
+        Long granted = grant.map(PluginBlobGrant::getMaxFileBytes).orElse(null);
         Long asked = manifest.blobs() == null ? null : manifest.blobs().maxFileBytes();
         long resolved = granted != null ? granted : (asked != null ? asked : properties.defaultMaxFileBytes());
         return properties.clampMaxFile(resolved);
@@ -357,7 +374,12 @@ public class PluginBlobService {
      * @return the effective limit in bytes
      */
     public long effectiveQuotaBytes(PluginManifest manifest) {
-        Long granted = grants.findById(manifest.id()).map(PluginBlobGrant::getQuotaBytes).orElse(null);
+        return effectiveQuotaBytes(manifest, grants.findById(manifest.id()));
+    }
+
+    /** {@link #effectiveQuotaBytes(PluginManifest)} with the grant already in hand. */
+    public long effectiveQuotaBytes(PluginManifest manifest, Optional<PluginBlobGrant> grant) {
+        Long granted = grant.map(PluginBlobGrant::getQuotaBytes).orElse(null);
         Long asked = manifest.blobs() == null ? null : manifest.blobs().quotaBytes();
         long resolved = granted != null ? granted : (asked != null ? asked : properties.defaultQuotaBytes());
         return properties.clampQuota(resolved);

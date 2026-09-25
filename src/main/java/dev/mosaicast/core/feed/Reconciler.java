@@ -15,6 +15,7 @@ import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeTagRepository;
 import dev.mosaicast.core.episode.EpisodeTag;
 import dev.mosaicast.core.episode.RelatedProvider;
+import dev.mosaicast.core.tag.TagKeys;
 import dev.mosaicast.core.tag.TagService;
 import dev.mosaicast.core.tag.TagSource;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
@@ -27,6 +28,8 @@ import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /**
  * Turns raw feed items into {@link EpisodeRef}s + display snapshots (ARCHITECTURE §5.2/§5.3), the
@@ -111,10 +114,16 @@ public class Reconciler {
             EpisodeRef known = byGuid.get(raw.externalGuid());
             if (known != null) {
                 // Case 2: known GUID — refresh relations, overwrite the snapshot. Identity untouched.
+                boolean relationsMoved = !java.util.Objects.equals(known.getSeason(), raw.season())
+                        || !java.util.Objects.equals(known.getEpisodeNo(), raw.episodeNumber())
+                        || known.getStatus() == EpisodeStatus.WITHDRAWN;
                 known.refreshFromFeed(raw.season(), raw.episodeNumber());
                 refs.save(known);
-                upsertDisplay(known.getId(), raw);
-                updated++;
+                // Counted only when something about it actually changed: a poll that finds one new episode
+                // used to report every other item as "updated" too, which is the reverse of useful.
+                if (upsertDisplay(known.getId(), raw) || relationsMoved) {
+                    updated++;
+                }
                 continue;
             }
 
@@ -160,7 +169,11 @@ public class Reconciler {
         // §5.4). Any of it can change what "related" means: a new episode is a new candidate for every
         // episode that shares a tag with it, a withdrawal removes one, and re-written tags or titles move
         // the scores. Working out *which* cached answers moved costs more than dropping them (§6.3).
-        related.invalidate();
+        //
+        // After the commit, not inside it: invalidated here, a request landing before the commit repopulated
+        // the TTL-less cache from the not-yet-visible state, and that stale answer survived until the next
+        // *changed* poll — days, for a weekly show (core#195).
+        afterCommit(related::invalidate);
 
         return new ReconcileResult(created, updated, withdrawn, bound, skipped, suggestions);
     }
@@ -194,19 +207,48 @@ public class Reconciler {
         }
     }
 
-    /** Writes the feed's presentation snapshot and tags for a ref, overwriting any existing ones (§4.2). */
-    private void upsertDisplay(UUID refId, RawEpisode raw) {
+    /** Runs {@code action} once the surrounding transaction commits, or now when there is none. */
+    private static void afterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
+    }
+
+    /**
+     * Writes the feed's presentation snapshot and tags for a ref, overwriting any existing ones (§4.2) — but
+     * only what differs (core#195).
+     *
+     * <p>A changed feed body (one new episode) made every item rewrite its snapshot and delete and re-insert
+     * each of its tags: roughly two thousand statements a poll for a 182-episode show, nearly all of them
+     * writing back what was already there. The snapshot is a record, so value equality is free; the tags are
+     * compared as canonical keys.
+     *
+     * @return whether anything was written
+     */
+    private boolean upsertDisplay(UUID refId, RawEpisode raw) {
         DisplaySnapshot snapshot = new DisplaySnapshot(
                 raw.title(), raw.description(), raw.audioUrl(), raw.publishedAt(), raw.declaredDuration(),
                 raw.imageUrl(), raw.feedImageUrl(), raw.author(), raw.subtitle());
-        EpisodeDisplay display = displays.findById(refId)
-                .map(existing -> {
-                    existing.overwrite(snapshot);
-                    return existing;
-                })
-                .orElseGet(() -> new EpisodeDisplay(refId, snapshot));
-        displays.save(display);
-        upsertTags(refId, raw.tags());
+        java.util.Optional<EpisodeDisplay> current = displays.findById(refId);
+        boolean snapshotChanged = current.map(existing -> !snapshot.equals(existing.getSnapshot())).orElse(true);
+        if (snapshotChanged) {
+            EpisodeDisplay display = current
+                    .map(existing -> {
+                        existing.overwrite(snapshot);
+                        return existing;
+                    })
+                    .orElseGet(() -> new EpisodeDisplay(refId, snapshot));
+            displays.save(display);
+        }
+        boolean tagsChanged = upsertTags(refId, raw.tags());
+        return snapshotChanged || tagsChanged;
     }
 
     /**
@@ -220,11 +262,24 @@ public class Reconciler {
      * shared, and one normalised on the plugin path only would fragment on the path that produces most of
      * it.
      */
-    private void upsertTags(UUID refId, List<String> tagValues) {
+    private boolean upsertTags(UUID refId, List<String> tagValues) {
+        // Compared before anything is written, including the vocabulary: `ensureAll` costs a lookup per tag.
+        Set<String> wanted = new HashSet<>();
+        if (tagValues != null) {
+            for (String raw : tagValues) {
+                if (TagKeys.isUsable(raw)) {
+                    wanted.add(TagKeys.canonical(raw));
+                }
+            }
+        }
+        if (wanted.equals(new HashSet<>(tags.tagKeysFrom(refId, TagSource.FEED)))) {
+            return false;
+        }
         List<String> canonical = vocabulary.ensureAll(tagValues);
         tags.deleteByEpisodeRefIdAndSource(refId, TagSource.FEED);
         for (String tag : canonical) {
             tags.save(new EpisodeTag(refId, tag, TagSource.FEED));
         }
+        return true;
     }
 }

@@ -225,6 +225,20 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Less work per request, per keystroke and per poll (`0.7.4`, core#195).** The CSP header writer, which runs
+  on every response including assets and 304s, walked every plugin manifest three times and asked the
+  approvals table once per `necessary` claim each time; it is one sweep now. The log viewer's search sent a
+  full-table text scan and a health query per keystroke; it waits for a pause. A feed poll that found one
+  new episode rewrote every other item's snapshot and tags — some two thousand statements for a 182-episode
+  show — and reported them all as "updated"; unchanged items are now left alone and not counted. The
+  related-episodes cache is dropped after the poll commits, not before, so a request in between can no
+  longer refill it with the old state for days. The admin user list read identities once per user (up to
+  201 queries a page), the legal footer — which the public consent payload goes through — up to two
+  queries per page, the sitemap two more per legal page, the plugin list the same storage grant three times
+  per plugin, and the erasure retry re-read every open debt twice per user; each is now a fixed number of
+  queries. And the front page no longer starts the full episode query on a single-feed site only to throw
+  it away when it redirects.
+
 - **The accent can no longer erase the focus ring, and the remaining keyboard and contrast gaps are closed
   (`0.7.4`, core#162, core#163, #200).** The seed generator clamped text colours to WCAG AA but emitted the
   accent raw, and the accent was used as link text, the active tab and — through `--mc-focus` — the

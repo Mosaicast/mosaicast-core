@@ -3,7 +3,6 @@
 
 package dev.mosaicast.core.erasure;
 
-import java.util.LinkedHashSet;
 import java.util.Set;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
@@ -37,19 +36,21 @@ public class ErasureRetry {
     @Scheduled(fixedDelayString = "${mosaicast.erasure.retry-interval-ms:3600000}", initialDelay = 120_000)
     @SchedulerLock(name = "user-erasure-retry", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1M")
     public void retry() {
-        Set<java.util.UUID> users = new LinkedHashSet<>();
+        // One read of the open debts, counted per user. It used to re-read all of them twice per user just
+        // to work out how many that user's retry settled — quadratic in the backlog it exists to shrink
+        // (core#195).
+        java.util.Map<java.util.UUID, Integer> openPerUser = new java.util.LinkedHashMap<>();
         for (UserDataErasure erasure : erasures.outstanding()) {
-            users.add(erasure.getUserId());
+            openPerUser.merge(erasure.getUserId(), 1, Integer::sum);
         }
-        if (users.isEmpty()) {
+        if (openPerUser.isEmpty()) {
             return;
         }
+        Set<java.util.UUID> users = openPerUser.keySet();
         int settled = 0;
         for (java.util.UUID userId : users) {
             try {
-                int before = erasures.outstanding().size();
-                erasures.runHandlers(userId);
-                settled += before - erasures.outstanding().size();
+                settled += openPerUser.get(userId) - erasures.runHandlers(userId).size();
             } catch (RuntimeException e) {
                 // One user's retry failing must not stop the others, and must never kill the scheduler.
                 log.warn("Could not retry the erasure of user {}: {}", userId, e.getMessage());

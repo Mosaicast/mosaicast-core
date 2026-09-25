@@ -151,10 +151,7 @@ public class AccountErasureService {
     @Transactional
     public List<String> runHandlers(UUID userId) {
         List<String> outstanding = new java.util.ArrayList<>();
-        for (UserDataErasure erasure : erasures.findOpen()) {
-            if (!erasure.getUserId().equals(userId)) {
-                continue;
-            }
+        for (UserDataErasure erasure : erasures.findOpenForUser(userId)) {
             if (!attempt(erasure)) {
                 outstanding.add(erasure.getPluginId());
             }

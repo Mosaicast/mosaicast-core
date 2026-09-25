@@ -69,9 +69,12 @@ public class PluginCspHeaderWriter implements HeaderWriter {
         if (response.containsHeader(HEADER)) {
             return;
         }
-        Set<String> declared = consent.allowedSources(ConsentCookie.grantedIn(request));
-        response.setHeader(HEADER, policy(declared, strictMediaSources ? mediaHosts.origins() : null));
-        if (consent.hasOptionalSources()) {
+        // One sweep for both answers: the allow-list, and whether the policy is per-visitor at all. Asking
+        // twice meant walking every manifest — and querying the approvals table — three times per response.
+        ConsentService.PolicySources sources = consent.policySources(ConsentCookie.grantedIn(request));
+        response.setHeader(HEADER,
+                policy(sources.allowed(), strictMediaSources ? mediaHosts.origins() : null));
+        if (sources.varies()) {
             // The policy now differs between visitors, so any shared cache has to key on the cookie or it
             // will hand one visitor's allow-list to another. Only added when something is actually gated:
             // on a site with no optional services the header is the same for everyone, and `Vary: Cookie`

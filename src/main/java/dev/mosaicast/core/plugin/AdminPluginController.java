@@ -240,8 +240,8 @@ public class AdminPluginController {
         return new AdminBlobs(
                 blobs.usedBytes(manifest.id()),
                 blobs.count(manifest.id()),
-                blobs.effectiveQuotaBytes(manifest),
-                blobs.effectiveMaxFileBytes(manifest),
+                blobs.effectiveQuotaBytes(manifest, grant),
+                blobs.effectiveMaxFileBytes(manifest, grant),
                 grant.map(g -> g.getQuotaBytes() != null).orElse(false),
                 grant.map(g -> g.getMaxFileBytes() != null).orElse(false),
                 manifest.blobs().quotaBytes(),
@@ -249,7 +249,7 @@ public class AdminPluginController {
                 blobProperties.hardQuotaBytes(),
                 blobProperties.hardMaxFileBytes(),
                 blobs.uploadCeilingBytes(),
-                blobs.maxFileBoundByServer(manifest));
+                blobs.maxFileBoundByServer(manifest, grant));
     }
 
     private static Map<String, ConfigField> declaredConfig(PluginRegistration r) {

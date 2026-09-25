@@ -512,6 +512,26 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void aNewEpisodeDoesNotRewriteTheOnesThatDidNotChange() {
+        // One new item used to rewrite every item's snapshot and tags and report them all as "updated"
+        // (core#195). This is the round trip the unit test cannot make: the stored snapshot, read back out of
+        // JSONB, has to equal the one parsed from an unchanged item — timestamps and durations included — or
+        // the dirty check silently never fires.
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+
+        body.set(rss(
+                item("ep-13", "A brand new one", 2, 13),
+                item("ep-12", "Why pigeons secretly hate us", 2, 12),
+                item("ep-11", "The great coffee controversy", 2, 11)));
+        etag.set("v2");
+        PollOutcome outcome = feedService.refreshNow(feed.id());
+
+        assertThat(outcome.status()).isEqualTo(PollOutcome.Status.RECONCILED);
+        assertThat(outcome.result().created()).isEqualTo(1);
+        assertThat(outcome.result().updated()).isZero();
+    }
+
+    @Test
     void itemRemovedFromFeed_isWithdrawnNotDeleted() {
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
 

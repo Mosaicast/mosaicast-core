@@ -251,4 +251,26 @@ class ConsentServiceTest {
                 PluginStorage.doc(), null, null, null, new PluginManifest.Consent(List.of(services)));
         return PluginRegistration.loaded(manifest, Path.of("/tmp/" + id));
     }
+
+    @Test
+    void thePerResponsePolicyIsOneSweepThatAgreesWithTheThreeItReplaced() {
+        // Every HTTP response — assets, images, 304s — walked every manifest three times and asked the
+        // approvals table once per `necessary` claim each time (core#195). One sweep must give the same
+        // answers, asking once.
+        when(plugins.allActive()).thenReturn(List.of(
+                plugin("stats", service("Fixture Analytics", "analytics", "https://plausible.example")),
+                plugin("chat", service("Session Keeper", "necessary", "https://necessary.example"))));
+        approveEverything();
+
+        ConsentService.PolicySources none = service.policySources(Set.of());
+        ConsentService.PolicySources granted = service.policySources(Set.of("analytics"));
+
+        assertThat(none.allowed()).isEqualTo(service.allowedSources(Set.of()));
+        assertThat(granted.allowed()).isEqualTo(service.allowedSources(Set.of("analytics")));
+        assertThat(none.varies()).isEqualTo(service.hasOptionalSources()).isTrue();
+
+        org.mockito.Mockito.clearInvocations(approvals);
+        service.policySources(Set.of());
+        org.mockito.Mockito.verify(approvals, org.mockito.Mockito.times(1)).isApproved(any(), any());
+    }
 }

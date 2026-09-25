@@ -9,6 +9,7 @@ import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
 
 import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
@@ -211,5 +212,67 @@ class ReconcilerTest {
         assertThat(planned.getStatus()).isEqualTo(EpisodeStatus.PLANNED);
         assertThat(result.suggestions()).hasSize(1);
         assertThat(result.suggestions().get(0).plannedRefId()).isEqualTo(planned.getId());
+    }
+
+    // ---- core#195: a changed feed body rewrote every item ----
+
+    /** The snapshot the reconciler would build for {@code raw}, as if a previous poll had stored it. */
+    private static EpisodeDisplay storedFor(EpisodeRef ref, RawEpisode raw) {
+        return new EpisodeDisplay(ref.getId(), new dev.mosaicast.plugin.api.DisplaySnapshot(
+                raw.title(), raw.description(), raw.audioUrl(), raw.publishedAt(), raw.declaredDuration(),
+                raw.imageUrl(), raw.feedImageUrl(), raw.author(), raw.subtitle()));
+    }
+
+    @Test
+    void anItemThatDidNotChangeWritesNothingAndIsNotCountedAsUpdated() {
+        EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11, "test-s02e11");
+        RawEpisode same = new RawEpisode("g1", "Pigeons", "desc", "https://audio/g1",
+                Instant.parse("2026-06-21T00:00:00Z"), 2, 11, null, null, null, null, null,
+                List.of("Birds", "cities"), Access.PUBLIC);
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(known));
+        when(displays.findById(known.getId())).thenReturn(Optional.of(storedFor(known, same)));
+        when(tags.tagKeysFrom(known.getId(), dev.mosaicast.core.tag.TagSource.FEED))
+                .thenReturn(List.of("cities", "birds"));
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(same));
+
+        assertThat(result.updated()).isZero();
+        verify(displays, never()).save(any());
+        verify(tags, never()).deleteByEpisodeRefIdAndSource(any(), any());
+        verify(tags, never()).save(any());
+        // Not even the vocabulary lookup a tag rewrite costs.
+        verify(vocabulary, never()).ensureAll(any());
+    }
+
+    @Test
+    void aChangedTitleIsWrittenAndCounted() {
+        EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11, "test-s02e11");
+        RawEpisode before = raw("g1", "Pigeons", 2, 11);
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(known));
+        when(displays.findById(known.getId())).thenReturn(Optional.of(storedFor(known, before)));
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(raw("g1", "Pigeons, revised", 2, 11)));
+
+        assertThat(result.updated()).isEqualTo(1);
+        verify(displays).save(any());
+        // The tags did not move, so they are left alone.
+        verify(tags, never()).deleteByEpisodeRefIdAndSource(any(), any());
+    }
+
+    @Test
+    void aChangedTagSetAloneIsRewrittenAndCounted() {
+        EpisodeRef known = EpisodeRef.published(FEED, "g1", 2, 11, "test-s02e11");
+        RawEpisode now = new RawEpisode("g1", "Pigeons", "desc", "https://audio/g1",
+                Instant.parse("2026-06-21T00:00:00Z"), 2, 11, null, null, null, null, null,
+                List.of("birds", "harbours"), Access.PUBLIC);
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(known));
+        when(displays.findById(known.getId())).thenReturn(Optional.of(storedFor(known, now)));
+        when(tags.tagKeysFrom(known.getId(), dev.mosaicast.core.tag.TagSource.FEED)).thenReturn(List.of("birds"));
+
+        ReconcileResult result = reconciler.reconcile(FEED, "Test Feed", List.of(now));
+
+        assertThat(result.updated()).isEqualTo(1);
+        verify(displays, never()).save(any());
+        verify(tags).deleteByEpisodeRefIdAndSource(known.getId(), dev.mosaicast.core.tag.TagSource.FEED);
     }
 }

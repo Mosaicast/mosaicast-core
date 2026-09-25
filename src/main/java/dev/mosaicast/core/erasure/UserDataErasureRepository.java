@@ -22,4 +22,8 @@ public interface UserDataErasureRepository extends JpaRepository<UserDataErasure
     /** The open debts of one plugin — replayed when an operator switches it back on. */
     @Query("select e from UserDataErasure e where e.pluginId = :pluginId and e.status <> 'DONE'")
     List<UserDataErasure> findOpenFor(@Param("pluginId") String pluginId);
+
+    /** The open debts of one user — what a retry runs, without reading every user's to find them (core#195). */
+    @Query("select e from UserDataErasure e where e.userId = :userId and e.status <> 'DONE'")
+    List<UserDataErasure> findOpenForUser(@Param("userId") java.util.UUID userId);
 }
