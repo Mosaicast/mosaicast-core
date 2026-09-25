@@ -247,7 +247,9 @@ public class AdminPluginController {
                 manifest.blobs().quotaBytes(),
                 manifest.blobs().maxFileBytes(),
                 blobProperties.hardQuotaBytes(),
-                blobProperties.hardMaxFileBytes());
+                blobProperties.hardMaxFileBytes(),
+                blobs.uploadCeilingBytes(),
+                blobs.maxFileBoundByServer(manifest));
     }
 
     private static Map<String, ConfigField> declaredConfig(PluginRegistration r) {
@@ -334,11 +336,15 @@ public class AdminPluginController {
      * @param declaredMaxFileBytes the same for one file
      * @param hardQuotaBytes     the most an admin may grant here, or null for no bound
      * @param hardMaxFileBytes   the same for one file
+     * @param uploadLimitBytes   the largest upload the servlet container accepts at all, or null for none
+     * @param maxFileLimitedByServer whether that container limit, not a grant or the manifest, is what sets
+     *                           {@code maxFileBytes} — the form says so, or the number it shows is unexplained
      */
     public record AdminBlobs(long usedBytes, long fileCount, long quotaBytes, long maxFileBytes,
                              boolean quotaOverridden, boolean maxFileOverridden,
                              Long declaredQuotaBytes, Long declaredMaxFileBytes,
-                             Long hardQuotaBytes, Long hardMaxFileBytes) {
+                             Long hardQuotaBytes, Long hardMaxFileBytes,
+                             Long uploadLimitBytes, boolean maxFileLimitedByServer) {
     }
 
     /** How many documents a purge removed. */

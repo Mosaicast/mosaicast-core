@@ -210,6 +210,7 @@
   "admin.plugins.storage.fromManifest": "Das Plugin wünscht {{quota}}. Ein Wert hier überschreibt das.",
   "admin.plugins.storage.fromDefault": "Standardwert dieser Seite. Ein Wert hier überschreibt ihn.",
   "admin.plugins.storage.hardCap": "Dieser Server erlaubt höchstens {{max}} pro Plugin.",
+  "admin.plugins.storage.serverCap": "Dieser Server nimmt Uploads bis höchstens {{max}} pro Datei an, das ist also die geltende Grenze. Ein größerer Wert hier greift, sobald der Server ihn erlaubt (MOSAICAST_MAX_UPLOAD_SIZE).",
   "admin.plugins.storage.belowUsage": "Unter dem bereits belegten Speicher. Es wird nichts gelöscht, aber neue Uploads schlagen fehl, bis Dateien entfernt werden.",
   "admin.plugins.storage.clear": "Überschreibung entfernen",
   "admin.plugins.purge": "Daten löschen",

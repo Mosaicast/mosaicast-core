@@ -19,8 +19,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.unit.DataSize;
 
 /**
  * Plugin-scoped file storage over the host's {@link BlobStore} (ARCHITECTURE §11, issue #81).
@@ -48,15 +51,44 @@ public class PluginBlobService {
     /** Page size ceiling for a listing, matching the doc and schema surfaces. */
     static final int MAX_PAGE_SIZE = 200;
 
+    /**
+     * The first key of the advisory lock that serialises a namespace's quota check with its write — an
+     * arbitrary constant ("mcbl"), so these locks cannot collide with another subsystem's on the same
+     * database. The second key is the namespace's hash.
+     */
+    private static final int QUOTA_LOCK_CLASS = 0x6D63_626C;
+
     private final BlobStore blobs;
     private final PluginBlobProperties properties;
     private final PluginBlobGrantRepository grants;
+    private final JdbcTemplate jdbc;
+    private final long uploadCeiling;
 
     public PluginBlobService(BlobStore blobs, PluginBlobProperties properties,
-                             PluginBlobGrantRepository grants) {
+                             PluginBlobGrantRepository grants, JdbcTemplate jdbc,
+                             @Value("${spring.servlet.multipart.max-file-size:-1}") DataSize maxFileSize,
+                             @Value("${spring.servlet.multipart.max-request-size:-1}") DataSize maxRequestSize) {
         this.blobs = blobs;
         this.properties = properties;
         this.grants = grants;
+        this.jdbc = jdbc;
+        this.uploadCeiling = uploadCeiling(maxFileSize, maxRequestSize);
+    }
+
+    /**
+     * The largest file the servlet container will hand to this service at all, or {@link Long#MAX_VALUE}.
+     *
+     * <p>Both multipart limits bind: the file-size one directly, and the request-size one because a file is
+     * one part of the request. Spring spells "no limit" as a negative size.
+     */
+    static long uploadCeiling(DataSize maxFileSize, DataSize maxRequestSize) {
+        long ceiling = Long.MAX_VALUE;
+        for (DataSize limit : new DataSize[] {maxFileSize, maxRequestSize}) {
+            if (limit != null && !limit.isNegative()) {
+                ceiling = Math.min(ceiling, limit.toBytes());
+            }
+        }
+        return ceiling;
     }
 
     /**
@@ -115,6 +147,12 @@ public class PluginBlobService {
         }
         String namespace = namespaceOf(manifest.id());
         long quota = effectiveQuotaBytes(manifest);
+        // Held until this transaction ends, so the check below and the write after it are one step per
+        // namespace. Without it two uploads read the same `used`, both pass and both write — over quota by
+        // up to (concurrent uploads × per-file limit) (core#183). An advisory lock rather than a row lock
+        // because the filesystem backend has no row to lock, and the database rather than a JVM lock because
+        // two instances share one quota.
+        jdbc.query("select pg_advisory_xact_lock(?, hashtext(?))", rs -> null, QUOTA_LOCK_CLASS, namespace);
         long used = blobs.usedBytes(namespace);
         if (used + bytes.length > quota) {
             throw new BlobQuotaExceededException(
@@ -176,12 +214,6 @@ public class PluginBlobService {
     }
 
     /**
-     * How many files a plugin has, for the paged envelope.
-     *
-     * @param pluginId the plugin's id
-     * @return the count
-     */
-    /**
      * What a plugin's files occupy in total — the number an admin is looking at when they decide whether to
      * raise its ceiling.
      *
@@ -193,6 +225,12 @@ public class PluginBlobService {
         return blobs.usedBytes(namespaceOf(pluginId));
     }
 
+    /**
+     * How many files a plugin has, for the paged envelope.
+     *
+     * @param pluginId the plugin's id
+     * @return the count
+     */
     @Transactional(readOnly = true)
     public long count(String pluginId) {
         return blobs.count(namespaceOf(pluginId));
@@ -259,12 +297,42 @@ public class PluginBlobService {
 
     /**
      * The per-file limit actually in force: an admin's grant, else the manifest's ask, else the operator's
-     * default — clamped by the operator's hard ceiling if one is configured.
+     * default — clamped by the operator's hard ceiling if one is configured, and by what the servlet
+     * container accepts.
+     *
+     * <p>The container's limit has to be part of the number, not a footnote to it. It refuses a larger upload
+     * before any code here runs, with an error that names neither limit — so an admin who granted 50 MB on a
+     * 12 MB container was told 50 MB was in force, and every upload above 12 MB failed unexplained (core#183).
      *
      * @param manifest the plugin's manifest
      * @return the effective limit in bytes
      */
     public long effectiveMaxFileBytes(PluginManifest manifest) {
+        return Math.min(requestedMaxFileBytes(manifest), uploadCeiling);
+    }
+
+    /**
+     * Whether the servlet container's upload limit, rather than anything an admin or the plugin set, is what
+     * decides how large one file may be — the thing the admin form has to say, or its number is unexplained.
+     *
+     * @param manifest the plugin's manifest
+     * @return true when the container's limit is the binding one
+     */
+    public boolean maxFileBoundByServer(PluginManifest manifest) {
+        return requestedMaxFileBytes(manifest) > uploadCeiling;
+    }
+
+    /**
+     * The largest file the servlet container accepts, or null when it sets no limit.
+     *
+     * @return the container's ceiling in bytes, or null
+     */
+    public Long uploadCeilingBytes() {
+        return uploadCeiling == Long.MAX_VALUE ? null : uploadCeiling;
+    }
+
+    /** The per-file limit before the container's ceiling: grant, else manifest, else default; hard-clamped. */
+    private long requestedMaxFileBytes(PluginManifest manifest) {
         Long granted = grants.findById(manifest.id()).map(PluginBlobGrant::getMaxFileBytes).orElse(null);
         Long asked = manifest.blobs() == null ? null : manifest.blobs().maxFileBytes();
         long resolved = granted != null ? granted : (asked != null ? asked : properties.defaultMaxFileBytes());
@@ -302,6 +370,11 @@ public class PluginBlobService {
      * fallback, and clearing both removes the row rather than leaving an empty decision behind. Values are
      * clamped to the operator's hard ceilings on the way in, so what is stored is what is in force — an
      * admin never sees a number that silently means something else.
+     *
+     * <p>The servlet container's upload limit is the one ceiling <em>not</em> applied here: it is a property
+     * of the deployment, which can be raised without anyone revisiting this grant, and a grant stored
+     * clamped to it would then stay small for no reason anyone could see. It is applied when the limit is
+     * read instead, and reported as the binding one ({@link #maxFileBoundByServer}).
      *
      * <p>A grant <em>below</em> current usage is allowed. It is how an admin says "shrink": nothing is
      * deleted, and no further upload succeeds until the plugin's own people remove enough. Refusing it would
