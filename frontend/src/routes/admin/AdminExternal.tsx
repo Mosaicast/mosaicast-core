@@ -12,6 +12,7 @@ import {
   toJsonValue,
   type DraftValue,
 } from '../../components/SettingsFieldInput';
+import { SavedNote } from '../../a11y/SavedNote';
 
 /**
  * External services admin (ARCHITECTURE §12.7, ADMIN only): one section per service *kind*, where the admin
@@ -202,7 +203,7 @@ export function AdminExternal() {
                   >
                     {t('admin.external.test')}
                   </button>
-                  {saved === section.kind && <span className="mc-muted">{t('admin.external.saved')}</span>}
+                  <SavedNote show={saved === section.kind}>{t('admin.external.saved')}</SavedNote>
                   {result && (
                     <span className={`mc-chip ${result.ok ? 'mc-chip--ok' : 'mc-chip--error'}`}>
                       {result.ok

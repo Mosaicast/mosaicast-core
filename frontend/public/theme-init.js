@@ -43,4 +43,17 @@
   } catch {
     /* theming is non-critical; the CSS defaults keep the shell readable */
   }
+  // The visitor's own language choice, before first paint (core#171). The server can only write what it
+  // knows — `?lang=` or the site default — while the choice lives on the device. A `?lang=` in the URL wins,
+  // exactly as it does in i18n.ts, so the two never disagree; i18n.ts keeps it current after that.
+  try {
+    if (!new URLSearchParams(location.search).get('lang')) {
+      var chosen = localStorage.getItem('mc.locale');
+      if (chosen && /^[a-z]{2,3}$/.test(chosen)) {
+        document.documentElement.setAttribute('lang', chosen);
+      }
+    }
+  } catch {
+    /* no stored choice readable: the server's value stands */
+  }
 })();

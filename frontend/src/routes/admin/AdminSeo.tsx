@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
 import type { AiCrawlerPolicy, SeoView } from '../../api/types';
+import { SavedNote } from '../../a11y/SavedNote';
 
 /**
  * SEO & crawlers admin (ARCHITECTURE §6.6, ADMIN only): the AI-crawler policy served in `robots.txt`.
@@ -104,7 +105,7 @@ export function AdminSeo() {
         <button type="button" className="mc-btn mc-btn--accent" onClick={save}>
           {t('admin.seo.save')}
         </button>
-        {saved && <span className="mc-muted">{t('admin.seo.saved')}</span>}
+        <SavedNote show={saved}>{t('admin.seo.saved')}</SavedNote>
         <a className="mc-btn" href="/robots.txt" target="_blank" rel="noreferrer">
           {t('admin.seo.preview')}
         </a>

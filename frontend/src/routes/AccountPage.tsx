@@ -11,6 +11,8 @@ import { useUser } from '../auth/UserContext';
 import { Avatar } from '../components/Avatar';
 import { ProgressPreference } from '../consent/ProgressPreference';
 import { formatDate } from '../util/format';
+import { useDocumentTitle } from '../a11y/documentTitle';
+import { SavedNote } from '../a11y/SavedNote';
 
 /**
  * The current user's account (ARCHITECTURE §8.4/§8.5): profile, linked identities (connect / unlink with
@@ -19,6 +21,7 @@ import { formatDate } from '../util/format';
  */
 export function AccountPage() {
   const { t, i18n } = useTranslation();
+  useDocumentTitle(t('account.title'));
   const { user, refresh } = useUser();
 
   const [identities, setIdentities] = useState<Identity[]>([]);
@@ -206,7 +209,7 @@ export function AccountPage() {
         {t('account.name.help')}
       </p>
       {nameError && <p className="mc-error">{nameError}</p>}
-      {nameSaved && <p className="mc-muted">{t('account.name.saved')}</p>}
+      <SavedNote show={nameSaved} as="p">{t('account.name.saved')}</SavedNote>
 
       {/*
         Duplicated deliberately from the privacy settings: this is where a signed-in listener looks for it,

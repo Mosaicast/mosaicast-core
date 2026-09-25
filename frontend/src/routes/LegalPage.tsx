@@ -8,6 +8,7 @@ import { ApiError } from '../api/client';
 import type { RenderedPage } from '../api/types';
 import { CookieSettings } from '../consent/CookieSettings';
 import { useResource } from '../hooks/useResource';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /**
  * A public legal page (`GET /api/legal/{slug}`), e.g. `/legal/privacy` or `/legal/imprint`. The server
@@ -21,6 +22,8 @@ export function LegalPage() {
   const { data: page, error } = useResource<RenderedPage>(
     `/api/legal/${encodeURIComponent(slug ?? '')}?locale=${encodeURIComponent(locale)}`,
   );
+  const missing = error instanceof ApiError && error.status === 404;
+  useDocumentTitle(missing ? t('legal.notFound') : page?.title);
 
   if (error instanceof ApiError && error.status === 404) {
     return (

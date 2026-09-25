@@ -35,6 +35,9 @@ export function CookieSettings({
   /** `h1` when this component *is* the page (`/cookies`), so the page has exactly one top-level heading. */
   titleAs?: 'h1' | 'h2';
 }) {
+  // One level below the title, whatever level that is: on /cookies the title is the page's h1, and the
+  // sections jumped straight from h1 to h3 (#200).
+  const Sub = Title === 'h1' ? 'h2' : 'h3';
   const { t, i18n } = useTranslation();
   const consent = useConsent();
   const { categories, essential, necessaryServices, privacySlug, record, gpc, decide, has } = consent;
@@ -83,7 +86,7 @@ export function CookieSettings({
       )}
 
       <section className="mc-consent__essential">
-        <h3 className="mc-consent__subtitle">{t('consent.essential.title')}</h3>
+        <Sub className="mc-consent__subtitle">{t('consent.essential.title')}</Sub>
         <p className="mc-muted">{t('consent.essential.intro')}</p>
         <StorageTable
           rows={essential.storage.map((item) => ({
@@ -108,7 +111,7 @@ export function CookieSettings({
       <ProgressPreference />
 
       <section className="mc-consent__receipt">
-        <h3 className="mc-consent__subtitle">{t('consent.receipt.title')}</h3>
+        <Sub className="mc-consent__subtitle">{t('consent.receipt.title')}</Sub>
         {record ? (
           <>
             <p className="mc-muted">

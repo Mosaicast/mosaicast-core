@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import type { AdminBlobs } from '../../plugins/types';
+import { SavedNote } from '../../a11y/SavedNote';
 
 /** One MiB, the unit the form works in — bytes are the wire's business, not an admin's. */
 const MIB = 1024 * 1024;
@@ -139,7 +140,7 @@ export function PluginStorage({
             {t('admin.plugins.storage.clear')}
           </button>
         )}
-        {saved && <span className="mc-muted">{t('admin.plugins.saved')}</span>}
+        <SavedNote show={saved}>{t('admin.plugins.saved')}</SavedNote>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import { api } from '../../api/client';
 import type { AdminNavItem } from '../../plugins/types';
+import { SavedNote } from '../../a11y/SavedNote';
 
 /**
  * Admin → Navigation: which plugin entries appear in the site menu, and in what order (ARCHITECTURE §7.3).
@@ -191,7 +192,7 @@ export function AdminNavigation() {
             <button type="button" className="mc-btn mc-btn--accent" onClick={() => void save()}>
               {t('common.save')}
             </button>
-            {saved && <span className="mc-muted">{t('admin.plugins.saved')}</span>}
+            <SavedNote show={saved}>{t('admin.plugins.saved')}</SavedNote>
             {error != null && <span className="mc-error">{error}</span>}
           </div>
 

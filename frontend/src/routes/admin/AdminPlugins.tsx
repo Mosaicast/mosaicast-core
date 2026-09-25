@@ -10,6 +10,7 @@ import { SettingsFieldInput, toJsonValue, type DraftValue } from '../../componen
 import { useUser } from '../../auth/UserContext';
 import { localizedText, optionLabel, type AdminPlugin } from '../../plugins/types';
 import { PluginStorage } from './PluginStorage';
+import { SavedNote } from '../../a11y/SavedNote';
 
 /**
  * The admin plugin surface (ARCHITECTURE §7.2/§7.8): every discovered plugin with its load state, an
@@ -267,7 +268,7 @@ export function AdminPlugins() {
                     >
                       {t('common.save')}
                     </button>
-                    {saved === plugin.id && <span className="mc-muted">{t('admin.plugins.saved')}</span>}
+                    <SavedNote show={saved === plugin.id}>{t('admin.plugins.saved')}</SavedNote>
                   </div>
                 </div>
               )}

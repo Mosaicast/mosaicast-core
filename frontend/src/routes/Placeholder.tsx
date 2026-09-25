@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import type { EpisodeSummary } from '../api/types';
 import { RelatedEpisodes } from '../components/RelatedEpisodes';
 import { useResource } from '../hooks/useResource';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /**
  * Real HTTP-style 404 landmark for unknown routes (ARCHITECTURE §6.6 hygiene).
@@ -22,6 +23,7 @@ import { useResource } from '../hooks/useResource';
  */
 export function NotFound() {
   const { t } = useTranslation();
+  useDocumentTitle(t('notFound.title'));
   const navigate = useNavigate();
   const [draft, setDraft] = useState('');
   const { data: recent, error } = useResource<{ items: EpisodeSummary[] }>(

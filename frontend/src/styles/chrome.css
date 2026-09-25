@@ -542,3 +542,21 @@
   border-radius: var(--mc-radius-md);
   margin-top: var(--mc-space-3);
 }
+
+/* The skip link (WCAG 2.4.1): off-screen until it has focus, then the first thing on the page. */
+.mc-skip {
+  position: absolute;
+  top: var(--mc-space-2);
+  left: var(--mc-space-3);
+  z-index: 100;
+  padding: var(--mc-space-2) var(--mc-space-4);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-accent);
+  color: var(--mc-accent-contrast);
+  font-weight: var(--mc-weight-medium);
+  text-decoration: none;
+  transform: translateY(calc(-100% - var(--mc-space-4)));
+}
+.mc-skip:focus {
+  transform: none;
+}

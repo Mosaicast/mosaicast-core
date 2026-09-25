@@ -9,6 +9,7 @@ import type { RenderedPage } from '../api/types';
 import { ATTRIBUTIONS } from '../generated/attributions';
 import { useResource } from '../hooks/useResource';
 import { usePluginRegistry } from '../plugins/PluginRegistry';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /**
  * `/about` — what this is, who runs it, what it is running, and what it is built on.
@@ -34,6 +35,7 @@ import { usePluginRegistry } from '../plugins/PluginRegistry';
  */
 export function AboutPage() {
   const { t, i18n } = useTranslation();
+  useDocumentTitle(t('about.heading'));
   const locale = i18n.language.slice(0, 2);
   const meta = useMeta();
   const { plugins } = usePluginRegistry();

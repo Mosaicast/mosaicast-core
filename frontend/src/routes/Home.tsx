@@ -3,6 +3,7 @@
 
 import { Navigate } from 'react-router-dom';
 
+import { useDocumentTitle } from '../a11y/documentTitle';
 import { EpisodeFeed } from '../components/EpisodeFeed';
 import { useFeeds } from '../components/FeedsContext';
 
@@ -13,6 +14,7 @@ import { useFeeds } from '../components/FeedsContext';
  */
 export function Home() {
   const { feeds, loaded } = useFeeds();
+  useDocumentTitle(null);
 
   if (loaded && feeds.length === 1) {
     return <Navigate to={`/feeds/${feeds[0].slug}`} replace />;

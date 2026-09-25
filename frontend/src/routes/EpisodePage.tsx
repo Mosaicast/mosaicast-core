@@ -21,6 +21,7 @@ import { sanitizeFeedHtml } from '../util/sanitize';
 import { useRoutedLinks } from '../util/useRoutedLinks';
 import { parseTimestamp } from '../util/timestamp';
 import { NotFound } from './Placeholder';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /** Whether this episode has audio a visitor may actually play (upcoming/locked ones do not). */
 function isPlayable(episode: EpisodeDetail): boolean {
@@ -76,6 +77,9 @@ export function EpisodePage() {
   // the seek is applied on `loadedmetadata` regardless, so the first press of play still lands on the spot.
   // Internal links in the notes stay in the shell; external ones open a new tab (core#169).
   const notesRef = useRoutedLinks<HTMLDivElement>();
+  useDocumentTitle(
+    error instanceof ApiError && error.status === 404 ? t('notFound.title') : error ? t('error.title') : episode?.title,
+  );
 
   const armedRef = useRef<string | null>(null);
   useEffect(() => {

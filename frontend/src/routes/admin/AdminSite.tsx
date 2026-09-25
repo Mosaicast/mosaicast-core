@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import type { ModePolicy, SiteView } from '../../api/types';
 import { useSite } from '../../theme/SiteContext';
+import { SavedNote } from '../../a11y/SavedNote';
 
 const BRANDING_KEYS = ['logo', 'favicon', 'dark-logo'] as const;
 
@@ -91,7 +92,7 @@ export function AdminSite() {
         <button type="button" className="mc-btn mc-btn--accent" onClick={save}>
           {t('admin.site.save')}
         </button>
-        {saved && <span className="mc-muted">{t('admin.site.saved')}</span>}
+        <SavedNote show={saved}>{t('admin.site.saved')}</SavedNote>
       </div>
 
       <h2>{t('admin.site.branding')}</h2>

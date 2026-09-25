@@ -9,6 +9,7 @@ import { api } from '../api/client';
 import type { EpisodeSummary } from '../api/types';
 import { EpisodeCard } from '../components/EpisodeCard';
 import { Icon } from '../components/Icon';
+import { useDocumentTitle } from '../a11y/documentTitle';
 
 /** One plugin's section of the answer, as `/api/search` returns it. */
 interface PluginSection {
@@ -41,6 +42,7 @@ export function SearchPage() {
   const { t } = useTranslation();
   const [params, setParams] = useSearchParams();
   const query = params.get('q') ?? '';
+  useDocumentTitle(query.trim() ? t('search.titleFor', { query: query.trim() }) : t('search.title'));
 
   // Kept apart from the URL so typing does not push a history entry per keystroke; the URL is written on
   // submit, and the URL is what the request follows.

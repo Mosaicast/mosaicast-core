@@ -16,7 +16,14 @@ import en from './locales/en.json';
  * The two catalogs below stay compiled in so the languages that ship with the release render before any
  * network round trip; everything else is fetched on demand by {@link ensureCatalog}.
  */
-const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('mc.locale') : null;
+const stored = (() => {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem('mc.locale') : null;
+  } catch {
+    // Storage blocked: no remembered choice, which is what the fallbacks below are for.
+    return null;
+  }
+})();
 const browser = typeof navigator !== 'undefined' ? navigator.language.split('-')[0] : 'en';
 
 /**
@@ -42,6 +49,29 @@ void i18n.use(initReactI18next).init({
   fallbackLng: 'en',
   interpolation: { escapeValue: false },
 });
+
+/**
+ * Keeps `<html lang>` on the language the shell is actually rendering (core#171, WCAG 3.1.1).
+ *
+ * Nothing wrote it: the attribute stayed whatever the server's shell said while the interface switched to
+ * German, so a screen reader read the whole German interface with an English voice — and German is a launch
+ * market, so that was the primary audience. `resolvedLanguage`, not `language`: a visitor whose browser asks
+ * for a language this instance has no catalog for is reading English, and should be told so.
+ *
+ * `public/theme-init.js` does the same from the stored choice before first paint, and the server writes the
+ * `?lang=` / site-default resolution into the shell; this is the one that follows every later change.
+ */
+function applyDocumentLanguage() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const code = (i18n.resolvedLanguage ?? i18n.language ?? 'en').split('-')[0];
+  if (code) {
+    document.documentElement.lang = code;
+  }
+}
+i18n.on('languageChanged', applyDocumentLanguage);
+applyDocumentLanguage();
 
 /** One language as the host describes it. */
 export interface LocaleInfo {
