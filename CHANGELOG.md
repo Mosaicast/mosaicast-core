@@ -225,6 +225,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A legal page can no longer be created unreachable, and one that exists no longer 404s (`0.7.4`,
+  core#164).**
+  - Slugs now follow the site's slug grammar: lowercase letters, digits and single hyphens, up to 64
+    characters. A slug such as `qa test/2` used to be accepted. The page it produced could not be reached by
+    any link, its translation saves went nowhere, and deleting it answered "No static resource". The only
+    way to remove it was in the database. Such slugs are now refused with a message in the admin's
+    language. Migration `V37` rewrites any existing bad slug to the grammar plus a short id suffix.
+  - A page written only in a language other than the site default answered 404 on a hard load. The SPA
+    rendered the same page for a reader in that language. A page now falls back to the site default and then
+    to any language it has, so a page that exists is always served. `hreflang` still names only the
+    languages the page is actually written in.
+  - Titles (200 characters), markdown (200,000 characters), the site name (100 characters) and the
+    AI-crawler block list (200 names) now have upper bounds.
+  - A failed save is reported inside the page editor, next to the button. It used to appear at the top of
+    the list, where it could be scrolled out of view. A blank title can no longer be submitted. A failed
+    site-settings save now shows its reason instead of doing nothing.
+
 - **Tests where the audit found none (`0.7.4`, core#191).** The horizontal axis — may one signed-in person
   reach another's notifications, listening positions or access tokens — now has an end-to-end test, and a
   deliberately loosened ownership check fails it. Also newly covered: a podcaster changing roles, an empty
@@ -236,6 +253,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   And while the end of the list was on screen, the failing page was re-requested about sixty times a second
   — the scroll observer was rebuilt on every settle and fired again at once. After a failure only the button
   retries now.
+
 
 - **Code that said one thing and did another (`0.7.4`, core#201).** A hygiene pass that turned up several
   real defects under comments asserting invariants the code did not have.

@@ -4,6 +4,7 @@
 package dev.mosaicast.core.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import dev.mosaicast.core.branding.AiCrawlerPolicy;
 import dev.mosaicast.core.branding.SiteConfigService;
@@ -52,6 +53,25 @@ class RobotsIntegrationTest {
     @AfterEach
     void resetPolicy() {
         site.updateCrawlerPolicy(AiCrawlerPolicy.ALLOW, List.of());
+    }
+
+    @Test
+    void theBlockListAndTheSiteNameHaveUpperBounds() {
+        // Both are admin write boundaries that had no limit at all (core#164); the list is written into
+        // robots.txt and the name into every page title.
+        List<String> tooMany = java.util.stream.IntStream.rangeClosed(1, 201).mapToObj(i -> "Bot" + i).toList();
+        assertThatThrownBy(() -> site.updateCrawlerPolicy(AiCrawlerPolicy.CUSTOM, tooMany))
+                .isInstanceOf(CodedBadRequest.class).hasMessageContaining("200");
+        assertThatThrownBy(() -> site.updateCrawlerPolicy(AiCrawlerPolicy.CUSTOM, List.of("B".repeat(101))))
+                .isInstanceOf(CodedBadRequest.class);
+        // Refused as a whole: the policy did not change half-way.
+        assertThat(robots()).doesNotContain("Bot1");
+
+        String name = site.get().getSiteName();
+        assertThatThrownBy(() -> site.update("N".repeat(101), null, null, null))
+                .isInstanceOf(CodedBadRequest.class)
+                .satisfies(e -> assertThat(((CodedBadRequest) e).code()).isEqualTo("site.name.tooLong"));
+        assertThat(site.get().getSiteName()).isEqualTo(name);
     }
 
     @Test

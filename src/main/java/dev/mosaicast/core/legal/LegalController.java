@@ -8,6 +8,7 @@ import dev.mosaicast.core.legal.LegalViews.FooterEntry;
 import dev.mosaicast.core.legal.LegalViews.RenderedPage;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -57,8 +58,13 @@ public class LegalController {
     public record PageRequest(@NotBlank String slug, String roleMarker, int sortOrder) {
     }
 
-    /** Create/update a page's body for a locale. */
-    public record TranslationRequest(@NotBlank String title, String markdown) {
+    /**
+     * Create/update a page's body for a locale.
+     *
+     * <p>Bounded (core#164): the markdown is rendered on every read of a public page and the title lands in
+     * the footer, the document title and the sitemap. The caps are far past any real imprint or policy.
+     */
+    public record TranslationRequest(@NotBlank @Size(max = 200) String title, @Size(max = 200_000) String markdown) {
     }
 
     // ---- public ----

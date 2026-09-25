@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.branding;
 
+import dev.mosaicast.core.web.CodedBadRequest;
 import dev.mosaicast.core.web.NotFoundException;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,15 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class SiteConfigService {
+
+    /**
+     * Upper bounds on the admin write boundaries that had none (core#164). The name is in every page title
+     * and the web manifest; the block list is written into {@code robots.txt}. Both caps are well past any
+     * real value and exist so that a pasted megabyte is refused rather than served on every request.
+     */
+    static final int SITE_NAME_MAX = 100;
+    static final int CRAWLERS_MAX = 200;
+    static final int CRAWLER_NAME_MAX = 100;
 
     private static final Logger log = LoggerFactory.getLogger(SiteConfigService.class);
 
@@ -52,6 +62,10 @@ public class SiteConfigService {
         // Record what actually changed, old → new: "someone edited the site config" is not much use six
         // weeks later when the question is which setting started the problem.
         List<String> changes = new ArrayList<>();
+        if (siteName != null && siteName.trim().length() > SITE_NAME_MAX) {
+            throw new CodedBadRequest("site.name.tooLong",
+                    "The site name can be at most " + SITE_NAME_MAX + " characters.");
+        }
         if (siteName != null && !siteName.isBlank() && !siteName.trim().equals(config.getSiteName())) {
             changes.add("name '%s' → '%s'".formatted(config.getSiteName(), siteName.trim()));
             config.setSiteName(siteName.trim());
@@ -110,6 +124,12 @@ public class SiteConfigService {
                     .map(String::trim)
                     .distinct()
                     .toList();
+            if (cleaned.size() > CRAWLERS_MAX
+                    || cleaned.stream().anyMatch(agent -> agent.length() > CRAWLER_NAME_MAX)) {
+                throw new CodedBadRequest("site.crawlers.tooMany",
+                        "The block list takes at most " + CRAWLERS_MAX + " crawler names of up to "
+                                + CRAWLER_NAME_MAX + " characters each.");
+            }
             if (!cleaned.equals(config.getAiCrawlerBlocked())) {
                 changes.add("AI crawler block list %s → %s".formatted(config.getAiCrawlerBlocked(), cleaned));
                 config.setAiCrawlerBlocked(cleaned);

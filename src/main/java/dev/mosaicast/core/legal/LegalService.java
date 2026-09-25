@@ -163,28 +163,60 @@ public class LegalService {
                 .collect(java.util.stream.Collectors.groupingBy(LegalPageTranslation::getPageId));
     }
 
-    /** {@link #resolveTranslation} over rows already in hand: the exact locale, else the site default. */
+    /**
+     * The translation to show: the exact locale, else the site default, else whichever the page has.
+     *
+     * <p>The last step is what keeps a page that exists from answering 404. A page written only in German on
+     * an English-default site was reachable in the SPA of a German visitor and nowhere else — a hard load
+     * resolves the default locale, found nothing, and served the not-found shell for a page that was right
+     * there in the admin list (core#164). A reader would rather have the imprint in another language than no
+     * imprint; {@link #translatedLocalesBySlug()} still tells crawlers only the truth.
+     */
     private static Optional<LegalPageTranslation> resolveIn(
             List<LegalPageTranslation> rows, String locale, String fallback) {
         Optional<LegalPageTranslation> exact = rows.stream()
                 .filter(row -> java.util.Objects.equals(row.getLocale(), locale)).findFirst();
-        return exact.isPresent() ? exact
-                : rows.stream().filter(row -> java.util.Objects.equals(row.getLocale(), fallback)).findFirst();
-    }
-
-    private Optional<LegalPageTranslation> resolveTranslation(LegalPage page, String locale) {
-        Optional<LegalPageTranslation> exact = translations.findByPageIdAndLocale(page.getId(), locale);
         if (exact.isPresent()) {
             return exact;
         }
-        // Fall back to the configured site default language (§12.7).
-        return translations.findByPageIdAndLocale(page.getId(), fallbackLocale());
+        Optional<LegalPageTranslation> siteDefault = rows.stream()
+                .filter(row -> java.util.Objects.equals(row.getLocale(), fallback)).findFirst();
+        return siteDefault.isPresent() ? siteDefault
+                : rows.stream().min(Comparator.comparing(LegalPageTranslation::getLocale));
+    }
+
+    private Optional<LegalPageTranslation> resolveTranslation(LegalPage page, String locale) {
+        return resolveIn(translations.findByPageId(page.getId()), locale, fallbackLocale());
     }
 
     // ---- admin CRUD ----
 
+    /**
+     * The grammar of a page address: lowercase letters and digits in hyphen-separated runs, like every other
+     * slug on the site.
+     *
+     * <p>The slug becomes {@code /legal/{slug}}, {@code /api/legal/{slug}} and a sitemap entry. It used to be
+     * only non-blank, so {@code qa test/2} was accepted and produced a page no link could reach, whose
+     * translation saves went nowhere and whose delete answered "No static resource" — removable only in the
+     * database (core#164).
+     */
+    static final java.util.regex.Pattern SLUG = java.util.regex.Pattern.compile("[a-z0-9]+(-[a-z0-9]+)*");
+
+    /** Longest accepted slug: an address, not a title. */
+    static final int SLUG_MAX = 64;
+
+    /** Refuses a slug outside {@link #SLUG} or longer than {@link #SLUG_MAX}, with a code the form can show. */
+    static void requireValidSlug(String slug) {
+        if (slug == null || slug.length() > SLUG_MAX || !SLUG.matcher(slug).matches()) {
+            throw new dev.mosaicast.core.web.CodedBadRequest("legal.slug.invalid",
+                    "A page address may use lowercase letters, digits and single hyphens, up to "
+                            + SLUG_MAX + " characters.");
+        }
+    }
+
     @Transactional
     public LegalPage createPage(String slug, String roleMarker, int sortOrder) {
+        requireValidSlug(slug);
         if (pages.existsBySlug(slug)) {
             throw new ConflictException("A legal page with slug '" + slug + "' already exists");
         }
