@@ -142,7 +142,8 @@ public class ConsentService {
      * storage cannot work that way — its text comes from a manifest written by a plugin author — which is why
      * the two lists have different shapes.
      */
-    public record EssentialView(List<CoreStorageInventory.Item> storage) {
+    public record EssentialView(List<CoreStorageInventory.Item> storage,
+                                List<CoreStorageInventory.AccountItem> account) {
     }
 
     /** The admin audit (§12.5): the same declarations, attributed, plus what the CSP therefore allows. */
@@ -202,7 +203,8 @@ public class ConsentService {
                 .toList();
 
         return new ConsentView(fingerprint(), categories,
-                new EssentialView(CoreStorageInventory.items()), List.copyOf(necessary), privacySlug());
+                new EssentialView(CoreStorageInventory.items(), CoreStorageInventory.accountItems()),
+                List.copyOf(necessary), privacySlug());
     }
 
     /** The admin-only view: everything above, plus who declared it and what the CSP therefore allows. */

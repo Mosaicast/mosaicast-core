@@ -225,6 +225,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **The privacy settings say what is kept in an account, and stop claiming a completeness they did not
+  have (`0.7.4`, core#176).** The playback-position switch said positions were "only kept on this device"
+  while a signed-in listener's position is also written to their account; it says so now, and that turning
+  it off deletes both. The generated inventory listed cookies and local storage only, yet the seeded privacy
+  page called it "the complete, current list of what is stored" — the email address a login provider
+  supplies, the display name and avatar, the account-side position, notifications and access tokens were
+  nowhere on it. The settings now list what core keeps in a signed-in account, with purpose and retention,
+  and a migration rewords the sentence to say what the lists cover (as V16 did, only where the operator
+  has not already edited it).
+
 - **A batch of small things that each made a page feel unfinished (`0.7.4`, #199).** A fan was shown the
   personal-access-token section with no way to use it; it appears only for roles that can create a token,
   or someone who still holds one to revoke. The one-time token secret and the share link have a copy

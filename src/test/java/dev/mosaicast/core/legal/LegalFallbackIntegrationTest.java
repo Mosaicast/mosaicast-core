@@ -64,4 +64,15 @@ class LegalFallbackIntegrationTest {
         // Excluded from the nav, still fully readable at its own URL — otherwise the page could not render.
         assertThat(legal.render("about-x", "en").title()).isEqualTo("About this instance");
     }
+
+    @Test
+    void theSeededPrivacyPageNoLongerClaimsACompletenessItsListsDoNotHave() {
+        // "The complete, current list of what is stored" pointed at a list of browser storage while a
+        // signed-in listener's email, name and playback position lived in the database (core#176).
+        String en = legal.render("privacy", "en").html();
+        String de = legal.render("privacy", "de").html();
+
+        assertThat(en).doesNotContain("The complete, current list").contains("what it keeps in your");
+        assertThat(de).doesNotContain("Die vollständige, aktuelle Liste").contains("in Ihrem");
+    }
 }

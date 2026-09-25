@@ -85,4 +85,37 @@ public final class CoreStorageInventory {
     public static List<Item> items() {
         return ITEMS;
     }
+
+    /**
+     * One kind of personal data core keeps <em>on the server</em> for a signed-in account (core#176).
+     *
+     * <p>The inventory above is the device; this is the other half. The privacy page called the generated
+     * list "the complete, current list of what is stored" while it enumerated only cookies and local storage
+     * — and a signed-in listener's playback position, the email address the login provider supplies, their
+     * name and avatar reference all live in the database. Same shape as {@link Item}: i18n keys, because only
+     * the shell knows the reader's language.
+     *
+     * @param nameKey      i18n key for what it is ("Email address")
+     * @param purposeKey   i18n key for why it is kept
+     * @param retentionKey i18n key for how long
+     */
+    public record AccountItem(String nameKey, String purposeKey, String retentionKey) {
+    }
+
+    private static final List<AccountItem> ACCOUNT = List.of(
+            new AccountItem("consent.account.email", "consent.account.emailPurpose",
+                    "consent.retention.untilAccountDeleted"),
+            new AccountItem("consent.account.profile", "consent.account.profilePurpose",
+                    "consent.retention.untilAccountDeleted"),
+            new AccountItem("consent.account.progress", "consent.account.progressPurpose",
+                    "consent.retention.untilSwitchedOff"),
+            new AccountItem("consent.account.notifications", "consent.account.notificationsPurpose",
+                    "consent.retention.notifications"),
+            new AccountItem("consent.account.tokens", "consent.account.tokensPurpose",
+                    "consent.retention.untilRevoked"));
+
+    /** What core keeps in a signed-in account, in the order the disclosure lists it. */
+    public static List<AccountItem> accountItems() {
+        return ACCOUNT;
+    }
 }

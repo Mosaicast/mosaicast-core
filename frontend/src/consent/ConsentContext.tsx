@@ -193,7 +193,10 @@ function normalize(payload: Partial<ConsentPayload> | null | undefined): Consent
     categories: Array.isArray(payload?.categories)
       ? payload.categories.filter((category) => typeof category?.id === 'string')
       : [],
-    essential: { storage: payload?.essential?.storage ?? [] },
+    essential: {
+      storage: payload?.essential?.storage ?? [],
+      account: Array.isArray(payload?.essential?.account) ? payload.essential.account : [],
+    },
     necessaryServices: Array.isArray(payload?.necessaryServices) ? payload.necessaryServices : [],
     privacySlug: typeof payload?.privacySlug === 'string' ? payload.privacySlug : null,
   };
