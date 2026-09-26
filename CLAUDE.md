@@ -56,10 +56,11 @@ Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
 - **`--mc-*` custom properties are a contract with plugins** (ARCHITECTURE §12.3): they inherit across the
   shadow boundary, so plugin Web Components read the same tokens, which is what makes plugin UIs re-theme
   automatically. Renaming or dropping one breaks every plugin. Add tokens freely; change existing names only
-  deliberately. Style with tokens, not literals — `styles/tokens.css` documents the full set, and the eight
-  colour tokens are the only ones also delivered as JS (`ctx.theme`), mirrored in `theme/applyTheme.ts` and
-  `public/theme-init.js` — which also set the CSS-only `--mc-accent-text`, the accent clamped for text and
-  focus rings (use it there; `--mc-accent` is for fills paired with `--mc-accent-contrast`). The same goes
+  deliberately. Style with tokens, not literals — `styles/tokens.css` documents the full set, and the colour
+  tokens are the only ones also delivered as JS (`ctx.theme`), mirrored in `theme/applyTheme.ts` and
+  `public/theme-init.js` — including `--mc-accent-text` (`accentText`, in `ctx.theme` since SDK 0.16.0), the
+  accent clamped for text and focus rings (use it there; `--mc-accent` is for fills paired with
+  `--mc-accent-contrast`). The same goes
   for the published `--mc-icon-*` subset: plugins consume them as `mask-image` + `background: currentColor`
   (never `background-image`, or the icon cannot take their colour), and a published icon name can be added
   but never renamed.
