@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest';
 
 import DOMPurify from 'dompurify';
 
+import { sanitizeLikeHost } from '@mosaicast/plugin-sdk/testing';
+
 import { EXTERNAL_LINK_REL, sanitizeFeedHtml } from './sanitize';
 
 /**
@@ -48,6 +50,52 @@ describe('Feed HTML sanitizer', () => {
 
     expect(html).not.toContain('style=');
     expect(html).not.toContain('position:fixed');
+  });
+
+  it('keeps no data-* or aria-* attribute, because the allow-list names neither (core#232)', () => {
+    // DOMPurify allows both by default, outside ALLOWED_ATTR. A plugin marking its own elements with data-*
+    // could not tell them from an author's: the wiki routes clicks on a[data-wiki].
+    const html = sanitizeFeedHtml(
+      '<p data-x="1" aria-label="y">text</p><a class="wiki-link" data-wiki="evil" href="/x">forged</a>',
+    );
+
+    expect(html).toBe('<p>text</p><a href="/x">forged</a>');
+  });
+
+  it('keeps the allowed attributes that are not URLs (core#232)', () => {
+    // Every attribute DOMPurify does not know to be URI-safe was held to the URI regexp, so "de" and "10"
+    // failed it and lang, dir, width, height, colspan and rowspan never survived.
+    const html = sanitizeFeedHtml(
+      '<p lang="de" dir="rtl">p</p><img src="https://cdn.example/a.png" alt="a" width="10" height="20">' +
+        '<table><tbody><tr><td colspan="2" rowspan="3">c</td></tr></tbody></table>',
+    );
+
+    expect(html).toContain('<p lang="de" dir="rtl">');
+    expect(html).toContain('width="10"');
+    expect(html).toContain('height="20"');
+    expect(html).toContain('colspan="2"');
+    expect(html).toContain('rowspan="3"');
+  });
+
+  it('still holds href and src to the URI allow-list', () => {
+    const html = sanitizeFeedHtml('<a href="data:text/html,x">a</a><img src="ftp://x/a.png" alt="b">');
+
+    expect(html).not.toContain('data:');
+    expect(html).not.toContain('ftp:');
+  });
+
+  it('agrees with the SDK test kit on what survives, so a plugin test means what it says in production', () => {
+    // The kit applies FEED_HTML_POLICY literally. Any library default that widens the host past the policy —
+    // the next ALLOW_* someone forgets — shows up here as a difference.
+    const samples = [
+      '<p data-x="1" aria-label="y" class="c" id="i" lang="de" dir="rtl" title="t">p</p>',
+      '<a href="https://example.com/" data-wiki="w" aria-hidden="true" target="_top" rel="me">out</a>',
+      '<img src="https://cdn.example/a.png" alt="a" width="10" height="10" data-src="x" loading="lazy">',
+      '<table><tbody><tr><td colspan="2" rowspan="1" aria-sort="none" data-k="v">c</td></tr></tbody></table>',
+    ];
+    for (const sample of samples) {
+      expect(sanitizeFeedHtml(sample), sample).toBe(sanitizeLikeHost(sample));
+    }
   });
 
   it('still blocks script execution, as the defaults did', () => {

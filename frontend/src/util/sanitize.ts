@@ -36,6 +36,17 @@ import { FEED_HTML_POLICY } from '@mosaicast/plugin-sdk';
  * apply the same decision and cannot drift. `FORBID_*` is belt and braces: those names are already absent
  * from the allow-lists, but naming them means a future edit that widens one cannot quietly re-open the hole.
  */
+/**
+ * The allowed attributes whose values are not URLs.
+ *
+ * DOMPurify checks every attribute it does not already know to be URI-safe against `ALLOWED_URI_REGEXP`,
+ * not only `href` and `src`. With the policy's regexp — a scheme, `#` or `/` — that silently removed `lang`,
+ * `dir`, `width`, `height`, `colspan` and `rowspan` from all feed HTML, since `"de"` and `"10"` are not URLs,
+ * although the allow-list names every one of them and the SDK test kit keeps them (core#232). Declaring the
+ * non-URL half URI-safe is what makes the allow-list mean what it says; `href` and `src` stay checked.
+ */
+const NON_URI_ATTRS = FEED_HTML_POLICY.allowedAttrs.filter((name) => name !== 'href' && name !== 'src');
+
 const FEED_HTML: Config = {
   ALLOWED_TAGS: [...FEED_HTML_POLICY.allowedTags],
   ALLOWED_ATTR: [...FEED_HTML_POLICY.allowedAttrs],
@@ -43,6 +54,14 @@ const FEED_HTML: Config = {
   FORBID_ATTR: [...FEED_HTML_POLICY.forbidAttrs],
   // `javascript:` and `data:` in an href; DOMPurify's URI check handles the rest.
   ALLOWED_URI_REGEXP: FEED_HTML_POLICY.allowedUriRegexp,
+  ADD_URI_SAFE_ATTR: NON_URI_ATTRS,
+  // DOMPurify keeps every `data-*` and `aria-*` attribute by default, independently of `ALLOWED_ATTR`, so the
+  // allow-list above was not the whole list. `allowedAttrs` is documented as every attribute that survives,
+  // and the SDK test kit applies it that way; production kept `data-wiki` on an author's link, which a plugin
+  // delegating clicks on `a[data-wiki]` cannot tell from its own markup (core#232). Off, so the list is the
+  // policy. Should feed HTML ever need `aria-*`, it goes into `FEED_HTML_POLICY`, where the kit sees it too.
+  ALLOW_DATA_ATTR: false,
+  ALLOW_ARIA_ATTR: false,
 };
 
 /**
