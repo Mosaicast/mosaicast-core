@@ -253,6 +253,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **`ctx.sanitize` and show notes keep exactly what `FEED_HTML_POLICY` allows (`0.7.5`, core#232).** Two
+  DOMPurify behaviours sat outside the allow-list, in opposite directions:
+  - Every `data-*` and `aria-*` attribute survived, because DOMPurify allows both by default whatever
+    `ALLOWED_ATTR` says. A wiki author could put `data-wiki="evil"` on a link, and the wiki plugin could
+    not tell it from a link it had made itself.
+  - `lang`, `dir`, `width`, `height`, `colspan` and `rowspan` never survived, although the policy allows
+    all six. DOMPurify held them to the URL allow-list, which `"de"` and `"10"` fail.
+
+  The host now applies the policy literally, as the SDK test kit already did. A new test checks that the
+  host and the kit agree on sample markup, so a plugin test that passes in the kit means the same in
+  production.
+
 - **A legal page can no longer be created unreachable, and one that exists no longer 404s (`0.7.4`,
   core#164).**
   - Slugs now follow the site's slug grammar: lowercase letters, digits and single hyphens, up to 64
