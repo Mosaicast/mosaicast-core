@@ -565,7 +565,15 @@ public record PluginManifest(
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record ConfigField(String type, @JsonProperty("default") JsonNode defaultValue, String editableBy,
-                              List<ConfigOption> options, JsonNode label, JsonNode description) {
+                              List<ConfigOption> options, JsonNode label, JsonNode description,
+                              java.math.BigDecimal min, java.math.BigDecimal max, java.math.BigDecimal step,
+                              Integer minLength, Integer maxLength) {
+
+        /** The pre-0.16 shape, with no bounds. */
+        public ConfigField(String type, JsonNode defaultValue, String editableBy, List<ConfigOption> options,
+                           JsonNode label, JsonNode description) {
+            this(type, defaultValue, editableBy, options, label, description, null, null, null, null, null);
+        }
 
         /** The role a field defaults to when the manifest names none: the most restrictive one. */
         public String editableByOrDefault() {
@@ -592,19 +600,65 @@ public record PluginManifest(
          * had worked while the setting did nothing.
          */
         public boolean accepts(JsonNode value) {
+            return rejection(value) == null;
+        }
+
+        /**
+         * Why {@code value} is not a legal setting, as the end of a sentence that starts with the field's
+         * name — or {@code null} when it is. JSON null always passes.
+         *
+         * <p>Declared bounds (SDK 0.16.0) are part of legality: before them any number an operator could
+         * type was legal, including the {@code 0} that switched a scheduled task off, and the form said
+         * "Saved." The message names the bound rather than a generic "invalid", because the operator's next
+         * move is to type a different number and they need to know which.
+         *
+         * @param value a submitted or stored value
+         * @return e.g. {@code "must be at least 10"}, or {@code null} when the value is acceptable
+         */
+        public String rejection(JsonNode value) {
             if (value == null || value.isNull()) {
-                return true;
+                return null;
             }
-            boolean typeOk = switch (type == null ? "" : type.toLowerCase(Locale.ROOT)) {
+            String kind = type == null ? "" : type.toLowerCase(Locale.ROOT);
+            boolean typeOk = switch (kind) {
                 case CONFIG_TYPE_STRING -> value.isString();
                 case CONFIG_TYPE_NUMBER -> value.isNumber();
                 case CONFIG_TYPE_BOOLEAN -> value.isBoolean();
                 default -> false;
             };
-            if (!typeOk || !isEnum()) {
-                return typeOk;
+            if (!typeOk) {
+                return "expects a " + type;
             }
-            return optionsOrEmpty().stream().anyMatch(o -> o.matches(value));
+            if (isEnum()) {
+                return optionsOrEmpty().stream().anyMatch(o -> o.matches(value))
+                        ? null : "expects one of its declared options";
+            }
+            if (CONFIG_TYPE_NUMBER.equals(kind)) {
+                java.math.BigDecimal number = value.decimalValue();
+                if (min != null && number.compareTo(min) < 0) {
+                    return "must be at least " + min.toPlainString();
+                }
+                if (max != null && number.compareTo(max) > 0) {
+                    return "must be at most " + max.toPlainString();
+                }
+                if (step != null && step.signum() > 0) {
+                    java.math.BigDecimal from = min == null ? java.math.BigDecimal.ZERO : min;
+                    if (number.subtract(from).remainder(step).signum() != 0) {
+                        return "must be " + (min == null ? "a multiple of " + step.toPlainString()
+                                : min.toPlainString() + " plus a multiple of " + step.toPlainString());
+                    }
+                }
+            }
+            if (CONFIG_TYPE_STRING.equals(kind)) {
+                int length = value.asString().codePointCount(0, value.asString().length());
+                if (minLength != null && length < minLength) {
+                    return "must be at least " + minLength + " characters";
+                }
+                if (maxLength != null && length > maxLength) {
+                    return "must be at most " + maxLength + " characters";
+                }
+            }
+            return null;
         }
     }
 
@@ -1190,6 +1244,36 @@ public record PluginManifest(
      * The host renders declared config fields as a form and type-checks admin input against them, so a field
      * it cannot render or check is rejected at load rather than surfacing as a broken admin page.
      */
+    /**
+     * Refuses bounds that cannot mean anything (SDK 0.16.0): a numeric bound on a non-number, a length on a
+     * non-string, an empty range, a non-positive step or a negative length. Each would otherwise load and
+     * then either never apply or refuse every value, and neither is visible until an operator hits it.
+     */
+    private static void requireUsableBounds(String key, String type, ConfigField field) {
+        boolean numericBound = field.min() != null || field.max() != null || field.step() != null;
+        boolean lengthBound = field.minLength() != null || field.maxLength() != null;
+        if (numericBound && !CONFIG_TYPE_NUMBER.equals(type)) {
+            throw new PluginValidationException(
+                    "config field '%s' declares min/max/step, which only a number field takes".formatted(key));
+        }
+        if (lengthBound && !CONFIG_TYPE_STRING.equals(type)) {
+            throw new PluginValidationException(
+                    "config field '%s' declares minLength/maxLength, which only a string field takes"
+                            .formatted(key));
+        }
+        if (field.min() != null && field.max() != null && field.min().compareTo(field.max()) > 0) {
+            throw new PluginValidationException("config field '%s' has min above max".formatted(key));
+        }
+        if (field.step() != null && field.step().signum() <= 0) {
+            throw new PluginValidationException("config field '%s' step must be positive".formatted(key));
+        }
+        if ((field.minLength() != null && field.minLength() < 0) || (field.maxLength() != null && field.maxLength() < 0)
+                || (field.minLength() != null && field.maxLength() != null && field.minLength() > field.maxLength())) {
+            throw new PluginValidationException(
+                    "config field '%s' has an unusable minLength/maxLength".formatted(key));
+        }
+    }
+
     private void validateConfig() {
         if (config == null) {
             return;
@@ -1229,8 +1313,15 @@ public record PluginManifest(
                                     .formatted(entry.getKey(), type, option.value()));
                 }
             }
+            requireUsableBounds(entry.getKey(), type, field);
             // Last, so that a default outside a declared set is reported as such: accepts() folds the type
             // check and the membership check together, and by here the type is already known to be sound.
+            String defaultRejection = field.rejection(field.defaultValue());
+            if (defaultRejection != null && !defaultRejection.startsWith("expects")) {
+                // A default outside its own bounds: the plugin would boot on a value its form refuses.
+                throw new PluginValidationException(
+                        "config field '%s' default %s".formatted(entry.getKey(), defaultRejection));
+            }
             if (!field.accepts(field.defaultValue())) {
                 throw new PluginValidationException(field.isEnum()
                         ? "config field '%s' default is not one of its options".formatted(entry.getKey())

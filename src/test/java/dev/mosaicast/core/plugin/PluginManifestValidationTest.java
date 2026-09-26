@@ -216,6 +216,41 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void numericAndLengthBoundsAreEnforcedAndNamed() throws Exception {
+        PluginManifest manifest = parse(withConfig("""
+                {"interval":{"type":"number","default":60,"min":10,"max":3600,"step":1},
+                 "greeting":{"type":"string","default":"Hi","minLength":1,"maxLength":5}}
+                """));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+
+        PluginManifest.ConfigField interval = manifest.config().get("interval");
+        tools.jackson.databind.ObjectMapper json = tools.jackson.databind.json.JsonMapper.builder().build();
+        assertThat(interval.rejection(json.readTree("0"))).isEqualTo("must be at least 10");
+        assertThat(interval.rejection(json.readTree("9999"))).isEqualTo("must be at most 3600");
+        assertThat(interval.rejection(json.readTree("10.5"))).isEqualTo("must be 10 plus a multiple of 1");
+        assertThat(interval.rejection(json.readTree("60"))).isNull();
+        PluginManifest.ConfigField greeting = manifest.config().get("greeting");
+        assertThat(greeting.rejection(json.readTree("\"\""))).isEqualTo("must be at least 1 characters");
+        assertThat(greeting.rejection(json.readTree("\"Hello!\""))).isEqualTo("must be at most 5 characters");
+    }
+
+    @Test
+    void boundsThatCannotMeanAnythingAreRefusedAtLoad() throws Exception {
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"string\",\"min\":1}}"))::validate)
+                .isInstanceOf(PluginValidationException.class).hasMessageContaining("only a number field");
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"number\",\"maxLength\":3}}"))::validate)
+                .isInstanceOf(PluginValidationException.class).hasMessageContaining("only a string field");
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"number\",\"min\":5,\"max\":1}}"))::validate)
+                .isInstanceOf(PluginValidationException.class).hasMessageContaining("min above max");
+        assertThatThrownBy(parse(withConfig("{\"x\":{\"type\":\"number\",\"step\":0}}"))::validate)
+                .isInstanceOf(PluginValidationException.class).hasMessageContaining("step must be positive");
+        // The plugin would boot on a value its own form refuses.
+        assertThatThrownBy(parse(withConfig(
+                "{\"x\":{\"type\":\"number\",\"default\":0,\"min\":1}}"))::validate)
+                .isInstanceOf(PluginValidationException.class).hasMessageContaining("default must be at least 1");
+    }
+
+    @Test
     void aFieldWithoutOptionsStaysFreeForm() throws Exception {
         PluginManifest manifest = parse(withConfig("{\"x\":{\"type\":\"string\",\"default\":\"a\"}}"));
         assertThatCode(manifest::validate).doesNotThrowAnyException();

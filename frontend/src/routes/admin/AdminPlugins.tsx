@@ -268,6 +268,13 @@ export function AdminPlugins() {
                         // which is what every field showed before a plugin could say anything about one.
                         label: localizedText(declared.label, i18n.language),
                         description: localizedText(declared.description, i18n.language),
+                        // Declared bounds as input constraints (SDK 0.16.0). The server refuses a value
+                        // outside them either way; this only stops the operator typing one.
+                        min: declared.min,
+                        max: declared.max,
+                        step: declared.step,
+                        minLength: declared.minLength,
+                        maxLength: declared.maxLength,
                         // Shown but not editable for a role the server would refuse. Saving is
                         // all-or-nothing, so a podcaster typing into an admin-only row would lose the edits
                         // they were allowed to make along with the one they were not.

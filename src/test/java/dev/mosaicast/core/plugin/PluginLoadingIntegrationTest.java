@@ -618,6 +618,26 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void configRefusesAValueOutsideItsDeclaredBoundsAndSaysWhich() {
+        // SDK 0.16.0: before bounds, 0 was a legal interval — the form said "Saved." and the scheduled task
+        // was switched off at the next boot. The refusal names the bound, so the operator knows what to type.
+        Session admin = devLogin("admin");
+        ResponseEntity<String> tooSmall = rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":0}", true), String.class);
+        assertThat(tooSmall.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(tooSmall.getBody()).contains("must be at least 1");
+
+        ResponseEntity<String> fractional = rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":2.5}", true), String.class);
+        assertThat(fractional.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(fractional.getBody()).contains("plus a multiple of 1");
+
+        // Nothing was stored, and the form carries the bounds to render as input constraints.
+        assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("30");
+        assertThat(adminPlugins(admin)).contains("\"min\":1").contains("\"max\":1440");
+    }
+
+    @Test
     void podcasterMayEditOnlyTheFieldsDelegatedToThem() {
         Session podcaster = devLogin("podcaster");
         // refreshIntervalMinutes is editableBy podcaster …

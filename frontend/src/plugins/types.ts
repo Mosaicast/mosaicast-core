@@ -123,6 +123,12 @@ export interface AdminConfigField {
   label?: LocalizedText;
   /** One line on what the setting does, in the reader's language when the manifest offers one. */
   description?: LocalizedText;
+  /** Declared bounds (SDK 0.16.0), `null` where undeclared. The server refuses a value outside them. */
+  min?: number | null;
+  max?: number | null;
+  step?: number | null;
+  minLength?: number | null;
+  maxLength?: number | null;
 }
 
 /**

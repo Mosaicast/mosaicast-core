@@ -29,3 +29,31 @@ describe('SettingsFieldInput select (core#156)', () => {
     expect(screen.queryByText('Not chosen')).not.toBeInTheDocument();
   });
 });
+
+describe('SettingsFieldInput bounds (SDK 0.16.0)', () => {
+  it('renders a plugin number field’s declared bounds as input constraints', () => {
+    render(
+      <SettingsFieldInput
+        field={{ key: 'interval', type: 'number', min: 10, max: 3600, step: 1 }}
+        value="60"
+        onChange={vi.fn()}
+      />,
+    );
+
+    const input = screen.getByRole('spinbutton') as HTMLInputElement;
+    expect([input.min, input.max, input.step]).toEqual(['10', '3600', '1']);
+  });
+
+  it('lets an unbounded plugin number take a decimal, and caps a string’s length', () => {
+    const { rerender } = render(
+      <SettingsFieldInput field={{ key: 'threshold', type: 'number' }} value="0.85" onChange={vi.fn()} />,
+    );
+    // Without a declared step the browser defaults to 1 and flags 0.85 as invalid.
+    expect((screen.getByRole('spinbutton') as HTMLInputElement).step).toBe('any');
+
+    rerender(
+      <SettingsFieldInput field={{ key: 'greeting', type: 'string', maxLength: 80 }} value="Hi" onChange={vi.fn()} />,
+    );
+    expect((screen.getByRole('textbox') as HTMLInputElement).maxLength).toBe(80);
+  });
+});
