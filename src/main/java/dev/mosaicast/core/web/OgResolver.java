@@ -59,8 +59,14 @@ public class OgResolver {
      *
      * <p>Without {@code basic()}'s enforced {@code rel="nofollow"}: links get the one policy the shell also
      * applies, from {@link ExternalLinks}, instead of a second one of jsoup's (core#169).
+     *
+     * <p>Plus {@code ol[start]}, which the shared feed policy allows since SDK 0.16.1: a numbered list resumed
+     * after an image or a paragraph otherwise restarts at 1 here while the shell continues it, and the two
+     * renderings of the same show notes disagree about what the numbers mean.
      */
-    private static final Safelist SHOW_NOTES = Safelist.basic().removeEnforcedAttribute("a", "rel");
+    static final Safelist SHOW_NOTES = Safelist.basic()
+            .removeEnforcedAttribute("a", "rel")
+            .addAttributes("ol", "start");
 
     private final SiteConfigService siteConfig;
     private final FeedService feeds;
