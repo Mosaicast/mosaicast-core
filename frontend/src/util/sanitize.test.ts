@@ -62,6 +62,15 @@ describe('Feed HTML sanitizer', () => {
     expect(html).toBe('<p>text</p><a href="/x">forged</a>');
   });
 
+  it('keeps a resumed list\'s start number and table alignment (SDK 0.16.1)', () => {
+    const html = sanitizeFeedHtml(
+      '<ol start="3"><li>x</li></ol><table><tbody><tr><td align="right">1</td></tr></tbody></table>',
+    );
+
+    expect(html).toContain('<ol start="3">');
+    expect(html).toContain('<td align="right">');
+  });
+
   it('keeps the allowed attributes that are not URLs (core#232)', () => {
     // Every attribute DOMPurify does not know to be URI-safe was held to the URI regexp, so "de" and "10"
     // failed it and lang, dir, width, height, colspan and rowspan never survived.
@@ -92,6 +101,16 @@ describe('Feed HTML sanitizer', () => {
       '<a href="https://example.com/" data-wiki="w" aria-hidden="true" target="_top" rel="me">out</a>',
       '<img src="https://cdn.example/a.png" alt="a" width="10" height="10" data-src="x" loading="lazy">',
       '<table><tbody><tr><td colspan="2" rowspan="1" aria-sort="none" data-k="v">c</td></tr></tbody></table>',
+      // SDK 0.16.1 additions: a resumed list and table alignment.
+      '<ol start="3"><li>three</li></ol><table><thead><tr><th align="center">h</th></tr></thead>' +
+        '<tbody><tr><td align="right">1</td></tr></tbody></table>',
+      // Element content: which removed elements keep their text and which lose it. The kit got both halves
+      // wrong before 0.16.1, which a sample of attributes alone never showed.
+      '<noscript>ns</noscript><object>ob</object><select><option>op</option></select><textarea>ta</textarea>',
+      '<svg><desc>d</desc><foreignObject>fo</foreignObject></svg><math><mi>x</mi><mo>+</mo><mn>1</mn></math>',
+      // URI edge cases: a data: image the host keeps, a data: link it does not, whitespace around a value.
+      '<img src="data:image/png;base64,iVBORw0KGgo=" alt="d"><a href="data:text/html,x">l</a>',
+      '<a href="  https://example.com/  " title="  t  ">w</a><img src=" /a.png " alt=" a ">',
     ];
     for (const sample of samples) {
       expect(sanitizeFeedHtml(sample), sample).toBe(sanitizeLikeHost(sample));

@@ -253,6 +253,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Pinned to SDK 0.16.1 (`0.7.5`).** A patch release, so plugins still declare `platformApi` 0.16.0 and
+  nothing installed is rejected.
+  - `FEED_HTML_POLICY` now allows `start` and `align`. `sanitize.ts` imports the policy, so these reach
+    `ctx.sanitize` and the show notes on their own. The six non-URL attributes from core#232 were marked
+    URI-safe by a rule over the whole list, and that rule now covers `start` and `align` as well. Before, an
+    `<ol start="3">` that resumed after an image restarted at 1, and table alignment was lost.
+  - The no-JS server copy of show notes keeps `ol[start]` too, so both renderings number a list the same
+    way. Its `Safelist.basic()` has no tables, so `align` does not arise there.
+  - The parity test between the host sanitizer and the SDK test kit now also covers element content (which
+    removed elements keep their text), `data:` images and whitespace in attribute values. Against 0.16.0
+    the kit disagreed with the host on all of these; against 0.16.1 every sample matches.
+
 - **`ctx.sanitize` and show notes keep exactly what `FEED_HTML_POLICY` allows (`0.7.5`, core#232).** Two
   DOMPurify behaviours sat outside the allow-list, in opposite directions:
   - Every `data-*` and `aria-*` attribute survived, because DOMPurify allows both by default whatever
