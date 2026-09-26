@@ -38,7 +38,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   stored before a bound existed that now breaks it counts as unset. The admin form renders the bounds as
   input constraints.
 
-- **A feed can be deleted (`0.7.4`, core#175).** There was no `DELETE` on the feed surface at all — not in
+- **A feed can be deleted (`0.7.3`, core#175).** There was no `DELETE` on the feed surface at all — not in
   the UI and not in the API. Disabling correctly removes a feed and its episodes from every public
   surface, but the row, the episode refs, the display snapshots and the fetched show notes stayed in the
   database with no supported way to remove them, so a feed added by typo, a feed whose URL was hijacked
@@ -432,7 +432,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   file, which looked exactly like a player bug.
 
 - **Plugin files: a quota two uploads could overrun together, a limit the server would not honour, and a
-  cache header that ignored who was allowed to read (`0.7.4`, core#183).** The quota was read, compared and
+  cache header that ignored who was allowed to read (`0.7.3`, core#183).** The quota was read, compared and
   written with nothing held in between, so uploads in flight together all saw the same usage and all
   passed — over quota by up to (concurrent uploads × per-file limit). The check and the write are one step
   per plugin now, under a database advisory lock, which holds for the filesystem backend (no row to lock)
@@ -447,7 +447,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   delete re-checks the key it reads back from a sidecar on disk before resolving it, since that file has
   writers other than this code.
 
-- **Closing a dialog dropped keyboard focus at the top of the page (`0.7.4`).** `Modal` promised to hand
+- **Closing a dialog dropped keyboard focus at the top of the page (`0.7.3`).** `Modal` promised to hand
   focus back to whatever opened it, and checked "is focus still inside the dialog?" before doing so — in a
   cleanup that React runs after it has already removed the dialog, when focus has fallen to `<body>`. The
   answer was always no, so every dialog on the site (share, confirmations, account deletion) left a
@@ -459,7 +459,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   and quoted the word to type.
 
 
-- **Three answers to "are you sure?", and the weakest one on the heaviest action (`0.7.4`, core#193).**
+- **Three answers to "are you sure?", and the weakest one on the heaviest action (`0.7.3`, core#193).**
   Purging a plugin's data — irreversible, and it affects every user of that plugin — was one OK-click away
   in an unstyled `window.confirm` followed by a `window.alert`, while account deletion, with a narrower
   blast radius and the same finality, correctly required typing a word. Admin user actions and legal-page
@@ -471,7 +471,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   checking that the role floor held — it does, and it also purged. Both destructive endpoints now require
   the confirmation as a parameter, so a script, a stale tab or a mis-click meets the same gate a person does.
 
-- **One duplicated `<guid>` kept a whole feed permanently empty (`0.7.4`, core#160, core#184).** The second
+- **One duplicated `<guid>` kept a whole feed permanently empty (`0.7.3`, core#160, core#184).** The second
   occurrence fell into the "new GUID" branch — the lookup holds only refs that existed before the run — and
   the insert it scheduled violated `uq_episode_ref_feed_guid`. That exception escaped the reconcile
   transaction, so **nothing** was written, not even the items that parsed cleanly before it; and because
@@ -500,7 +500,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   deliberate: a feed page is browsed a season at a time, which is a different thing from the site list's
   reverse-chronological river.
 
-- **Search truncated at twenty with no way to say so, and unmatched routes answered 200 (`0.7.4`,
+- **Search truncated at twenty with no way to say so, and unmatched routes answered 200 (`0.7.3`,
   core#178, core#179).** `/search` returned exactly twenty results with no total, no "load more" and no
   indication whether more existed — every other list on the site pages, and search was the one that
   silently cut off, so a visitor could not tell "twenty results" from "the first twenty of hundreds". It
@@ -515,7 +515,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   but the status is honest. And that page is no longer a dead end: it offers a search field, a way home and
   the newest episodes, which are the three things somebody who followed a broken link actually wants.
 
-- **Encoding narrower than the context it was written into (`0.7.4`, core#196, core#198).** The JSON-LD
+- **Encoding narrower than the context it was written into (`0.7.3`, core#196, core#198).** The JSON-LD
   block neutralised `</` and nothing else, but the HTML tokenizer also leaves script-data state on `<!--`,
   and a following `<script` puts it into the double-escaped state where the block's own `</script>` no
   longer ends it — so an episode title from a third-party feed carrying both tokens made the rest of the
@@ -536,7 +536,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   the avatar proxy trusted the upstream `Content-Type` without looking at the bytes, then served them
   under that type from this app's own origin: the one upload-shaped path that skipped the rule
   `BrandingService` and `PluginBlobService` both follow.
-- **Deny-by-default ended at `/api/**`, and four response headers were simply absent (`0.7.4`, core#186,
+- **Deny-by-default ended at `/api/**`, and four response headers were simply absent (`0.7.3`, core#186,
   core#187).** The last rule in the security chain is `anyRequest().permitAll()`, so everything outside
   `/api/**` was open — `/actuator/**` included, where the only thing keeping `env`, `configprops`,
   `loggers` and `heapdump` off the public internet was an exposure property in a different file that an
@@ -561,7 +561,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   raised in the filter chain now answers in the same `problem+json` shape as every application error
   instead of Spring Boot's default page, which named the framework and the path.
 
-- **Switching a plugin back on did nothing (`0.7.4`, core#165, core#167, core#182).** Switching one *off*
+- **Switching a plugin back on did nothing (`0.7.3`, core#165, core#167, core#182).** Switching one *off*
   took effect immediately, because every surface reads through `active()`. Switching one **on** did not: if
   the plugin had been off at boot the loader never ran `loadPlugin`/`startPlugin`/`register(ctx)` for it,
   so it stayed `DISABLED` and its manifest, nav entries, assets, data endpoints, scheduled tasks and schema
@@ -583,7 +583,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   handler whose write fails cannot mark the host's deletion transaction rollback-only — which would lose
   the deletion *and* the debt row that is supposed to outlive it, while the caller had already been told
   the account was gone.
-- **Two admins demoting each other at the same time could leave the site with none (`0.7.4`, core#166,
+- **Two admins demoting each other at the same time could leave the site with none (`0.7.3`, core#166,
   core#194, core#197).** The last-admin guard was a read followed by a write in separate transactions, so
   both requests read "2 admins", both passed, and both committed — and there is no recovery path in the
   product short of setting `ADMIN_BOOTSTRAP_EXTERNAL_ID` and restarting. The role change is now one
@@ -608,7 +608,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   way out of. The two copies of `parseRole` are one, and an unknown role name is now **400 on both routes**
   rather than 409 on one of them: there is no state conflict, only a word this host does not know.
 
-- **The rate limiter keyed on a header any caller could set (`0.7.4`, core#173, core#174, core#188).**
+- **The rate limiter keyed on a header any caller could set (`0.7.3`, core#173, core#174, core#188).**
   `forward-headers-strategy: framework` believes `X-Forwarded-*` from whoever sent them, and the shipped
   compose publishes the app port directly with no proxy in front — so rotating the header handed the
   limiter a fresh key on every request and defeated the login and token budgets outright, while pinning a
@@ -630,7 +630,7 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   Finally the two unbounded public surfaces: `@PageableDefault(size = 20)` sets a default and not a
   ceiling, so `?size=2000` returned every episode ref and its snapshot in one anonymous response, and
   `/api/search` — the most database-expensive read on the site, also anonymous — had no budget at all.
-- **Seven plugin boundaries the host described and did not enforce (`0.7.4`, core#161, core#180, core#181).**
+- **Seven plugin boundaries the host described and did not enforce (`0.7.3`, core#161, core#180, core#181).**
   The architecture's promise is that a plugin's manifest *is* its permission (§7.6), and the code around
   these surfaces says so repeatedly. `POST /api/plugins/{id}/notify` checked that the caller was signed in
   and nothing else, so **any fan could write into any account's inbox in a plugin's name** — both shipped
