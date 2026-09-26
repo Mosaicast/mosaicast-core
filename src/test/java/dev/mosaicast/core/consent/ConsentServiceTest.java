@@ -241,6 +241,59 @@ class ConsentServiceTest {
         assertThat(service.fingerprint()).isNotEqualTo(initial);
     }
 
+    @Test
+    void aPluginDeclaredCategoryCarriesTheLabelItsPluginGaveIt() {
+        // core#177: `social` used to reach the visitor as the bare word, between two explained categories.
+        tools.jackson.databind.ObjectMapper json = tools.jackson.databind.json.JsonMapper.builder().build();
+        PluginManifest.CategoryLabel social = new PluginManifest.CategoryLabel(
+                json.readTree("{\"en\":\"Social media\",\"de\":\"Soziale Medien\"}"),
+                json.stringNode("Posts embedded from social networks."));
+        when(plugins.allActive()).thenReturn(List.of(
+                labelled("mastodon", java.util.Map.of("social", social),
+                        service("Mastodon", "social", "https://mastodon.example")),
+                plugin("widgets", service("Weather", "weather", "https://weather.example")),
+                plugin("stats", service("Fixture Analytics", "analytics", "https://a.example"))));
+
+        ConsentView view = service.current();
+
+        ConsentService.CategoryView labelledView = category(view, "social");
+        assertThat(labelledView.known()).isFalse();
+        assertThat(labelledView.label().get("de").asString()).isEqualTo("Soziale Medien");
+        assertThat(labelledView.hint().asString()).isEqualTo("Posts embedded from social networks.");
+        // Unlabelled: nothing to pass on, so the shell wraps the id in its own generic phrase.
+        assertThat(category(view, "weather").label()).isNull();
+        // A known category keeps the shell's own words, whatever any manifest says.
+        assertThat(category(view, "analytics").label()).isNull();
+    }
+
+    @Test
+    void twoPluginsLabellingOneCategoryResolveTheSameWayEveryTime() {
+        tools.jackson.databind.ObjectMapper json = tools.jackson.databind.json.JsonMapper.builder().build();
+        PluginRegistration zebra = labelled("zebra", java.util.Map.of("social",
+                new PluginManifest.CategoryLabel(json.stringNode("From zebra"), null)),
+                service("Z", "social", "https://z.example"));
+        PluginRegistration alpha = labelled("alpha", java.util.Map.of("social",
+                new PluginManifest.CategoryLabel(json.stringNode("From alpha"), null)),
+                service("A", "social", "https://a.example"));
+
+        // Load order must not decide what a visitor is asked: the decision is shared, so one label wins.
+        when(plugins.allActive()).thenReturn(List.of(zebra, alpha));
+        assertThat(category(service.current(), "social").label().asString()).isEqualTo("From alpha");
+        when(plugins.allActive()).thenReturn(List.of(alpha, zebra));
+        assertThat(category(service.current(), "social").label().asString()).isEqualTo("From alpha");
+    }
+
+    private static ConsentService.CategoryView category(ConsentView view, String id) {
+        return view.categories().stream().filter(c -> c.id().equals(id)).findFirst().orElseThrow();
+    }
+
+    private static PluginRegistration labelled(String id, java.util.Map<String, PluginManifest.CategoryLabel> labels,
+                                               PluginManifest.Service... services) {
+        PluginManifest manifest = new PluginManifest(id, "1.0.0", "0.6.0", id, null, null, List.of(),
+                PluginStorage.doc(), null, null, null, new PluginManifest.Consent(List.of(services), labels));
+        return PluginRegistration.loaded(manifest, Path.of("/tmp/" + id));
+    }
+
     private static PluginManifest.Service service(String name, String category, String host) {
         return new PluginManifest.Service("id", name, name + " Ltd.", category, host + "/privacy",
                 List.of(host), false, List.of());

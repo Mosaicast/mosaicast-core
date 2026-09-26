@@ -644,12 +644,37 @@ public record PluginManifest(
      * they force the notice to talk about "plugins" to visitors who care about cookies and companies.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Consent(List<Service> services) {
+    public record Consent(List<Service> services, Map<String, CategoryLabel> categoryLabels) {
+
+        /** The pre-0.16 shape, with no category labels. */
+        public Consent(List<Service> services) {
+            this(services, null);
+        }
 
         /** The services this plugin declares, never null. */
         public List<Service> servicesOrEmpty() {
             return services == null ? List.of() : services;
         }
+
+        /** The labels this plugin gives the categories it introduced, keyed by category id; never null. */
+        public Map<String, CategoryLabel> categoryLabelsOrEmpty() {
+            return categoryLabels == null ? Map.of() : categoryLabels;
+        }
+    }
+
+    /**
+     * What a visitor reads for a consent category a plugin introduced (SDK 0.16.0, core#177).
+     *
+     * <p>The category is the thing being consented to, so it is the one plugin-authored string that cannot
+     * fall back to a developer key: {@code social} between two explained core categories reads as a bug.
+     * Both fields take a plain string or an object keyed by locale, like a config field's label, and are
+     * resolved in the browser against the visitor's language.
+     *
+     * @param label the category's name — required, non-blank
+     * @param hint  one sentence on what accepting it lets load; optional
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record CategoryLabel(JsonNode label, JsonNode hint) {
     }
 
     /**
@@ -1009,6 +1034,60 @@ public record PluginManifest(
                 requireUsableStorageItem(service, item);
             }
         }
+        validateCategoryLabels();
+    }
+
+    /** Categories the host names itself; a plugin may not relabel one. */
+    private static final java.util.Set<String> HOST_CATEGORIES =
+            java.util.Set.of("necessary", "functional", "analytics", "unreviewed");
+
+    /**
+     * Validates {@code consent.categoryLabels} (SDK 0.16.0, core#177).
+     *
+     * <p>Three refusals, each naming the entry: relabelling a category the host names itself (a plugin
+     * rewording what every other plugin's visitors consent to is not a label); labelling a category none of
+     * this plugin's services declares (a label for nothing is a typo waiting to confuse); and a label with no
+     * text in it, which would put the bare id back on screen by another route.
+     */
+    private void validateCategoryLabels() {
+        java.util.Set<String> declared = new java.util.HashSet<>();
+        for (Service service : consent.servicesOrEmpty()) {
+            declared.add(service.category().trim().toLowerCase(Locale.ROOT));
+        }
+        for (Map.Entry<String, CategoryLabel> entry : consent.categoryLabelsOrEmpty().entrySet()) {
+            String category = entry.getKey() == null ? "" : entry.getKey().trim().toLowerCase(Locale.ROOT);
+            if (HOST_CATEGORIES.contains(category)) {
+                throw new PluginValidationException(("consent.categoryLabels cannot relabel the host's own "
+                        + "category '%s' — only a category this plugin introduces").formatted(category));
+            }
+            if (!declared.contains(category)) {
+                throw new PluginValidationException(("consent.categoryLabels labels '%s', which none of this "
+                        + "plugin's consent services declares").formatted(entry.getKey()));
+            }
+            CategoryLabel label = entry.getValue();
+            if (label == null || !hasText(label.label())) {
+                throw new PluginValidationException(("consent.categoryLabels '%s' has no label text — a visitor "
+                        + "would be shown the bare id").formatted(entry.getKey()));
+            }
+        }
+    }
+
+    /** Whether a localized-text node carries any non-blank text: a string, or an object with one. */
+    private static boolean hasText(JsonNode node) {
+        if (node == null || node.isNull()) {
+            return false;
+        }
+        if (node.isString()) {
+            return !node.asString().isBlank();
+        }
+        if (node.isObject()) {
+            for (JsonNode value : node.values()) {
+                if (value.isString() && !value.asString().isBlank()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

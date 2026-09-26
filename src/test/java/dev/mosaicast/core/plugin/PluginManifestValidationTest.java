@@ -282,6 +282,45 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void aPluginMayLabelACategoryItIntroduces() throws Exception {
+        // core#177 / SDK 0.16.0: the name a visitor consents under, in their language.
+        PluginManifest manifest = parse(withConsent("""
+                {"services":[{"id":"m","name":"Mastodon","category":"social"}],
+                 "categoryLabels":{"social":{"label":{"en":"Social media","de":"Soziale Medien"},
+                                              "hint":"Posts embedded from social networks."}}}
+                """));
+
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.consent().categoryLabelsOrEmpty().get("social").label().get("de").asString())
+                .isEqualTo("Soziale Medien");
+    }
+
+    @Test
+    void aCategoryLabelIsRefusedForAHostCategoryForNothingOrWithoutText() throws Exception {
+        // Relabelling the host's own category would reword what every plugin's visitors consent to.
+        assertThatThrownBy(parse(withConsent("""
+                {"services":[{"id":"p","name":"P","category":"analytics"}],
+                 "categoryLabels":{"analytics":{"label":"Harmless numbers"}}}
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("cannot relabel");
+        // A label for a category no service declares is a typo that would otherwise go unnoticed.
+        assertThatThrownBy(parse(withConsent("""
+                {"services":[{"id":"p","name":"P","category":"social"}],
+                 "categoryLabels":{"socail":{"label":"Social media"}}}
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("none of this plugin's consent services declares");
+        // An empty label puts the bare id back on screen by another route.
+        assertThatThrownBy(parse(withConsent("""
+                {"services":[{"id":"p","name":"P","category":"social"}],
+                 "categoryLabels":{"social":{"label":{"en":"  "}}}}
+                """))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("no label text");
+    }
+
+    @Test
     void aTagsBlockThatAsksForNothingIsRejected() throws Exception {
         // ctx.tags would be non-null, because the block is there, and every call through it would refuse.
         // Omitting the block is how a plugin declares no tag surface, and it is already the default.

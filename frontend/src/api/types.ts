@@ -474,6 +474,14 @@ export interface ConsentCategory {
    */
   affectsPolicy: boolean;
   services: ConsentServiceView[];
+  /**
+   * For a plugin-declared category, the name its plugin gave it (`consent.categoryLabels`, SDK 0.16.0) —
+   * a string or a locale map. `null` for a known category, which the shell names itself, and for an
+   * unlabelled one, which it wraps in a generic phrase rather than showing the bare id (core#177).
+   */
+  label?: string | Record<string, string> | null;
+  /** The matching one-line explanation, or `null`. */
+  hint?: string | Record<string, string> | null;
 }
 
 /**
