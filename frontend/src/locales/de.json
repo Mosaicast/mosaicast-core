@@ -239,6 +239,7 @@
   "admin.plugins.purge": "Daten löschen",
   "admin.plugins.purgeConfirm": "Alle von \"{{name}}\" gespeicherten Daten löschen? Das lässt sich nicht rückgängig machen. Konfiguration und Ein/Aus-Status bleiben erhalten.",
   "admin.plugins.purged": "{{count}} Dokument(e) gelöscht.",
+  "admin.plugins.readsAllUsers": "Liest die persönlichen Daten aller Personen für dieses Plugin auf einmal – etwa für Bestenlisten oder Summen über alle.",
   "admin.plugins.external.title": "Externe Dienste",
   "admin.plugins.external.uses": "Nutzt: {{kinds}}. Aufrufe laufen über den Anbieter dieser Seite, auf deren Konto.",
   "admin.plugins.external.usedBy": "Aus seiner Oberfläche kann ab der Rolle {{role}} ein Aufruf ausgelöst werden.",

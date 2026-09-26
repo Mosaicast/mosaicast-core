@@ -55,6 +55,9 @@ public class FixturePlugin implements PluginBackend, SitemapProvider {
                 });
         int episodeCount = ctx.feeds().episodesIn(Scope.site()).size();
         ctx.store().put(Scope.site(), "episode-count", episodeCount);
+        // Whether the host handed over the cross-user reader (SDK 0.16.0) — only a manifest declaring
+        // data.readsAllUsers should get one, and this is what lets the integration test see it.
+        ctx.store().put(Scope.site(), "reads-all-users", ctx.allUsers() != null);
         ctx.onSchedule(Duration.ofMinutes(Math.max(1, refresh)), () -> {
             // Nothing to do on tick in the fixture; registering it proves onSchedule accepts the task.
         });

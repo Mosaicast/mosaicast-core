@@ -259,6 +259,22 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void theCrossUserReaderIsHandedOutOnlyOnDeclaration() {
+        // `directory` declares data.readsAllUsers; `good` does not. Before SDK 0.16.0 both could read every
+        // user's partition through DocStore.queryAcrossUsers, and nothing on the manifest said so (SEC-E04).
+        assertThat(rest.getForEntity("/api/plugins/directory/data/site/main/reads-all-users", String.class)
+                .getBody()).isEqualTo("true");
+        assertThat(rest.getForEntity("/api/plugins/good/data/site/main/reads-all-users", String.class)
+                .getBody()).isEqualTo("false");
+
+        // And the operator can read it off the admin page before deciding to keep the plugin.
+        Session admin = devLogin("admin");
+        assertThat(adminPlugins(admin))
+                .containsPattern("\\{\"id\":\"directory\"[^{]*\"readsAllUsers\":true")
+                .containsPattern("\\{\"id\":\"good\"[^{]*\"readsAllUsers\":false");
+    }
+
+    @Test
     void anUnsetKeyIs204AndAnUnknownAddressIsStill404() {
         // "Not set" is the normal state of an optional value, not a client error, and answering it 404 made
         // it one: 98% of the plugin requests in a three-minute session on a real instance said nothing more
@@ -715,6 +731,7 @@ class PluginLoadingIntegrationTest {
         dev.mosaicast.plugin.api.DocStore store = new DocStoreImpl("good", pluginData);
         store.put(dev.mosaicast.plugin.api.Scope.site(), "greeting", "hello from fixture");
         store.put(dev.mosaicast.plugin.api.Scope.site(), "episode-count", 0);
+        store.put(dev.mosaicast.plugin.api.Scope.site(), "reads-all-users", false);
     }
 
     @Test

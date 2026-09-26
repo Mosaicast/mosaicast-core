@@ -94,6 +94,23 @@ describe('buildCtx', () => {
     expect(buildCtx({ ...base, hasIdentity: true }).users).not.toBeNull();
   });
 
+  it('hands over the clamped text accent with the other tokens (SDK 0.16.0)', () => {
+    const tokens = {
+      bg: '#fffef0', surface: '#ffffff', text: '#1c1a17', textMuted: '#6b6459', accent: '#fff176',
+      accentContrast: '#1c1a17', accentText: '#6b5f00', accent2: '#3d7d8c', border: '#e7ddcf',
+    };
+    // The seed is too pale to read as text; the clamped value is what a plugin colours links with.
+    expect(buildCtx({ ...base, theme: tokens }).theme.accentText).toBe('#6b5f00');
+    expect(buildCtx({ ...base, theme: tokens }).theme.accent).toBe('#fff176');
+  });
+
+  it('sanitizes with the shell’s own feed-HTML policy (SDK 0.16.0)', () => {
+    const { sanitize } = buildCtx(base);
+    // The payload that defaced the wiki plugin under DOMPurify's defaults.
+    expect(sanitize('<style>:host{position:fixed}</style><p style="position:fixed">x</p>')).toBe('<p>x</p>');
+    expect(sanitize(null)).toBe('');
+  });
+
   it('falls back to default theme tokens when none provided', () => {
     expect(buildCtx(base).theme.accent).toMatch(/^#/);
   });

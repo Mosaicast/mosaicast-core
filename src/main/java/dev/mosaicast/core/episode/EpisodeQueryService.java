@@ -30,7 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class EpisodeQueryService {
 
     private static final DisplaySnapshot EMPTY =
-            new DisplaySnapshot("", "", null, null, null, null, null, null, null);
+            new DisplaySnapshot("", "", null, null, null, null, null, null, null, "");
 
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;

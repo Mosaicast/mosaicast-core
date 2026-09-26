@@ -205,9 +205,23 @@ public record PluginManifest(
      *                     prefix, or the bare {@code *} ({@link DocStore#BACKEND_OWNED_PATTERN}). Clients may
      *                     still read them; a client {@code PUT}/{@code DELETE} is a 403. Absent means nothing
      *                     is reserved.
+     * @param readsAllUsers whether the backend may read every user's {@code USER} partition at once
+     *                     ({@code PluginContext.allUsers()}, SDK 0.16.0). Absent means no: it is the one read
+     *                     that crosses an ownership boundary, so it is declared, and shown to the operator.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record DataAccess(String readableBy, String writableBy, List<String> backendOwned) {
+    public record DataAccess(String readableBy, String writableBy, List<String> backendOwned,
+                             Boolean readsAllUsers) {
+
+        /** The pre-0.16 shape, without {@code readsAllUsers} — which is then absent, meaning no. */
+        public DataAccess(String readableBy, String writableBy, List<String> backendOwned) {
+            this(readableBy, writableBy, backendOwned, null);
+        }
+
+        /** Whether the manifest declares the cross-user read; absent means no. */
+        public boolean readsAllUsersOrDefault() {
+            return Boolean.TRUE.equals(readsAllUsers);
+        }
 
         /** The declared write floor, or the conservative default. */
         public String writableByOrDefault() {
@@ -383,6 +397,17 @@ public record PluginManifest(
      */
     public boolean declaresNotifications() {
         return notifications != null && notifications.sendsOrDefault();
+    }
+
+    /**
+     * Whether the plugin declares {@code data.readsAllUsers} (SDK 0.16.0, ARCHITECTURE §7.4).
+     *
+     * <p>Absent means {@code PluginContext.allUsers()} is null — the same null-means-not-declared shape as
+     * {@code blobs}, {@code identity} and {@code notifications}. Until 0.16.0 every plugin could read every
+     * user's partition through {@code DocStore.queryAcrossUsers} by merely existing (audit SEC-E04).
+     */
+    public boolean declaresReadsAllUsers() {
+        return data != null && data.readsAllUsersOrDefault();
     }
 
     public boolean declaresTags() {

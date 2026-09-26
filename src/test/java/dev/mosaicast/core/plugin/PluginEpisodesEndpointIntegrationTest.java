@@ -91,6 +91,9 @@ class PluginEpisodesEndpointIntegrationTest {
         // The strings the SDK's mirrored DisplaySnapshot documents — not epoch seconds, which is what the
         // doc store's mapper would have written.
         assertThat(body).contains("\"publishedAt\":\"2026-02-03T10:00:00Z\"").contains("\"duration\":\"PT42M\"");
+        // Plain text alongside the untrusted HTML (SDK 0.16.0) — derived on the way out, because the row was
+        // stored in the pre-0.16 shape without it, as every row on an upgraded instance was.
+        assertThat(body).contains("\"description\":\"<p>Notes.</p>\"").contains("\"descriptionText\":\"Notes.\"");
     }
 
     @Test

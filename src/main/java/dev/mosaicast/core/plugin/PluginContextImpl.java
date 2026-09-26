@@ -4,6 +4,7 @@
 package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.core.log.AppLogAppender;
+import dev.mosaicast.plugin.api.CrossUserStore;
 import dev.mosaicast.plugin.api.DocStore;
 import dev.mosaicast.plugin.api.FeedAccess;
 import dev.mosaicast.plugin.api.PluginConfig;
@@ -30,6 +31,7 @@ public class PluginContextImpl implements PluginContext {
     private final Tags tags;
     private final dev.mosaicast.plugin.api.Users users;
     private final dev.mosaicast.plugin.api.Notifier notifier;
+    private final CrossUserStore allUsers;
     private final PluginConfig config;
     private final FeedAccess feeds;
     private final dev.mosaicast.plugin.api.Locales locales;
@@ -40,7 +42,8 @@ public class PluginContextImpl implements PluginContext {
     public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
                              dev.mosaicast.plugin.api.PluginBlobs blobs, Tags tags,
                              dev.mosaicast.plugin.api.Users users,
-                             dev.mosaicast.plugin.api.Notifier notifier, PluginConfig config,
+                             dev.mosaicast.plugin.api.Notifier notifier, CrossUserStore allUsers,
+                             PluginConfig config,
                              FeedAccess feeds, dev.mosaicast.plugin.api.Locales locales,
                              dev.mosaicast.plugin.api.Translation translation,
                              PluginScheduler scheduler) {
@@ -51,6 +54,7 @@ public class PluginContextImpl implements PluginContext {
         this.tags = tags;
         this.users = users;
         this.notifier = notifier;
+        this.allUsers = allUsers;
         this.config = config;
         this.feeds = feeds;
         this.locales = locales;
@@ -61,6 +65,16 @@ public class PluginContextImpl implements PluginContext {
     @Override
     public DocStore store() {
         return store;
+    }
+
+    /**
+     * Every user's {@code USER} partition, or {@code null} for a plugin whose manifest does not declare
+     * {@code data.readsAllUsers} — the same null-means-not-declared shape as {@link #blobs()},
+     * {@link #users()} and {@link #notifier()}.
+     */
+    @Override
+    public CrossUserStore allUsers() {
+        return allUsers;
     }
 
     /**

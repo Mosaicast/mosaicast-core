@@ -5,7 +5,6 @@ package dev.mosaicast.core.plugin;
 
 import dev.mosaicast.plugin.api.DocEntry;
 import dev.mosaicast.plugin.api.DocStore;
-import dev.mosaicast.plugin.api.OwnedDocEntry;
 import dev.mosaicast.plugin.api.Scope;
 import dev.mosaicast.plugin.api.ScopeType;
 import java.util.List;
@@ -18,9 +17,10 @@ import java.util.Optional;
  *
  * <p><strong>This is the backend's store, and a backend thread has no calling user.</strong> A
  * {@link ScopeType#USER} scope resolves to "the caller", and there is no caller here — a scheduled task or
- * {@code register(ctx)} runs on behalf of nobody. So every method refuses it rather than picking someone,
- * and {@link #queryAcrossUsers(String)} is the way to look at per-user data from the backend, being explicit
- * that it has no single owner.
+ * {@code register(ctx)} runs on behalf of nobody. So every method refuses it rather than picking someone;
+ * {@link CrossUserStoreImpl}, handed out as {@code allUsers()} only to a plugin that declares
+ * {@code data.readsAllUsers}, is the way to look at per-user data from the backend, being explicit that it
+ * has no single owner.
  */
 public class DocStoreImpl implements DocStore {
 
@@ -56,11 +56,6 @@ public class DocStoreImpl implements DocStore {
         return service.query(pluginId, scope, keyPrefix);
     }
 
-    @Override
-    public List<OwnedDocEntry> queryAcrossUsers(String keyPrefix) {
-        return service.queryAcrossUsers(pluginId, keyPrefix);
-    }
-
     /**
      * Refuses a {@code USER} scope, reads included.
      *
@@ -74,7 +69,7 @@ public class DocStoreImpl implements DocStore {
         if (scope != null && scope.type() == ScopeType.USER) {
             throw new UnsupportedOperationException(
                     "USER scope has no meaning on a backend: there is no calling user. Use "
-                            + "store().queryAcrossUsers(...) to aggregate, or address an entity scope.");
+                            + "allUsers().query(...) to aggregate (declare data.readsAllUsers), or address an entity scope.");
         }
     }
 }

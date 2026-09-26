@@ -239,6 +239,7 @@
   "admin.plugins.purge": "Purge data",
   "admin.plugins.purgeConfirm": "Delete all data stored by \"{{name}}\"? This cannot be undone. Its configuration and on/off state are kept.",
   "admin.plugins.purged": "{{count}} document(s) deleted.",
+  "admin.plugins.readsAllUsers": "Reads every user's personal data for this plugin at once — for leaderboards or totals across people.",
   "admin.plugins.external.title": "External services",
   "admin.plugins.external.uses": "Uses: {{kinds}}. Calls go through this site's provider, on this site's account.",
   "admin.plugins.external.usedBy": "Its interface can trigger a call for {{role}} and above.",

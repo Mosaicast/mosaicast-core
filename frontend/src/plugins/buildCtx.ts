@@ -17,6 +17,7 @@ import {
   makePluginTranslation,
 } from './pluginApi';
 import { storedPosition } from '../player/progress';
+import { sanitizeFeedHtml } from '../util/sanitize';
 import { coreLinks } from './coreLinks';
 
 /**
@@ -105,16 +106,17 @@ const FALLBACK_THEME: ThemeTokens = {
 };
 
 /**
- * The eight colours the SDK's `ThemeTokens` promises, and nothing else. The site payload carries more — the
- * clamped `accentText` (core#162) — which plugins read as `--mc-accent-text` through CSS; handing the extra
- * field over here would make it an undocumented part of `ctx.theme` that a plugin could come to rely on.
+ * The colours the SDK's `ThemeTokens` promises, and nothing else. `accentText` — the accent clamped for
+ * text and focus rings (core#162) — joined them in platformApi 0.16.0; before that it reached plugins only
+ * as `--mc-accent-text` through CSS inheritance, which still works. Absent from the payload (an older
+ * branding row) it stays absent, and the SDK then writes nothing that would shadow the inherited value.
  */
 function sdkTheme(theme: ThemeTokenSet | undefined): ThemeTokens {
   if (!theme) {
     return FALLBACK_THEME;
   }
-  const { bg, surface, text, textMuted, accent, accentContrast, accent2, border } = theme;
-  return { bg, surface, text, textMuted, accent, accentContrast, accent2, border };
+  const { bg, surface, text, textMuted, accent, accentContrast, accentText, accent2, border } = theme;
+  return { bg, surface, text, textMuted, accent, accentContrast, accentText, accent2, border };
 }
 
 export function buildCtx(inputs: CtxInputs): HostPluginContext {
@@ -142,6 +144,9 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // visitor can already read from /api/episodes/* — neither is something a manifest declares (§7.5).
     docs: makePluginDocs(inputs.pluginId, inputs.user?.id ?? 'anonymous'),
     feeds: makePluginFeeds(inputs.pluginId),
+    // The shell's own feed-HTML policy (SDK 0.16.0): a plugin rendering HTML it did not write gets exactly
+    // what the shell applies, rather than falling back to a library default that lets `<style>` through.
+    sanitize: sanitizeFeedHtml,
     // Null for a doc-store plugin, mirroring the backend's `ctx.schema()`. Handing every plugin a client
     // would mean one that 404s on every call — a worse answer than saying there is nothing here.
     schema: inputs.hasSchema ? makePluginSchema(inputs.pluginId) : null,

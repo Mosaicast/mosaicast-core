@@ -204,6 +204,7 @@ public class AdminPluginController {
                 manifest == null ? null : manifest.name(),
                 manifest == null ? null : manifest.version(),
                 settings.enabled(r.id()),
+                manifest != null && manifest.declaresReadsAllUsers(),
                 config,
                 manifest == null ? null : manifest.consent(),
                 blobsOf(manifest, role),
@@ -277,10 +278,12 @@ public class AdminPluginController {
      *
      * @param enabled whether it is switched on; a {@code DISABLED} status means it was already off at boot,
      *                while {@code LOADED} + {@code enabled=false} means it was switched off since
+     * @param readsAllUsers whether the manifest declares {@code data.readsAllUsers}: the backend may read
+     *                every user's per-user data at once (SDK 0.16.0), which an operator should see
      */
     public record AdminPlugin(String id, String status, String reason, String name, String version,
-                              boolean enabled, Map<String, AdminConfigField> config, Consent consent,
-                              AdminBlobs blobs, AdminExternal external) {
+                              boolean enabled, boolean readsAllUsers, Map<String, AdminConfigField> config,
+                              Consent consent, AdminBlobs blobs, AdminExternal external) {
     }
 
     /**

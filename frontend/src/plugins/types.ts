@@ -238,6 +238,11 @@ export interface AdminPlugin {
   name: string | null;
   version: string | null;
   enabled: boolean;
+  /**
+   * Whether the manifest declares `data.readsAllUsers` — the backend may read every user's per-user data
+   * at once (SDK 0.16.0). Shown so an operator sees it before deciding to keep the plugin.
+   */
+  readsAllUsers: boolean;
   config: Record<string, AdminConfigField>;
   consent: { services: ConsentServiceDeclaration[] | null } | null;
   blobs: AdminBlobs | null;

@@ -204,6 +204,12 @@ export function AdminPlugins() {
                 </div>
               </div>
 
+              {/* The one read across ownership boundaries (SDK 0.16.0): every account's per-user data at once,
+                  owner ids included. Said here because keeping the plugin is decided on this page. */}
+              {plugin.readsAllUsers && (
+                <p className="mc-muted mc-pluginrow__readsAllUsers">{t('admin.plugins.readsAllUsers')}</p>
+              )}
+
               {/* What this plugin may spend, read straight off its manifest (§16). Here rather than only in
                   plugin.json because the decision it informs — whether to run this plugin at all — is made
                   on this page, and the floor is the effective one the host enforces, not the file's. */}

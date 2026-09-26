@@ -281,8 +281,13 @@ public class PluginLoaderService {
         dev.mosaicast.plugin.api.Notifier notifier = manifest.declaresNotifications()
                 ? new NotifierImpl(manifest, pluginDataRepository, notifications, notifyLimiter)
                 : null;
-        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, users, notifier, config, feedAccess, locales,
-                translation, scheduler);
+        // The one read across ownership boundaries, handed out only on declaration (SDK 0.16.0): an operator
+        // reads off the manifest whether a plugin can enumerate every account that ever used it.
+        dev.mosaicast.plugin.api.CrossUserStore allUsers = manifest.declaresReadsAllUsers()
+                ? new CrossUserStoreImpl(manifest.id(), dataService)
+                : null;
+        return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, users, notifier, allUsers, config,
+                feedAccess, locales, translation, scheduler);
     }
 
     /**
