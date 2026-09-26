@@ -119,11 +119,14 @@ public class PluginEpisodeController {
      * One episode's presentation, as the SDK's mirrored {@code DisplaySnapshot} documents it: optional
      * fields absent when the feed declares nothing, {@code publishedAt} an ISO-8601 instant and
      * {@code duration} an ISO-8601 duration.
+     *
+     * <p>{@code description} is the feed's HTML verbatim — untrusted, and documented as such in the SDK;
+     * {@code descriptionText} is the same prose as plain text (SDK 0.16.0), never absent.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record EpisodeDisplayView(String title, String description, String audioUrl, String publishedAt,
                                      String duration, String imageUrl, String feedImageUrl, String author,
-                                     String subtitle) {
+                                     String subtitle, String descriptionText) {
 
         static EpisodeDisplayView from(DisplaySnapshot snapshot) {
             return new EpisodeDisplayView(
@@ -135,7 +138,8 @@ public class PluginEpisodeController {
                     snapshot.imageUrl(),
                     snapshot.feedImageUrl(),
                     snapshot.author(),
-                    snapshot.subtitle());
+                    snapshot.subtitle(),
+                    snapshot.descriptionText());
         }
     }
 }

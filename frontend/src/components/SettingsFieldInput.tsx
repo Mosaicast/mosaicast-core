@@ -26,6 +26,10 @@ export interface SettingsFieldSpec {
   set?: boolean;
   min?: number | null;
   max?: number | null;
+  /** The granularity of a number, when one is declared; otherwise any decimal for a decimal type. */
+  step?: number | null;
+  minLength?: number | null;
+  maxLength?: number | null;
   options?: { value: string; label: string }[];
   /** The derived environment variable name, for an env-backed field. */
   envVar?: string | null;
@@ -184,9 +188,11 @@ export function SettingsFieldInput({
           className={isNumeric(field.type) ? 'mc-input mc-input--num' : 'mc-input'}
           type={isNumeric(field.type) ? 'number' : 'text'}
           disabled={field.disabled}
-          step={field.type === 'DECIMAL' ? 'any' : undefined}
+          step={field.step ?? (field.type === 'DECIMAL' || field.type === 'number' ? 'any' : undefined)}
           min={field.min ?? undefined}
           max={field.max ?? undefined}
+          minLength={field.minLength ?? undefined}
+          maxLength={field.maxLength ?? undefined}
           placeholder={field.placeholder ?? undefined}
           value={String(current)}
           onChange={(e) => onChange(e.target.value)}

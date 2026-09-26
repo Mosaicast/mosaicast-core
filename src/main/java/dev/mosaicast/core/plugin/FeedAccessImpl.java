@@ -31,7 +31,7 @@ public class FeedAccessImpl implements FeedAccess {
 
     /** Empty presentation returned for an unresolvable ref (never null, per the contract). */
     private static final DisplaySnapshot EMPTY =
-            new DisplaySnapshot("", "", null, null, null, null, null, null, null);
+            new DisplaySnapshot("", "", null, null, null, null, null, null, null, "");
 
     private final EpisodeQueryService query;
     private final EpisodeRefRepository refs;

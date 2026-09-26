@@ -1,7 +1,7 @@
 {
   "id": "directory",
   "version": "1.0.0",
-  "platformApi": "0.15.0",
+  "platformApi": "0.16.0",
   "name": "Directory Fixture",
   "frontend": {
     "entry": "fixture.js",
@@ -20,7 +20,8 @@
   "storage": "doc",
   "data": {
     "readableBy": "anonymous",
-    "writableBy": "podcaster"
+    "writableBy": "podcaster",
+    "readsAllUsers": true
   },
   "identity": {
     "resolvesUsers": true

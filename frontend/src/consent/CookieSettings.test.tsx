@@ -70,6 +70,29 @@ describe('Cookie settings (§12.5)', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it('names a plugin category by its label, and never shows a bare id (core#177)', async () => {
+    const service = PAYLOAD.categories[0]!.services[0]!;
+    stubConsent({
+      ...PAYLOAD,
+      categories: [
+        ...PAYLOAD.categories,
+        {
+          id: 'social', known: false, affectsPolicy: true, services: [{ ...service, name: 'Mastodon' }],
+          label: { en: 'Social media', de: 'Soziale Medien' }, hint: 'Posts embedded from social networks.',
+        },
+        { id: 'weather', known: false, affectsPolicy: true, services: [{ ...service, name: 'Weather' }] },
+      ],
+    });
+    renderSettings();
+
+    expect(await screen.findByText('Social media')).toBeInTheDocument();
+    expect(screen.getByText('Posts embedded from social networks.')).toBeInTheDocument();
+    // Unlabelled: wrapped in the shell's own phrase, so the visitor is told what kind of thing it is.
+    expect(screen.getByText('Other services: weather')).toBeInTheDocument();
+    expect(screen.queryByText('social')).not.toBeInTheDocument();
+    expect(screen.queryByText('weather')).not.toBeInTheDocument();
+  });
+
   it('discloses what each service stores, and who runs it', async () => {
     stubConsent(PAYLOAD);
     renderSettings();

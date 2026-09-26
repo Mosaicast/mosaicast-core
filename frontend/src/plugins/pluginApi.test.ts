@@ -335,6 +335,61 @@ describe('makePluginDocs', () => {
     expect(() => makePluginDocs('wiki').get('site', 'a/b')).toThrow(/usable doc-store key/);
     expect(() => makePluginDocs('wiki').put('site', '', 1)).toThrow(/usable doc-store key/);
   });
+
+  /** `getMany` (SDK 0.16.0): a page of cards in one request instead of one per card per key. */
+  it('reads many scopes in one request, over the host batch endpoint', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      captured.push(url);
+      return reply({ a: { highlight: { at: 42 } }, b: {} });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const answer = await makePluginDocs('batch-one').getMany('episode', ['a', 'b', 'a'], ['highlight', 'template']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(captured).toEqual(['/api/plugins/batch-one/data/episode?ids=a,b&keys=highlight,template']);
+    expect(answer).toEqual({ a: { highlight: { at: 42 } }, b: {} });
+  });
+
+  it('remembers what a batch came back without, so the single read after it is free', async () => {
+    const fetchMock = vi.fn(() => reply({ a: { highlight: 1 }, b: {} }));
+    vi.stubGlobal('fetch', fetchMock);
+    const docs = makePluginDocs('batch-misses');
+
+    await docs.getMany('episode', ['a', 'b'], ['highlight']);
+    await expect(docs.get({ type: 'episode', id: 'b' }, 'highlight')).resolves.toBeNull();
+
+    // `b` had no highlight, and that is an answer; `a` had one, and a hit is never remembered.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await docs.get({ type: 'episode', id: 'a' }, 'highlight');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('splits at the host ceiling of 100 ids, so a plugin never sees its 400', async () => {
+    const fetchMock = vi.fn((url: string) => {
+      captured.push(url);
+      return reply({});
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const ids = Array.from({ length: 101 }, (_, i) => `ep-${i}`);
+
+    await makePluginDocs('batch-split').getMany('episode', ids, ['highlight']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(captured[0]!.split('ids=')[1]!.split('&')[0]!.split(',')).toHaveLength(100);
+    expect(captured[1]).toContain('ids=ep-100&');
+  });
+
+  it('answers an empty batch without a request, and refuses a bad key like get does', async () => {
+    const fetchMock = vi.fn(() => reply({}));
+    vi.stubGlobal('fetch', fetchMock);
+    const docs = makePluginDocs('batch-empty');
+
+    await expect(docs.getMany('episode', [], ['highlight'])).resolves.toEqual({});
+    await expect(docs.getMany('episode', ['a'], [])).resolves.toEqual({});
+    expect(fetchMock).not.toHaveBeenCalled();
+    await expect(docs.getMany('episode', ['a'], ['no/slash'])).rejects.toThrow(/usable doc-store key/);
+  });
 });
 
 /** The tag surface's path encoder (§6.1) — the host parses these, so the wire shape is the contract. */

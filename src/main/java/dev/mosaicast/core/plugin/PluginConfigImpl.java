@@ -40,7 +40,9 @@ public class PluginConfigImpl implements PluginConfig {
             return Optional.empty();
         }
         JsonNode value = settings.config(pluginId).get(key);
-        if (value == null || value.isNull()) {
+        // A stored value that breaks a bound declared after it was saved counts as unset (SDK 0.16.0): the
+        // contract promises a plugin that what it reads here satisfies its declaration, so it needs no clamp.
+        if (value == null || value.isNull() || !field.accepts(value)) {
             value = field.defaultValue();
         }
         if (value == null || value.isNull()) {

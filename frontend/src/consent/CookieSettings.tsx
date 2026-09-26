@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import type { ConsentCategory, ConsentServiceView } from '../api/types';
+import { localizedText } from '../plugins/types';
 import { formatDate } from '../util/format';
 import { useConsent } from './ConsentContext';
 import { ProgressPreference } from './ProgressPreference';
@@ -146,7 +147,7 @@ export function CookieSettings({
             <ul className="mc-consent__answers">
               {Object.entries(record.categories).map(([id, on]) => (
                 <li key={id}>
-                  <span>{label(t, id, categories)}</span>
+                  <span>{label(t, i18n.language, id, categories)}</span>
                   <span className={on ? 'mc-consent__yes' : 'mc-muted'}>
                     {on ? t('consent.allowed') : t('consent.notAllowed')}
                   </span>
@@ -200,16 +201,14 @@ function CategoryBlock({
   checked: boolean;
   onChange: (on: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return (
     <li className="mc-consent__category">
       <label className="mc-toggle mc-consent__switch">
         <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-        <span className="mc-consent__label">{label(t, category.id, [category])}</span>
+        <span className="mc-consent__label">{label(t, i18n.language, category.id, [category])}</span>
       </label>
-      {category.known && (
-        <p className="mc-muted mc-consent__hint">{t(`consent.categoryHint.${category.id}`)}</p>
-      )}
+      <p className="mc-muted mc-consent__hint">{hint(t, i18n.language, category)}</p>
       {category.services.map((service) => (
         <ServiceBlock key={service.name} service={service} />
       ))}
@@ -286,11 +285,25 @@ function StorageTable({
   );
 }
 
+type Translate = (key: string, options?: Record<string, string>) => string;
+
 /**
- * A category's label. A plugin may declare its own category, which the shell has no translation for — it
- * shows the declared name rather than inventing one, and never a slug where a label was expected.
+ * A category's label. The shell names its own categories; a plugin-declared one carries the name its
+ * plugin gave it (SDK 0.16.0). One with neither is wrapped in a generic phrase — the category is the thing
+ * being consented to, so a visitor is never asked about a bare id (core#177).
  */
-function label(t: (key: string) => string, id: string, categories: ConsentCategory[]): string {
-  const known = categories.find((category) => category.id === id)?.known;
-  return known ? t(`consent.category.${id}`) : id;
+function label(t: Translate, language: string, id: string, categories: ConsentCategory[]): string {
+  const category = categories.find((candidate) => candidate.id === id);
+  if (category?.known) {
+    return t(`consent.category.${id}`);
+  }
+  return localizedText(category?.label ?? undefined, language) ?? t('consent.category.other', { id });
+}
+
+/** The one-line explanation under a category, by the same three cases as {@link label}. */
+function hint(t: Translate, language: string, category: ConsentCategory): string {
+  if (category.known) {
+    return t(`consent.categoryHint.${category.id}`);
+  }
+  return localizedText(category.hint ?? undefined, language) ?? t('consent.categoryHint.other');
 }

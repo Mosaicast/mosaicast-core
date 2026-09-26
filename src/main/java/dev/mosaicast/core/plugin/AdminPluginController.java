@@ -106,12 +106,11 @@ public class AdminPluginController {
                 throw new AccessDeniedException(
                         "Config field '%s' is editable by %s only".formatted(key, field.editableByOrDefault()));
             }
-            if (!field.accepts(value)) {
-                // A closed set fails this for a different reason than a type mismatch, and "expects a
-                // string" for a word that is a string tells the operator nothing about what to do.
-                throw new IllegalArgumentException(field.isEnum()
-                        ? "Config field '%s' expects one of its declared options".formatted(key)
-                        : "Config field '%s' expects a %s".formatted(key, field.type()));
+            String rejection = field.rejection(value);
+            if (rejection != null) {
+                // Named, not generic: a closed set, a type and a bound each fail for a different reason, and
+                // "invalid" for 0 on a field declared "min": 1 tells the operator nothing about what to type.
+                throw new IllegalArgumentException("Config field '%s' %s".formatted(key, rejection));
             }
         });
         values.forEach((key, value) -> settings.putConfig(id, key, value));
@@ -183,19 +182,24 @@ public class AdminPluginController {
         Map<String, AdminConfigField> config = new LinkedHashMap<>();
         declaredConfig(r).forEach((key, field) -> {
             boolean visible = mayEdit(field, role);
+            // A stored value that breaks a bound declared after it was saved counts as unset (SDK 0.16.0) —
+            // it is what PluginConfigImpl hands the plugin, so it is what the form shows.
+            JsonNode override = overrides.get(key);
+            boolean overridden = override != null && field.accepts(override);
             config.put(key, new AdminConfigField(
                     field.type(),
                     field.editableByOrDefault(),
                     visible ? field.defaultValue() : null,
-                    visible ? overrides.getOrDefault(key, field.defaultValue()) : null,
-                    overrides.containsKey(key),
+                    visible ? (overridden ? override : field.defaultValue()) : null,
+                    overridden,
                     // Options, label and description are the shape of the input, not a value, so they are
                     // not withheld from a caller who may only look: the row is rendered either way, a
                     // select that has lost its choices renders as an empty box, and a row whose label went
                     // with the value would leave a podcaster reading an identifier they cannot act on.
                     field.optionsOrEmpty(),
                     field.label(),
-                    field.description()));
+                    field.description(),
+                    field.min(), field.max(), field.step(), field.minLength(), field.maxLength()));
         });
         return new AdminPlugin(
                 r.id(),
@@ -204,6 +208,7 @@ public class AdminPluginController {
                 manifest == null ? null : manifest.name(),
                 manifest == null ? null : manifest.version(),
                 settings.enabled(r.id()),
+                manifest != null && manifest.declaresReadsAllUsers(),
                 config,
                 manifest == null ? null : manifest.consent(),
                 blobsOf(manifest, role),
@@ -277,10 +282,12 @@ public class AdminPluginController {
      *
      * @param enabled whether it is switched on; a {@code DISABLED} status means it was already off at boot,
      *                while {@code LOADED} + {@code enabled=false} means it was switched off since
+     * @param readsAllUsers whether the manifest declares {@code data.readsAllUsers}: the backend may read
+     *                every user's per-user data at once (SDK 0.16.0), which an operator should see
      */
     public record AdminPlugin(String id, String status, String reason, String name, String version,
-                              boolean enabled, Map<String, AdminConfigField> config, Consent consent,
-                              AdminBlobs blobs, AdminExternal external) {
+                              boolean enabled, boolean readsAllUsers, Map<String, AdminConfigField> config,
+                              Consent consent, AdminBlobs blobs, AdminExternal external) {
     }
 
     /**
@@ -297,6 +304,10 @@ public class AdminPluginController {
     /**
      * One declared config field, its default and the value currently in effect — the form's row model.
      *
+     * <p>{@code min}/{@code max}/{@code step} and {@code minLength}/{@code maxLength} are the declared
+     * bounds (SDK 0.16.0), null where undeclared; the form renders them as input constraints, and the
+     * server refuses a value outside them either way.
+     *
      * <p>{@code options} is empty for a free-form field and non-empty for a closed set, which the form
      * renders as a select. Each option's label is passed through exactly as the manifest wrote it — a
      * plain string, or an object keyed by locale — and resolved in the browser, against the language the
@@ -306,7 +317,9 @@ public class AdminPluginController {
     public record AdminConfigField(String type, String editableBy, JsonNode defaultValue,
                                    JsonNode value, boolean overridden,
                                    java.util.List<PluginManifest.ConfigOption> options,
-                                   JsonNode label, JsonNode description) {
+                                   JsonNode label, JsonNode description,
+                                   java.math.BigDecimal min, java.math.BigDecimal max, java.math.BigDecimal step,
+                                   Integer minLength, Integer maxLength) {
     }
 
     /**

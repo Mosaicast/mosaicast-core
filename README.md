@@ -174,8 +174,9 @@ plugins/sample/
   assets/sample.es.js # the frontend Web Component bundle
 ```
 
-At boot the host validates each manifest (the declared `platformApi` must match the host's `0.9.x`; config
-fields must be renderable), loads the JAR, and calls `register(ctx)`. A bad manifest, an incompatible
+At boot the host validates each manifest (the declared `platformApi` must match the `major.minor` of the SDK
+the host is built against — `mosaicastSdk` in `gradle/libs.versions.toml`; config fields must be renderable,
+their bounds usable), loads the JAR, and calls `register(ctx)`. A bad manifest, an incompatible
 `platformApi`, an unusable `schema` declaration, or a thrown exception
 **disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
 A plugin an admin switched off is skipped here entirely.

@@ -62,7 +62,13 @@ class Jackson3JsonFormatMapperTest {
 
             // Compare parsed trees, not text: jsonb does not preserve key order, so the bytes coming back
             // out of Postgres are already reordered. What must not change is the *shape* of each value.
-            assertThat(json.readTree(rewritten)).isEqualTo(json.readTree(row));
+            // The one permitted difference: SDK 0.16.0 added `descriptionText`, which an old row gains (as a
+            // string) the first time it is written back. Every value the row already had stays as it was.
+            tools.jackson.databind.node.ObjectNode written =
+                    (tools.jackson.databind.node.ObjectNode) json.readTree(rewritten);
+            JsonNode added = written.remove("descriptionText");
+            assertThat(added != null && added.isString()).as("descriptionText written as a string").isTrue();
+            assertThat(written).isEqualTo(json.readTree(row));
 
             JsonNode tree = json.readTree(rewritten);
             assertThat(tree.get("publishedAt").isNumber())

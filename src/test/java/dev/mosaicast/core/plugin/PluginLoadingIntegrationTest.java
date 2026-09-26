@@ -259,6 +259,22 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void theCrossUserReaderIsHandedOutOnlyOnDeclaration() {
+        // `directory` declares data.readsAllUsers; `good` does not. Before SDK 0.16.0 both could read every
+        // user's partition through DocStore.queryAcrossUsers, and nothing on the manifest said so (SEC-E04).
+        assertThat(rest.getForEntity("/api/plugins/directory/data/site/main/reads-all-users", String.class)
+                .getBody()).isEqualTo("true");
+        assertThat(rest.getForEntity("/api/plugins/good/data/site/main/reads-all-users", String.class)
+                .getBody()).isEqualTo("false");
+
+        // And the operator can read it off the admin page before deciding to keep the plugin.
+        Session admin = devLogin("admin");
+        assertThat(adminPlugins(admin))
+                .containsPattern("\\{\"id\":\"directory\"[^{]*\"readsAllUsers\":true")
+                .containsPattern("\\{\"id\":\"good\"[^{]*\"readsAllUsers\":false");
+    }
+
+    @Test
     void anUnsetKeyIs204AndAnUnknownAddressIsStill404() {
         // "Not set" is the normal state of an optional value, not a client error, and answering it 404 made
         // it one: 98% of the plugin requests in a three-minute session on a real instance said nothing more
@@ -602,6 +618,26 @@ class PluginLoadingIntegrationTest {
     }
 
     @Test
+    void configRefusesAValueOutsideItsDeclaredBoundsAndSaysWhich() {
+        // SDK 0.16.0: before bounds, 0 was a legal interval — the form said "Saved." and the scheduled task
+        // was switched off at the next boot. The refusal names the bound, so the operator knows what to type.
+        Session admin = devLogin("admin");
+        ResponseEntity<String> tooSmall = rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":0}", true), String.class);
+        assertThat(tooSmall.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(tooSmall.getBody()).contains("must be at least 1");
+
+        ResponseEntity<String> fractional = rest.exchange("/api/admin/plugins/good/config", HttpMethod.PUT,
+                admin.write("{\"refreshIntervalMinutes\":2.5}", true), String.class);
+        assertThat(fractional.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(fractional.getBody()).contains("plus a multiple of 1");
+
+        // Nothing was stored, and the form carries the bounds to render as input constraints.
+        assertThat(configValueOf(admin, "refreshIntervalMinutes")).isEqualTo("30");
+        assertThat(adminPlugins(admin)).contains("\"min\":1").contains("\"max\":1440");
+    }
+
+    @Test
     void podcasterMayEditOnlyTheFieldsDelegatedToThem() {
         Session podcaster = devLogin("podcaster");
         // refreshIntervalMinutes is editableBy podcaster …
@@ -715,6 +751,7 @@ class PluginLoadingIntegrationTest {
         dev.mosaicast.plugin.api.DocStore store = new DocStoreImpl("good", pluginData);
         store.put(dev.mosaicast.plugin.api.Scope.site(), "greeting", "hello from fixture");
         store.put(dev.mosaicast.plugin.api.Scope.site(), "episode-count", 0);
+        store.put(dev.mosaicast.plugin.api.Scope.site(), "reads-all-users", false);
     }
 
     @Test

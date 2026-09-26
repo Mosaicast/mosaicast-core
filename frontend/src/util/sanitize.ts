@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import DOMPurify, { type Config } from 'dompurify';
+import { FEED_HTML_POLICY } from '@mosaicast/plugin-sdk';
 
 /**
  * Sanitizes HTML that came from a feed — show notes and channel descriptions.
@@ -27,21 +28,21 @@ import DOMPurify, { type Config } from 'dompurify';
  *
  * The allow-list is deliberately narrow and additive: adding a tag is a decision someone makes on purpose,
  * whereas inheriting a default profile is a decision nobody made.
+ *
+ * **The lists live in the SDK** (`FEED_HTML_POLICY`, platformApi 0.16.0), because plugins render the same
+ * class of content through `ctx.sanitize` — and a plugin must not be able to end up with a weaker policy
+ * than the shell by writing less code (the wiki plugin shipped DOMPurify's defaults, and was defaced with
+ * exactly the `<style>` block described above). One copy, imported here, means the shell and every plugin
+ * apply the same decision and cannot drift. `FORBID_*` is belt and braces: those names are already absent
+ * from the allow-lists, but naming them means a future edit that widens one cannot quietly re-open the hole.
  */
 const FEED_HTML: Config = {
-  ALLOWED_TAGS: [
-    'a', 'abbr', 'b', 'blockquote', 'br', 'cite', 'code', 'dd', 'del', 'dl', 'dt', 'em', 'figcaption',
-    'figure', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'hr', 'i', 'img', 'ins', 'kbd', 'li', 'ol', 'p', 'pre',
-    'q', 's', 'samp', 'small', 'span', 'strong', 'sub', 'sup', 'table', 'tbody', 'td', 'tfoot', 'th',
-    'thead', 'tr', 'u', 'ul', 'var',
-  ],
-  ALLOWED_ATTR: ['href', 'title', 'alt', 'src', 'width', 'height', 'lang', 'dir', 'colspan', 'rowspan'],
-  // Belt and braces: these are already absent from ALLOWED_TAGS/ATTR, but naming them means a future edit
-  // that widens the lists cannot quietly re-open the hole this function exists to close.
-  FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form', 'input', 'link', 'base'],
-  FORBID_ATTR: ['style', 'srcset', 'formaction', 'ping'],
+  ALLOWED_TAGS: [...FEED_HTML_POLICY.allowedTags],
+  ALLOWED_ATTR: [...FEED_HTML_POLICY.allowedAttrs],
+  FORBID_TAGS: [...FEED_HTML_POLICY.forbidTags],
+  FORBID_ATTR: [...FEED_HTML_POLICY.forbidAttrs],
   // `javascript:` and `data:` in an href; DOMPurify's URI check handles the rest.
-  ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|tel:|#|\/)/i,
+  ALLOWED_URI_REGEXP: FEED_HTML_POLICY.allowedUriRegexp,
 };
 
 /**
@@ -54,7 +55,7 @@ const FEED_HTML: Config = {
  * - `nofollow ugc` — this markup is a third party's, published through the operator's site, not written by
  *   the operator; it is the same statement jsoup's `Safelist.basic()` already made on the server side.
  */
-export const EXTERNAL_LINK_REL = 'noopener noreferrer nofollow ugc';
+export const EXTERNAL_LINK_REL = FEED_HTML_POLICY.externalLinkRel;
 
 /**
  * Sends every link that leaves the site to a new tab.

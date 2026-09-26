@@ -22,6 +22,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The platform consent service (ARCHITECTURE §12.5).
@@ -44,7 +45,9 @@ public class ConsentService {
     /**
      * Categories the host has a translated label for. {@code necessary} is never prompted for — it is what the
      * core itself uses. Anything else a manifest declares passes through as a plugin-declared category, so a
-     * plugin is not limited to this vocabulary; the shell simply shows the raw name.
+     * plugin is not limited to this vocabulary; since SDK 0.16.0 it labels its own through
+     * {@code consent.categoryLabels}, and one that does not is shown inside a generic phrase, never as the
+     * bare id (core#177).
      */
     public static final String CATEGORY_NECESSARY = "necessary";
     public static final String CATEGORY_FUNCTIONAL = "functional";
@@ -113,8 +116,12 @@ public class ConsentService {
      *                 A boolean, not the hosts themselves — a visitor decides about services and providers,
      *                 and the origin list stays in the admin audit where the class note says it belongs
      * @param services the services this decision covers
+     * @param label    for a plugin-declared category, the name its plugin gave it — a string or a locale map,
+     *                 resolved in the browser — or {@code null} when it is known or unlabelled
+     * @param hint     the matching one-line explanation, or {@code null}
      */
-    public record CategoryView(String id, boolean known, boolean affectsPolicy, List<ServiceView> services) {
+    public record CategoryView(String id, boolean known, boolean affectsPolicy, List<ServiceView> services,
+                               JsonNode label, JsonNode hint) {
     }
 
     /**
@@ -197,9 +204,15 @@ public class ConsentService {
             }
         }
 
+        Map<String, PluginManifest.CategoryLabel> labels = categoryLabels();
         List<CategoryView> categories = byCategory.entrySet().stream()
-                .map(entry -> new CategoryView(entry.getKey(), KNOWN_CATEGORIES.contains(entry.getKey()),
-                        withHosts.contains(entry.getKey()), List.copyOf(entry.getValue())))
+                .map(entry -> {
+                    boolean known = KNOWN_CATEGORIES.contains(entry.getKey());
+                    PluginManifest.CategoryLabel label = known ? null : labels.get(entry.getKey());
+                    return new CategoryView(entry.getKey(), known, withHosts.contains(entry.getKey()),
+                            List.copyOf(entry.getValue()), label == null ? null : label.label(),
+                            label == null ? null : label.hint());
+                })
                 .toList();
 
         return new ConsentView(fingerprint(), categories,
@@ -438,6 +451,25 @@ public class ConsentService {
             return category;
         }
         return approvals.isApproved(pluginId, service) ? CATEGORY_NECESSARY : CATEGORY_NECESSARY_UNAPPROVED;
+    }
+
+    /**
+     * The label each plugin-declared category is shown under, keyed by normalized category id.
+     *
+     * <p>Two plugins may label the same category, and only one label can be shown because the decision is
+     * shared. The plugin whose id sorts first wins — deterministic across restarts and independent of load
+     * order, which is the only property the SDK promises. Core categories are refused at load, so none
+     * arrives here.
+     */
+    private Map<String, PluginManifest.CategoryLabel> categoryLabels() {
+        Map<String, PluginManifest.CategoryLabel> labels = new LinkedHashMap<>();
+        plugins.allActive().stream()
+                .filter(registration -> registration.manifest() != null
+                        && registration.manifest().consent() != null)
+                .sorted(java.util.Comparator.comparing(PluginRegistration::id))
+                .forEach(registration -> registration.manifest().consent().categoryLabelsOrEmpty()
+                        .forEach((category, label) -> labels.putIfAbsent(normalize(category), label)));
+        return labels;
     }
 
     private static List<PluginManifest.Service> declaredServices(PluginRegistration registration) {

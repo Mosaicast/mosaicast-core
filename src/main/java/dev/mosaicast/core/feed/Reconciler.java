@@ -235,7 +235,8 @@ public class Reconciler {
     private boolean upsertDisplay(UUID refId, RawEpisode raw) {
         DisplaySnapshot snapshot = new DisplaySnapshot(
                 raw.title(), raw.description(), raw.audioUrl(), raw.publishedAt(), raw.declaredDuration(),
-                raw.imageUrl(), raw.feedImageUrl(), raw.author(), raw.subtitle());
+                raw.imageUrl(), raw.feedImageUrl(), raw.author(), raw.subtitle(),
+                dev.mosaicast.core.episode.ShowNotes.plainText(raw.description()));
         java.util.Optional<EpisodeDisplay> current = displays.findById(refId);
         boolean snapshotChanged = current.map(existing -> !snapshot.equals(existing.getSnapshot())).orElse(true);
         if (snapshotChanged) {

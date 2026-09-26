@@ -1,7 +1,7 @@
 {
   "id": "good",
   "version": "1.0.0",
-  "platformApi": "0.15.0",
+  "platformApi": "0.16.0",
   "name": "Good Fixture",
   "license": "Apache-2.0",
   "author": "The Mosaicast Authors",
@@ -72,7 +72,10 @@
     "refreshIntervalMinutes": {
       "type": "number",
       "default": 30,
-      "editableBy": "podcaster"
+      "editableBy": "podcaster",
+      "min": 1,
+      "max": 1440,
+      "step": 1
     },
     "apiToken": {
       "type": "string",

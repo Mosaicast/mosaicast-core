@@ -16,6 +16,7 @@ import type {
   SchemaPage,
   SchemaPredicate,
   SchemaQuery,
+  Scope,
   TagInfo,
   TagsClient,
   TranslationClient,
@@ -26,7 +27,7 @@ import type {
   UserRef,
   TranslationResult,
 } from '@mosaicast/plugin-sdk';
-import { DISPLAY_BATCH_LIMIT, DOC_KEY_PATTERN, declaredTypeFor } from '@mosaicast/plugin-sdk';
+import { DISPLAY_BATCH_LIMIT, DOC_BATCH_LIMIT, DOC_KEY_PATTERN, declaredTypeFor } from '@mosaicast/plugin-sdk';
 
 import { api, ApiError } from '../api/client';
 
@@ -91,6 +92,15 @@ export function makePluginApi(pluginId: string): PluginApiClient {
     put: <T>(path: string, body?: unknown) => api.put<T>(url(path), body),
     delete: <T>(path: string) => api.del<T>(url(path)),
   };
+}
+
+/** Splits `items` into runs of at most `size` — the host's per-request ceiling on a batch read. */
+function chunks<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    out.push(items.slice(i, i + size));
+  }
+  return out;
 }
 
 /**
@@ -210,8 +220,54 @@ export function makePluginDocs(pluginId: string, identity = 'anonymous'): DocCli
     knownAbsent.delete(keyed(target, key));
   };
 
+  /**
+   * Many scopes' keys in as few requests as the host's ceiling allows (SDK 0.16.0).
+   *
+   * The host takes at most {@link DOC_BATCH_LIMIT} ids and as many keys per request and refuses more with a
+   * 400, so the call is split here and merged — the SDK promises a plugin never sees that ceiling. Every
+   * key a scope came back without is a miss, and goes into the same memory `get` reads, so the card that
+   * later asks for one alone costs nothing. Hits are not remembered, for the reason `get` gives.
+   */
+  const readMany = async <T>(
+    type: Scope['type'],
+    ids: string[],
+    keys: string[],
+  ): Promise<Record<string, Record<string, T>>> => {
+    keys.forEach((key) => keyed('site', key)); // validates, throwing on a malformed key like `get` does
+    const wantedIds = [...new Set(ids)];
+    const wantedKeys = [...new Set(keys)];
+    const answer: Record<string, Record<string, T>> = {};
+    if (wantedIds.length === 0 || wantedKeys.length === 0) {
+      return answer;
+    }
+    const requests: Promise<void>[] = [];
+    for (const idChunk of chunks(wantedIds, DOC_BATCH_LIMIT)) {
+      for (const keyChunk of chunks(wantedKeys, DOC_BATCH_LIMIT)) {
+        const query =
+          `ids=${idChunk.map(encodeURIComponent).join(',')}` +
+          `&keys=${keyChunk.map(encodeURIComponent).join(',')}`;
+        requests.push(
+          api.get<Record<string, Record<string, T>>>(`${base}/${type}?${query}`).then((found) => {
+            for (const id of idChunk) {
+              const got = found?.[id] ?? {};
+              answer[id] = { ...answer[id], ...got };
+              for (const key of keyChunk) {
+                if (!(key in got)) {
+                  knownAbsent.add(keyed({ type, id }, key));
+                }
+              }
+            }
+          }),
+        );
+      }
+    }
+    await Promise.all(requests);
+    return answer;
+  };
+
   return {
     get: <T>(target: DocTarget, key: string) => read<T>(target, key),
+    getMany: <T>(type: Scope['type'], ids: string[], keys: string[]) => readMany<T>(type, ids, keys),
     put: <T>(target: DocTarget, key: string, value: T) =>
       api.put<void>(keyed(target, key), value).then(() => {
         forget(target, key);

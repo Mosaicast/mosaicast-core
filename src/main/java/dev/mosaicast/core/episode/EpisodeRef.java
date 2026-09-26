@@ -192,8 +192,9 @@ public class EpisodeRef {
         return accessTierRef;
     }
 
+    /** The host-authored display, with {@code descriptionText} filled in for a row stored before SDK 0.16.0. */
     public DisplaySnapshot getProvisionalDisplay() {
-        return provisionalDisplay;
+        return ShowNotes.complete(provisionalDisplay);
     }
 
     public Instant getFirstSeenAt() {

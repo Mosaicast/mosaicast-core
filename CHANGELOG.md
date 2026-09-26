@@ -14,6 +14,30 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **The host side of `platformApi` 0.16.0 (`0.7.4`, SDK #72–#79).** What three test passes found in the
+  plugin contract, implemented here:
+  - **Reading every user's data is declared (audit SEC-E04).** `PluginContext.allUsers()` is handed out only
+    to a plugin whose manifest says `"data": {"readsAllUsers": true}`, and `null` otherwise; until now any
+    plugin could enumerate every account's per-user documents through `DocStore.queryAcrossUsers`, which is
+    gone. The admin plugin page says so for a plugin that declares it.
+  - **`ctx.sanitize`** is the shell's own `sanitizeFeedHtml`, and its allow/forbid lists now come from the
+    SDK's `FEED_HTML_POLICY` rather than a copy here — one policy for show notes and for every plugin
+    rendering HTML it did not write. The wiki plugin had fallen back to DOMPurify's defaults, which let a
+    `<style>` block deface the page for every reader.
+  - **`DisplaySnapshot.descriptionText`**, the show notes as plain text, derived with Jsoup on the way in
+    and filled on the way out for snapshots stored before this release — no backfill, and no rewrite of every
+    episode on the next poll.
+  - **`ctx.docs.getMany`** over the batch endpoint, split at 100 ids and keys, feeding the miss cache.
+  - **`ctx.theme.accentText`** is handed over rather than stripped.
+- **A plugin names the consent category it introduces (`0.7.4`, core#177).** `consent.categoryLabels` gives
+  a plugin-declared category a localized label and hint; an unlabelled one is shown as "Other services: …"
+  with a generic explanation. A visitor is no longer asked to consent to a bare id such as `social`.
+- **Plugin config values have bounds (`0.7.4`, audit CR-P07).** `min`/`max`/`step` on a number field and
+  `minLength`/`maxLength` on a string one. An out-of-range write is refused with a message naming the bound —
+  before, a podcaster could save the `0` that switched a scheduled task off and be told "Saved." A value
+  stored before a bound existed that now breaks it counts as unset. The admin form renders the bounds as
+  input constraints.
+
 - **A feed can be deleted (`0.7.4`, core#175).** There was no `DELETE` on the feed surface at all — not in
   the UI and not in the API. Disabling correctly removes a feed and its episodes from every public
   surface, but the row, the episode refs, the display snapshots and the fetched show notes stayed in the
@@ -185,6 +209,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   than leave it — the class Javadoc still described the type as holding planned episodes, so a reader
   implementing against §4.3 would have gone looking for a row nothing creates. `source=manual` on an
   `EpisodeRef` is a different field and is unchanged, as is the `type=manual` line in the applied migration.
+
+- **The plugin contract moves to `platformApi` 0.16.0** (`0.7.4`). An exact `major.minor` match, so **every
+  installed plugin must be rebuilt against SDK 0.16.0 or it will not load**. A plugin that aggregated over
+  users must now declare `data.readsAllUsers`, or `ctx.allUsers()` is `null`.
 
 - **The plugin contract moves to `platformApi` 0.15.0** (`0.7.2`). That check is an exact `major.minor` match, so
   **every installed plugin must be rebuilt against SDK 0.15.0 or it will not load** — `plugins/bingo`,

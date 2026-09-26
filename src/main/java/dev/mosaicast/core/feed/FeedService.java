@@ -291,8 +291,10 @@ public class FeedService {
     public UUID createPlannedEpisode(UUID feedId, Integer season, Integer episodeNo, String title, String description) {
         Feed feed = feeds.findById(feedId)
                 .orElseThrow(() -> new NotFoundException("Feed not found: " + feedId));
+        String notes = description == null ? "" : description;
         DisplaySnapshot provisional = new DisplaySnapshot(
-                title, description == null ? "" : description, null, null, null, null, null, null, null);
+                title, notes, null, null, null, null, null, null, null,
+                dev.mosaicast.core.episode.ShowNotes.plainText(notes));
         String slug = dev.mosaicast.core.episode.EpisodeSlug.generate(
                 feed.getTitle(), season, episodeNo, title, refs::existsBySlug);
         EpisodeRef planned = EpisodeRef.planned(feed.getId(), season, episodeNo, provisional, slug);

@@ -53,8 +53,9 @@ public class EpisodeDisplay {
         return episodeRefId;
     }
 
+    /** The snapshot, with {@code descriptionText} filled in for a row stored before SDK 0.16.0. */
     public DisplaySnapshot getSnapshot() {
-        return snapshot;
+        return ShowNotes.complete(snapshot);
     }
 
     public Instant getFetchedAt() {
