@@ -14,6 +14,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Named, isolated dev instances (`0.7.5`, dev tooling).** `dev/instance.sh` could run only one instance,
+  and everything about it was shared: ports, one database container that every `up` removed, a `down` that
+  ran `pkill -f bootRun` on the whole machine, the core working tree, and `./plugins`. Once several
+  sessions used it in parallel, each could wipe or stop another's test. Now `--name N` gives each session
+  its own instance:
+  - its own Postgres container, ports (allocated under a lock and reused), feed server, app process and
+    plugins directory, all under `/tmp/mosaicast-dev/<name>/`;
+  - `--plugin-dir` for a plugin's built `dist/`, copied in, so nothing writes into `./plugins` any more;
+  - `--core REF` for a pinned core, built once per commit in a clean worktree and cached, so nobody's
+    uncommitted edits reach another session's site.
+
+  New commands: `env` (sourceable ports) and `ls` (every instance, and whether it is behind master).
+
+  `down` stops only what its own name started, by recorded pid and process lineage, and `up` refuses a
+  name that is still running. Without `--name`, the `default` instance keeps the same ports, the same
+  working-tree `bootRun` and the same screenshot flow. `dev/instance-smoke.sh` brings two instances up
+  concurrently and checks they stay apart.
+
 - **The host side of `platformApi` 0.16.0 (`0.7.4`, SDK #72–#79).** What three test passes found in the
   plugin contract, implemented here:
   - **Reading every user's data is declared (audit SEC-E04).** `PluginContext.allUsers()` is handed out only

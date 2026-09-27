@@ -93,7 +93,12 @@ Java 21 · Spring Boot 4 (Jackson 3) · PostgreSQL · PF4J · React + Vite
   `--admin` opens an admin session; `status`, `logs [-f]`, `psql`, `down`. `--audio DIR` repoints the
   sample feed's `example.com` enclosures at your own files in a staged copy, so playback actually plays —
   needed for anything that only misbehaves while `timeupdate` fires; it turns on strict media CSP, so not
-  for screenshots.
+  for screenshots. **Named instances** (`--name N`) run side by side for other sessions: own ports (read
+  them from `env`, never hard-code), container, processes and plugins dir; `--plugin-dir PATH` adds a
+  built plugin, `--core REF` pins a commit (named default: `origin/master`), `ls` lists them all. **A
+  session only ever runs `up`/`down` on its own name** — core's is `default`. When master moves in a way
+  plugin sessions should pick up, tell each peer the SHA and what changed; they restart their own.
+  `dev/instance-smoke.sh` checks the isolation.
 - **Screenshots:** after a change that alters the shell's look, refresh **all four pages, light and dark**
   in `assets/screenshots/` (`home-`, `detail-`, `account-`, `admin-{light,dark}.png`, ~1280px). Capture with
   `dev/instance.sh up --admin` (no plugins — the sample plugin's demo card is not what the README should

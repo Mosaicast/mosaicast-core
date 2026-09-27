@@ -91,6 +91,44 @@ dev/instance.sh down
 Use it to check a change by hand, exercise an admin flow, point a plugin at a real host, or refresh the
 README screenshots.
 
+### Named instances
+
+Several sessions can each run their own instance side by side: its own Postgres container, ports, feed
+server, app process and plugins directory, all under `/tmp/mosaicast-dev/<name>/`. Without `--name`
+everything above is the `default` instance and behaves as it always has.
+
+```bash
+dev/instance.sh --name sample up --plugin-dir ../mosaicast-plugin-sample/dist   # a plugin's own build
+dev/instance.sh --name sample up --core v0.7.4 --plugins    # a pinned core + ./plugins (copied, never written)
+source <(dev/instance.sh --name sample env)                 # MC_APP_URL, MC_APP_PORT, MC_PG_PORT, …
+dev/instance.sh --name sample status | logs -f | psql | down
+dev/instance.sh ls                                          # every instance: state, URL, core SHA, behind master?
+```
+
+- **A session only ever runs `up`/`down` on its own name.** Nothing the script does to one name can stop,
+  reset or change another's: there is no pattern-matched `pkill`, `down` stops only the processes the
+  name started (by recorded pid and lineage), and only its own container is ever removed. `up` on a name
+  that is still running is refused rather than torn down.
+- **Ports are allocated, not assumed.** `default` keeps 5433 / 8081 / 8099; any other name gets the next
+  free slot (app `8081+100n`, Postgres `5433+100n`, feed `8099+100n`), recorded and reused when the name
+  comes back. Read them from `env`; never hard-code them.
+- **`--core REF`** runs a pinned core instead of this working tree: the ref is resolved to a commit, built
+  once in a clean `git worktree` (frontend + `bootJar`) and cached per SHA, so nobody's uncommitted edits
+  reach anybody else's instance. Named instances default to `origin/master`; `default` and
+  `--core worktree` keep running this checkout's `bootRun`. Instances stay on the SHA they started with
+  — `ls` shows which are behind `origin/master`, and restarting is the owner's call.
+- **`--plugin-dir PATH`** (repeatable) copies a built plugin into the instance's own plugins directory as
+  `<id>/`; `--plugins` copies `./plugins` first. Rebuilding a `dist/` does not change a running instance.
+- Browsers scope cookies by host, not port: two instances open in one browser profile on `localhost`
+  log each other out. Use one profile per instance.
+- `dev/instance-smoke.sh` brings two named instances up at once and checks they stay apart (needs Docker).
+
+For a plugin repo's CLAUDE.md, next to core in `~/mosaicast/`:
+
+```bash
+../mosaicast-core/dev/instance.sh --name <plugin> up --plugin-dir "$PWD/dist"   # and: down, env, status
+```
+
 The sample feed's enclosures point at `example.com`, so pressing play does nothing — which is fine until
 the thing you are checking *is* playback. `--audio DIR` repoints them at your own audio files (matched to
 episodes in sorted order, oldest file to oldest episode) in a staged copy of the feed; the checked-in file
