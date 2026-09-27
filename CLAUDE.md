@@ -9,7 +9,7 @@ The host: Spring Boot backend + React/Vite shell. Loads plugins, unifies feeds, 
 Read both fully before writing code. Work in plan mode first.
 
 ## Tech stack
-Java 21 · Spring Boot 3 · PostgreSQL · PF4J · React + Vite
+Java 21 · Spring Boot 4 (Jackson 3) · PostgreSQL · PF4J · React + Vite
 
 ## Commands
 ```
