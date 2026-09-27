@@ -253,6 +253,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A remembered miss no longer hides a document written later (`0.7.5`, core#237).** Since 0.7.3 the plugin
+  doc client remembered every "not set" answer for the whole life of the page. After that, `ctx.docs.get`
+  resolved `null` without sending a request. Two kinds of keys start unset and appear later:
+  - keys the plugin's backend writes on a schedule, such as a leaderboard;
+  - keys another session writes, such as a podcaster creating the bingo a fan is looking at.
+
+  Both stayed "nothing here" until a reload. A remembered miss now lasts 30 seconds and is cleared on every
+  navigation, including back and forward. The clear runs while the shell renders, not in an effect, so the
+  new page's tiles never read the old page's memory. Re-renders a few milliseconds apart are still answered
+  from memory, and that was the flood the memory was built to stop. The SDK's `DocClient` guarantee 2 and
+  ARCHITECTURE §7.6 still say "for the life of the page". SDK #87 proposes the new wording.
+
 - **Pinned to SDK 0.16.1 (`0.7.5`).** A patch release, so plugins still declare `platformApi` 0.16.0 and
   nothing installed is rejected.
   - `FEED_HTML_POLICY` now allows `start` and `align`. `sanitize.ts` imports the policy, so these reach
