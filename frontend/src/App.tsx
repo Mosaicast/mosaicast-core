@@ -16,6 +16,7 @@ import { TopBar } from './components/TopBar';
 import { ConsentBanner } from './consent/ConsentBanner';
 import { ConsentProvider } from './consent/ConsentContext';
 import { PlayerProvider } from './player/PlayerContext';
+import { noteNavigation } from './plugins/pluginApi';
 import { PluginRegistryProvider } from './plugins/PluginRegistry';
 import { AboutPage } from './routes/AboutPage';
 import { NotificationsPage } from './routes/NotificationsPage';
@@ -48,6 +49,9 @@ import { SiteProvider } from './theme/SiteContext';
  */
 export default function App() {
   const location = useLocation();
+  // Before anything below renders, so the new page's plugin tiles never read the old page's remembered
+  // misses (core#237). Not an effect: those run children first, after the tiles have already asked.
+  noteNavigation(location.key);
   return (
     <SiteProvider>
       <MetaProvider>

@@ -4,12 +4,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  MISS_TTL_MS,
   makePluginApi,
   makePluginDocs,
   makePluginFeeds,
   makePluginSchema,
   makePluginTags,
   makePluginTranslation,
+  noteNavigation,
 } from './pluginApi';
 
 /**
@@ -273,6 +275,58 @@ describe('makePluginDocs', () => {
 
     // A miss does not change by itself, and a tile asks for its key on every render — one measured page
     // requested the same key three times per episode.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('believes a miss for a while, not for the life of the page (core#237)', async () => {
+    // A key the plugin's backend writes on its schedule, or another session writes, starts out unset and
+    // appears later. A page-long memory hid it until a reload, with no request sent.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const fetchMock = vi.fn(() => noContent());
+      vi.stubGlobal('fetch', fetchMock);
+      const docs = makePluginDocs('miss-expires');
+
+      await docs.get('site', 'leaderboard');
+      vi.advanceTimersByTime(MISS_TTL_MS - 1);
+      await docs.get('site', 'leaderboard');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(1);
+      vi.stubGlobal('fetch', vi.fn(() => reply({ top: ['ada'] })));
+      await expect(docs.get('site', 'leaderboard')).resolves.toEqual({ top: ['ada'] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('forgets every remembered miss when the visitor navigates (core#237)', async () => {
+    // The reported case: a fan leaves an episode with no bingo, a podcaster creates one elsewhere, the fan
+    // comes back inside the SPA — and was told there was none, answered from memory.
+    const fetchMock = vi.fn(() => noContent());
+    vi.stubGlobal('fetch', fetchMock);
+    noteNavigation('episode-4');
+    const docs = makePluginDocs('forgets-on-navigation');
+    await docs.get({ type: 'episode', id: 'ep-4' }, 'template');
+
+    noteNavigation('home');
+    noteNavigation('episode-4-again');
+    vi.stubGlobal('fetch', vi.fn(() => reply({ cells: 9 })));
+
+    // The same client instance, built before the navigation: it must not keep a private copy of the memory.
+    await expect(docs.get({ type: 'episode', id: 'ep-4' }, 'template')).resolves.toEqual({ cells: 9 });
+  });
+
+  it('keeps its memory across re-renders of the same location', async () => {
+    const fetchMock = vi.fn(() => noContent());
+    vi.stubGlobal('fetch', fetchMock);
+    noteNavigation('same-place');
+    const docs = makePluginDocs('same-location');
+
+    await docs.get('site', 'index');
+    noteNavigation('same-place'); // a re-render, or StrictMode rendering twice
+    await docs.get('site', 'index');
+
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

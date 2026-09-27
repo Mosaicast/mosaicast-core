@@ -116,7 +116,7 @@ function chunks<T>(items: T[], size: number): T[][] {
  * the request, so a malformed one throws where it was written instead of arriving as a 400 from the host.
  */
 /**
- * Remembered misses, per plugin and per identity, for the life of the page.
+ * Remembered misses, per plugin and per identity — for {@link MISS_TTL_MS}, and never across a navigation.
  *
  * Module-level rather than per client on purpose: `ctx` is rebuilt whenever one of its inputs legitimately
  * changes — the site's theme arriving is one, a language switch is another — and a cache that lived on the
@@ -125,7 +125,40 @@ function chunks<T>(items: T[], size: number): T[][] {
  * for every caller, and a miss seen while logged out must not be served to the person who just logged in.
  * Only the previous identity's entries are dropped, which is the whole of the staleness question here.
  */
-const missesByPlugin = new Map<string, { identity: string; paths: Set<string> }>();
+const missesByPlugin = new Map<string, { identity: string; paths: Map<string, number> }>();
+
+/**
+ * How long "not set" is believed, in milliseconds.
+ *
+ * It used to be the life of the page, on the reasoning that an unset key does not change by itself. Two
+ * kinds of key do exactly that: what the plugin's backend writes on its schedule (a leaderboard, derived
+ * state), and what another session writes (a podcaster creating the bingo a fan is looking at). Those
+ * start absent and appear later, and a page-long memory hid them until a reload — silently, as "nothing
+ * here yet" (core#237). Thirty seconds keeps what the memory was for: the flood it stopped was one key
+ * asked 178 times in three minutes, re-renders a few milliseconds apart, and those all still land inside it.
+ */
+export const MISS_TTL_MS = 30_000;
+
+/** The router location the remembered misses were seen under; see {@link noteNavigation}. */
+let navigation: string | undefined;
+
+/**
+ * Drops every remembered miss when the visitor has moved to another location.
+ *
+ * Called from the shell's render with the router's `location.key`, which is new for every navigation —
+ * links, back and forward alike. During render rather than in an effect because effects run children
+ * first: the new page's tiles would read, and be answered from the old page's memory, before a parent's
+ * effect got to clear it. Navigating is the moment a visitor expects the page to be current, and the one
+ * the reported case turned on: a fan going home and back to an episode whose bingo had been created in the
+ * meantime, and being told there was none, with no request sent (core#237). Idempotent for one key, so a
+ * re-render — or StrictMode rendering twice — clears nothing.
+ */
+export function noteNavigation(key: string): void {
+  if (key !== navigation) {
+    navigation = key;
+    missesByPlugin.clear();
+  }
+}
 
 /**
  * Reads in flight, shared across every mount of the same plugin: a feed page mounts one tile per card and
@@ -134,12 +167,18 @@ const missesByPlugin = new Map<string, { identity: string; paths: Set<string> }>
  */
 const inFlight = new Map<string, Promise<unknown>>();
 
-function rememberedMisses(pluginId: string, identity: string): Set<string> {
+/**
+ * The misses remembered for one plugin and identity, as `path → expiry`.
+ *
+ * Looked up on every use rather than captured when the client is built: {@link noteNavigation} replaces
+ * the whole memory, and a client made before a navigation must not keep writing into the old one.
+ */
+function rememberedMisses(pluginId: string, identity: string): Map<string, number> {
   const held = missesByPlugin.get(pluginId);
   if (held && held.identity === identity) {
     return held.paths;
   }
-  const fresh = { identity, paths: new Set<string>() };
+  const fresh = { identity, paths: new Map<string, number>() };
   missesByPlugin.set(pluginId, fresh);
   return fresh.paths;
 }
@@ -178,18 +217,34 @@ export function makePluginDocs(pluginId: string, identity = 'anonymous'): DocCli
    * instance asked for one key 178 times. Two things fix that and neither belongs in every plugin:
    *
    * - **Dedupe.** Identical reads in flight at the same time share one request.
-   * - **Remember the misses.** "Not set" is the normal answer for an optional value and it does not change
-   *   by itself, so it is cached for the life of the page. A *hit* is not cached — a document another
-   *   session wrote is exactly the thing a re-render should pick up.
+   * - **Remember the misses, briefly.** "Not set" is the normal answer for an optional value, and a burst of
+   *   re-renders need not ask again — so it is believed for {@link MISS_TTL_MS} and until the visitor
+   *   navigates. Not longer: the plugin's backend and other sessions write keys that were unset a moment
+   *   ago (core#237). A *hit* is not cached at all — a document another session changed is exactly the
+   *   thing a re-render should pick up.
    *
    * Writing through this client invalidates the address it wrote, so a plugin that stores a value and reads
    * it back gets its own write rather than the miss it saw a moment earlier.
    */
-  const knownAbsent = rememberedMisses(pluginId, identity);
+  const isKnownAbsent = (path: string): boolean => {
+    const misses = rememberedMisses(pluginId, identity);
+    const expiry = misses.get(path);
+    if (expiry === undefined) {
+      return false;
+    }
+    if (Date.now() >= expiry) {
+      misses.delete(path);
+      return false;
+    }
+    return true;
+  };
+  const rememberAbsent = (path: string) => {
+    rememberedMisses(pluginId, identity).set(path, Date.now() + MISS_TTL_MS);
+  };
 
   const read = <T>(target: DocTarget, key: string): Promise<T | null> => {
     const path = keyed(target, key);
-    if (knownAbsent.has(path)) {
+    if (isKnownAbsent(path)) {
       return Promise.resolve(null);
     }
     const pending = inFlight.get(path);
@@ -204,7 +259,7 @@ export function makePluginDocs(pluginId: string, identity = 'anonymous'): DocCli
         // plugin that is switched on, or a scope that comes into existence, should not be remembered as
         // empty for the rest of the page.
         if (value === undefined) {
-          knownAbsent.add(path);
+          rememberAbsent(path);
         }
         return absentAsNull(value as T | undefined);
       })
@@ -217,7 +272,7 @@ export function makePluginDocs(pluginId: string, identity = 'anonymous'): DocCli
   };
 
   const forget = (target: DocTarget, key: string) => {
-    knownAbsent.delete(keyed(target, key));
+    rememberedMisses(pluginId, identity).delete(keyed(target, key));
   };
 
   /**
@@ -253,7 +308,7 @@ export function makePluginDocs(pluginId: string, identity = 'anonymous'): DocCli
               answer[id] = { ...answer[id], ...got };
               for (const key of keyChunk) {
                 if (!(key in got)) {
-                  knownAbsent.add(keyed({ type, id }, key));
+                  rememberAbsent(keyed({ type, id }, key));
                 }
               }
             }
