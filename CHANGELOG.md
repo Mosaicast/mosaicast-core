@@ -14,6 +14,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Dev instances: `restart`, `--app-arg` and a scriptable `psql` (`0.7.6`, core#242, core#243, core#244).**
+  All three came from plugin sessions using named instances:
+  - **`restart`** restarts only a name's app. It keeps the database, feed, ports and core SHA, and does not
+    reseed. Core picks up a rebuilt plugin only on a restart, and `down` + `up` used to throw away
+    everything written to exercise it and change every episode id. The plugin dirs and app args recorded
+    at `up` are replayed unless new ones are given. `--core` can move it to another commit, but a commit
+    older than the database's schema is refused before anything is stopped.
+  - **`--app-arg --some.property=value`** passes one more Spring property to the app, quoted correctly for
+    both `bootRun --args` and the pinned jar. Before, the only route was an environment variable, which
+    reached named instances but not reliably `default`. Properties the script sets itself are refused,
+    since Spring joins a repeated command-line property into a list instead of letting the last one win.
+  - **`psql`** passes everything after it to psql and asks Docker for a TTY only when there is one. Before,
+    it always used `docker exec -it`, which fails from a script or an agent session, and it could not take
+    a query.
+
+  `dev/instance-smoke.sh` covers all three.
+
 - **Named, isolated dev instances (`0.7.5`, dev tooling).** `dev/instance.sh` could run only one instance,
   and everything about it was shared: ports, one database container that every `up` removed, a `down` that
   ran `pkill -f bootRun` on the whole machine, the core working tree, and `./plugins`. Once several

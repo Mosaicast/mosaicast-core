@@ -101,7 +101,9 @@ everything above is the `default` instance and behaves as it always has.
 dev/instance.sh --name sample up --plugin-dir ../mosaicast-plugin-sample/dist   # a plugin's own build
 dev/instance.sh --name sample up --core v0.7.4 --plugins    # a pinned core + ./plugins (copied, never written)
 source <(dev/instance.sh --name sample env)                 # MC_APP_URL, MC_APP_PORT, MC_PG_PORT, …
-dev/instance.sh --name sample status | logs -f | psql | down
+dev/instance.sh --name sample restart                       # rebuilt plugin: new app, same data
+dev/instance.sh --name sample psql -At -c "select 1"        # scriptable; a TTY only when there is one
+dev/instance.sh --name sample status | logs -f | down
 dev/instance.sh ls                                          # every instance: state, URL, core SHA, behind master?
 ```
 
@@ -118,7 +120,15 @@ dev/instance.sh ls                                          # every instance: st
   `--core worktree` keep running this checkout's `bootRun`. Instances stay on the SHA they started with
   — `ls` shows which are behind `origin/master`, and restarting is the owner's call.
 - **`--plugin-dir PATH`** (repeatable) copies a built plugin into the instance's own plugins directory as
-  `<id>/`; `--plugins` copies `./plugins` first. Rebuilding a `dist/` does not change a running instance.
+  `<id>/`; `--plugins` copies `./plugins` first. Rebuilding a `dist/` does not change a running instance —
+  **`restart`** does: it re-copies the plugins, restarts only the app and keeps the database, the feed and
+  the ports, so whatever the session wrote to exercise the plugin is still there. It keeps the core SHA
+  unless `--core` is given, and refuses a core older than the database's schema.
+- **`--app-arg --some.property=value`** (repeatable) passes one more Spring property to the app, on
+  `bootRun` and pinned jars alike — e.g. `--app-arg
+  --mosaicast.external.allowed-private-origins=http://localhost:5000` for a local LibreTranslate. The
+  properties the script sets itself are refused. `restart` replays the plugin dirs and app args the name
+  was started with unless new ones are given; a later `up` takes only what it is given.
 - Browsers scope cookies by host, not port: two instances open in one browser profile on `localhost`
   log each other out. Use one profile per instance.
 - `dev/instance-smoke.sh` brings two named instances up at once and checks they stay apart (needs Docker).
