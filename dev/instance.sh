@@ -8,8 +8,10 @@
 # never a real podcast.
 #
 #   dev/instance.sh [--name N] up [--plugins|--no-plugins] [--plugin-dir PATH]... [--core REF] [--admin]
-#                                 [--audio DIR]
-#   dev/instance.sh [--name N] down | status | logs [-f] | psql | env
+#                                 [--audio DIR] [--app-arg --some.property=value]...
+#   dev/instance.sh [--name N] restart [--plugin-dir PATH]... [--core REF] [--app-arg ...]...
+#   dev/instance.sh [--name N] down | status | logs [-f] | env
+#   dev/instance.sh [--name N] psql [psql arguments…]
 #   dev/instance.sh ls
 #
 # NAMED INSTANCES. Several sessions work on this machine at once (core, the SDK, every plugin), and each
@@ -30,6 +32,18 @@
 #                     site. `worktree` runs this checkout's bootRun instead, uncommitted edits and all — for
 #                     the session that owns this checkout. Default: `worktree` for `default`, and
 #                     `origin/master` (fetched first) for every other name.
+#   --app-arg ARG     one more Spring property for the app, e.g. `--app-arg
+#                     --mosaicast.external.allowed-private-origins=http://localhost:5000`. Repeatable. The same
+#                     on every path (bootRun and pinned jar). Properties the script sets itself (port, profile,
+#                     plugins dir, base URL, the dev-login and private-target switches) are refused, because
+#                     Spring joins a repeated command-line property into a list instead of letting one win.
+#   restart           restarts only the app of a name that is up (or whose container is still there): same
+#                     database, feed, ports and core, and no reseeding — what a rebuilt plugin needs, without
+#                     losing what the session wrote to exercise it. The plugin dirs and app args recorded at
+#                     `up` are copied/applied again unless new ones are given; `--core` moves it to another
+#                     commit, but never to one older than the database's schema.
+#   psql [args…]      psql in the name's database. Anything after `psql` goes to psql, so
+#                     `psql -At -c "select …"` works from a script; a TTY is used only when there is one.
 #   env               prints a sourceable file — MC_NAME, MC_APP_URL, MC_APP_PORT, MC_PG_PORT, MC_FEED_URL,
 #                     MC_CORE_SHA, MC_RUN_DIR — so a session reads its ports instead of hard-coding them:
 #                       source <(dev/instance.sh --name sample env)
@@ -37,7 +51,8 @@
 #                     origin/master, loaded plugins, age.
 #
 # Running instances stay on the SHA they were started with. When master moves, `ls` says which ones are
-# behind; restarting is each owner's call (`down`, then `up` again).
+# behind; moving is each owner's call — `restart --core origin/master` keeps the data, `down` + `up` starts
+# from scratch.
 #
 # Ports: `default` keeps Postgres 5433, app 8081, feed 8099 — off the usual ones, so it never collides with
 # a normal dev setup on 5432/8080. Any other name gets the first free slot n (1–15): app 8081+100n,
@@ -93,7 +108,15 @@ AS_ADMIN=0
 AUDIO_DIR=""
 CORE_REF=""
 PLUGIN_DIRS=()
+APP_ARGS=()
+PSQL_ARGS=()
 FOLLOW=""
+# What `up` was given, as recorded in instance.env for `restart` to replay.
+MC_UP_PLUGIN_DIRS=()
+MC_UP_APP_ARGS=()
+# Whether the caller passed these explicitly; `restart` replays the recorded ones otherwise.
+GIVEN_PLUGINS=0
+GIVEN_APP_ARGS=0
 
 # ---------------------------------------------------------------------------------------------------------
 # Small helpers
@@ -223,24 +246,29 @@ load_env() {  # sources the instance's instance.env into MC_* variables; false i
   return 0
 }
 
+# Written with printf %q so that paths and property values with spaces or quotes survive being sourced back.
+# The MC_UP_* lines are what `up` was given — replayed by `restart`, never by a later `up` (which takes
+# exactly what it is given, so a setting nobody asked for this time cannot linger unseen).
 write_env() {
   mkdir -p "$IDIR"
-  cat > "$ENV_FILE.tmp" <<EOF
-MC_NAME='$NAME'
-MC_SLOT='$MC_SLOT'
-MC_APP_PORT='$MC_APP_PORT'
-MC_APP_URL='http://localhost:$MC_APP_PORT'
-MC_PG_PORT='$MC_PG_PORT'
-MC_PG_CONTAINER='$PG_NAME'
-MC_FEED_PORT='$MC_FEED_PORT'
-MC_FEED_URL='http://localhost:$MC_FEED_PORT/sample-feed.xml'
-MC_CORE_REF='${MC_CORE_REF:-}'
-MC_CORE_SHA='${MC_CORE_SHA:-}'
-MC_CORE_MODE='${MC_CORE_MODE:-}'
-MC_PLUGINS='${MC_PLUGINS:-}'
-MC_STARTED_AT='${MC_STARTED_AT:-}'
-MC_RUN_DIR='$IDIR'
-EOF
+  {
+    local var
+    for var in MC_SLOT MC_APP_PORT MC_PG_PORT MC_FEED_PORT MC_CORE_REF MC_CORE_SHA MC_CORE_MODE MC_PLUGINS \
+               MC_STARTED_AT MC_UP_WITH_PLUGINS MC_UP_AUDIO_DIR; do
+      printf '%s=%q\n' "$var" "${!var:-}"
+    done
+    printf 'MC_NAME=%q\n' "$NAME"
+    printf 'MC_APP_URL=%q\n' "http://localhost:$MC_APP_PORT"
+    printf 'MC_PG_CONTAINER=%q\n' "$PG_NAME"
+    printf 'MC_FEED_URL=%q\n' "http://localhost:$MC_FEED_PORT/sample-feed.xml"
+    printf 'MC_RUN_DIR=%q\n' "$IDIR"
+    printf 'MC_UP_PLUGIN_DIRS=('
+    [ ${#MC_UP_PLUGIN_DIRS[@]} -gt 0 ] && printf '%q ' "${MC_UP_PLUGIN_DIRS[@]}"
+    printf ')\n'
+    printf 'MC_UP_APP_ARGS=('
+    [ ${#MC_UP_APP_ARGS[@]} -gt 0 ] && printf '%q ' "${MC_UP_APP_ARGS[@]}"
+    printf ')\n'
+  } > "$ENV_FILE.tmp"
   mv "$ENV_FILE.tmp" "$ENV_FILE"
 }
 
@@ -485,6 +513,19 @@ up() {
     -p "127.0.0.1:$MC_PG_PORT:5432" postgres:16-alpine >/dev/null
   until docker exec "$PG_NAME" pg_isready -U mosaicast -d mosaicast >/dev/null 2>&1; do sleep 1; done
 
+  start_feed
+  stage_plugins
+  MC_UP_WITH_PLUGINS="$WITH_PLUGINS"
+  MC_UP_AUDIO_DIR="$AUDIO_DIR"
+  MC_UP_PLUGIN_DIRS=("${PLUGIN_DIRS[@]}")
+  MC_UP_APP_ARGS=("${APP_ARGS[@]}")
+  write_env
+
+  start_app
+  seed_and_greet
+}
+
+start_feed() {
   stage_feed
   echo "▶ serving the sample feed on :$MC_FEED_PORT"
   # One feed server per instance, on the instance's own port: the fixture is read-only, but a shared server
@@ -502,14 +543,14 @@ up() {
     [ "$waited" -gt 20 ] && die "  the feed server is not serving the staged feed on :$MC_FEED_PORT"
     sleep 0.5
   done
+}
 
-  stage_plugins
-  write_env
-
+# The app's command-line settings: the ones this script owns, then the caller's --app-args.
+build_args() {
   # `media-src` allows `self` and a blanket `https:` by default, so audio served over loopback http is
   # blocked — and the blanket cannot be widened, only replaced. Strict mode is what reads the configured
   # extra origins at all, so --audio needs both. Nothing is set without the flag.
-  local args=(
+  ARGS=(
     --spring.profiles.active=dev
     "--server.port=$MC_APP_PORT"
     --mosaicast.security.dev-login-confirmed=true
@@ -522,10 +563,36 @@ up() {
     --mosaicast.feed.allow-private-targets-confirmed=true
   )
   if [ -n "$AUDIO_DIR" ]; then
-    args+=(--mosaicast.security.strict-media-sources=true
+    ARGS+=(--mosaicast.security.strict-media-sources=true
       "--mosaicast.security.extra-media-sources=http://localhost:$MC_FEED_PORT")
   fi
+  local a
+  for a in "${APP_ARGS[@]}"; do
+    if [ -n "$AUDIO_DIR" ] && [[ "$(tr 'A-Z' 'a-z' <<<"$a" | tr -d '-')" == mosaicast.security.*mediasources* ]]; then
+      die "--app-arg $a: --audio sets the media sources itself"
+    fi
+  done
+  ARGS+=("${APP_ARGS[@]}")
+  if [ ${#APP_ARGS[@]} -gt 0 ]; then
+    echo "▶ extra app settings: ${APP_ARGS[*]}"
+  fi
+}
 
+# Gradle splits `--args` itself, honouring single and double quotes, so every argument is quoted for it —
+# joined with plain spaces, a value containing one arrived as two arguments.
+gradle_args_string() {
+  local a out=""
+  for a in "${ARGS[@]}"; do
+    if [[ "$a" != *"'"* ]]; then out+=" '$a'"
+    elif [[ "$a" != *'"'* ]]; then out+=" \"$a\""
+    else die "--app-arg $a: a value may contain single or double quotes, not both (Gradle's --args cannot carry it)"
+    fi
+  done
+  echo "${out# }"
+}
+
+start_app() {
+  build_args
   echo "▶ booting the app (dev profile) against the fleeting DB"
   export MOSAICAST_DB_URL="jdbc:postgresql://localhost:$MC_PG_PORT/mosaicast"
   export MOSAICAST_DB_USER=mosaicast MOSAICAST_DB_PASSWORD=mosaicast
@@ -536,18 +603,18 @@ up() {
     # the only way left to stop it was `pkill -f bootRun` — which took every other session's app with it.
     # As --args, not as environment, for the settings: that is how they have always reached bootRun.
     # shellcheck disable=SC2046
-    setsid ./gradlew $(maven_local_flag) --no-daemon bootRun --args="${args[*]}" \
+    setsid ./gradlew $(maven_local_flag) --no-daemon bootRun --args="$(gradle_args_string)" \
       > "$IDIR/app.log" 2>&1 < /dev/null 7>&- 8>&- 9>&- &
   else
     # Run from the instance directory, not the checkout: nothing in this checkout — a .env included — may
     # reach an instance pinned to another commit.
     ( cd "$IDIR" && exec setsid java "-Dmosaicast.dev.instance=$NAME" -jar "$RUN_DIR/jars/$MC_CORE_SHA.jar" \
-        "${args[@]}" > "$IDIR/app.log" 2>&1 < /dev/null ) 7>&- 8>&- 9>&- &
+        "${ARGS[@]}" > "$IDIR/app.log" 2>&1 < /dev/null ) 7>&- 8>&- 9>&- &
   fi
   record_pid "$IDIR/app.pid" $!
 
   echo "  waiting for health…"
-  waited=0
+  local waited=0
   until curl -sf "$APP_URL/actuator/health" >/dev/null 2>&1; do
     if [ -z "$(live_pid "$IDIR/app.pid")" ]; then
       tail -n 30 "$IDIR/app.log" >&2
@@ -557,7 +624,9 @@ up() {
     [ "$waited" -gt 600 ] && die "  no health after 10 minutes — see $IDIR/app.log"
     sleep 2
   done
+}
 
+seed_and_greet() {
   echo "▶ seeding the sample feed"
   local jar xsrf
   # Adding a feed is a podcaster capability, so the seeding session is a podcaster one.
@@ -579,6 +648,118 @@ up() {
   local name_flag=""
   [ "$NAME" != default ] && name_flag="--name $NAME "
   echo "✅ instance $NAME ready at $APP_URL — ports: dev/instance.sh ${name_flag}env; stop: dev/instance.sh ${name_flag}down"
+}
+
+# Refuses an --app-arg that is not a property, or that names one this script sets itself: Spring joins a
+# repeated command-line property into a comma-separated list rather than letting the last one win, so a
+# duplicate would not override anything — it would quietly break the setting. Compared after relaxed-binding
+# normalisation (case and dashes ignored, env-style underscores read as dots), so `--mosaicast.pluginsDir`
+# cannot slip past `mosaicast.plugins-dir`. spring.datasource.* is refused too: it would point the instance
+# at a database that is not its own.
+validate_app_arg() {
+  local arg="$1" key norm
+  # In a bracket expression `]` has to come first to be literal; held in a variable so bash does not
+  # re-read the pattern's quoting.
+  local pattern='^--[A-Za-z0-9][][A-Za-z0-9._-]*(=.*)?$'
+  [[ "$arg" =~ $pattern ]] \
+    || die "--app-arg $arg: expected a Spring property, e.g. --app-arg --some.property=value"
+  key="${arg#--}"
+  key="${key%%=*}"
+  norm=$(tr 'A-Z_' 'a-z.' <<<"$key" | tr -d '-')
+  case "$norm" in
+    spring.profiles.active|server.port|mosaicast.baseurl|mosaicast.pluginsdir \
+      |mosaicast.security.devloginconfirmed|mosaicast.feed.allowprivatetargets \
+      |mosaicast.feed.allowprivatetargetsconfirmed|spring.datasource.*)
+      die "--app-arg $arg: $key is set by dev/instance.sh itself and cannot be overridden" ;;
+  esac
+}
+
+# The newest Flyway version a core would migrate to, read from its jar or, for the working tree, its sources.
+core_schema_version() {
+  if [ "$MC_CORE_MODE" = worktree ]; then
+    ls src/main/resources/db/migration src/main/java/dev/mosaicast/core/db/migration 2>/dev/null
+  else
+    python3 -c 'import sys, zipfile; print("\n".join(zipfile.ZipFile(sys.argv[1]).namelist()))' \
+      "$RUN_DIR/jars/$MC_CORE_SHA.jar"
+  fi | sed -n 's/.*V\([0-9][0-9]*\)__.*/\1/p' | sort -n | tail -1
+}
+
+db_schema_version() {
+  docker exec "$PG_NAME" psql -U mosaicast -d mosaicast -Atc \
+    "select coalesce(max(version::int), 0) from flyway_schema_history where success and version ~ '^[0-9]+$'" \
+    2>/dev/null || echo 0
+}
+
+# Restarts only the app of a name whose database is still there — for a rebuilt plugin, which core picks up
+# only on a restart, without `down` + `up` throwing away everything the session wrote to exercise it
+# (core#243). Same container, feed, ports and slot; no reseeding; the core stays on its SHA unless --core is
+# given. The plugin dirs and --app-args `up` recorded are replayed unless new ones are given — this is the
+# one place recorded app args come back; a later `up` takes exactly what it is given.
+restart() {
+  load_env || die "no instance named $NAME — dev/instance.sh --name $NAME up first"
+  mkdir -p "$IDIR"
+  exec 7>"$IDIR/.lock"
+  flock -n 7 || die "instance $NAME is being brought up or down by another process right now"
+  [ -z "$AUDIO_DIR" ] || die "restart keeps the feed as it was staged; --audio is fixed at up (down + up to change it)"
+
+  local pg
+  pg=$(container_state "$PG_NAME")
+  [ "$pg" != absent ] || die "instance $NAME has no database left to keep (it is down) — use up"
+  if [ "$pg" = stopped ]; then
+    echo "▶ starting its stopped container $PG_NAME"
+    docker start "$PG_NAME" >/dev/null
+  fi
+  until docker exec "$PG_NAME" pg_isready -U mosaicast -d mosaicast >/dev/null 2>&1; do sleep 1; done
+
+  APP_URL="$MC_APP_URL"
+  AUDIO_DIR="${MC_UP_AUDIO_DIR:-}"
+  if [ "$GIVEN_PLUGINS" = 0 ]; then
+    WITH_PLUGINS="${MC_UP_WITH_PLUGINS:-0}"
+    PLUGIN_DIRS=("${MC_UP_PLUGIN_DIRS[@]}")
+    local p
+    for p in "${PLUGIN_DIRS[@]}"; do
+      [ -f "$p/plugin.json" ] || die "recorded --plugin-dir $p has no plugin.json any more — pass --plugin-dir again"
+    done
+  fi
+  if [ "$GIVEN_APP_ARGS" = 0 ]; then
+    APP_ARGS=("${MC_UP_APP_ARGS[@]}")
+  fi
+
+  if [ -n "$CORE_REF" ] || [ "$MC_CORE_MODE" = worktree ]; then
+    CORE_REF="${CORE_REF:-worktree}"
+    resolve_core
+  elif [ ! -f "$RUN_DIR/jars/$MC_CORE_SHA.jar" ]; then
+    build_jar "$MC_CORE_SHA"
+  fi
+
+  # A core older than the schema this database already has would stop at Flyway's validation on startup —
+  # with the old app already gone. Say so before anything is stopped.
+  local have want
+  have=$(db_schema_version)
+  want=$(core_schema_version)
+  if [ -n "$want" ] && [ "${have:-0}" -gt "$want" ]; then
+    die "core ${MC_CORE_SHA:0:12} migrates to V$want, but this database is already at V$have — it cannot run on it. Use a newer --core, or down + up for a fresh database."
+  fi
+
+  echo "▶ restarting instance $NAME — database, feed, ports kept; core ${MC_CORE_SHA:0:12} ($MC_CORE_MODE)"
+  stop_pidfile "$IDIR/app.pid" "app"
+  if [ -z "$(live_pid "$IDIR/feed.pid")" ]; then
+    echo "  its feed server was not running — starting it again"
+    start_feed
+  fi
+  stage_plugins
+  MC_UP_WITH_PLUGINS="$WITH_PLUGINS"
+  MC_UP_PLUGIN_DIRS=("${PLUGIN_DIRS[@]}")
+  MC_UP_APP_ARGS=("${APP_ARGS[@]}")
+  write_env
+  start_app
+
+  if [ "$AS_ADMIN" = 1 ]; then
+    echo "▶ admin session for curl: $(login admin)"
+  fi
+  local name_flag=""
+  [ "$NAME" != default ] && name_flag="--name $NAME "
+  echo "✅ instance $NAME restarted at $APP_URL (data kept) — stop: dev/instance.sh ${name_flag}down"
 }
 
 down() {
@@ -639,6 +820,7 @@ status() {
     plugins=$(curl -sf "$APP_URL/api/plugins/manifest" 2>/dev/null \
       | grep -o '"id":"[^"]*"' | cut -d'"' -f4 | paste -sd' ' - || true)
     echo "  plugins   ${plugins:-none}"
+    if [ ${#MC_UP_APP_ARGS[@]} -gt 0 ]; then echo "  app args  ${MC_UP_APP_ARGS[*]}"; fi
   else
     echo "▶ app       down"
     running=1
@@ -665,8 +847,12 @@ psql_shell() {
   if [ "$(container_state "$PG_NAME")" != running ]; then
     die "postgres for instance $NAME is not running — dev/instance.sh --name $NAME up first"
   fi
-  # -it, so this is a real interactive shell; the container is the only place the port needs to be known.
-  docker exec -it "$PG_NAME" psql -U mosaicast mosaicast
+  # -i always, -t only when there is a terminal on both ends: `docker exec -t` without one fails before psql
+  # starts ("the input device is not a TTY"), which is every scripted or agent call (core#244). Everything
+  # after `psql` on the command line is psql's, so `psql -At -c "select …"` works.
+  local tty=()
+  if [ -t 0 ] && [ -t 1 ]; then tty=(-t); fi
+  docker exec -i "${tty[@]}" "$PG_NAME" psql -U mosaicast -d mosaicast "${PSQL_ARGS[@]}"
 }
 
 print_env() {
@@ -714,8 +900,11 @@ list() {
 usage() {
   cat >&2 <<'EOF'
 usage: dev/instance.sh [--name NAME] up [--plugins|--no-plugins] [--plugin-dir PATH]... [--core REF|worktree]
-                                        [--admin] [--audio DIR]
-       dev/instance.sh [--name NAME] down | status | logs [-f] | psql | env
+                                        [--admin] [--audio DIR] [--app-arg --prop=value]...
+       dev/instance.sh [--name NAME] restart [--plugins|--no-plugins] [--plugin-dir PATH]... [--core REF]
+                                             [--app-arg --prop=value]... [--admin]
+       dev/instance.sh [--name NAME] down | status | logs [-f] | env
+       dev/instance.sh [--name NAME] psql [psql arguments...]
        dev/instance.sh ls
 EOF
   exit 2
@@ -731,17 +920,27 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --name) [ $# -ge 2 ] || usage; NAME="$2"; shift ;;
     --name=*) NAME="${1#--name=}" ;;
-    --plugins) WITH_PLUGINS=1 ;;
-    --no-plugins) WITH_PLUGINS=0 ;;
+    --plugins) WITH_PLUGINS=1; GIVEN_PLUGINS=1 ;;
+    --no-plugins) WITH_PLUGINS=0; GIVEN_PLUGINS=1 ;;
     --admin) AS_ADMIN=1 ;;
     --audio) [ $# -ge 2 ] || usage; AUDIO_DIR="$2"; shift ;;
     --audio=*) AUDIO_DIR="${1#--audio=}" ;;
     --core) [ $# -ge 2 ] || usage; CORE_REF="$2"; shift ;;
     --core=*) CORE_REF="${1#--core=}" ;;
-    --plugin-dir) [ $# -ge 2 ] || usage; PLUGIN_DIRS+=("$2"); shift ;;
-    --plugin-dir=*) PLUGIN_DIRS+=("${1#--plugin-dir=}") ;;
+    --plugin-dir) [ $# -ge 2 ] || usage; PLUGIN_DIRS+=("$2"); GIVEN_PLUGINS=1; shift ;;
+    --plugin-dir=*) PLUGIN_DIRS+=("${1#--plugin-dir=}"); GIVEN_PLUGINS=1 ;;
+    # The value starts with `--` itself, so only the two-word spelling takes the next word unconditionally.
+    --app-arg) [ $# -ge 2 ] || usage; APP_ARGS+=("$2"); GIVEN_APP_ARGS=1; shift ;;
+    --app-arg=*) APP_ARGS+=("${1#--app-arg=}"); GIVEN_APP_ARGS=1 ;;
     -f) FOLLOW="-f" ;;
-    up|down|status|logs|psql|env|ls)
+    psql)
+      # Everything after `psql` belongs to psql (core#244), so the name has to come before it.
+      [ -z "$cmd" ] || usage
+      cmd=psql
+      shift
+      PSQL_ARGS=("$@")
+      break ;;
+    up|restart|down|status|logs|env|ls)
       [ -z "$cmd" ] || usage
       cmd="$1" ;;
     *) echo "unknown argument: $1" >&2; usage ;;
@@ -751,6 +950,7 @@ done
 
 set_instance "$NAME"
 
+for a in "${APP_ARGS[@]}"; do validate_app_arg "$a"; done
 for p in "${PLUGIN_DIRS[@]}"; do
   ( cd "$CALLER_PWD" && [ -f "$p/plugin.json" ] ) || die "--plugin-dir $p: no plugin.json there (point it at a built plugin, e.g. its dist/)"
 done
@@ -765,6 +965,7 @@ fi
 
 case "$cmd" in
   up) up ;;
+  restart) restart ;;
   down) down ;;
   status) status ;;
   logs) logs ;;

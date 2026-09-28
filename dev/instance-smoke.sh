@@ -10,8 +10,11 @@
 # exercised under contention — each with a plugin of its own, and checks that:
 #   1. each answers on its own port, with its own plugin and not the other's;
 #   2. a second `up` of a running name is refused rather than tearing it down;
-#   3. `down` of one leaves the other answering, its database and its plugins intact;
-#   4. neither ever touches `default`, whatever state that is in.
+#   3. `psql` works without a TTY and takes a query (core#244);
+#   4. `restart` keeps the database — rows, episode ids, the one seeded feed — replays the recorded
+#      --app-arg, and brings up a new app process (core#242, core#243);
+#   5. `down` of one leaves the other answering, its database and its plugins intact;
+#   6. neither ever touches `default`, whatever state that is in.
 # The plugins are generated here (manifest + a one-line element), so the test depends on no other repo.
 # Only its own two names are ever brought up or down; it refuses to start if either is already in use.
 
@@ -77,7 +80,8 @@ make_plugin smokebeta
 default_before=$($INSTANCE status >/dev/null 2>&1 && echo up || echo down)
 
 echo "▶ bringing up $A and $B concurrently (core $CORE)"
-$INSTANCE --name "$A" up --core "$CORE" --plugin-dir "$WORK/smokealpha" > "$WORK/$A.log" 2>&1 &
+$INSTANCE --name "$A" up --core "$CORE" --plugin-dir "$WORK/smokealpha" \
+  --app-arg "--spring.application.name=smoke alpha" > "$WORK/$A.log" 2>&1 &
 pid_a=$!
 $INSTANCE --name "$B" up --core "$CORE" --plugin-dir "$WORK/smokebeta" > "$WORK/$B.log" 2>&1 &
 pid_b=$!
@@ -113,6 +117,34 @@ else
 fi
 curl -sf "$APP_A/actuator/health" >/dev/null && pass "$A still answers after the refused up" \
   || fail "$A stopped answering after the refused up"
+
+sql() { $INSTANCE --name "$1" psql -At -c "$2" < /dev/null; }
+run_dir() { $INSTANCE --name "$1" env | sed -n "s/^export MC_RUN_DIR='\(.*\)'$/\1/p"; }
+app_pid() { cut -d' ' -f1 "$(run_dir "$1")/app.pid"; }
+app_cmdline() { tr '\0' '\n' < "/proc/$(app_pid "$1")/cmdline"; }
+[ "$(sql "$A" 'select 1')" = 1 ] && pass "psql runs a query without a TTY" || fail "psql -c without a TTY failed"
+app_cmdline "$A" | grep -qx -- "--spring.application.name=smoke alpha" \
+  && pass "--app-arg reached the app as one argument" || fail "--app-arg missing from the app's command line"
+
+sql "$A" 'create table smoke_marker (x int); insert into smoke_marker values (42)' >/dev/null
+ids_before=$(sql "$A" 'select string_agg(id::text, $$,$$ order by id) from episode_ref')
+pid_before=$(app_pid "$A")
+echo "▶ restarting $A"
+if $INSTANCE --name "$A" restart > "$WORK/restart-a.log" 2>&1; then
+  pass "restart succeeded"
+else
+  fail "restart failed: $(tail -3 "$WORK/restart-a.log")"
+fi
+[ "$(app_pid "$A")" != "$pid_before" ] && pass "a new app process" \
+  || fail "the app pid did not change"
+[ "$(sql "$A" 'select x from smoke_marker')" = 42 ] && pass "the database survived the restart" \
+  || fail "a row written before the restart is gone"
+[ "$(sql "$A" 'select string_agg(id::text, $$,$$ order by id) from episode_ref')" = "$ids_before" ] \
+  && pass "episode ids unchanged" || fail "episode ids changed"
+[ "$(sql "$A" 'select count(*) from feed')" = 1 ] && pass "not reseeded (one feed)" || fail "the feed was seeded again"
+[ "$(manifest_ids "$APP_A")" = smokealpha ] && pass "its plugin is back" || fail "$A lost its plugin on restart"
+app_cmdline "$A" | grep -qx -- "--spring.application.name=smoke alpha" \
+  && pass "restart replayed the recorded --app-arg" || fail "restart dropped the recorded --app-arg"
 
 episodes_b=$(curl -sf "$APP_B/api/episodes?page=0&size=1" | grep -o '"totalElements":[0-9]*' | cut -d: -f2 || true)
 

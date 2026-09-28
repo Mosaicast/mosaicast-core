@@ -95,7 +95,9 @@ Java 21 · Spring Boot 4 (Jackson 3) · PostgreSQL · PF4J · React + Vite
   needed for anything that only misbehaves while `timeupdate` fires; it turns on strict media CSP, so not
   for screenshots. **Named instances** (`--name N`) run side by side for other sessions: own ports (read
   them from `env`, never hard-code), container, processes and plugins dir; `--plugin-dir PATH` adds a
-  built plugin, `--core REF` pins a commit (named default: `origin/master`), `ls` lists them all. **A
+  built plugin, `--core REF` pins a commit (named default: `origin/master`), `--app-arg --prop=value` adds a
+  Spring property, `restart` reloads plugins and core while keeping the data, `psql -c …` is scriptable,
+  `ls` lists them all. **A
   session only ever runs `up`/`down` on its own name** — core's is `default`. When master moves in a way
   plugin sessions should pick up, tell each peer the SHA and what changed; they restart their own.
   `dev/instance-smoke.sh` checks the isolation.
