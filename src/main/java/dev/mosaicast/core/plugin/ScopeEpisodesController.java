@@ -58,11 +58,20 @@ public class ScopeEpisodesController {
                 .toList();
     }
 
-    /** A human label: {@code S01E06 · <title>} (title truncated), or just the title when unnumbered. */
-    private static String label(EpisodeSummary s) {
+    /**
+     * A human label: {@code S01E06 · <title>} (title truncated), {@code S05 · <title>} for a season's
+     * unnumbered episode, {@code E6 · <title>} for a numbered one outside any season, or just the title.
+     *
+     * <p>The season-only case used to fall through to the bare title, so a season-5 prologue was labelled as
+     * though it belonged to no season at all (core#248).
+     */
+    static String label(EpisodeSummary s) {
         String title = truncate(s.title());
         if (s.season() != null && s.episodeNo() != null) {
             return "S%02dE%02d · %s".formatted(s.season(), s.episodeNo(), title);
+        }
+        if (s.season() != null) {
+            return "S%02d · %s".formatted(s.season(), title);
         }
         if (s.episodeNo() != null) {
             return "E%d · %s".formatted(s.episodeNo(), title);

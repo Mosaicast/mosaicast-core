@@ -610,6 +610,50 @@ class PluginManifestValidationTest {
         assertThat(manifest.data().backendOwnedOrEmpty()).isEmpty();
     }
 
+    // ---- blob floors (core#247) ----
+
+    @Test
+    void filesFollowTheDataFloorsUnlessTheBlobsBlockNamesItsOwn() throws Exception {
+        PluginManifest inherited = parse(withBlobs("""
+                {"mimeTypes":["image/png"]}
+                """));
+        assertThatCode(inherited::validate).doesNotThrowAnyException();
+        assertThat(inherited.blobReadFloor()).isEqualTo("anonymous");
+        assertThat(inherited.blobWriteFloor()).isEqualTo("podcaster");
+
+        PluginManifest own = parse(withBlobs("""
+                {"mimeTypes":["application/zip"],"readableBy":"Podcaster","writableBy":"admin"}
+                """));
+        assertThatCode(own::validate).doesNotThrowAnyException();
+        assertThat(own.blobReadFloor()).isEqualTo("podcaster");
+        assertThat(own.blobWriteFloor()).isEqualTo("admin");
+        // The data floors are untouched by the blob ones.
+        assertThat(own.dataOrDefault().readableByOrDefault()).isEqualTo("anonymous");
+    }
+
+    @Test
+    void aBlobFloorUsesTheDataVocabularyAndAnUploadNeedsASignedInUser() throws Exception {
+        PluginManifest unknown = parse(withBlobs("""
+                {"readableBy":"everyone"}
+                """));
+        assertThatThrownBy(unknown::validate).isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("blobs floor 'everyone'");
+        PluginManifest anonymousWrite = parse(withBlobs("""
+                {"writableBy":"anonymous"}
+                """));
+        assertThatThrownBy(anonymousWrite::validate).isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("blobs.writableBy may not be 'anonymous'");
+    }
+
+    @Test
+    void aDeclaredZipAliasIsReadAsApplicationZip() throws Exception {
+        // core#246: the manifest and the upload use the same canonical spelling.
+        PluginManifest manifest = parse(withBlobs("""
+                {"mimeTypes":["application/x-zip-compressed","IMAGE/PNG"]}
+                """));
+        assertThat(manifest.blobs().mimeTypesOrEmpty()).containsExactly("application/zip", "image/png");
+    }
+
     /**
      * Parses a fixture manifest, substituting the host's own {@code platformApi} for the {@code HOST_API}
      * token.
@@ -655,6 +699,15 @@ class PluginManifestValidationTest {
                 {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "slots":[],"storage":"doc","config":{},"consent":%s}
                 """.formatted(consent);
+    }
+
+    /** A valid manifest with public data and the given {@code blobs} block, to isolate blob validation. */
+    private static String withBlobs(String blobs) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
+                 "slots":[],"storage":"doc","config":{},
+                 "data":{"readableBy":"anonymous","writableBy":"podcaster"},"blobs":%s}
+                """.formatted(blobs);
     }
 
     /** A valid manifest carrying the given {@code data} block, to isolate data validation. */

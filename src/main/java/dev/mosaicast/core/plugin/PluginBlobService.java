@@ -14,7 +14,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -123,7 +122,7 @@ public class PluginBlobService {
                     "file is larger than this plugin may store: %d > %d bytes".formatted(size, maxFile));
         }
         Set<String> allowed = effectiveMimeTypes(manifest);
-        String claimed = declared == null ? "" : declared.trim().toLowerCase(Locale.ROOT);
+        String claimed = MimeSniffer.canonicalType(declared);
         if (!allowed.contains(claimed)) {
             throw new BlobTypeNotAllowedException(
                     "content type '%s' is not one this plugin may store; allowed: %s".formatted(declared, allowed));

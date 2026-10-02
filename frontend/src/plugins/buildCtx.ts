@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
-import type { LocaleInfo, PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-sdk';
+import type { FilterState, LocaleInfo, PluginContext, Role, Scope, ThemeTokens } from '@mosaicast/plugin-sdk';
 
 import { api } from '../api/client';
 import type { MeView, ThemeTokenSet } from '../api/types';
@@ -86,6 +86,10 @@ export interface CtxInputs {
   consentRequest?: (category: string) => Promise<boolean>;
   /** Subscribes to consent changes; returns the unsubscribe the SDK contract requires. */
   consentSubscribe?: (listener: () => void) => () => void;
+  /** The shell's filter state for this mount (§6.1); `{}` when the view is unfiltered. */
+  filter?: FilterState;
+  /** Subscribes to filter changes; returns the unsubscribe the SDK contract requires. */
+  filterSubscribe?: (listener: (filter: FilterState) => void) => () => void;
 }
 
 /**
@@ -171,7 +175,12 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
       request: (category: string) => inputs.consentRequest?.(category) ?? Promise.resolve(false),
       onChange: (cb: () => void) => inputs.consentSubscribe?.(cb) ?? (() => {}),
     },
-    filter: { current: () => ({}), onChange: noUnsubscribe },
+    // What the visitor filtered the list by (§6.1). It was `{}` and an `onChange` that never fired, so a
+    // feed-panel tile could not follow the season a visitor picked (core#248).
+    filter: {
+      current: () => inputs.filter ?? {},
+      onChange: (cb: (filter: FilterState) => void) => inputs.filterSubscribe?.(cb) ?? (() => {}),
+    },
     player: {
       currentTime: inputs.playerCurrentTime,
       seekTo: inputs.playerSeekTo,

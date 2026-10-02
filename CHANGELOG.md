@@ -14,6 +14,20 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Plugins can store ZIP archives, and keep uploads more private than their data (`0.7.6`, core#246,
+  core#247).**
+  - **ZIP support.** The sniffer recognises ZIP: a local file header, or an empty archive's
+    end-of-central-directory record. `application/zip` is in the default allow-list. The aliases browsers
+    declare (`application/x-zip-compressed` on Chrome for Windows, `application/x-zip`, …) are folded into
+    it, both on upload and in a manifest's `blobs.mimeTypes`. What the bytes are is still what gets stored.
+  - **Downloads.** Anything that is not an image or audio is now served as `Content-Disposition:
+    attachment`, so an archive opened in a tab is a download everywhere. Opening an archive safely remains
+    the plugin's job (§13).
+  - **Private uploads.** A manifest's `blobs` block may declare its own `readableBy` / `writableBy`, in the
+    same vocabulary as `data`, and a write may not be `anonymous`. Absent means the `data` floors, so
+    nothing changes for existing plugins. A plugin that publishes numbers to everyone no longer publishes
+    the raw archives it computed them from.
+
 - **Dev instances: `restart`, `--app-arg` and a scriptable `psql` (`0.7.6`, core#242, core#243, core#244).**
   All three came from plugin sessions using named instances:
   - **`restart`** restarts only a name's app. It keeps the database, feed, ports and core SHA, and does not
@@ -287,6 +301,20 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   `app_user.avatar_url` is gone.
 
 ### Fixed
+
+- **Plugins can follow the visitor's filters, and see every episode in a long feed (`0.7.6`, core#248).**
+  - **`ctx.filter` was inert.** `current()` always returned `{}`, and `onChange` never fired. Now it
+    reflects the shell's URL filters: `?season=5&tag=x&order=oldest` becomes `{ season: 5, tags: ['x'],
+    sort: 'oldest' }`. `ctx` is reassigned when a filter changes, and only then; any other query parameter
+    is ignored. Listeners registered through an earlier `ctx` still hear the change. A plugin page's query
+    string remains its own `ctx.route.query`.
+  - **`ctx.episodes` stopped at 200** for feed and site scopes, so an aggregate over a long-running show
+    was silently wrong. The shell now pages the host's scope resolution to the end.
+  - **Labels.** A season's episode with no episode number is labelled `S05 · Title`; it used to get the
+    bare title.
+  - **Still to come.** Season, episode number and feed on `DisplaySnapshot` need the SDK first (SDK #90).
+  - **Dev tooling.** `dev/instance.sh restart` renews the instance's curl cookie jars. Sessions do not
+    survive a restart, so `--admin`'s jar used to answer 401 afterwards.
 
 - **A remembered miss no longer hides a document written later (`0.7.5`, core#237).** Since 0.7.3 the plugin
   doc client remembered every "not set" answer for the whole life of the page. After that, `ctx.docs.get`

@@ -11,6 +11,7 @@ import {
   makePluginSchema,
   makePluginTags,
   makePluginTranslation,
+  fetchScopeEpisodes,
   noteNavigation,
 } from './pluginApi';
 
@@ -551,5 +552,42 @@ describe('makePluginFeeds', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
+  });
+});
+
+/** `ctx.episodes` for a feed or site: every page, not the first 200 (core#248). */
+describe('fetchScopeEpisodes', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('pages until a short page, so a long-running show is not silently cut at 200', async () => {
+    const urls: string[] = [];
+    const option = (n: number) => ({ id: `ep-${n}`, label: `E${n}` });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        urls.push(url);
+        const page = Number(new URLSearchParams(url.split('?')[1]).get('page'));
+        const items = page === 0 ? Array.from({ length: 200 }, (_, i) => option(i)) : [option(200), option(201)];
+        return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify(items)) });
+      }),
+    );
+
+    const all = await fetchScopeEpisodes('feed', 'the cast', new AbortController().signal);
+
+    expect(all).toHaveLength(202);
+    expect(urls).toEqual([
+      '/api/plugins/scope-episodes?type=feed&id=the%20cast&page=0&size=200',
+      '/api/plugins/scope-episodes?type=feed&id=the%20cast&page=1&size=200',
+    ]);
+  });
+
+  it('asks once for a scope that fits in one page', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(JSON.stringify([{ id: 'a', label: 'A' }])) }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    expect(await fetchScopeEpisodes('site', 'main', new AbortController().signal)).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

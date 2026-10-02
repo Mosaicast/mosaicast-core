@@ -635,3 +635,39 @@ function wire(value: unknown): string {
   }
   return value instanceof Date ? value.toISOString() : String(value);
 }
+
+/** What one page of the host's scope resolution may hold; the endpoint clamps to it. */
+const SCOPE_PAGE_SIZE = 200;
+
+/**
+ * Bounds the pages fetched for one scope, so a scope that somehow never ends cannot keep a region asking.
+ * At 200 a page this is 10,000 episodes — far past any show, and a cap that would be reached on purpose.
+ */
+const MAX_SCOPE_PAGES = 50;
+
+/**
+ * Every episode in a scope, page by page.
+ *
+ * The endpoint returns at most 200 per request, and this region asked for one page only — so on a show past
+ * 200 episodes `ctx.episodes` was silently truncated, and any aggregate a feed or site tile computed over it
+ * was wrong without saying so (core#248). Pages are fetched until one comes back short.
+ */
+export async function fetchScopeEpisodes(
+  type: string,
+  id: string,
+  signal: AbortSignal,
+): Promise<{ id: string; label: string }[]> {
+  const all: { id: string; label: string }[] = [];
+  for (let page = 0; page < MAX_SCOPE_PAGES; page++) {
+    const options = await api.get<{ id: string; label: string }[]>(
+      `/api/plugins/scope-episodes?type=${type}&id=${encodeURIComponent(id)}` +
+        `&page=${page}&size=${SCOPE_PAGE_SIZE}`,
+      { signal },
+    );
+    all.push(...options);
+    if (options.length < SCOPE_PAGE_SIZE) {
+      break;
+    }
+  }
+  return all;
+}

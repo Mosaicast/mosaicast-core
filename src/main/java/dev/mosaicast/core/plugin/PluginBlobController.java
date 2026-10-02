@@ -53,8 +53,9 @@ import org.springframework.web.multipart.MultipartFile;
  * invariant — there is nothing for plugin code to check that the host is not already checking better — so
  * the argument does not carry over, and the manifest's {@code data} floors plus a quota are the whole story.
  *
- * <p>The floors are the same pair as the doc and schema surfaces: reads take {@code data.readableBy}, writes
- * take {@code data.writableBy}. {@code backendOwned} does not apply — it reserves *keys*, and a caller here
+ * <p>The floors default to the same pair as the doc and schema surfaces — reads take {@code data.readableBy},
+ * writes take {@code data.writableBy} — unless the {@code blobs} block names its own, for a plugin whose
+ * uploads are raw inputs rather than published content (core#247). {@code backendOwned} does not apply — it reserves *keys*, and a caller here
  * never names one; a ref is minted by the host per upload. There is no {@code USER} exemption to make
  * either, since these paths carry no scope.
  *
@@ -199,7 +200,7 @@ public class PluginBlobController {
                 .header(HttpHeaders.ACCEPT_RANGES, "bytes")
                 .eTag("\"" + Long.toHexString(info.updatedAt().toEpochMilli()) + "\"")
                 .cacheControl(cacheControlFor(manifest))
-                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(info.filename()));
+                .header(HttpHeaders.CONTENT_DISPOSITION, contentDisposition(info.filename(), info.mime()));
 
         BlobContent content = blobs
                 .open(id, ref, requested.map(RangeHeader::start).orElse(-1L),
@@ -239,18 +240,18 @@ public class PluginBlobController {
     }
 
     private static void requireReadable(PluginManifest manifest, Authentication authentication) {
-        if (!PluginAccessPolicy.canRead(manifest, CurrentUser.role(authentication))) {
+        if (!PluginAccessPolicy.canReadBlobs(manifest, CurrentUser.role(authentication))) {
             throw new AccessDeniedException(
                     "Plugin '%s' requires role '%s' to read its files"
-                            .formatted(manifest.id(), manifest.dataOrDefault().readableByOrDefault()));
+                            .formatted(manifest.id(), manifest.blobReadFloor()));
         }
     }
 
     private static void requireWritable(PluginManifest manifest, Authentication authentication) {
-        if (!PluginAccessPolicy.canWrite(manifest, CurrentUser.role(authentication))) {
+        if (!PluginAccessPolicy.canWriteBlobs(manifest, CurrentUser.role(authentication))) {
             throw new AccessDeniedException(
                     "Plugin '%s' requires role '%s' to store files"
-                            .formatted(manifest.id(), manifest.dataOrDefault().writableByOrDefault()));
+                            .formatted(manifest.id(), manifest.blobWriteFloor()));
         }
     }
 
@@ -265,13 +266,17 @@ public class PluginBlobController {
      */
     static CacheControl cacheControlFor(PluginManifest manifest) {
         CacheControl cacheControl = CacheControl.maxAge(Duration.ofDays(365)).immutable();
-        return "anonymous".equals(manifest.dataOrDefault().readableByOrDefault())
+        return "anonymous".equals(manifest.blobReadFloor())
                 ? cacheControl.cachePublic()
                 : cacheControl.cachePrivate();
     }
 
     /**
-     * {@code inline}, plus the original filename when there is one — in both RFC 6266 forms.
+     * {@code inline} for what a page displays — images and audio — and {@code attachment} for everything
+     * else, plus the original filename when there is one, in both RFC 6266 forms.
+     *
+     * <p>An archive opened in a tab is a download either way; saying so means no browser tries to be clever
+     * with a type it was not built to display, and a link to one behaves the same everywhere (core#246).
      *
      * <p>The name is already stripped of quotes, separators and control characters by the service, so it
      * cannot break out of the header. What it can still carry is non-ASCII, which the plain {@code filename}
@@ -279,13 +284,15 @@ public class PluginBlobController {
      * as mojibake (core#183). {@code filename*} carries the real name percent-encoded as UTF-8, and every
      * current browser prefers it; the plain form stays, reduced to ASCII, for anything that does not.
      */
-    static String contentDisposition(String filename) {
+    static String contentDisposition(String filename, String mime) {
+        boolean displayable = mime != null && (mime.startsWith("image/") || mime.startsWith("audio/"));
+        String type = displayable ? "inline" : "attachment";
         if (filename == null) {
-            return "inline";
+            return type;
         }
         StringBuilder ascii = new StringBuilder(filename.length());
         filename.codePoints().forEach(c -> ascii.append(c >= 0x20 && c < 0x7F ? (char) c : '_'));
-        String header = "inline; filename=\"" + ascii + "\"";
+        String header = type + "; filename=\"" + ascii + "\"";
         return ascii.toString().equals(filename) ? header : header + "; filename*=UTF-8''" + rfc5987(filename);
     }
 

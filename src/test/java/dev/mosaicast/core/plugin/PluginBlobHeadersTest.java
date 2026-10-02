@@ -15,15 +15,25 @@ class PluginBlobHeadersTest {
 
     @Test
     void anAsciiNameIsTheSimpleFormAlone() {
-        assertThat(PluginBlobController.contentDisposition("diagram.png"))
+        assertThat(PluginBlobController.contentDisposition("diagram.png", "image/png"))
                 .isEqualTo("inline; filename=\"diagram.png\"");
-        assertThat(PluginBlobController.contentDisposition(null)).isEqualTo("inline");
+        assertThat(PluginBlobController.contentDisposition(null, "image/png")).isEqualTo("inline");
+    }
+
+    @Test
+    void onlyImagesAndAudioAreShownInPlaceEverythingElseIsADownload() {
+        // core#246: an archive is a download wherever it is opened; saying so leaves no browser guessing.
+        assertThat(PluginBlobController.contentDisposition("raw.zip", "application/zip"))
+                .isEqualTo("attachment; filename=\"raw.zip\"");
+        assertThat(PluginBlobController.contentDisposition(null, "application/zip")).isEqualTo("attachment");
+        assertThat(PluginBlobController.contentDisposition("take.mp3", "audio/mpeg")).startsWith("inline;");
+        assertThat(PluginBlobController.contentDisposition("x", null)).startsWith("attachment;");
     }
 
     @Test
     void aNonAsciiNameTravelsAsUtf8InTheExtendedForm() {
         // Tomcat writes header values as ISO-8859-1, so the plain parameter alone downloaded as mojibake.
-        String header = PluginBlobController.contentDisposition("Folge-Überblick.png");
+        String header = PluginBlobController.contentDisposition("Folge-Überblick.png", "image/png");
 
         assertThat(header)
                 .startsWith("inline; filename=\"Folge-_berblick.png\"; ")
@@ -35,7 +45,7 @@ class PluginBlobHeadersTest {
     @Test
     void theExtendedFormRoundTripsWhatAttrCharCannotCarry() {
         String name = "Épisode 1 – notes (final).png";
-        String header = PluginBlobController.contentDisposition(name);
+        String header = PluginBlobController.contentDisposition(name, "image/png");
         String encoded = header.substring(header.indexOf("UTF-8''") + "UTF-8''".length());
 
         // Space, parentheses and the en dash are outside attr-char, so all of them are escaped...

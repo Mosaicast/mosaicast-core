@@ -46,7 +46,7 @@ public record PluginBlobProperties(
         Long hardQuotaBytes,
         Long hardMaxFileBytes,
         @DefaultValue({"image/png", "image/jpeg", "image/webp", "image/gif", "image/avif",
-                "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav"})
+                "audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "application/zip"})
         List<String> allowedMimeTypes) {
 
     /**
