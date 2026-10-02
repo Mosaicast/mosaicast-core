@@ -1,0 +1,19 @@
+{
+  "id": "blobsprivate",
+  "version": "1.0.0",
+  "platformApi": "0.16.0",
+  "name": "Blob Fixture (public data, private uploads)",
+  "storage": "doc",
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "podcaster"
+  },
+  "blobs": {
+    "maxFileBytes": 8192,
+    "quotaBytes": 16384,
+    "mimeTypes": [
+      "application/zip"
+    ],
+    "readableBy": "podcaster"
+  }
+}

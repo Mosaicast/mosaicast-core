@@ -385,6 +385,85 @@ class PluginBlobControllerIntegrationTest {
         }
     }
 
+    // ---- core#246, core#247 ----
+
+    /** A real ZIP with one entry: the content check reads the local file header. */
+    private static byte[] zip() {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        try (java.util.zip.ZipOutputStream out = new java.util.zip.ZipOutputStream(bytes)) {
+            out.putNextEntry(new java.util.zip.ZipEntry("analysis.json"));
+            out.write("{\"speakers\":2}".getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+        } catch (java.io.IOException e) {
+            throw new IllegalStateException(e);
+        }
+        return bytes.toByteArray();
+    }
+
+    @Test
+    void aZipIsStoredUnderTheBrowsersAliasAndServedAsADownload() {
+        // Chrome on Windows declares a .zip as application/x-zip-compressed; the host folds the alias rather
+        // than refusing the visitor's browser, and stores what it sniffed.
+        String base = "/api/plugins/blobsprivate/blob";
+        DevLogin.Cookies session = DevLogin.login(rest, "podcaster");
+        HttpHeaders auth = new HttpHeaders();
+        auth.add(HttpHeaders.COOKIE, session.session() + "; " + session.xsrf());
+        auth.add("X-XSRF-TOKEN", session.token());
+        ResponseEntity<String> stored = uploadTo(base, zip(), "episode-12.zip", "application/x-zip-compressed",
+                session);
+        assertThat(stored.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String ref = refOf(stored);
+        try {
+            assertThat(JSON.readTree(stored.getBody()).path("mime").asString()).isEqualTo("application/zip");
+            ResponseEntity<byte[]> served =
+                    rest.exchange(base + "/" + ref, HttpMethod.GET, new HttpEntity<>(auth), byte[].class);
+            assertThat(served.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(served.getHeaders().getContentType()).hasToString("application/zip");
+            // Not an image or audio, so not displayed in place — a download, everywhere.
+            assertThat(served.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+                    .startsWith("attachment; filename=\"episode-12.zip\"");
+        } finally {
+            rest.exchange(base + "/" + ref, HttpMethod.DELETE, new HttpEntity<>(auth), String.class);
+        }
+    }
+
+    @Test
+    void aZipThatIsNotOneIsRefused() {
+        DevLogin.Cookies session = DevLogin.login(rest, "podcaster");
+        ResponseEntity<String> refused =
+                uploadTo("/api/plugins/blobsprivate/blob", PNG, "fake.zip", "application/zip", session);
+        assertThat(refused.getStatusCode().is4xxClientError()).isTrue();
+    }
+
+    @Test
+    void uploadsCanBePrivateWhileTheDataStaysPublic() {
+        // Raw analysis archives behind public numbers: the data floor stays anonymous, the files do not.
+        String base = "/api/plugins/blobsprivate/blob";
+        DevLogin.Cookies session = DevLogin.login(rest, "podcaster");
+        HttpHeaders auth = new HttpHeaders();
+        auth.add(HttpHeaders.COOKIE, session.session() + "; " + session.xsrf());
+        auth.add("X-XSRF-TOKEN", session.token());
+        String ref = refOf(uploadTo(base, zip(), "raw.zip", "application/zip", session));
+        try {
+            assertThat(rest.getForEntity(base, String.class).getStatusCode().value()).isIn(401, 403);
+            assertThat(rest.getForEntity(base + "/" + ref, String.class).getStatusCode().value()).isIn(401, 403);
+            DevLogin.Cookies fan = DevLogin.login(rest, "fan");
+            HttpHeaders fanAuth = new HttpHeaders();
+            fanAuth.add(HttpHeaders.COOKIE, fan.session());
+            assertThat(get(base, fanAuth).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+            // The doc store is still as open as the manifest says.
+            assertThat(rest.getForEntity("/api/plugins/blobsprivate/data/site/main/stats", String.class)
+                    .getStatusCode().is2xxSuccessful()).isTrue();
+            // The podcaster reads the archive, privately cached.
+            ResponseEntity<byte[]> served =
+                    rest.exchange(base + "/" + ref, HttpMethod.GET, new HttpEntity<>(auth), byte[].class);
+            assertThat(served.getStatusCode()).isEqualTo(HttpStatus.OK);
+            assertThat(served.getHeaders().getCacheControl()).contains("private");
+        } finally {
+            rest.exchange(base + "/" + ref, HttpMethod.DELETE, new HttpEntity<>(auth), String.class);
+        }
+    }
+
     // ---- core#183 ----
 
     @Test

@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import { render, act, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 
-import type { Scope } from '@mosaicast/plugin-sdk';
+import type { FilterState, PluginContext, Scope } from '@mosaicast/plugin-sdk';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import '../i18n';
-import { DEFINE_TIMEOUT_MS, PluginMount } from './PluginMount';
+import { DEFINE_TIMEOUT_MS, PluginMount, toFilterState } from './PluginMount';
 
 /**
  * What this pins is an identity, not a render count (ARCHITECTURE §7.5).
@@ -183,6 +183,65 @@ describe('PluginMount', () => {
         logged.mockRestore();
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('ctx.filter (core#248)', () => {
+    let go: (to: string) => void = () => {};
+    function Navigator() {
+      const navigate = useNavigate();
+      go = (to) => navigate(to);
+      return null;
+    }
+    function filtered(initial: string, routePath?: string) {
+      return (
+        <MemoryRouter initialEntries={[initial]}>
+          <Navigator />
+          <PluginMount
+            pluginId="stub"
+            tag="mc-stub-plugin"
+            scope={FEED_SCOPE}
+            episodes={NO_EPISODES}
+            episodeLabels={NO_LABELS}
+            routePath={routePath}
+          />
+        </MemoryRouter>
+      );
+    }
+    const lastCtx = () => assignments[assignments.length - 1] as PluginContext;
+
+    it('maps the shell\'s URL filters to FilterState, and nothing else', () => {
+      expect(toFilterState('5', 'fog', 'oldest')).toEqual({ season: 5, tags: ['fog'], sort: 'oldest' });
+      expect(toFilterState('', '', '')).toEqual({});
+      expect(toFilterState('five', '', '')).toEqual({});
+    });
+
+    it('hands a feed tile the season the visitor picked, and tells it when that changes', async () => {
+      assignments.length = 0;
+      render(filtered('/feeds/the-cast?season=5&tag=fog&t=12'));
+      await act(async () => {});
+      expect(lastCtx().filter.current()).toEqual({ season: 5, tags: ['fog'] });
+      const heard: FilterState[] = [];
+      lastCtx().filter.onChange((f) => heard.push(f));
+      const before = assignments.length;
+
+      // A query parameter that is not a filter changes nothing for the tile.
+      await act(async () => go('/feeds/the-cast?season=5&tag=fog&t=99'));
+      expect(assignments.length).toBe(before);
+      expect(heard).toEqual([]);
+
+      await act(async () => go('/feeds/the-cast?season=4'));
+      expect(assignments.length).toBe(before + 1);
+      expect(lastCtx().filter.current()).toEqual({ season: 4 });
+      // The listener registered through the previous ctx still hears it.
+      expect(heard).toEqual([{ season: 4 }]);
+    });
+
+    it('leaves a plugin page\'s own query alone: a page is not a filtered list', async () => {
+      assignments.length = 0;
+      render(filtered('/p/stub/board?season=5', 'board'));
+      await act(async () => {});
+      expect(lastCtx().filter.current()).toEqual({});
     });
   });
 });

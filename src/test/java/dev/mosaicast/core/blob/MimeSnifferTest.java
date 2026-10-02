@@ -66,6 +66,24 @@ class MimeSnifferTest {
     }
 
     @Test
+    void recognisesAZipArchiveAndAnEmptyOneButNotASpannedPart() {
+        // core#246: a local file header, or the end-of-central-directory record of an empty archive.
+        assertThat(MimeSniffer.sniff(bytes('P', 'K', 0x03, 0x04, 0x14, 0x00))).isEqualTo("application/zip");
+        assertThat(MimeSniffer.sniff(bytes('P', 'K', 0x05, 0x06, 0x00, 0x00))).isEqualTo("application/zip");
+        assertThat(MimeSniffer.sniff(bytes('P', 'K', 0x07, 0x08, 0x00, 0x00))).isNull();
+        assertThat(MimeSniffer.sniff(bytes('P', 'K'))).isNull();
+    }
+
+    @Test
+    void foldsTheZipAliasesBrowsersDeclareAndDropsParameters() {
+        assertThat(MimeSniffer.canonicalType("application/x-zip-compressed")).isEqualTo("application/zip");
+        assertThat(MimeSniffer.canonicalType(" Application/X-Zip ")).isEqualTo("application/zip");
+        assertThat(MimeSniffer.canonicalType("multipart/x-zip")).isEqualTo("application/zip");
+        assertThat(MimeSniffer.canonicalType("image/PNG; charset=binary")).isEqualTo("image/png");
+        assertThat(MimeSniffer.canonicalType(null)).isEmpty();
+    }
+
+    @Test
     void refusesSvgHoweverItIsDressed() {
         // The case §12.2 exists for. An SVG is text, so it can be made to start almost any way short of a
         // real binary signature — and none of those is a case here.

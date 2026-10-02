@@ -5,8 +5,8 @@ import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import type { Scope } from '@mosaicast/plugin-sdk';
 
-import { api } from '../api/client';
 import { useUser } from '../auth/UserContext';
+import { fetchScopeEpisodes } from '../plugins/pluginApi';
 import { PluginMount } from '../plugins/PluginMount';
 import { usePluginRegistry } from '../plugins/PluginRegistry';
 import { selectMounts } from '../plugins/slots';
@@ -98,11 +98,7 @@ export function SlotRegion({
     }
     let cancelled = false;
     const controller = new AbortController();
-    api
-      .get<{ id: string; label: string }[]>(
-        `/api/plugins/scope-episodes?type=${scope.type}&id=${encodeURIComponent(scope.id)}`,
-        { signal: controller.signal },
-      )
+    fetchScopeEpisodes(scope.type, scope.id, controller.signal)
       .then((options) => {
         if (!cancelled) {
           setFetched({

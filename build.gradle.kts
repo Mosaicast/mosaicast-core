@@ -185,7 +185,8 @@ val stageTestPlugins = fixtureProject?.let { fixture ->
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         into(layout.buildDirectory.dir("test-plugins"))
         listOf("good", "broken", "schema", "wikifix", "wikilocked", "nopage", "ownedbad", "blobs",
-            "tagger", "tagreader", "translator", "translatoropen", "directory", "directorylocked", "blobslocked")
+            "tagger", "tagreader", "translator", "translatoropen", "directory", "directorylocked", "blobslocked",
+            "blobsprivate")
             .forEach { name ->
             into(name) {
                 from("src/test/resources/plugin-fixtures/$name")

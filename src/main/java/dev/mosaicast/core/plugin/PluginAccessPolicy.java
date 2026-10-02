@@ -50,6 +50,16 @@ final class PluginAccessPolicy {
         return rank(role) >= writeFloor(manifest);
     }
 
+    /** True if the (possibly absent) role may list and download this plugin's files (core#247). */
+    static boolean canReadBlobs(PluginManifest manifest, Optional<Role> role) {
+        return rank(role) >= rank(manifest.blobReadFloor());
+    }
+
+    /** True if the (possibly absent) role may upload and delete this plugin's files (core#247). */
+    static boolean canWriteBlobs(PluginManifest manifest, Optional<Role> role) {
+        return rank(role) >= rank(manifest.blobWriteFloor());
+    }
+
     /**
      * The declared {@code data.backendOwned} pattern that reserves this key, if any — a client {@code PUT} or
      * {@code DELETE} to it must be refused, whatever the caller's role.

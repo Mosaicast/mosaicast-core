@@ -754,7 +754,17 @@ restart() {
   write_env
   start_app
 
-  if [ "$AS_ADMIN" = 1 ]; then
+  # Sessions live in the app's memory, so every cookie jar this instance handed out went stale with the
+  # old process — and a curl against `--admin`'s jar answered 401 after a restart. Renewed in place.
+  local jar role
+  for jar in "$IDIR"/cookies-*.txt; do
+    [ -f "$jar" ] || continue
+    role="${jar##*/cookies-}"
+    role="${role%.txt}"
+    login "$role" >/dev/null
+    echo "▶ $role session renewed: $jar"
+  done
+  if [ "$AS_ADMIN" = 1 ] && [ ! -f "$IDIR/cookies-admin.txt" ]; then
     echo "▶ admin session for curl: $(login admin)"
   fi
   local name_flag=""

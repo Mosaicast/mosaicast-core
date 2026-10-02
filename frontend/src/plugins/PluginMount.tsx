@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import type { Scope } from '@mosaicast/plugin-sdk';
+import type { FilterState, Scope } from '@mosaicast/plugin-sdk';
 
 import { useUser } from '../auth/UserContext';
 import { SlotFailed } from '../components/SlotFailed';
@@ -56,6 +56,19 @@ interface PluginMountProps {
 /** How long a plugin's bundle has to define its element before the tile is given up on. */
 export const DEFINE_TIMEOUT_MS = 10_000;
 
+/**
+ * The shell's URL filters as the SDK's `FilterState` (§6.1): `?season=5` → `{ season: 5 }`, `?tag=x` →
+ * `{ tags: ['x'] }`, `?order=oldest` → `{ sort: 'oldest' }`. Only what is set appears; an unfiltered view is
+ * `{}`, and a season that is not a number is not a season.
+ */
+export function toFilterState(season: string, tag: string, order: string): FilterState {
+  const state: FilterState = {};
+  if (/^\d+$/.test(season)) state.season = Number(season);
+  if (tag) state.tags = [tag];
+  if (order) state.sort = order;
+  return state;
+}
+
 export function PluginMount({
   pluginId,
   tag,
@@ -76,6 +89,36 @@ export function PluginMount({
   const location = useLocation();
   const routeQuery = routePath == null ? '' : location.search;
   const routeHash = routePath == null ? '' : location.hash;
+
+  // The shell's own filters, which live in the URL (§6.1): `ctx.filter` for every mount that is not a page —
+  // a page's query string is the plugin's own (`ctx.route.query`). Read as three primitives so that `ctx`
+  // is rebuilt when the visitor changes a filter and not for any other query parameter (a shared `?t=`, a
+  // search), which would rebuild every mounted plugin for a change that is not theirs.
+  const shellQuery = new URLSearchParams(routePath == null ? location.search : '');
+  const filterSeason = shellQuery.get('season') ?? '';
+  const filterTag = shellQuery.get('tag') ?? '';
+  const filterOrder = shellQuery.get('order') ?? '';
+  const filter = useMemo(
+    () => toFilterState(filterSeason, filterTag, filterOrder),
+    [filterSeason, filterTag, filterOrder],
+  );
+  // Listeners outlive any one `ctx`: a plugin that subscribed through the previous one still hears about the
+  // change that replaced it.
+  const filterListeners = useRef(new Set<(f: FilterState) => void>());
+  const filterSubscribe = useCallback((listener: (f: FilterState) => void) => {
+    filterListeners.current.add(listener);
+    return () => {
+      filterListeners.current.delete(listener);
+    };
+  }, []);
+  const announcedFilter = useRef(filter);
+  useEffect(() => {
+    if (announcedFilter.current === filter) {
+      return;
+    }
+    announcedFilter.current = filter;
+    filterListeners.current.forEach((listener) => listener(filter));
+  }, [filter]);
 
   const hostRef = useRef<HTMLDivElement>(null);
   const elementRef = useRef<HTMLElement | null>(null);
@@ -143,6 +186,8 @@ export function PluginMount({
         consentGranted: consent.granted,
         consentRequest: consent.request,
         consentSubscribe: consent.subscribe,
+        filter,
+        filterSubscribe,
       }),
     [
       pluginId,
@@ -169,6 +214,8 @@ export function PluginMount({
       consent.granted,
       consent.request,
       consent.subscribe,
+      filter,
+      filterSubscribe,
     ],
   );
 

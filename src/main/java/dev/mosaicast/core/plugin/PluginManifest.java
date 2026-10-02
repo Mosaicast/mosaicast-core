@@ -6,6 +6,7 @@ package dev.mosaicast.core.plugin;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
+import dev.mosaicast.core.blob.MimeSniffer;
 import dev.mosaicast.plugin.api.DocStore;
 import dev.mosaicast.plugin.api.PlatformApi;
 import java.net.URI;
@@ -282,24 +283,52 @@ public record PluginManifest(
      * alternative — every plugin able to write bytes by default — is the first unbounded write a plugin
      * could make.
      *
+     * <p><strong>Floors of their own, optionally</strong> (core#247). Files take the {@code data} floors unless
+     * the block names its own. That is right for a wiki, whose diagrams are as public as its pages, and wrong
+     * for a plugin whose uploads are <em>inputs</em> — raw material it computes public numbers from, which
+     * may carry far more than the numbers do. Same vocabulary and the same rule as {@code data}: a write
+     * needs a signed-in user, so {@code writableBy} may not be {@code anonymous}.
+     *
      * @param maxFileBytes the largest single file, or null to take the operator's ceiling
      * @param quotaBytes   the total this plugin may occupy, or null to take the operator's ceiling
      * @param mimeTypes    the content types it wants to store; intersected with the operator's allow-list
+     * @param readableBy   who may list and download its files; absent means {@code data.readableBy}
+     * @param writableBy   who may upload and delete its files; absent means {@code data.writableBy}
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record Blobs(Long maxFileBytes, Long quotaBytes, List<String> mimeTypes) {
+    public record Blobs(Long maxFileBytes, Long quotaBytes, List<String> mimeTypes, String readableBy,
+                        String writableBy) {
 
-        /** The declared types, lower-cased and never null. */
+        /** The shape before the blob floors, which then follow the {@code data} floors. */
+        public Blobs(Long maxFileBytes, Long quotaBytes, List<String> mimeTypes) {
+            this(maxFileBytes, quotaBytes, mimeTypes, null, null);
+        }
+
+        /** The declared types in canonical spelling ({@link MimeSniffer#canonicalType}), never null. */
         public List<String> mimeTypesOrEmpty() {
             return mimeTypes == null ? List.of()
                     : mimeTypes.stream().filter(java.util.Objects::nonNull)
-                            .map(type -> type.trim().toLowerCase(java.util.Locale.ROOT)).toList();
+                            .map(MimeSniffer::canonicalType).toList();
         }
     }
 
     /** Whether this plugin declared any file storage at all. */
     public boolean declaresBlobs() {
         return blobs != null;
+    }
+
+    /** Who may list and download this plugin's files: {@code blobs.readableBy}, else the data read floor. */
+    public String blobReadFloor() {
+        String own = blobs == null ? null : blobs.readableBy();
+        return own == null || own.isBlank()
+                ? dataOrDefault().readableByOrDefault() : own.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /** Who may upload and delete this plugin's files: {@code blobs.writableBy}, else the data write floor. */
+    public String blobWriteFloor() {
+        String own = blobs == null ? null : blobs.writableBy();
+        return own == null || own.isBlank()
+                ? dataOrDefault().writableByOrDefault() : own.trim().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -936,6 +965,18 @@ public record PluginManifest(
         if (blobs.mimeTypesOrEmpty().contains("image/svg+xml")) {
             throw new PluginValidationException(
                     "blobs.mimeTypes may not include image/svg+xml — SVG uploads are never accepted (§12.2)");
+        }
+        // The same vocabulary and the same rule as the data floors (core#247).
+        for (String floor : new String[] {blobs.readableBy(), blobs.writableBy()}) {
+            if (floor != null && !floor.isBlank()
+                    && !KNOWN_DATA_ACCESS.contains(floor.trim().toLowerCase(Locale.ROOT))) {
+                throw new PluginValidationException(
+                        "blobs floor '%s' is not one of %s".formatted(floor, KNOWN_DATA_ACCESS));
+            }
+        }
+        if (ACCESS_ANONYMOUS.equals(blobWriteFloor())) {
+            throw new PluginValidationException(
+                    "blobs.writableBy may not be 'anonymous' — an upload needs a signed-in user to belong to");
         }
     }
 

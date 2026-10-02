@@ -126,8 +126,9 @@ mosaicast:
     hard-quota-bytes: ${MOSAICAST_PLUGIN_BLOB_HARD_QUOTA:}
     # What may be stored at all. A plugin cannot reach past this by declaring more. SVG is not listed and
     # cannot be added — it is a script container wearing an image's extension (§12.2), and nothing here
-    # sanitises it.
-    allowed-mime-types: image/png,image/jpeg,image/webp,image/gif,image/avif,audio/mpeg,audio/mp4,audio/ogg,audio/wav
+    # sanitises it. application/zip carries no active content: it is served as an attachment with nosniff,
+    # and opening it safely (zip bombs, zip slip) is the job of the plugin that reads it (§13).
+    allowed-mime-types: image/png,image/jpeg,image/webp,image/gif,image/avif,audio/mpeg,audio/mp4,audio/ogg,audio/wav,application/zip
   auth:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
