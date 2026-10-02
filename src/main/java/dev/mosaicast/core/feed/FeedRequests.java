@@ -18,11 +18,4 @@ public final class FeedRequests {
     /** Preview a feed URL without saving it. */
     public record PreviewFeed(@NotBlank String url) {
     }
-
-    /**
-     * Create a host-authored planned episode (§4.3): identity now, so bingos can attach before the RSS
-     * item exists. Its provisional title/description are authoritative only until the feed item binds.
-     */
-    public record CreatePlannedEpisode(Integer season, Integer episodeNo, @NotBlank String title, String description) {
-    }
 }

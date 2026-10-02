@@ -97,6 +97,12 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             """)
     List<EpisodeRef> findQuietPlanned(@Param("feedId") UUID feedId, @Param("season") Integer season);
 
+    /** An API-planned episode by the caller's own reference, for an idempotent retry (core#252). */
+    Optional<EpisodeRef> findByFeedIdAndClientRef(UUID feedId, String clientRef);
+
+    /** Every planned episode, quiet or announced, any feed — the planning list's source. */
+    List<EpisodeRef> findByStatusOrderByFirstSeenAtDesc(EpisodeStatus status);
+
     /** Whether a slug is already taken (uniqueness guard when minting a new slug). */
     boolean existsBySlug(String slug);
 

@@ -83,6 +83,10 @@ public class EpisodeRef {
     @Column(name = "announce_at")
     private Instant announceAt;
 
+    /** The caller's own reference for an API-planned episode, unique per feed — what makes a retry safe. */
+    @Column(name = "client_ref")
+    private String clientRef;
+
     @Column(name = "last_seen_at", nullable = false)
     private Instant lastSeenAt = Instant.now();
 
@@ -146,6 +150,30 @@ public class EpisodeRef {
             this.status = EpisodeStatus.PUBLISHED;
         }
         this.lastSeenAt = Instant.now();
+    }
+
+    /** The API caller's reference this plan was created under, or null. */
+    public String getClientRef() {
+        return clientRef;
+    }
+
+    /** Records the API caller's reference — once, at creation. */
+    public void clientRef(String ref) {
+        this.clientRef = ref;
+    }
+
+    /**
+     * Rewrites a planned episode's own data — numbers and provisional display (core#252). Only while
+     * {@code PLANNED}: once released, the feed is the source of truth and edits here would be overwritten
+     * on the next poll, or worse, believed until then.
+     */
+    public void replan(Integer season, Integer episodeNo, DisplaySnapshot provisional) {
+        if (status != EpisodeStatus.PLANNED) {
+            throw new IllegalStateException("Only a planned episode can be edited; this one is " + status);
+        }
+        this.season = season;
+        this.episodeNo = episodeNo;
+        this.provisionalDisplay = provisional;
     }
 
     /** When a planned episode becomes public, or null while it is quiet until announced. */

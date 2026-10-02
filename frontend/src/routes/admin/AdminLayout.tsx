@@ -82,6 +82,10 @@ export function AdminLayout() {
           <NavLink to="/admin/feeds" className={tab}>
             {t('admin.nav.feeds')}
           </NavLink>
+          {/* Planning episodes is a podcaster capability, like feeds (§8.5, core#252). */}
+          <NavLink to="/admin/planned" className={tab}>
+            {t('admin.nav.planned')}
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin/site" className={tab}>
               {t('admin.nav.site')}
