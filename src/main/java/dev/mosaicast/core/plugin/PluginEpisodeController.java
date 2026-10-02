@@ -121,12 +121,15 @@ public class PluginEpisodeController {
      * {@code duration} an ISO-8601 duration.
      *
      * <p>{@code description} is the feed's HTML verbatim — untrusted, and documented as such in the SDK;
-     * {@code descriptionText} is the same prose as plain text (SDK 0.16.0), never absent.
+     * {@code descriptionText} is the same prose as plain text (SDK 0.16.0), never absent. {@code feed},
+     * {@code season} and {@code episodeNo} place the episode in the site (SDK 0.17.0), taken from the
+     * identity layer and absent when the episode is unnumbered.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record EpisodeDisplayView(String title, String description, String audioUrl, String publishedAt,
                                      String duration, String imageUrl, String feedImageUrl, String author,
-                                     String subtitle, String descriptionText) {
+                                     String subtitle, String descriptionText, String feed, Integer season,
+                                     Integer episodeNo) {
 
         static EpisodeDisplayView from(DisplaySnapshot snapshot) {
             return new EpisodeDisplayView(
@@ -139,7 +142,10 @@ public class PluginEpisodeController {
                     snapshot.feedImageUrl(),
                     snapshot.author(),
                     snapshot.subtitle(),
-                    snapshot.descriptionText());
+                    snapshot.descriptionText(),
+                    snapshot.feed(),
+                    snapshot.season(),
+                    snapshot.episodeNo());
         }
     }
 }

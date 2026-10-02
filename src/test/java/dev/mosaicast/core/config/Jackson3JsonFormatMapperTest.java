@@ -81,6 +81,22 @@ class Jackson3JsonFormatMapperTest {
     }
 
     @Test
+    void anEpisodesPlacementIsNeverStoredInItsSnapshot() {
+        // SDK 0.17.0: feed, season and episodeNo come from the identity layer and are added for plugins on
+        // read. A placed snapshot handed to persistence by mistake must still store none of them.
+        DisplaySnapshot placed = new DisplaySnapshot("t", "d", null, Instant.ofEpochSecond(1_781_416_800L),
+                Duration.ofSeconds(3482), null, null, null, null, "d", "the-cast", 5, 22);
+
+        JsonNode tree = json.readTree(mapper.toString(placed, javaType(DisplaySnapshot.class), null));
+
+        assertThat(tree.has("feed")).isFalse();
+        assertThat(tree.has("season")).isFalse();
+        assertThat(tree.has("episodeNo")).isFalse();
+        assertThat(tree.get("title").asString()).isEqualTo("t");
+        assertThat(tree.get("duration").isNumber()).isTrue();
+    }
+
+    @Test
     void nullFieldsAreWrittenNotOmitted() {
         // The Jackson 2 mapper wrote `"imageUrl": null`; dropping nulls would change every row it touches.
         DisplaySnapshot snapshot = new DisplaySnapshot(

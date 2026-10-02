@@ -48,8 +48,11 @@ public final class ShowNotes {
                 || snapshot.description() == null || snapshot.description().isBlank()) {
             return snapshot;
         }
+        // Every component carried over, the placement ones too (SDK 0.17.0): a completed snapshot must never
+        // be a narrower one than it was handed.
         return new DisplaySnapshot(snapshot.title(), snapshot.description(), snapshot.audioUrl(),
                 snapshot.publishedAt(), snapshot.duration(), snapshot.imageUrl(), snapshot.feedImageUrl(),
-                snapshot.author(), snapshot.subtitle(), plainText(snapshot.description()));
+                snapshot.author(), snapshot.subtitle(), plainText(snapshot.description()),
+                snapshot.feed(), snapshot.season(), snapshot.episodeNo());
     }
 }
