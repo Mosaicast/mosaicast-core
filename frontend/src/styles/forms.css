@@ -79,6 +79,13 @@
   background: var(--mc-surface);
   border-color: var(--mc-border);
 }
+/* An accent button keeps its own colours when disabled: the rule above swapped its background for the
+   surface and left the contrast-coloured label on it, so the label vanished while the pointer was there. */
+.mc-btn--accent:disabled:hover,
+.mc-btn--accent[aria-disabled='true']:hover {
+  background: var(--mc-accent);
+  border-color: var(--mc-accent);
+}
 
 .mc-account__profile {
   display: flex;

@@ -94,6 +94,10 @@ public interface PluginDataRepository extends JpaRepository<PluginData, PluginDa
     @Query("delete from PluginData d where d.id.pluginId = :pluginId")
     int deleteByPluginId(@Param("pluginId") String pluginId);
 
+    /** How many documents any plugin holds against these scopes — "does anything hang on this episode?". */
+    @Query("select count(d) from PluginData d where d.id.scopeType = :scopeType and d.id.scopeId in :scopeIds")
+    long countByScope(@Param("scopeType") String scopeType, @Param("scopeIds") java.util.Collection<String> scopeIds);
+
     /**
      * Every plugin's documents for one scope — used when the thing that scope names is deleted (§7.6).
      *

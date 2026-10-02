@@ -4,7 +4,6 @@
 package dev.mosaicast.core.feed;
 
 import dev.mosaicast.core.feed.FeedRequests.CreateFeed;
-import dev.mosaicast.core.feed.FeedRequests.CreatePlannedEpisode;
 import dev.mosaicast.core.feed.FeedRequests.PreviewFeed;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -73,15 +72,6 @@ public class FeedAdminController {
     @PostMapping("/{id}/poll-interval")
     public FeedView setPollInterval(@PathVariable UUID id, @RequestParam long seconds) {
         return feeds.setPollInterval(id, seconds);
-    }
-
-    /** Create a planned episode on a target feed (§4.3). */
-    @PostMapping("/{feedId}/planned-episodes")
-    public ResponseEntity<Map<String, UUID>> createPlanned(
-            @PathVariable UUID feedId, @Valid @RequestBody CreatePlannedEpisode request) {
-        UUID id = feeds.createPlannedEpisode(
-                feedId, request.season(), request.episodeNo(), request.title(), request.description());
-        return ResponseEntity.created(URI.create("/api/episodes/" + id)).body(Map.of("id", id));
     }
 
     /** A feed's outstanding fuzzy PLANNED-binding suggestions to confirm or dismiss (§5.3). */

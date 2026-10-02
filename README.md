@@ -186,6 +186,34 @@ Plugins folder via `MOSAICAST_PLUGINS_DIR` (in the container `/app/plugins`, vol
 languages folder via `MOSAICAST_LOCALES_DIR` (`/app/locales`, volume `./locales`) — see **Languages** below.
 Layout reference for the shell: `docs/reference/mosaicast-mockup.jsx` (NOT the real architecture).
 
+## Planning episodes ahead of the feed
+
+A podcaster or admin can plan an episode before its feed item exists, so plugins such as a bingo can be
+prepared on it (ARCHITECTURE §4.3): in the admin area under **Planned episodes**, or from a script with a
+personal access token (Account → Personal access tokens).
+
+```bash
+TOKEN=mct_…   # a podcaster's token
+# Plan it: quiet unless "announceAt" is given ("now" or an ISO-8601 instant). The answer carries the slug.
+curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"season":3,"episodeNo":1,"title":"Season three opener","clientRef":"cms-301"}' \
+  https://your.site/api/admin/feeds/<feed-slug>/planned-episodes
+# → {"slug":"the-cast-s03e01","url":"/episodes/the-cast-s03e01","phase":"PLANNED",…}
+# A plugin's data can be prepared on it straight away, while it is still quiet:
+curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{…}' https://your.site/api/plugins/<plugin>/data/episode/the-cast-s03e01/<key>
+```
+
+- **Quiet** plans are seen only by podcasters and admins; **`announceAt`** makes them public as "Upcoming"
+  from that moment, and the feed item releases them whenever it arrives, announced or not.
+- `clientRef` makes a retried create safe: the same reference returns the existing plan (200).
+- `PATCH /api/admin/episodes/<slug>` edits it (title, description, `season`, `episodeNo`, `announceAt` —
+  `null` makes it quiet again), `POST …/announce` makes it public now, `DELETE` cancels it together with
+  the plugin data prepared for it, and `POST …/match {"episode": "<slug>"}` merges it with an episode the
+  feed imported separately (refused if that one already has plugin data of its own).
+- When the feed item arrives with the same season and episode number it takes the plan's place
+  automatically; its data replaces the planned title and description, and the slug stays.
+
 ## Versioning & releases
 
 - **Single source of truth:** the core version lives in **`gradle.properties`** (`version=…`). It is

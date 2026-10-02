@@ -784,3 +784,19 @@
 .mc-warnpanel__sent {
   margin-top: 0.25rem;
 }
+
+/* Planned episodes (core#252): the plan form and the per-row edit and match panels. */
+.mc-planned__create {
+  margin-bottom: 1.5rem;
+}
+.mc-planned__numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+.mc-planned__edit,
+.mc-planned__match {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--mc-border);
+}

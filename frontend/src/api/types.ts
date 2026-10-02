@@ -233,6 +233,36 @@ export interface EpisodeDetail {
   announceAt?: string | null;
 }
 
+/** A planned episode as the planning API returns it (`feed/PlannedEpisodeService.PlannedView`). */
+export interface PlannedEpisode {
+  id: string;
+  slug: string;
+  /** Where the episode page lives, `/episodes/<slug>`. */
+  url: string;
+  feedId: string;
+  feedSlug: string | null;
+  feedTitle: string | null;
+  season: number | null;
+  episodeNo: number | null;
+  title: string | null;
+  description: string | null;
+  phase: EpisodePhase;
+  announceAt: string | null;
+  clientRef: string | null;
+  createdAt: string;
+}
+
+/** An imported episode a planned one could be matched to (`PlannedEpisodeService.MatchCandidate`). */
+export interface MatchCandidate {
+  slug: string;
+  title: string;
+  season: number | null;
+  episodeNo: number | null;
+  publishedAt: string | null;
+  /** Something already hangs on it, so the match would be refused. */
+  hasPluginData: boolean;
+}
+
 /** The release cycle of an episode (`episode/EpisodePhase.java`). */
 export type EpisodePhase = 'PLANNED' | 'UPCOMING' | 'RELEASED' | 'WITHDRAWN';
 

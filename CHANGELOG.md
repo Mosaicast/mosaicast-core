@@ -14,6 +14,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Planning episodes: admin page, token API, edit, announce, cancel and match (`0.7.7`, core#252, part 2).**
+  - **Admin page.** A *Planned episodes* page for podcasters and admins. You plan an episode with a
+    visibility: quiet, public now, or public from a set time. The list shows each plan's phase, with
+    Open, Edit, *Announce now*, Cancel (behind a typed confirmation) and *Match…*.
+  - **API.** Everything works from a script with a personal access token:
+    - `POST /api/admin/feeds/{feed slug or id}/planned-episodes` returns `{id, slug, url, phase, …}`, so the
+      next call can prepare plugin content on the slug. An optional `clientRef` makes a retry return the
+      existing plan.
+    - `PATCH`, `POST …/announce` and `DELETE` are under `/api/admin/episodes/{slug}`, and only while the
+      episode is planned. A released episode's details are the feed's.
+    - `GET /api/admin/episodes/planned` lists every plan.
+  - **Manual match.** When neither the numbers nor the title caught the pair, a plan can be matched to an
+    episode the feed imported separately. The plan keeps its slug and plugin data and takes over the feed
+    item, and listeners' progress, pins and tags move across. The duplicate is removed. A duplicate that
+    already has plugin data of its own is **refused** with a clear message, and nothing changes.
+  - **Cancelling** a plan deletes the plugin data prepared for it.
+  - **Fix.** A disabled accent button no longer loses its label while hovered.
+
 - **Planned episodes can be prepared quietly, and announced on a schedule (`0.7.7`, core#252, part 1).**
   - **Quiet by default.** A new planned episode is visible only to podcasters and admins until its
     `announce_at` passes, or until it is announced. It stays out of every public surface: lists, detail,

@@ -31,6 +31,7 @@ import { AdminLanguages } from './routes/admin/AdminLanguages';
 import { AdminLegal } from './routes/admin/AdminLegal';
 import { AdminLogs } from './routes/admin/AdminLogs';
 import { AdminNavigation } from './routes/admin/AdminNavigation';
+import { AdminPlanned } from './routes/admin/AdminPlanned';
 import { AdminPlugins } from './routes/admin/AdminPlugins';
 import { AdminSeo } from './routes/admin/AdminSeo';
 import { AdminSite } from './routes/admin/AdminSite';
@@ -136,6 +137,7 @@ export default function App() {
                       }
                     />
                     <Route path="feeds" element={<AdminFeeds />} />
+                    <Route path="planned" element={<AdminPlanned />} />
                     <Route
                       path="navigation"
                       element={
