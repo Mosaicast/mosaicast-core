@@ -18,6 +18,7 @@ import {
 } from './pluginApi';
 import { storedPosition } from '../player/progress';
 import { sanitizeFeedHtml } from '../util/sanitize';
+import type { PluginEpisodeState } from './episodeState';
 import { coreLinks } from './coreLinks';
 
 /**
@@ -36,6 +37,8 @@ export interface CtxInputs {
   scope: Scope;
   episodes: string[];
   episodeLabels: Record<string, string>;
+  /** On an `episode` scope: its release state, `ctx.episode` (SDK 0.18.0, core#252). */
+  episode?: PluginEpisodeState;
   user: MeView | null;
   theme: ThemeTokenSet | undefined;
   locale: string;
@@ -132,6 +135,9 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     scope: inputs.scope,
     episodes: inputs.episodes,
     episodeLabels: inputs.episodeLabels,
+    // Where the episode stands — planned (quiet), upcoming, released — so a plugin can switch from
+    // preparing to resolving. Absent off an episode scope.
+    ...(inputs.episode ? { episode: inputs.episode } : {}),
     // The visitor's own name and picture (§8.8). Not gated: telling a plugin who its own viewer is
     // discloses nothing the viewer does not already know. Learning about anyone *else* takes `users`
     // below, and a manifest declaration.

@@ -12,7 +12,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Changed
+
+- **⚠️ Plugins must be rebuilt for `platformApi` 0.18.0.** Core now pins SDK 0.18.0, and a plugin built
+  against 0.17.0 is rejected at load until it is rebuilt against the new SDK.
+
 ### Added
+
+- **Plugins can tell where an episode stands in its release cycle (`0.7.7`, core#252, part 3, SDK 0.18.0).**
+  - **Frontend.** An episode-scoped plugin UI receives `ctx.episode = { status, phase, announceAt? }`.
+    `phase` is `planned` (quiet), `upcoming`, `released` or `withdrawn`. The element gets a new `ctx` when
+    the phase changes, so a tile can switch from preparing to resolving without a reload.
+  - **Backend.** `DisplaySnapshot` carries `phase` and `announceAt`, filled on read like the placement
+    fields and never stored. `GET /api/plugins/{id}/episodes` reports both.
+  - **Release hook.** `PluginContext.onEpisodeReleased(slug -> …)` is called once a planned episode
+    becomes released: by a feed item binding to it, by a confirmed suggestion, or by a manual match. It
+    runs after the transaction commits, each listener on its own virtual thread, so a slow plugin holds
+    up neither the feed poll nor the request. A listener that throws is logged in its plugin's log and
+    does not affect the others. Best effort: nothing is queued or retried.
 
 - **Planning episodes: admin page, token API, edit, announce, cancel and match (`0.7.7`, core#252, part 2).**
   - **Admin page.** A *Planned episodes* page for podcasters and admins. You plan an episode with a

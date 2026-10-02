@@ -243,10 +243,14 @@ public class EpisodeQueryService {
      * it where it was. The shell's own reads never take this path; they read the ref directly.
      */
     private static DisplaySnapshot placed(EpisodeRef ref, DisplaySnapshot snapshot, Map<UUID, String> slugsByFeed) {
+        // Its release phase too (SDK 0.18.0, core#252): identity-layer like the placement, decided against the
+        // clock on read, and never stored.
         return new DisplaySnapshot(snapshot.title(), snapshot.description(), snapshot.audioUrl(),
                 snapshot.publishedAt(), snapshot.duration(), snapshot.imageUrl(), snapshot.feedImageUrl(),
                 snapshot.author(), snapshot.subtitle(), snapshot.descriptionText(),
-                slugsByFeed.get(ref.getFeedId()), ref.getSeason(), ref.getEpisodeNo());
+                slugsByFeed.get(ref.getFeedId()), ref.getSeason(), ref.getEpisodeNo(),
+                ref.phase(java.time.Instant.now()),
+                ref.getStatus() == EpisodeStatus.PLANNED ? ref.getAnnounceAt() : null);
     }
 
     /** Feed id → public slug for a set of refs, in one query. */

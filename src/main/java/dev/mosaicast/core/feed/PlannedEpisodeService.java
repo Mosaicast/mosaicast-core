@@ -5,7 +5,7 @@ package dev.mosaicast.core.feed;
 
 import dev.mosaicast.core.episode.EpisodeDisplay;
 import dev.mosaicast.core.episode.EpisodeDisplayRepository;
-import dev.mosaicast.core.episode.EpisodePhase;
+import dev.mosaicast.plugin.api.EpisodePhase;
 import dev.mosaicast.core.episode.EpisodeRef;
 import dev.mosaicast.core.episode.EpisodeRefRepository;
 import dev.mosaicast.core.episode.EpisodeStatus;
@@ -52,10 +52,13 @@ public class PlannedEpisodeService {
     private final PluginDataRepository pluginData;
     private final BindingSuggestionRepository suggestions;
     private final JdbcTemplate jdbc;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public PlannedEpisodeService(FeedRepository feeds, FeedService feedService, EpisodeRefRepository refs,
                                  EpisodeDisplayRepository displays, PluginDataRepository pluginData,
-                                 BindingSuggestionRepository suggestions, JdbcTemplate jdbc) {
+                                 BindingSuggestionRepository suggestions, JdbcTemplate jdbc,
+                                 org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.feeds = feeds;
         this.feedService = feedService;
         this.refs = refs;
@@ -265,6 +268,7 @@ public class PlannedEpisodeService {
         refs.flush();
         plan.bindToFeedItem(guid, imported.getSeason(), imported.getEpisodeNo());
         refs.save(plan);
+        events.publishEvent(new dev.mosaicast.core.episode.EpisodeReleasedEvent(plan.getSlug()));
         if (snapshot != null) {
             displays.save(new EpisodeDisplay(to, snapshot));
         }

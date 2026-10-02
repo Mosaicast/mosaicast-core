@@ -13,6 +13,7 @@ import { useConsent } from '../consent/ConsentContext';
 import { contentLocaleInfos, uiLocaleInfos } from '../i18n';
 import { usePlayerActions } from '../player/PlayerContext';
 import { useSite } from '../theme/SiteContext';
+import { pluginEpisodeState } from './episodeState';
 import { buildCtx } from './buildCtx';
 
 /**
@@ -36,6 +37,10 @@ interface PluginMountProps {
   scope: Scope;
   episodes: string[];
   episodeLabels: Record<string, string>;
+  /** On an `episode` scope, its release state as primitives — strings keep `ctx` stable across renders. */
+  episodeStatus?: string;
+  episodePhase?: string;
+  episodeAnnounceAt?: string | null;
   /** Subpath below `/p/{pluginId}/` when this mount is a deep-link page (§6.4); empty elsewhere. */
   routePath?: string;
   /** Whether the plugin declares `storage.schema`; decides `ctx.schema` vs `null` (§7.6). */
@@ -75,6 +80,9 @@ export function PluginMount({
   scope,
   episodes,
   episodeLabels,
+  episodeStatus,
+  episodePhase,
+  episodeAnnounceAt,
   routePath,
   hasSchema,
   hasBlobs,
@@ -158,6 +166,11 @@ export function PluginMount({
     [],
   );
 
+  const episode = useMemo(
+    () => pluginEpisodeState(episodeStatus, episodePhase, episodeAnnounceAt),
+    [episodeStatus, episodePhase, episodeAnnounceAt],
+  );
+
   const ctx = useMemo(
     () =>
       buildCtx({
@@ -165,6 +178,7 @@ export function PluginMount({
         scope: stableScope,
         episodes,
         episodeLabels,
+        episode,
         user,
         theme: site?.theme[mode],
         locale: i18n.language,
@@ -194,6 +208,7 @@ export function PluginMount({
       stableScope,
       episodes,
       episodeLabels,
+      episode,
       user,
       site,
       mode,

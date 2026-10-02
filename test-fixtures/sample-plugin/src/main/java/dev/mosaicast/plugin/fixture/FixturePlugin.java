@@ -58,6 +58,8 @@ public class FixturePlugin implements PluginBackend, SitemapProvider {
         // Whether the host handed over the cross-user reader (SDK 0.16.0) — only a manifest declaring
         // data.readsAllUsers should get one, and this is what lets the integration test see it.
         ctx.store().put(Scope.site(), "reads-all-users", ctx.allUsers() != null);
+        // SDK 0.18.0: records the last episode whose plan its feed item released, for the hook's test.
+        ctx.onEpisodeReleased(slug -> ctx.store().put(Scope.site(), "released-last", slug));
         ctx.onSchedule(Duration.ofMinutes(Math.max(1, refresh)), () -> {
             // Nothing to do on tick in the fixture; registering it proves onSchedule accepts the task.
         });

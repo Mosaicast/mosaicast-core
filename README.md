@@ -213,6 +213,9 @@ curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/j
   feed imported separately (refused if that one already has plugin data of its own).
 - When the feed item arrives with the same season and episode number it takes the plan's place
   automatically; its data replaces the planned title and description, and the slug stays.
+- Plugins see where the episode stands: an episode-scoped UI reads `ctx.episode.phase` (`planned`,
+  `upcoming`, `released`, `withdrawn`), a backend reads `DisplaySnapshot.phase()`, and
+  `ctx.onEpisodeReleased(slug -> …)` fires once the episode is released (SDK 0.18.0).
 
 ## Versioning & releases
 

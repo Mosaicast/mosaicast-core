@@ -53,6 +53,6 @@ public final class ShowNotes {
         return new DisplaySnapshot(snapshot.title(), snapshot.description(), snapshot.audioUrl(),
                 snapshot.publishedAt(), snapshot.duration(), snapshot.imageUrl(), snapshot.feedImageUrl(),
                 snapshot.author(), snapshot.subtitle(), plainText(snapshot.description()),
-                snapshot.feed(), snapshot.season(), snapshot.episodeNo());
+                snapshot.feed(), snapshot.season(), snapshot.episodeNo(), snapshot.phase(), snapshot.announceAt());
     }
 }

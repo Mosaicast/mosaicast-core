@@ -403,6 +403,11 @@ public class PluginLoaderService {
         return active(id).map(r -> contexts.get(r.id())).map(PluginContextImpl::users);
     }
 
+    /** The contexts of every loaded, switched-on plugin — a switched-off one hears no releases. */
+    List<PluginContextImpl> activeContexts() {
+        return allActive().stream().map(r -> contexts.get(r.id())).filter(java.util.Objects::nonNull).toList();
+    }
+
     /** The notifier a plugin's backend was given — the same reasoning as {@link #usersOf}. */
     public Optional<dev.mosaicast.plugin.api.Notifier> notifierOf(String id) {
         return active(id).map(r -> contexts.get(r.id())).map(PluginContextImpl::notifier);

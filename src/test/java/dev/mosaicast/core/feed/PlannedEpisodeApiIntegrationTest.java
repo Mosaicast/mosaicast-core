@@ -249,6 +249,34 @@ class PlannedEpisodeApiIntegrationTest {
     }
 
     @Test
+    void aReleaseIsAnnouncedToPluginsAfterItCommitsWithThePhaseTheyRead() throws Exception {
+        String secret = token();
+        String plannedSlug = plan(secret, "{\"title\":\"Hook check\"}").path("slug").asString();
+        // Planned and quiet: what the plugin sees through ctx.feeds as the podcaster preparing it.
+        assertThat(call(secret, HttpMethod.GET, "/api/plugins/good/episodes?slugs=" + plannedSlug, null).getBody())
+                .contains("\"phase\":\"planned\"");
+        EpisodeRef imported = importedEpisode("guid-hook", "Hook check, released", 6, 1);
+
+        call(secret, HttpMethod.POST, "/api/admin/episodes/" + plannedSlug + "/match",
+                "{\"episode\":\"" + imported.getSlug() + "\"}");
+
+        // The fixture plugin's onEpisodeReleased writes the slug into its own store — asynchronously, after
+        // the commit, so wait for it rather than assume it.
+        String released = null;
+        for (int i = 0; i < 50 && released == null; i++) {
+            String body = rest.getForObject("/api/plugins/good/data/site/main/released-last", String.class);
+            if (body != null && body.contains(plannedSlug)) {
+                released = body;
+            } else {
+                Thread.sleep(100);
+            }
+        }
+        assertThat(released).as("onEpisodeReleased was called with the plan's slug").contains(plannedSlug);
+        assertThat(rest.getForObject("/api/plugins/good/episodes?slugs=" + plannedSlug, String.class))
+                .contains("\"phase\":\"released\"");
+    }
+
+    @Test
     void aMatchOntoAnEpisodeThatAlreadyHasPluginDataIsRefusedAndChangesNothing() {
         String secret = token();
         String plannedSlug = plan(secret, "{\"title\":\"The quiz\"}").path("slug").asString();

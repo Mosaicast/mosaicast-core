@@ -3,6 +3,7 @@
 
 package dev.mosaicast.core.episode;
 
+import dev.mosaicast.plugin.api.EpisodePhase;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Instant;
 import java.util.UUID;

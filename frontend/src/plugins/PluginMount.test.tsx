@@ -136,6 +136,42 @@ describe('PluginMount', () => {
     expect(assignments.length).toBeGreaterThan(afterMount);
   });
 
+  it('hands an episode tile where its episode stands, and a new ctx when that moves (core#252)', async () => {
+    const tile = (phase: string, announceAt?: string) => (
+      <MemoryRouter>
+        <PluginMount
+          pluginId="stub"
+          tag="mc-stub-plugin"
+          scope={{ type: 'episode', id: 'next-week' }}
+          episodes={NO_EPISODES}
+          episodeLabels={NO_LABELS}
+          episodeStatus={phase === 'RELEASED' ? 'PUBLISHED' : 'PLANNED'}
+          episodePhase={phase}
+          episodeAnnounceAt={announceAt}
+        />
+      </MemoryRouter>
+    );
+    assignments.length = 0;
+    const { rerender } = render(tile('UPCOMING', '2026-11-01T18:00:00Z'));
+    await act(async () => {});
+    expect((assignments.at(-1) as { episode?: unknown }).episode).toEqual({
+      status: 'PLANNED',
+      phase: 'upcoming',
+      announceAt: '2026-11-01T18:00:00Z',
+    });
+    const afterMount = assignments.length;
+
+    await act(async () => {
+      rerender(tile('UPCOMING', '2026-11-01T18:00:00Z'));
+    });
+    expect(assignments.length).toBe(afterMount);
+
+    await act(async () => {
+      rerender(tile('RELEASED'));
+    });
+    expect((assignments.at(-1) as { episode?: unknown }).episode).toEqual({ status: 'PUBLISHED', phase: 'released' });
+  });
+
   describe('failures no error boundary can see (core#185)', () => {
     it('shows the failed tile when the element throws on its ctx, instead of an unhandled rejection', async () => {
       // The SDK renders synchronously on assignment, inside a promise callback: the throw used to become an

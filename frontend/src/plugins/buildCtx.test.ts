@@ -46,6 +46,12 @@ describe('buildCtx', () => {
     expect(typeof ctx.api.put).toBe('function');
   });
 
+  it('tells an episode-scoped plugin where the episode stands, and nobody else', () => {
+    expect(buildCtx(base).episode).toBeUndefined();
+    const ctx = buildCtx({ ...base, episode: { status: 'PLANNED', phase: 'planned' } });
+    expect(ctx.episode).toEqual({ status: 'PLANNED', phase: 'planned' });
+  });
+
   it('hands over the two language lists separately (§12.7)', () => {
     // The asymmetry is the point: a site can require a Dutch imprint with an English-only shell, so a
     // plugin editor built from `available()` would offer the wrong languages.

@@ -190,4 +190,17 @@ public class PluginContextImpl implements PluginContext {
     public void onSchedule(Supplier<Duration> every, Runnable task) {
         scheduler.schedule(pluginId, scheduleCount++, every, task);
     }
+
+    /** What this plugin's backend asked to hear about releases (SDK 0.18.0); see {@link EpisodeReleaseDispatcher}. */
+    private final java.util.List<java.util.function.Consumer<String>> releaseListeners =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    @Override
+    public void onEpisodeReleased(java.util.function.Consumer<String> listener) {
+        releaseListeners.add(java.util.Objects.requireNonNull(listener, "listener"));
+    }
+
+    java.util.List<java.util.function.Consumer<String>> releaseListeners() {
+        return releaseListeners;
+    }
 }

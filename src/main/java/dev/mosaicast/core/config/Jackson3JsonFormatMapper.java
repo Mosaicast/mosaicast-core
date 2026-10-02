@@ -66,12 +66,13 @@ public class Jackson3JsonFormatMapper extends AbstractJsonFormatMapper {
 
     /**
      * A {@link DisplaySnapshot}'s placement in the site — {@code feed}, {@code season}, {@code episodeNo}
-     * (SDK 0.17.0) — belongs to the identity layer and is added on the way out to plugins
+     * (SDK 0.17.0) — and its release state, {@code phase} and {@code announceAt} (SDK 0.18.0), belong to the
+     * identity layer and are added on the way out to plugins
      * ({@code EpisodeQueryService}). It is never part of the stored snapshot: kept there, a feed refetch
      * rewriting the snapshot could disagree with the ref about which season an episode is in. Dropped here
      * so that no code path can persist it, and so that rewriting an existing row adds no keys to it.
      */
-    private static final List<String> NOT_STORED = List.of("feed", "season", "episodeNo");
+    private static final List<String> NOT_STORED = List.of("feed", "season", "episodeNo", "phase", "announceAt");
 
     @Override
     protected <T> String toString(T value, Type type) {
