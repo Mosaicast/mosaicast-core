@@ -289,6 +289,19 @@ public class FeedService {
      */
     @Transactional
     public UUID createPlannedEpisode(UUID feedId, Integer season, Integer episodeNo, String title, String description) {
+        return createPlannedEpisode(feedId, season, episodeNo, title, description, null);
+    }
+
+    /**
+     * Plans an episode (§4.3). Quiet unless {@code announceAt} is given: seen only by podcasters and admins
+     * until that moment, then public as upcoming — and released whenever its feed item binds, announced or
+     * not (core#252).
+     *
+     * @param announceAt when it becomes public; null keeps it quiet until announced, a past instant makes it
+     *                   public now
+     */
+    public UUID createPlannedEpisode(UUID feedId, Integer season, Integer episodeNo, String title, String description,
+                                     java.time.Instant announceAt) {
         Feed feed = feeds.findById(feedId)
                 .orElseThrow(() -> new NotFoundException("Feed not found: " + feedId));
         String notes = description == null ? "" : description;
@@ -298,6 +311,7 @@ public class FeedService {
         String slug = dev.mosaicast.core.episode.EpisodeSlug.generate(
                 feed.getTitle(), season, episodeNo, title, refs::existsBySlug);
         EpisodeRef planned = EpisodeRef.planned(feed.getId(), season, episodeNo, provisional, slug);
+        planned.announceAt(announceAt);
         UUID plannedId = refs.save(planned).getId();
         log.info("Planned episode created on '{}': S{}E{} '{}' (slug {})", feed.getTitle(),
                 season == null ? "?" : season, episodeNo == null ? "?" : episodeNo, title, slug);

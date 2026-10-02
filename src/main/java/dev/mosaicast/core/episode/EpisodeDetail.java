@@ -28,10 +28,20 @@ public record EpisodeDetail(
         String description,
         Instant publishedAt,
         Long durationSeconds,
-        String audioUrl) {
+        String audioUrl,
+        EpisodePhase phase,
+        Instant announceAt) {
 
-    /** Builds a detail view from a ref and its resolved display snapshot. */
+    /** Builds a detail view from a ref and its resolved display snapshot, its phase taken as of now. */
     public static EpisodeDetail from(EpisodeRef ref, DisplaySnapshot snapshot) {
+        return from(ref, snapshot, Instant.now());
+    }
+
+    /**
+     * Builds a detail view from a ref and its resolved display snapshot. {@code phase} and
+     * {@code announceAt} tell a podcaster previewing a quiet planned episode when it goes public (core#252).
+     */
+    public static EpisodeDetail from(EpisodeRef ref, DisplaySnapshot snapshot, Instant now) {
         return new EpisodeDetail(
                 ref.getId(),
                 ref.getSlug(),
@@ -48,6 +58,8 @@ public record EpisodeDetail(
                 snapshot.description(),
                 snapshot.publishedAt(),
                 snapshot.duration() == null ? null : snapshot.duration().toSeconds(),
-                snapshot.audioUrl());
+                snapshot.audioUrl(),
+                ref.phase(now),
+                ref.getStatus() == EpisodeStatus.PLANNED ? ref.getAnnounceAt() : null);
     }
 }

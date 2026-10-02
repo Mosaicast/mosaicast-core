@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 import dev.mosaicast.core.web.ConflictException;
 import dev.mosaicast.core.episode.EpisodeQueryService;
 import dev.mosaicast.core.web.NotFoundException;
+import dev.mosaicast.core.episode.EpisodePhase;
 import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeSummary;
 import java.io.IOException;
@@ -491,7 +492,8 @@ class FeedPipelineIntegrationTest {
         var ordered = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 20)).getContent();
         UUID e11 = ordered.stream().filter(e -> e.episodeNo() == 11).findFirst().orElseThrow().id();
         UUID e12 = ordered.stream().filter(e -> e.episodeNo() == 12).findFirst().orElseThrow().id();
-        UUID planned = feedService.createPlannedEpisode(feed.id(), 2, 13, "The one about pigeons, again", "tbd");
+        UUID planned = feedService.createPlannedEpisode(feed.id(), 2, 13, "The one about pigeons, again", "tbd",
+                java.time.Instant.now());
 
         // The released sequence is unchanged and closed at both ends.
         assertThat(episodes.adjacent(e11).prev()).isNull();
@@ -549,10 +551,55 @@ class FeedPipelineIntegrationTest {
     }
 
     @Test
+    void aQuietPlannedEpisodeIsInvisibleUntilAnnouncedAndTheFeedWinsAnyway() {
+        // core#252: planned without an announcement is quiet — no listing, no detail for the public — and its
+        // feed item binding makes it public whether or not the announcement ever came.
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        UUID quiet = feedService.createPlannedEpisode(feed.id(), 2, 98, "Secret special", "shh");
+        String slug = episodes.detailBySlug(slugOf(quiet), true).slug();
+
+        assertThat(episodes.listByFeed(feed.id(), null, PageRequest.of(0, 50)).getContent())
+                .extracting(EpisodeSummary::title).doesNotContain("Secret special");
+        assertThatThrownBy(() -> episodes.detailBySlug(slug)).isInstanceOf(NotFoundException.class);
+        assertThat(episodes.detailBySlug(slug, true).phase()).isEqualTo(EpisodePhase.PLANNED);
+
+        body.set(rss(
+                item("ep-12", "Why pigeons secretly hate us", 2, 12),
+                item("ep-98", "The secret special, out early", 2, 98)));
+        etag.set("v3");
+        feedService.refreshNow(feed.id());
+
+        var released = episodes.detailBySlug(slug);
+        assertThat(released.phase()).isEqualTo(EpisodePhase.RELEASED);
+        assertThat(released.title()).isEqualTo("The secret special, out early");
+    }
+
+    @Test
+    void aScheduledAnnouncementMakesItPublicWhenItsTimeHasCome() {
+        FeedView feed = feedService.createRss(feedUrl, "Test Cast");
+        UUID later = feedService.createPlannedEpisode(feed.id(), 3, 1, "Next season", "soon",
+                java.time.Instant.now().plus(java.time.Duration.ofDays(2)));
+        UUID passed = feedService.createPlannedEpisode(feed.id(), 3, 2, "Already announced", "now",
+                java.time.Instant.now().minus(java.time.Duration.ofMinutes(1)));
+
+        List<String> titles = episodes.listByFeed(feed.id(), null, PageRequest.of(0, 50)).getContent().stream()
+                .map(EpisodeSummary::title).toList();
+        assertThat(titles).contains("Already announced").doesNotContain("Next season");
+        assertThat(episodes.detailBySlug(slugOf(later), true).phase()).isEqualTo(EpisodePhase.PLANNED);
+        assertThat(episodes.detailBySlug(slugOf(later), true).announceAt()).isAfter(java.time.Instant.now());
+        assertThat(episodes.detailBySlug(slugOf(passed)).phase()).isEqualTo(EpisodePhase.UPCOMING);
+    }
+
+    private String slugOf(UUID refId) {
+        return refRepository.findById(refId).orElseThrow().getSlug();
+    }
+
+    @Test
     void plannedEpisode_bindsToMatchingFeedItem() {
         // Add the feed, then plan an upcoming episode for it before its RSS item exists (§4.3).
         FeedView feed = feedService.createRss(feedUrl, "Test Cast");
-        UUID plannedId = feedService.createPlannedEpisode(feed.id(), 2, 99, "Year in review", "predictions open");
+        UUID plannedId = feedService.createPlannedEpisode(feed.id(), 2, 99, "Year in review", "predictions open",
+                java.time.Instant.now());
         assertThat(episodes.detail(plannedId).status()).isEqualTo(EpisodeStatus.PLANNED);
 
         // The RSS item for that season/episode now appears → refresh auto-binds it.

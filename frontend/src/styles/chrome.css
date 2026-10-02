@@ -193,6 +193,11 @@
   margin: 1.5rem auto 0;
   max-width: 960px;
 }
+.mc-banner--quiet {
+  background: var(--mc-surface);
+  border: 1px dashed var(--mc-border);
+  color: var(--mc-text-muted);
+}
 .mc-banner--error {
   background: color-mix(in srgb, var(--mc-accent) 14%, var(--mc-surface));
   border: 1px solid var(--mc-accent);

@@ -29,7 +29,7 @@ public interface TagRepository extends JpaRepository<Tag, String> {
                       from episode_tag et
                       join episode_ref er on er.id = et.episode_ref_id
                      where et.tag = t.tag
-                       and er.status <> 'WITHDRAWN'
+                       and er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
                        and er.feed_id in (select f.id from feed f where f.enabled = true)) as episodes,
                    (select count(distinct pt.subject_key)
                       from plugin_tag pt
@@ -59,7 +59,7 @@ public interface TagRepository extends JpaRepository<Tag, String> {
             join episode_ref er on er.id = other.episode_ref_id
             join tag t on t.tag = other.tag
             where mine.tag = :tag
-              and er.status <> 'WITHDRAWN'
+              and er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
             group by other.tag, t.label
             order by episodes desc, other.tag asc

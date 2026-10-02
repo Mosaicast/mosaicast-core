@@ -275,7 +275,7 @@ public class PluginDataController {
             return DataScope.ofUser(userPartition(scopeId, authentication));
         }
         Scope scope = new Scope(type, scopeId);
-        if (!scopes.exists(scope)) {
+        if (!scopes.exists(scope, dev.mosaicast.core.episode.Previews.canSeeQuiet(authentication))) {
             throw new NotFoundException("Unknown scope: " + scopeType + "/" + scopeId);
         }
         return DataScope.of(scope);

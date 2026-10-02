@@ -12,7 +12,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-/** Persistence for the identity layer ({@link EpisodeRef}). */
+/**
+ * Persistence for the identity layer ({@link EpisodeRef}).
+ *
+ * <p><strong>"Visible" means public:</strong> not {@code WITHDRAWN}, in an enabled feed, and — for a
+ * {@code PLANNED} episode — announced, its {@code announce_at} passed (core#252). A quiet planned episode is
+ * reached only through the {@code Previewable} and {@code QuietPlanned} queries, on paths that have checked the
+ * caller may plan episodes.
+ */
 public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
 
     /** Looks up a ref by its feed-scoped GUID — the reconciler's primary match (§5.2). */
@@ -31,6 +38,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     @Query("""
             select e from EpisodeRef e
             where e.id = :id and e.status <> 'WITHDRAWN'
+              and (e.status <> 'PLANNED' or e.announceAt <= CURRENT_TIMESTAMP)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
             """)
     Optional<EpisodeRef> findVisibleById(@Param("id") UUID id);
@@ -39,6 +47,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     @Query("""
             select e from EpisodeRef e
             where e.slug = :slug and e.status <> 'WITHDRAWN'
+              and (e.status <> 'PLANNED' or e.announceAt <= CURRENT_TIMESTAMP)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
             """)
     Optional<EpisodeRef> findVisibleBySlug(@Param("slug") String slug);
@@ -50,9 +59,43 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     @Query("""
             select e from EpisodeRef e
             where e.slug in :slugs and e.status <> 'WITHDRAWN'
+              and (e.status <> 'PLANNED' or e.announceAt <= CURRENT_TIMESTAMP)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
             """)
     List<EpisodeRef> findVisibleBySlugIn(@Param("slugs") List<String> slugs);
+
+    /**
+     * A ref by slug as a podcaster or admin may preview it: {@link #findVisibleBySlug}, except that a quiet
+     * {@code PLANNED} episode — not yet announced — is included (core#252). Never for anonymous or fan reads.
+     */
+    @Query("""
+            select e from EpisodeRef e
+            where e.slug = :slug and e.status <> 'WITHDRAWN'
+              and e.feedId in (select f.id from Feed f where f.enabled = true)
+            """)
+    Optional<EpisodeRef> findPreviewableBySlug(@Param("slug") String slug);
+
+    /** The batch form of {@link #findPreviewableBySlug}, for a podcaster's {@code ctx.feeds} read. */
+    @Query("""
+            select e from EpisodeRef e
+            where e.slug in :slugs and e.status <> 'WITHDRAWN'
+              and e.feedId in (select f.id from Feed f where f.enabled = true)
+            """)
+    List<EpisodeRef> findPreviewableBySlugIn(@Param("slugs") List<String> slugs);
+
+    /**
+     * Quiet planned episodes — planned and not yet announced — in enabled feeds: exactly what every public
+     * list leaves out (core#252). Optionally one feed's, and one season's.
+     */
+    @Query("""
+            select e from EpisodeRef e
+            where e.status = 'PLANNED' and (e.announceAt is null or e.announceAt > CURRENT_TIMESTAMP)
+              and e.feedId in (select f.id from Feed f where f.enabled = true)
+              and (:feedId is null or e.feedId = :feedId)
+              and (:season is null or e.season = :season)
+            order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
+            """)
+    List<EpisodeRef> findQuietPlanned(@Param("feedId") UUID feedId, @Param("season") Integer season);
 
     /** Whether a slug is already taken (uniqueness guard when minting a new slug). */
     boolean existsBySlug(String slug);
@@ -75,6 +118,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     @Query("""
             select distinct e.season from EpisodeRef e
             where e.feedId = :feedId and e.season is not null and e.status <> 'WITHDRAWN'
+              and (e.status <> 'PLANNED' or e.announceAt <= CURRENT_TIMESTAMP)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
             order by e.season
             """)
@@ -99,6 +143,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             from episode_ref er
             left join episode_display ed on ed.episode_ref_id = er.id
             where er.feed_id = cast(:feedId as uuid) and er.status <> 'WITHDRAWN'
+              and (er.status <> 'PLANNED' or er.announce_at <= now())
               and (cast(:season as int) is null or er.season = :season)
               and er.feed_id in (select f.id from feed f where f.enabled = true)
             order by
@@ -112,6 +157,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             select count(*)
             from episode_ref er
             where er.feed_id = cast(:feedId as uuid) and er.status <> 'WITHDRAWN'
+              and (er.status <> 'PLANNED' or er.announce_at <= now())
               and (cast(:season as int) is null or er.season = :season)
               and er.feed_id in (select f.id from feed f where f.enabled = true)
             """,
@@ -126,6 +172,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
     @Query("""
             select e.id from EpisodeRef e
             where e.feedId = :feedId and e.status <> 'WITHDRAWN'
+              and (e.status <> 'PLANNED' or e.announceAt <= CURRENT_TIMESTAMP)
               and (:season is null or e.season = :season)
               and e.feedId in (select f.id from Feed f where f.enabled = true)
             order by e.season asc nulls last, e.episodeNo asc nulls last, e.firstSeenAt desc
@@ -149,7 +196,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             select er.id
             from episode_ref er
             left join episode_display ed on ed.episode_ref_id = er.id
-            where er.status <> 'WITHDRAWN'
+            where er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
               and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
               and (cast(:season as int) is null or er.season = :season)
@@ -167,7 +214,7 @@ public interface EpisodeRefRepository extends JpaRepository<EpisodeRef, UUID> {
             countQuery = """
             select count(*)
             from episode_ref er
-            where er.status <> 'WITHDRAWN'
+            where er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
               and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
               and (cast(:season as int) is null or er.season = :season)

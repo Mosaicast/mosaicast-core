@@ -76,6 +76,13 @@ public class EpisodeRef {
     @Column(name = "first_seen_at", nullable = false, updatable = false)
     private Instant firstSeenAt = Instant.now();
 
+    /**
+     * When a {@code PLANNED} episode becomes public (core#252); null keeps it quiet until announced. Has no
+     * effect once the episode is published — the feed wins.
+     */
+    @Column(name = "announce_at")
+    private Instant announceAt;
+
     @Column(name = "last_seen_at", nullable = false)
     private Instant lastSeenAt = Instant.now();
 
@@ -139,6 +146,29 @@ public class EpisodeRef {
             this.status = EpisodeStatus.PUBLISHED;
         }
         this.lastSeenAt = Instant.now();
+    }
+
+    /** When a planned episode becomes public, or null while it is quiet until announced. */
+    public Instant getAnnounceAt() {
+        return announceAt;
+    }
+
+    /**
+     * Schedules — or, with null, withdraws — a planned episode's public announcement. A time in the past
+     * announces it now.
+     */
+    public void announceAt(Instant when) {
+        this.announceAt = when;
+    }
+
+    /** Where this episode stands at {@code now} (core#252). */
+    public EpisodePhase phase(Instant now) {
+        return switch (status) {
+            case WITHDRAWN -> EpisodePhase.WITHDRAWN;
+            case PUBLISHED -> EpisodePhase.RELEASED;
+            case PLANNED -> announceAt != null && !announceAt.isAfter(now)
+                    ? EpisodePhase.UPCOMING : EpisodePhase.PLANNED;
+        };
     }
 
     /** Marks an item that vanished from the feed as {@code WITHDRAWN} — never hard-deleted (§5.2 case 3). */

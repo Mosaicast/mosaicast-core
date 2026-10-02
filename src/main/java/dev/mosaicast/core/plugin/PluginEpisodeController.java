@@ -65,7 +65,8 @@ public class PluginEpisodeController {
      */
     @GetMapping("/api/plugins/{id}/episodes")
     public Map<String, EpisodeDisplayView> displays(@PathVariable String id,
-                                                    @RequestParam(defaultValue = "") String slugs) {
+                                                    @RequestParam(defaultValue = "") String slugs,
+                                                    org.springframework.security.core.Authentication authentication) {
         requireActivePlugin(id);
         Map<String, EpisodeDisplayView> answer = new LinkedHashMap<>();
         List<String> asked = parseSlugs(slugs);
@@ -75,7 +76,9 @@ public class PluginEpisodeController {
         // One query for the batch: a plugin drawing twenty cards should cost one round trip, which is the
         // whole reason displayMany exists beside display. Visibility is resolved by the same query the
         // shell uses, so an episode this caller may not see never reaches the map.
-        Map<String, DisplaySnapshot> visible = episodes.visibleDisplaysBySlug(asked);
+        // A podcaster's plugin UI sees the quiet planned episode it is preparing; nobody else does (core#252).
+        Map<String, DisplaySnapshot> visible = episodes.visibleDisplaysBySlug(asked,
+                dev.mosaicast.core.episode.Previews.canSeeQuiet(authentication));
         for (String slug : asked) {
             DisplaySnapshot snapshot = visible.get(slug);
             if (snapshot != null) {

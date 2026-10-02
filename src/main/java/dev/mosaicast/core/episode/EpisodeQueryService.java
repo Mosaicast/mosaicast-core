@@ -7,6 +7,7 @@ import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.tag.TagKeys;
 import dev.mosaicast.core.tag.TagOption;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Map;
@@ -103,9 +104,22 @@ public class EpisodeQueryService {
 
     /** Detail for one episode by its public slug (§6.2). */
     public EpisodeDetail detailBySlug(String slug) {
-        EpisodeRef ref = refs.findVisibleBySlug(slug)
+        return detailBySlug(slug, false);
+    }
+
+    /**
+     * Detail by slug, a quiet planned episode included when {@code includeQuiet} — for a podcaster or admin
+     * preparing it (core#252). To anyone else a quiet episode does not exist: the same 404 as an unknown one.
+     */
+    public EpisodeDetail detailBySlug(String slug, boolean includeQuiet) {
+        EpisodeRef ref = (includeQuiet ? refs.findPreviewableBySlug(slug) : refs.findVisibleBySlug(slug))
                 .orElseThrow(() -> new NotFoundException("Episode not found: " + slug));
-        return EpisodeDetail.from(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))));
+        return EpisodeDetail.from(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))), Instant.now());
+    }
+
+    /** Quiet planned episodes of a feed (or every enabled feed), with their display — never a public read. */
+    public List<EpisodeRef> quietPlanned(UUID feedId, Integer season) {
+        return refs.findQuietPlanned(feedId, season);
     }
 
     /** Previous/next by the current episode's public slug (§6.2). */
@@ -180,7 +194,12 @@ public class EpisodeQueryService {
 
     /** The display snapshot for a visible episode by its public slug — the slug counterpart of {@link #displayFor}. */
     public DisplaySnapshot displayForSlug(String slug) {
-        return refs.findVisibleBySlug(slug)
+        return displayForSlug(slug, false);
+    }
+
+    /** As {@link #displayForSlug(String)}, a quiet planned episode included when {@code includeQuiet}. */
+    public DisplaySnapshot displayForSlug(String slug, boolean includeQuiet) {
+        return (includeQuiet ? refs.findPreviewableBySlug(slug) : refs.findVisibleBySlug(slug))
                 .map(ref -> placed(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))),
                         feedSlugs(List.of(ref))))
                 .orElse(EMPTY);
@@ -194,10 +213,16 @@ public class EpisodeQueryService {
      * apart would confirm the existence of an episode this visitor was not shown.
      */
     public Map<String, DisplaySnapshot> visibleDisplaysBySlug(List<String> slugs) {
+        return visibleDisplaysBySlug(slugs, false);
+    }
+
+    /** As {@link #visibleDisplaysBySlug(List)}, quiet planned episodes included when {@code includeQuiet}. */
+    public Map<String, DisplaySnapshot> visibleDisplaysBySlug(List<String> slugs, boolean includeQuiet) {
         if (slugs.isEmpty()) {
             return Map.of();
         }
-        List<EpisodeRef> found = refs.findVisibleBySlugIn(slugs);
+        List<EpisodeRef> found =
+                includeQuiet ? refs.findPreviewableBySlugIn(slugs) : refs.findVisibleBySlugIn(slugs);
         Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
         Map<UUID, String> slugsByFeed = feedSlugs(found);
         Map<String, DisplaySnapshot> bySlug = new java.util.LinkedHashMap<>();

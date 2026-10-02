@@ -27,7 +27,7 @@ public interface EpisodeDisplayRepository extends JpaRepository<EpisodeDisplay, 
             select ed.episode_ref_id
             from episode_display ed
             join episode_ref er on er.id = ed.episode_ref_id
-            where er.status <> 'WITHDRAWN'
+            where er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
               and to_tsvector('simple',
                     coalesce(ed.snapshot ->> 'title', '') || ' ' || coalesce(ed.snapshot ->> 'description', ''))
@@ -41,7 +41,7 @@ public interface EpisodeDisplayRepository extends JpaRepository<EpisodeDisplay, 
             select count(*)
             from episode_display ed
             join episode_ref er on er.id = ed.episode_ref_id
-            where er.status <> 'WITHDRAWN'
+            where er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
               and to_tsvector('simple',
                     coalesce(ed.snapshot ->> 'title', '') || ' ' || coalesce(ed.snapshot ->> 'description', ''))

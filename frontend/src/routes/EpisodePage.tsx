@@ -127,8 +127,19 @@ export function EpisodePage() {
   // Show notes are feed HTML → sanitize before rendering (no scripts/handlers).
   const safeNotes = sanitizeFeedHtml(episode.description);
 
+  const quiet = episode.phase === 'PLANNED';
+
   return (
     <section className="mc-page mc-page--detail">
+      {quiet && (
+        // Only podcasters and admins are ever sent a quiet episode, so this is the planner's preview: say
+        // plainly that nobody else can see it yet, and when that changes (core#252).
+        <p className="mc-banner mc-banner--quiet" role="status">
+          {episode.announceAt
+            ? t('episode.quietUntil', { date: formatPublishedDate(episode.announceAt, i18n.language) })
+            : t('episode.quiet')}
+        </p>
+      )}
       {/*
         The artwork, blurred, behind the hero. Set as a custom property rather than an <img> so it is
         decoration the browser can skip and assistive tech never announces — the same picture is already
@@ -148,7 +159,7 @@ export function EpisodePage() {
           <div className="mc-hero__meta">
             {seasonEp && <span className="mc-chip mc-chip--quiet">{seasonEp}</span>}
             {upcoming ? (
-              <span className="mc-chip">{t('card.upcoming')}</span>
+              <span className="mc-chip">{quiet ? t('episode.notAnnounced') : t('card.upcoming')}</span>
             ) : (
               <>
                 {episode.publishedAt && (
@@ -180,12 +191,15 @@ export function EpisodePage() {
             )}
             {/* Shared without the current query string: a timestamp is chosen in the dialog, and nothing
                 else on an episode URL is part of what is being shared. */}
-            <ShareButton
-              path={`/episodes/${episode.slug}`}
-              title={episode.title}
-              episodeSlug={episode.slug}
-              className="mc-btn mc-btn--lg"
-            />
+            {/* Not while quiet: the link would open a "not found" for everyone it was sent to. */}
+            {!quiet && (
+              <ShareButton
+                path={`/episodes/${episode.slug}`}
+                title={episode.title}
+                episodeSlug={episode.slug}
+                className="mc-btn mc-btn--lg"
+              />
+            )}
           </div>
         </div>
       </div>

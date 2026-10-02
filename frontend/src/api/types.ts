@@ -224,7 +224,17 @@ export interface EpisodeDetail {
   publishedAt: string | null;
   durationSeconds: number | null;
   audioUrl: string | null;
+  /**
+   * Where it stands in its release cycle (core#252). `PLANNED` is quiet — only podcasters and admins ever
+   * receive such an episode — `UPCOMING` is announced, `RELEASED` has its feed item.
+   */
+  phase?: EpisodePhase;
+  /** When a planned episode goes public; absent while it stays quiet until announced. */
+  announceAt?: string | null;
 }
+
+/** The release cycle of an episode (`episode/EpisodePhase.java`). */
+export type EpisodePhase = 'PLANNED' | 'UPCOMING' | 'RELEASED' | 'WITHDRAWN';
 
 /** Previous/next in a feed's canonical sequence (`episode/AdjacentEpisodes.java`), for detail nav + player. */
 export interface AdjacentEpisodes {

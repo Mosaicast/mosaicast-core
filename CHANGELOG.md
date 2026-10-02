@@ -14,6 +14,18 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Planned episodes can be prepared quietly, and announced on a schedule (`0.7.7`, core#252, part 1).**
+  - **Quiet by default.** A new planned episode is visible only to podcasters and admins until its
+    `announce_at` passes, or until it is announced. It stays out of every public surface: lists, detail,
+    search, tags, related, previous/next, link previews, and the scope checks plugins go through.
+  - **Phases.** An episode now has a phase, worked out at read time with no scheduler: `PLANNED` (quiet),
+    `UPCOMING` (announced), `RELEASED` or `WITHDRAWN`. A feed item that binds before the announcement
+    releases the episode anyway; the RSS wins.
+  - **Existing planned episodes** are migrated as already announced (`V38`), so nothing public disappears.
+  - **Preview.** A podcaster opening a quiet episode sees it, with a notice that nobody else can, and when
+    that changes. Its chip reads "Not announced", and Share is hidden. A podcaster's plugin UI and a
+    plugin's backend can reach it, so content can be prepared before the announcement.
+
 - **Plugins can store ZIP archives, and keep uploads more private than their data (`0.7.6`, core#246,
   core#247).**
   - **ZIP support.** The sniffer recognises ZIP: a local file header, or an empty archive's
