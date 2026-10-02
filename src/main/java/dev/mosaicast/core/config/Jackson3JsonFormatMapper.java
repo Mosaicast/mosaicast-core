@@ -3,11 +3,14 @@
 
 package dev.mosaicast.core.config;
 
+import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.lang.reflect.Type;
+import java.util.List;
 import org.hibernate.type.format.AbstractJsonFormatMapper;
 import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 /**
  * Serializes JSONB columns with Jackson 3 (ARCHITECTURE §4.2, §7.6).
@@ -61,8 +64,22 @@ public class Jackson3JsonFormatMapper extends AbstractJsonFormatMapper {
         return (T) mapper.readValue(charSequence.toString(), mapper.constructType(type));
     }
 
+    /**
+     * A {@link DisplaySnapshot}'s placement in the site — {@code feed}, {@code season}, {@code episodeNo}
+     * (SDK 0.17.0) — belongs to the identity layer and is added on the way out to plugins
+     * ({@code EpisodeQueryService}). It is never part of the stored snapshot: kept there, a feed refetch
+     * rewriting the snapshot could disagree with the ref about which season an episode is in. Dropped here
+     * so that no code path can persist it, and so that rewriting an existing row adds no keys to it.
+     */
+    private static final List<String> NOT_STORED = List.of("feed", "season", "episodeNo");
+
     @Override
     protected <T> String toString(T value, Type type) {
+        if (value instanceof DisplaySnapshot) {
+            ObjectNode tree = mapper.valueToTree(value);
+            NOT_STORED.forEach(tree::remove);
+            return mapper.writeValueAsString(tree);
+        }
         return mapper.writeValueAsString(value);
     }
 }

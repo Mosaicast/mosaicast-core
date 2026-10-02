@@ -252,6 +252,21 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **Plugin contract moves to `platformApi` 0.17.0: a plugin can place an episode in its season and feed
+  (`0.7.6`, core#248, SDK #90).**
+  - **What plugins get.** `DisplaySnapshot` now carries `feed` (the feed's public slug), `season` and
+    `episodeNo`. They come from the identity layer (`EpisodeRef`) and are added only on the way out to
+    plugins: `ctx.feeds` (TS) and `FeedAccess.display` (Java). The JPA JSON mapper strips them on every
+    write, so no code path can store them in `episode_display`, and rewriting an existing row adds no keys.
+  - **Missing values.** Each field is absent when the episode does not have it: a bonus episode with no
+    season and no number gets neither, and `seasonScope()` is null. Nothing errors.
+  - **Version pins.** SDK pinned at 0.17.0 (Gradle and npm), which also brings 0.16.2's PF4J 3.16.0 and
+    its documented short-lived miss memory. Test fixtures declare 0.17.0. ARCHITECTURE §4.2, §6.1, §7.2
+    and §11.1 are updated for this and for #249.
+  - **⚠️ Plugins must be rebuilt.** Matching is on exact `major.minor`, so **every plugin built for 0.16 is
+    rejected** on this release until it is rebuilt against SDK 0.17.0. Named dev instances keep running
+    their pinned core until restarted.
+
 - **The `manual` feed type is gone (`0.7.2`, §4.3/§5).** `Feed.TYPE_MANUAL` and `Feed.manual(String)` had no
   callers: planned episodes attach to their target feed (`EpisodeRef.planned(feed.getId(), …)`), and the
   separate source they once needed stopped being written. The comments were the reason to remove it rather

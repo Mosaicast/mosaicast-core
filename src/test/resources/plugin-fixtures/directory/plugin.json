@@ -1,7 +1,7 @@
 {
   "id": "directory",
   "version": "1.0.0",
-  "platformApi": "0.16.0",
+  "platformApi": "0.17.0",
   "name": "Directory Fixture",
   "frontend": {
     "entry": "fixture.js",

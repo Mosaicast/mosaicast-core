@@ -96,6 +96,68 @@ class PluginEpisodesEndpointIntegrationTest {
         assertThat(body).contains("\"description\":\"<p>Notes.</p>\"").contains("\"descriptionText\":\"Notes.\"");
     }
 
+    @Autowired
+    private dev.mosaicast.core.episode.EpisodeQueryService episodeQueries;
+
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+    @Test
+    void aPluginLearnsTheEpisodesFeedAndSeasonButTheSnapshotNeverStoresThem() {
+        // SDK 0.17.0 (core#248): feed, season and episode number come from the identity layer, on the way out.
+        Feed feed = Feed.rss("https://example.test/placed.xml", "Placed Cast");
+        feed.assignSlugIfAbsent("placed-cast");
+        feed = feeds.save(feed);
+        // A season's prologue: itunes:season and no itunes:episode.
+        EpisodeRef prologue =
+                refs.save(EpisodeRef.published(feed.getId(), "guid-placed-0", 5, null, "placed-s05-prologue"));
+        displays.save(new EpisodeDisplay(prologue.getId(), new DisplaySnapshot(
+                "Prologue", "<p>Before.</p>", null, Instant.parse("2026-03-01T10:00:00Z"), Duration.ofMinutes(5),
+                null, null, "A Host", null)));
+        EpisodeRef numbered =
+                refs.save(EpisodeRef.published(feed.getId(), "guid-placed-22", 5, 22, "placed-s05e22"));
+        displays.save(new EpisodeDisplay(numbered.getId(), new DisplaySnapshot(
+                "Twenty-two", "<p>On.</p>", null, Instant.parse("2026-03-08T10:00:00Z"), Duration.ofMinutes(40),
+                null, null, "A Host", null)));
+
+        String body = rest.getForObject("/api/plugins/good/episodes?slugs=placed-s05-prologue,placed-s05e22",
+                String.class);
+        assertThat(body).contains("\"feed\":\"placed-cast\"").contains("\"season\":5")
+                .contains("\"episodeNo\":22");
+        // Absent, not null, for the prologue's missing number: the view omits nulls.
+        String prologueJson =
+                body.substring(body.indexOf("\"placed-s05-prologue\""), body.indexOf("\"placed-s05e22\""));
+        assertThat(prologueJson).contains("\"season\":5").doesNotContain("episodeNo");
+
+        // The Java side (ctx.feeds().display) reads through the same service.
+        DisplaySnapshot java = episodeQueries.displayForSlug("placed-s05e22");
+        assertThat(java.feed()).isEqualTo("placed-cast");
+        assertThat(java.season()).isEqualTo(5);
+        assertThat(java.episodeNo()).isEqualTo(22);
+        assertThat(java.seasonScope()).isEqualTo(dev.mosaicast.plugin.api.Scope.season("placed-cast", 5));
+
+        // Nothing numbered at all — no season, no episode number: every placement field is simply absent,
+        // and there is no season scope to build. Nothing about it is an error.
+        EpisodeRef loose =
+                refs.save(EpisodeRef.published(feed.getId(), "guid-placed-x", null, null, "placed-bonus"));
+        displays.save(new EpisodeDisplay(loose.getId(), new DisplaySnapshot(
+                "Bonus", "<p>Extra.</p>", null, Instant.parse("2026-03-09T10:00:00Z"), Duration.ofMinutes(3),
+                null, null, "A Host", null)));
+        String looseBody = rest.getForObject("/api/plugins/good/episodes?slugs=placed-bonus", String.class);
+        assertThat(looseBody).contains("\"title\":\"Bonus\"").contains("\"feed\":\"placed-cast\"")
+                .doesNotContain("season").doesNotContain("episodeNo");
+        DisplaySnapshot looseJava = episodeQueries.displayForSlug("placed-bonus");
+        assertThat(looseJava.season()).isNull();
+        assertThat(looseJava.episodeNo()).isNull();
+        assertThat(looseJava.seasonScope()).isNull();
+
+        // And the stored rows carry none of it: placement belongs to the ref, not to the feed's snapshot.
+        String stored = jdbc.queryForObject(
+                "select snapshot::text from episode_display where episode_ref_id = ?", String.class,
+                numbered.getId());
+        assertThat(stored).doesNotContain("\"feed\"").doesNotContain("\"season\"").doesNotContain("episodeNo");
+    }
+
     @Test
     void anEpisodeTheVisitorMayNotSeeIsAbsentRatherThanRedacted() {
         String body = rest.getForObject(

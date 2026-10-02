@@ -35,12 +35,14 @@ public class EpisodeQueryService {
     private final EpisodeRefRepository refs;
     private final EpisodeDisplayRepository displays;
     private final EpisodeTagRepository episodeTags;
+    private final dev.mosaicast.core.feed.FeedRepository feeds;
 
     public EpisodeQueryService(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
-                               EpisodeTagRepository episodeTags) {
+                               EpisodeTagRepository episodeTags, dev.mosaicast.core.feed.FeedRepository feeds) {
         this.refs = refs;
         this.displays = displays;
         this.episodeTags = episodeTags;
+        this.feeds = feeds;
     }
 
     /** Episodes visible in a feed, optionally filtered by season, in canonical order (paginated). */
@@ -171,14 +173,16 @@ public class EpisodeQueryService {
      */
     public DisplaySnapshot displayFor(UUID refId) {
         return refs.findVisibleById(refId)
-                .map(ref -> resolveDisplay(ref, snapshotsFor(List.of(ref))))
+                .map(ref -> placed(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))),
+                        feedSlugs(List.of(ref))))
                 .orElse(EMPTY);
     }
 
     /** The display snapshot for a visible episode by its public slug — the slug counterpart of {@link #displayFor}. */
     public DisplaySnapshot displayForSlug(String slug) {
         return refs.findVisibleBySlug(slug)
-                .map(ref -> resolveDisplay(ref, snapshotsFor(List.of(ref))))
+                .map(ref -> placed(ref, resolveDisplay(ref, snapshotsFor(List.of(ref))),
+                        feedSlugs(List.of(ref))))
                 .orElse(EMPTY);
     }
 
@@ -195,11 +199,39 @@ public class EpisodeQueryService {
         }
         List<EpisodeRef> found = refs.findVisibleBySlugIn(slugs);
         Map<UUID, DisplaySnapshot> snapshots = snapshotsFor(found);
+        Map<UUID, String> slugsByFeed = feedSlugs(found);
         Map<String, DisplaySnapshot> bySlug = new java.util.LinkedHashMap<>();
         for (EpisodeRef ref : found) {
-            bySlug.put(ref.getSlug(), resolveDisplay(ref, snapshots));
+            bySlug.put(ref.getSlug(), placed(ref, resolveDisplay(ref, snapshots), slugsByFeed));
         }
         return bySlug;
+    }
+
+    /**
+     * The snapshot a plugin gets: the stored presentation plus the episode's place in the site — its feed's
+     * public slug, season and episode number (SDK 0.17.0, core#248).
+     *
+     * <p>Those three come from the identity layer ({@link EpisodeRef}), not the feed, and are added here, on
+     * the way out, rather than stored in the snapshot. They are the one authoritative part of a
+     * {@code DisplaySnapshot}: written into {@code episode_display}, a feed refetch rewriting the snapshot
+     * could move an episode between seasons in a plugin's eyes while the shell — which reads the ref — kept
+     * it where it was. The shell's own reads never take this path; they read the ref directly.
+     */
+    private static DisplaySnapshot placed(EpisodeRef ref, DisplaySnapshot snapshot, Map<UUID, String> slugsByFeed) {
+        return new DisplaySnapshot(snapshot.title(), snapshot.description(), snapshot.audioUrl(),
+                snapshot.publishedAt(), snapshot.duration(), snapshot.imageUrl(), snapshot.feedImageUrl(),
+                snapshot.author(), snapshot.subtitle(), snapshot.descriptionText(),
+                slugsByFeed.get(ref.getFeedId()), ref.getSeason(), ref.getEpisodeNo());
+    }
+
+    /** Feed id → public slug for a set of refs, in one query. */
+    private Map<UUID, String> feedSlugs(List<EpisodeRef> refList) {
+        java.util.Set<UUID> ids = refList.stream()
+                .map(EpisodeRef::getFeedId)
+                .collect(java.util.stream.Collectors.toSet());
+        Map<UUID, String> slugs = new java.util.HashMap<>();
+        feeds.findAllById(ids).forEach(feed -> slugs.put(feed.getId(), feed.getSlug()));
+        return slugs;
     }
 
     /** Full-text search over display snapshots, ranked by relevance (paginated). */
