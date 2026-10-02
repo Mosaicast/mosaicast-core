@@ -126,13 +126,14 @@ public class PluginEpisodeController {
      * <p>{@code description} is the feed's HTML verbatim — untrusted, and documented as such in the SDK;
      * {@code descriptionText} is the same prose as plain text (SDK 0.16.0), never absent. {@code feed},
      * {@code season} and {@code episodeNo} place the episode in the site (SDK 0.17.0), taken from the
-     * identity layer and absent when the episode is unnumbered.
+     * identity layer and absent when the episode is unnumbered. {@code phase} and {@code announceAt} are its
+     * release cycle (SDK 0.18.0), the phase lower-case as the TS type spells it.
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record EpisodeDisplayView(String title, String description, String audioUrl, String publishedAt,
                                      String duration, String imageUrl, String feedImageUrl, String author,
                                      String subtitle, String descriptionText, String feed, Integer season,
-                                     Integer episodeNo) {
+                                     Integer episodeNo, String phase, String announceAt) {
 
         static EpisodeDisplayView from(DisplaySnapshot snapshot) {
             return new EpisodeDisplayView(
@@ -148,7 +149,10 @@ public class PluginEpisodeController {
                     snapshot.descriptionText(),
                     snapshot.feed(),
                     snapshot.season(),
-                    snapshot.episodeNo());
+                    snapshot.episodeNo(),
+                    // The SDK's TS union is lower-case ("planned" | "upcoming" | …).
+                    snapshot.phase() == null ? null : snapshot.phase().name().toLowerCase(java.util.Locale.ROOT),
+                    snapshot.announceAt() == null ? null : snapshot.announceAt().toString());
         }
     }
 }

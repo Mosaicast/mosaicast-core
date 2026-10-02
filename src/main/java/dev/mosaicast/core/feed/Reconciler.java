@@ -55,14 +55,24 @@ public class Reconciler {
     private final EpisodeTagRepository tags;
     private final TagService vocabulary;
     private final RelatedProvider related;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
+    /** Without a release audience — for tests that exercise reconciling alone. */
     public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
                       EpisodeTagRepository tags, TagService vocabulary, RelatedProvider related) {
+        this(refs, displays, tags, vocabulary, related, event -> { });
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public Reconciler(EpisodeRefRepository refs, EpisodeDisplayRepository displays,
+                      EpisodeTagRepository tags, TagService vocabulary, RelatedProvider related,
+                      org.springframework.context.ApplicationEventPublisher events) {
         this.refs = refs;
         this.displays = displays;
         this.tags = tags;
         this.vocabulary = vocabulary;
         this.related = related;
+        this.events = events;
     }
 
     @Transactional
@@ -131,6 +141,8 @@ public class Reconciler {
             EpisodeRef match = findExactPlanned(planned, raw);
             if (match != null) {
                 match.bindToFeedItem(raw.externalGuid(), raw.season(), raw.episodeNumber());
+                // A plan released by its feed item — the moment a bingo resolves (core#252).
+                events.publishEvent(new dev.mosaicast.core.episode.EpisodeReleasedEvent(match.getSlug()));
                 refs.save(match);
                 upsertDisplay(match.getId(), raw);
                 planned.remove(match);

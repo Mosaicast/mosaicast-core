@@ -215,7 +215,14 @@ export function EpisodePage() {
             )}
           </div>
           {/* Full-width plugin renderings (e.g. bingo) mount here in E5. */}
-          <SlotRegion name="main" scope={{ type: 'episode', id: episode.slug }} scopeLabel={episode.title} />
+          <SlotRegion
+            name="main"
+            scope={{ type: 'episode', id: episode.slug }}
+            scopeLabel={episode.title}
+            episodeStatus={episode.status}
+            episodePhase={episode.phase}
+            episodeAnnounceAt={episode.announceAt}
+          />
         </div>
         <aside className="mc-detail__side">
           {/* Related is core and swappable (§6.3), not a plugin — it renders above the plugin region so a
@@ -226,6 +233,9 @@ export function EpisodePage() {
             name="sidebar"
             scope={{ type: 'episode', id: episode.slug }}
             scopeLabel={episode.title}
+            episodeStatus={episode.status}
+            episodePhase={episode.phase}
+            episodeAnnounceAt={episode.announceAt}
           />
         </aside>
       </div>

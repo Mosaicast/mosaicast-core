@@ -40,11 +40,14 @@ public class FeedService {
     private final FeedSourceRegistry registry;
     private final OutboundTargetPolicy targets;
     private final PluginDataRepository pluginData;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
     public FeedService(FeedRepository feeds, EpisodeRefRepository refs, EpisodeDisplayRepository displays,
                        BindingSuggestionRepository suggestions, FeedPipeline pipeline,
                        FeedSourceRegistry registry, OutboundTargetPolicy targets,
-                       PluginDataRepository pluginData) {
+                       PluginDataRepository pluginData,
+                       org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.feeds = feeds;
         this.refs = refs;
         this.displays = displays;
@@ -367,6 +370,7 @@ public class FeedService {
 
         planned.bindToFeedItem(suggestion.getRawGuid(), season, episodeNo);
         refs.save(planned);
+        events.publishEvent(new dev.mosaicast.core.episode.EpisodeReleasedEvent(planned.getSlug()));
         if (snapshot != null) {
             displays.save(new EpisodeDisplay(planned.getId(), snapshot));
         }

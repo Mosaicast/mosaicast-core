@@ -14,7 +14,7 @@ import com.sun.net.httpserver.HttpServer;
 import dev.mosaicast.core.web.ConflictException;
 import dev.mosaicast.core.episode.EpisodeQueryService;
 import dev.mosaicast.core.web.NotFoundException;
-import dev.mosaicast.core.episode.EpisodePhase;
+import dev.mosaicast.plugin.api.EpisodePhase;
 import dev.mosaicast.core.episode.EpisodeStatus;
 import dev.mosaicast.core.episode.EpisodeSummary;
 import java.io.IOException;

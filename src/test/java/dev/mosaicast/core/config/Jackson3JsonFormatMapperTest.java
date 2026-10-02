@@ -6,6 +6,7 @@ package dev.mosaicast.core.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.mosaicast.plugin.api.DisplaySnapshot;
+import dev.mosaicast.plugin.api.EpisodePhase;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -82,16 +83,20 @@ class Jackson3JsonFormatMapperTest {
 
     @Test
     void anEpisodesPlacementIsNeverStoredInItsSnapshot() {
-        // SDK 0.17.0: feed, season and episodeNo come from the identity layer and are added for plugins on
-        // read. A placed snapshot handed to persistence by mistake must still store none of them.
+        // SDK 0.17.0/0.18.0: feed, season, episodeNo, phase and announceAt come from the identity layer and
+        // are added for plugins on read. A placed snapshot handed to persistence by mistake must still store
+        // none of them.
         DisplaySnapshot placed = new DisplaySnapshot("t", "d", null, Instant.ofEpochSecond(1_781_416_800L),
-                Duration.ofSeconds(3482), null, null, null, null, "d", "the-cast", 5, 22);
+                Duration.ofSeconds(3482), null, null, null, null, "d", "the-cast", 5, 22,
+                EpisodePhase.UPCOMING, Instant.ofEpochSecond(1_781_000_000L));
 
         JsonNode tree = json.readTree(mapper.toString(placed, javaType(DisplaySnapshot.class), null));
 
         assertThat(tree.has("feed")).isFalse();
         assertThat(tree.has("season")).isFalse();
         assertThat(tree.has("episodeNo")).isFalse();
+        assertThat(tree.has("phase")).isFalse();
+        assertThat(tree.has("announceAt")).isFalse();
         assertThat(tree.get("title").asString()).isEqualTo("t");
         assertThat(tree.get("duration").isNumber()).isTrue();
     }

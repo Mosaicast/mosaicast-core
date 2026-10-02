@@ -110,6 +110,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
           name="card"
           scope={{ type: 'episode', id: episode.slug }}
           scopeLabel={episode.title}
+          episodeStatus={episode.status}
         />
       </div>
     </article>

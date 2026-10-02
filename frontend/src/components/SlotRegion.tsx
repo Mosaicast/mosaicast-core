@@ -35,6 +35,10 @@ interface SlotRegionProps {
    * entirely. Ignored for any other scope type, where the host really does have to resolve the set.
    */
   scopeLabel?: string;
+  /** On an `episode` scope, the episode's release state for `ctx.episode` (core#252). */
+  episodeStatus?: string;
+  episodePhase?: string;
+  episodeAnnounceAt?: string | null;
   /** Only for the `page` region: the subpath below `/p/{pluginId}/`, handed to plugins as `ctx.route`. */
   routePath?: string;
   /** Renders only the named plugin's slots — the deep-link page belongs to one plugin. */
@@ -66,6 +70,9 @@ export function SlotRegion({
   name,
   scope = SITE_SCOPE,
   scopeLabel,
+  episodeStatus,
+  episodePhase,
+  episodeAnnounceAt,
   routePath,
   onlyPluginId,
   children,
@@ -140,6 +147,9 @@ export function SlotRegion({
             scope={scope}
             episodes={episodes}
             episodeLabels={episodeLabels}
+            episodeStatus={scope.type === 'episode' ? episodeStatus : undefined}
+            episodePhase={scope.type === 'episode' ? episodePhase : undefined}
+            episodeAnnounceAt={scope.type === 'episode' ? episodeAnnounceAt : undefined}
             routePath={routePath}
             hasSchema={mount.hasSchema}
             hasBlobs={mount.hasBlobs}
