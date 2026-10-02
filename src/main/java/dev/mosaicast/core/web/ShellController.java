@@ -3,9 +3,12 @@
 
 package dev.mosaicast.core.web;
 
+import dev.mosaicast.core.episode.EpisodeQueryService;
+import dev.mosaicast.core.episode.Previews;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -33,12 +36,14 @@ public class ShellController {
     private final OgResolver og;
     private final IndexHtmlService indexHtml;
     private final dev.mosaicast.core.i18n.LocaleRegistry locales;
+    private final EpisodeQueryService episodes;
 
     public ShellController(OgResolver og, IndexHtmlService indexHtml,
-                           dev.mosaicast.core.i18n.LocaleRegistry locales) {
+                           dev.mosaicast.core.i18n.LocaleRegistry locales, EpisodeQueryService episodes) {
         this.og = og;
         this.indexHtml = indexHtml;
         this.locales = locales;
+        this.episodes = episodes;
     }
 
     /** The site root — the "All" tab, with the §6.1 filters applied to the preview it produces. */
@@ -68,12 +73,21 @@ public class ShellController {
      * <p>{@code t} is the shared position inside the episode (§6.4). It is read here only so the injected
      * {@code og:url} points back at the moment that was sent; the page itself, its canonical URL and its
      * structured data are the episode's either way, and the seek happens in the shell.
+     *
+     * <p>A quiet planned episode (core#252) is a 404 to everyone but the podcasters and admins previewing
+     * it. They get a 200 with the <em>site's</em> metadata: the page is theirs to see, but its title stays
+     * out of every tag a scraper reads. HTML is answered {@code no-store}, so that 200 is never cached for
+     * someone else.
      */
     @GetMapping(path = "/episodes/{slug}", produces = MediaType.TEXT_HTML_VALUE)
     public ResponseEntity<String> episode(@PathVariable String slug,
                                           @RequestParam(required = false) String t,
-                                          @RequestParam(required = false) String lang) {
+                                          @RequestParam(required = false) String lang,
+                                          Authentication authentication) {
         String locale = locales.resolveUiLocale(lang);
+        if (Previews.canSeeQuiet(authentication) && episodes.isQuietPreview(slug)) {
+            return ok(PageView.metaOnly(indexHtml.siteMeta()), locale);
+        }
         return render(() -> og.episode(locale, slug, t), locale);
     }
 

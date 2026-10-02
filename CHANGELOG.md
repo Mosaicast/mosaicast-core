@@ -364,6 +364,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Previewing a quiet planned episode no longer fails in the background (`0.7.7`, core#252).** For a
+  podcaster or admin, the page itself answered `404`, as did its previous/next and related lookups, even
+  though the page rendered. All three now answer the previewer, and everyone else still gets `404`. The
+  previewer's page carries the site's metadata, not the episode's, so a quiet title never appears in a
+  tag a scraper reads.
+
 - **Plugins can follow the visitor's filters, and see every episode in a long feed (`0.7.6`, core#248).**
   - **`ctx.filter` was inert.** `current()` always returned `{}`, and `onChange` never fired. Now it
     reflects the shell's URL filters: `?season=5&tag=x&order=oldest` becomes `{ season: 5, tags: ['x'],
