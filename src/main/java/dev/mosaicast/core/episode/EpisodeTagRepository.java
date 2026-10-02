@@ -48,7 +48,7 @@ public interface EpisodeTagRepository extends JpaRepository<EpisodeTag, EpisodeT
             from episode_tag t
             join episode_ref er on er.id = t.episode_ref_id
             join tag v on v.tag = t.tag
-            where er.status <> 'WITHDRAWN'
+            where er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
               and (cast(:feedId as uuid) is null or er.feed_id = cast(:feedId as uuid))
             order by t.tag
@@ -62,7 +62,7 @@ public interface EpisodeTagRepository extends JpaRepository<EpisodeTag, EpisodeT
             from episode_tag t
             join episode_ref er on er.id = t.episode_ref_id
             where t.tag = :tag
-              and er.status <> 'WITHDRAWN'
+              and er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
             group by er.slug
             order by max(er.first_seen_at) desc
@@ -76,7 +76,7 @@ public interface EpisodeTagRepository extends JpaRepository<EpisodeTag, EpisodeT
             from episode_tag t
             join episode_ref er on er.id = t.episode_ref_id
             where er.slug = :slug
-              and er.status <> 'WITHDRAWN'
+              and er.status <> 'WITHDRAWN' and (er.status <> 'PLANNED' or er.announce_at <= now())
               and er.feed_id in (select f.id from feed f where f.enabled = true)
             order by t.tag
             """,

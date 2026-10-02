@@ -73,15 +73,40 @@ public class FeedAccessImpl implements FeedAccess {
         };
     }
 
+    /**
+     * The plugin backend's view of a scope: everything public, plus the quiet planned episodes in it
+     * (core#252). A backend prepares content for an episode before it is announced — that is the point of
+     * planning one — so it sees what a podcaster sees. Quiet episodes come first, as upcoming ones do in the
+     * public list.
+     */
     @Override
     public List<String> episodesIn(Scope scope) {
-        return summariesIn(scope).stream().map(EpisodeSummary::slug).toList();
+        List<String> slugs = new java.util.ArrayList<>(quietSlugsIn(scope));
+        summariesIn(scope).stream().map(EpisodeSummary::slug).forEach(slugs::add);
+        return slugs;
     }
 
+    private List<String> quietSlugsIn(Scope scope) {
+        List<dev.mosaicast.core.episode.EpisodeRef> quiet = switch (scope.type()) {
+            case SITE -> query.quietPlanned(null, null);
+            case FEED -> resolveFeed(scope.id()).map(feedId -> query.quietPlanned(feedId, null)).orElseGet(List::of);
+            case SEASON -> parseSeason(scope.id())
+                    .map(fs -> query.quietPlanned(fs.feedId(), fs.season()))
+                    .orElseGet(List::of);
+            case EPISODE -> refs.findPreviewableBySlug(scope.id())
+                    .filter(ref -> refs.findVisibleBySlug(scope.id()).isEmpty())
+                    .map(List::of)
+                    .orElseGet(List::of);
+            case USER -> List.of();
+        };
+        return quiet.stream().map(dev.mosaicast.core.episode.EpisodeRef::getSlug).toList();
+    }
+
+    /** The backend's display read: a quiet planned episode included, for the same reason as above. */
     @Override
     public DisplaySnapshot display(String refId) {
         // refId is the public slug.
-        DisplaySnapshot snapshot = query.displayForSlug(refId);
+        DisplaySnapshot snapshot = query.displayForSlug(refId, true);
         return snapshot == null ? EMPTY : snapshot;
     }
 
@@ -98,13 +123,23 @@ public class FeedAccessImpl implements FeedAccess {
      * its id, so there is nothing to check.
      */
     public boolean exists(Scope scope) {
+        return exists(scope, false);
+    }
+
+    /**
+     * As {@link #exists(Scope)}, with a quiet planned episode counting as existing when {@code includeQuiet}
+     * — so a podcaster can set up a plugin's data for an episode before it is announced (core#252), while to
+     * everyone else it remains the same 404 as an episode that does not exist.
+     */
+    public boolean exists(Scope scope, boolean includeQuiet) {
         return switch (scope.type()) {
             // Both singletons the host owns rather than the client naming: SITE is the one site, and USER
             // resolves to whoever is calling — an id that got this far was already substituted server-side.
             case SITE, USER -> true;
             case FEED -> resolveFeed(scope.id()).isPresent();
             case SEASON -> parseSeason(scope.id()).isPresent();
-            case EPISODE -> refs.findVisibleBySlug(scope.id()).isPresent();
+            case EPISODE -> (includeQuiet ? refs.findPreviewableBySlug(scope.id())
+                    : refs.findVisibleBySlug(scope.id())).isPresent();
         };
     }
 

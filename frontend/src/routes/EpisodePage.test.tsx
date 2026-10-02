@@ -98,6 +98,22 @@ describe('EpisodePage timestamp links (§6.4)', () => {
     expect(play).not.toHaveBeenCalled();
   });
 
+  it('tells a planner previewing a quiet episode that nobody else can see it yet (core#252)', async () => {
+    stubFetch({ ...EPISODE, status: 'PLANNED', audioUrl: null, phase: 'PLANNED', announceAt: '2026-11-01T09:00:00Z' });
+    renderAt('/episodes/kraken');
+    expect(await screen.findByRole('status')).toHaveTextContent(/Only podcasters and admins can see this planned episode until/);
+    expect(screen.getByText('Not announced')).toBeInTheDocument();
+    // A link nobody else could open is not offered.
+    expect(screen.queryByRole('button', { name: /Share/ })).not.toBeInTheDocument();
+  });
+
+  it('shows no quiet notice on an announced or released episode', async () => {
+    stubFetch({ ...EPISODE, phase: 'RELEASED' });
+    renderAt('/episodes/kraken');
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.queryByText(/Only podcasters and admins/)).not.toBeInTheDocument();
+  });
+
   it('does not auto-start an episode with no playable audio', async () => {
     stubFetch({ ...EPISODE, status: 'PLANNED', audioUrl: null });
     renderAt('/episodes/kraken?t=754');

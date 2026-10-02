@@ -104,8 +104,10 @@ public class EpisodeController {
 
     /** One episode's detail by its public slug (§6.2). The literal {@code /search} mapping wins over this pattern. */
     @GetMapping("/api/episodes/{slug}")
-    public EpisodeDetail detail(@PathVariable String slug) {
-        return episodes.detailBySlug(slug);
+    public EpisodeDetail detail(@PathVariable String slug,
+                                org.springframework.security.core.Authentication authentication) {
+        // A quiet planned episode is the podcaster's to prepare and nobody else's to find (core#252).
+        return episodes.detailBySlug(slug, Previews.canSeeQuiet(authentication));
     }
 
     /** Previous/next in the feed's canonical sequence (§6.2) — detail nav + player auto-advance. */
