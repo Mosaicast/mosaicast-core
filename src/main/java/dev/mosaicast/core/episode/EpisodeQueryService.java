@@ -124,8 +124,25 @@ public class EpisodeQueryService {
 
     /** Previous/next by the current episode's public slug (§6.2). */
     public AdjacentEpisodes adjacentBySlug(String slug) {
-        return adjacentOf(refs.findVisibleBySlug(slug)
+        return adjacentBySlug(slug, false);
+    }
+
+    /**
+     * Previous/next, from a quiet planned episode too when {@code includeQuiet} (core#252). The neighbours
+     * are released episodes either way — a quiet one is never in the sequence — so a preview reveals nothing
+     * the public list does not.
+     */
+    public AdjacentEpisodes adjacentBySlug(String slug, boolean includeQuiet) {
+        return adjacentOf((includeQuiet ? refs.findPreviewableBySlug(slug) : refs.findVisibleBySlug(slug))
                 .orElseThrow(() -> new NotFoundException("Episode not found: " + slug)));
+    }
+
+    /**
+     * Whether a podcaster or admin would find an episode under this slug that the public does not: a quiet
+     * planned one (core#252). The page shell asks, so a preview answers 200 instead of its 404.
+     */
+    public boolean isQuietPreview(String slug) {
+        return refs.findVisibleBySlug(slug).isEmpty() && refs.findPreviewableBySlug(slug).isPresent();
     }
 
     private AdjacentEpisodes adjacentOf(EpisodeRef ref) {

@@ -14,6 +14,7 @@ import dev.mosaicast.core.support.DevLogin;
 import dev.mosaicast.plugin.api.DisplaySnapshot;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -152,6 +153,34 @@ class PlannedEpisodeApiIntegrationTest {
                 "{\"season\":3,\"episodeNo\":1,\"title\":\"Season three opener\",\"clientRef\":\"cms-301\"}");
         assertThat(retried.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(JSON.readTree(retried.getBody()).path("slug").asString()).isEqualTo(slug);
+    }
+
+    @Test
+    void aPodcasterPreviewsAQuietEpisodeWithoutAnyRequestFailingAndWithoutLeakingItsTitle() {
+        String slug = plan(token(), "{\"title\":\"Secret guest reveal\"}").path("slug").asString();
+        DevLogin.Cookies previewer = DevLogin.login(rest, "podcaster");
+        HttpHeaders podcaster = session(previewer);
+        podcaster.setAccept(List.of(MediaType.TEXT_HTML));
+
+        // Everything the episode page loads answers the previewer...
+        ResponseEntity<String> shell = rest.exchange("/episodes/" + slug, HttpMethod.GET,
+                new HttpEntity<>(podcaster), String.class);
+        assertThat(shell.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(shell.getBody()).as("the site's metadata, not the episode's").doesNotContain("Secret guest reveal");
+        for (String api : List.of("/api/episodes/" + slug, "/api/episodes/" + slug + "/adjacent",
+                "/api/episodes/" + slug + "/related")) {
+            assertThat(rest.exchange(api, HttpMethod.GET, new HttpEntity<>(session(previewer)), String.class)
+                    .getStatusCode()).as(api).isEqualTo(HttpStatus.OK);
+        }
+
+        // ...and nobody else, the shell included.
+        for (String path : List.of("/episodes/" + slug, "/api/episodes/" + slug,
+                "/api/episodes/" + slug + "/adjacent", "/api/episodes/" + slug + "/related")) {
+            HttpHeaders anonymous = new HttpHeaders();
+            anonymous.setAccept(List.of(path.startsWith("/api") ? MediaType.APPLICATION_JSON : MediaType.TEXT_HTML));
+            assertThat(rest.exchange(path, HttpMethod.GET, new HttpEntity<>(anonymous), String.class).getStatusCode())
+                    .as(path).isEqualTo(HttpStatus.NOT_FOUND);
+        }
     }
 
     @Test

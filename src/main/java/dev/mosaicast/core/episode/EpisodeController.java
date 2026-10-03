@@ -112,8 +112,9 @@ public class EpisodeController {
 
     /** Previous/next in the feed's canonical sequence (§6.2) — detail nav + player auto-advance. */
     @GetMapping("/api/episodes/{slug}/adjacent")
-    public AdjacentEpisodes adjacent(@PathVariable String slug) {
-        return episodes.adjacentBySlug(slug);
+    public AdjacentEpisodes adjacent(@PathVariable String slug,
+                                     org.springframework.security.core.Authentication authentication) {
+        return episodes.adjacentBySlug(slug, Previews.canSeeQuiet(authentication));
     }
 
     /**
@@ -128,8 +129,10 @@ public class EpisodeController {
      */
     @GetMapping("/api/episodes/{slug}/related")
     public List<EpisodeSummary> related(@PathVariable String slug,
-                                        @RequestParam(required = false) Integer limit) {
-        UUID refId = episodes.detailBySlug(slug).id();
+                                        @RequestParam(required = false) Integer limit,
+                                        org.springframework.security.core.Authentication authentication) {
+        // A quiet episode's preview asks too (core#252); what comes back is released episodes only (§6.3).
+        UUID refId = episodes.detailBySlug(slug, Previews.canSeeQuiet(authentication)).id();
         int capped = Math.clamp(limit == null ? RELATED_DEFAULT : limit, 1, RELATED_MAX);
         return pins.summaries(related.related(refId, capped));
     }
