@@ -343,6 +343,20 @@ class PlannedEpisodeApiIntegrationTest {
         assertThat(awaitPhase(imported.getSlug(), "gone")).isEqualTo("gone");
     }
 
+    @Test
+    void deletingAFeedTellsPluginsEachOfItsEpisodesIsGone() throws Exception {
+        // Its episodes no longer exist; a plugin's site-scope documents may still name them.
+        String secret = token();
+        EpisodeRef one = importedEpisode("guid-gone-1", "Gone one", 8, 1);
+        EpisodeRef two = importedEpisode("guid-gone-2", "Gone two", 8, 2);
+
+        assertThat(call(secret, HttpMethod.DELETE, "/api/admin/feeds/" + feed.getId() + "?confirm=" + feed.getSlug(), null).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+
+        assertThat(awaitPhase(one.getSlug(), "gone")).isEqualTo("gone");
+        assertThat(awaitPhase(two.getSlug(), "gone")).isEqualTo("gone");
+    }
+
     /** What the fixture's phase listener last wrote for this slug, waiting a while for a specific value. */
     private String awaitPhase(String slug, String expected) throws InterruptedException {
         String last = null;
