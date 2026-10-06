@@ -26,7 +26,13 @@ public enum NotificationKind {
      * a break-in. Parameters carry the previous and current names, so the notice can say what happened
      * without anybody having authored a sentence about this particular person.
      */
-    NAME_REVERTED;
+    NAME_REVERTED,
+
+    /**
+     * The data export this user asked for is ready (§12.8.1). Carries {@code expiresAt}, because the archive is
+     * deleted then and a notice that does not say so invites a download link that no longer works.
+     */
+    EXPORT_READY;
 
     /** The stored form — lower-cased with dashes, matching the problem types and role names on the wire. */
     public String wireName() {

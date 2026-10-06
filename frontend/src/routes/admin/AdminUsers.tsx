@@ -24,6 +24,7 @@ export function AdminUsers() {
   const { user: me } = useUser();
   const [users, setUsers] = useState<UserAdminView[]>([]);
   const [erasures, setErasures] = useState<ErasureView[]>([]);
+  const [exports, setExports] = useState<ExportJobView[]>([]);
   const [error, setError] = useState<string | null>(null);
   // Both confirmations moved out of window.confirm into the app's own dialog (core#193). Neither asks for
   // a typed word: reverting a name and changing a role are both things an admin can simply do again, and
@@ -57,6 +58,11 @@ export function AdminUsers() {
       .get<ErasureView[]>('/api/admin/erasures')
       .then(setErasures)
       .catch(() => setErasures([]));
+    // The jobs and each plugin's outcome, never an archive (§12.8.1).
+    api
+      .get<ExportJobView[]>('/api/admin/exports?limit=50')
+      .then(setExports)
+      .catch(() => setExports([]));
   };
   useEffect(load, [t, query, page]);
 
@@ -318,9 +324,54 @@ export function AdminUsers() {
           </button>
         </>
       )}
+
+      {/*
+        Data exports (§12.8.1): the jobs and what each plugin did, so an operator sees a plugin that failed or
+        could not be asked. Never the archive, which is the person's alone; a row names the plugin, not who
+        asked.
+      */}
+      {exports.length > 0 && (
+        <>
+          <h2>{t('admin.exports.title')}</h2>
+          <p className="mc-muted">{t('admin.exports.help')}</p>
+          <ul className="mc-list">
+            {exports.map((job) => {
+              const attention = job.parts.filter((part) => NEEDS_ATTENTION.has(part.outcome));
+              return (
+                <li key={job.id} className="mc-list__row">
+                  <span>
+                    {formatDate(job.requestedAt, i18n.language)} · {t(`admin.exports.status.${job.status}`)}
+                  </span>
+                  <span className="mc-muted">
+                    {attention.length === 0
+                      ? t('admin.exports.allParts')
+                      : attention
+                          .map((part) => `${part.pluginId}: ${t(`admin.exports.outcome.${part.outcome}`)}`)
+                          .join(' · ')}
+                    {job.error ? ` · ${job.error}` : ''}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
+
+/** One data export as `/api/admin/exports` reports it: the job and its outcomes, never the archive. */
+interface ExportJobView {
+  id: string;
+  userId: string;
+  status: 'running' | 'ready' | 'failed' | 'expired';
+  requestedAt: string;
+  error: string | null;
+  parts: { pluginId: string; outcome: string; detail: string | null }[];
+}
+
+/** Outcomes an operator can act on; `complete` and `empty` are the plugin having done its part. */
+const NEEDS_ATTENTION = new Set(['failed', 'outstanding', 'not-supported']);
 
 /** One warning an admin sent, with whether it has been opened (ARCHITECTURE §17). */
 interface WarningView {

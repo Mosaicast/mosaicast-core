@@ -217,6 +217,18 @@ public class PluginExtensions {
         }
     }
 
+    /**
+     * A plugin's {@code UserDataHandler}s, for the data export (ARCHITECTURE §12.8.1) — empty when it implements
+     * none, which the export reports as {@code not-supported} rather than as "holds nothing". The export asks
+     * them itself, under its own time and size limits, so this hands the handlers over rather than wrapping
+     * the call.
+     *
+     * @param pluginId an active plugin; an inactive one has no extensions loaded
+     */
+    public List<UserDataHandler> userDataHandlers(String pluginId) {
+        return plugins.extensions(UserDataHandler.class, pluginId);
+    }
+
     /** A provider's answer, plus whether it arrived in time. */
     private record Timed<T>(T value, boolean timedOut) {
     }

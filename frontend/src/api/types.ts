@@ -610,3 +610,17 @@ export interface AdminConsentView {
   /** The origins the CSP is widened by, which is exactly the declared hosts of active plugins. */
   csp: string[];
 }
+
+/**
+ * A data export as its owner sees it (`/api/me/export`, ARCHITECTURE §12.8.1). `nextAllowedAt` is when this
+ * account may ask again; a failed export never holds the next one back.
+ */
+export interface DataExportView {
+  id: string;
+  status: 'running' | 'ready' | 'failed' | 'expired';
+  requestedAt: string;
+  finishedAt: string | null;
+  expiresAt: string | null;
+  sizeBytes: number | null;
+  nextAllowedAt: string | null;
+}

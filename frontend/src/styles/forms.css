@@ -101,6 +101,22 @@
   margin: 1.75rem 0 0.75rem;
   font-size: 1.15rem;
 }
+/* The data export (§12.8.1): a short column of state lines and one action; the paragraphs keep their own
+   spacing off, since the gap already separates them. A notification links here, so the heading is scrolled
+   to below the sticky top bar rather than under it. */
+.mc-account__export {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+.mc-account__export p {
+  margin: 0;
+}
+/* The anchor a notification links to (`/account#export`). */
+.mc-account__exportHeading {
+  scroll-margin-top: 5rem;
+}
 /* Field and button on one line where there is room, stacked where there is not — the button carries no
    icon, so it must keep its label and cannot shrink below it. */
 .mc-name-edit {

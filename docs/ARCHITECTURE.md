@@ -687,7 +687,27 @@ Core owns what it stored: identities, tokens, listening progress, and the `USER`
 - **Outstanding erasures are retried and visible in admin**, and settle immediately when a switched-off plugin is switched back on. A plugin that is *rejected* is asked only if it has ever stored anything: it did not run this boot, but "rejected" is also what a working plugin becomes after a bad upgrade, and last week's rows do not disappear because a manifest stopped parsing.
 - **The API answers a receipt, not a 204** — complete, plus the plugins that have not finished. Reporting completion while a plugin still holds data would be the failure the whole record exists to prevent.
 
-`exportUser` is defaulted to empty so erasure could ship alone; the GDPR **data export** on the v2 roadmap hits the same wall and is meant to hang off the same code.
+`exportUser` was defaulted to empty so erasure could ship alone; the data export below hangs off the same code.
+
+#### 12.8.1 Data export
+A person can download everything the site holds about them (GDPR Art. 15 access, Art. 20 portability), including what every plugin holds, in a form that is useful to them — so a plugin hands over **files in its own format**, not a map core has to guess a format for.
+
+- **A job, not a response.** `POST /api/me/export` answers a **receipt** (`202`); the work runs off the request, because asking every plugin with a timeout each is not something a request should wait on. One export per account per interval (default a day, operator-configurable): an export walks every plugin, and a button pressed in a loop should not.
+- **Done means told.** When it finishes the person gets an in-app notification (§17) with a link to their account page, and the download is **one ZIP**, available only to that account and only for a limited time (default seven days), after which it is deleted. Admins see the jobs and each plugin's outcome — **never the ZIPs**: the point of the archive is that it is everything about one person.
+- **The layout:**
+  ```text
+  export-<date>.zip
+    README.txt                        what each part is, generated
+    core/account.json                 account, linked providers, name history, access tokens (never a secret)
+    core/listening.json               listening progress
+    core/notifications.json           the inbox
+    core/plugin-documents/<plugin>.json   USER-scope documents core holds on plugins' behalf (§7.6)
+    plugins/<id>/…                    whatever each plugin hands over, in its own format
+    outcome.json                      per plugin: complete | empty | failed | outstanding | not-supported
+  ```
+- **Plugins are asked the way erasure asks them, and nothing goes missing silently.** Every discovered plugin that could hold data gets an outcome **recorded before it is asked**. The order is the SDK's: `exportFiles` first; if that is empty, `exportUser`, whose non-empty map is written as `plugins/<id>/data.json`; if that is empty too the plugin holds nothing on this person (`empty`). A switched-off plugin, or a rejected one that has stored data (§12.8), cannot be asked and is **`outstanding`**; a handler that throws, runs past `UserExport.TIMEOUT` or hands over more than `UserExport.MAX_BYTES` is **`failed`** — never truncated, because a partial part reads as a complete one. A plugin with no `UserDataHandler` is **`not-supported`** rather than `empty`: core cannot know it holds nothing, only that it did not say. The limits are the SDK's constants; an operator may lower them, never raise them. A plugin includes only this person's data, which the SDK tells it.
+- **Erasure takes the exports with it.** An archive of a deleted account is that account's data outliving it.
+- **Not here:** an admin full-site export (that is database tooling), and import — a plugin that wants a round trip reads its own format back itself.
 
 ## 13. Non-Functional
 
@@ -716,7 +736,7 @@ The contract ships its test doubles. Production plugin code does **not** bundle 
 ## 14. Version Roadmap
 
 - **v1:** RSS feeds, unified feed + filter, season, EpisodeRef/snapshot, PLANNED lifecycle, social login (Discord) + account merging, RBAC, SiteConfig/branding + theming/seed, BlobStore (Postgres), plugin system, sequential nav + RelatedProvider (tags/season/fuzzy), plugins: **bingo, stats, wiki**.
-- **v2:** Patreon (login/FeedSource/tier), tier gating, **feed ownership** (below), dedup/merge UI (fuzzy), logo→theme stage 2, embedding-related (`pgvector`), transcript display (MAT transcripts are already uploaded — accessibility + SEO nearly for free), Podcasting 2.0 namespace (`<podcast:chapters/transcript/funding>`), first-party cookieless analytics, GDPR data export, oEmbed embed player, **external services** (§16: translation shipped first, with transcription/TTS/embeddings the follow-on kinds the surface is shaped for).
+- **v2:** Patreon (login/FeedSource/tier), tier gating, **feed ownership** (below), dedup/merge UI (fuzzy), logo→theme stage 2, embedding-related (`pgvector`), transcript display (MAT transcripts are already uploaded — accessibility + SEO nearly for free), Podcasting 2.0 namespace (`<podcast:chapters/transcript/funding>`), first-party cookieless analytics, oEmbed embed player, **external services** (§16: translation shipped first, with transcription/TTS/embeddings the follow-on kinds the surface is shaped for).
 - **v3:** Redis sessions/cache, multiple LB instances, multi-tenant preparation; far future: native audio host (BlobStore `audio/*` → S3, own FeedSource, custom RSS).
 
 **Feed ownership (v2).** A `Feed` has no owner, and **PODCASTER** is a single global role (§8.5): every podcaster can edit every feed, and — because the plugin doc store authorizes per plugin rather than per document (§7.6) — tamper with plugin data on any feed, season or episode. On a single-podcaster install that is invisible. The moment there are two, it is one tenant reaching another's, with no way to express the boundary.

@@ -66,3 +66,17 @@ export function formatSeasonEpisode(
   const present = parts.filter((p): p is string => p != null);
   return present.length > 0 ? present.join(' · ') : null;
 }
+
+/**
+ * A file's size for reading: `512 B`, `3.4 KiB`, `12.0 MiB`. Unlike the storage form's MiB-only display, a
+ * download of a few kilobytes says so rather than rounding up to a megabyte.
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KiB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}

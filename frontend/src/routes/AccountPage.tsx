@@ -14,6 +14,7 @@ import { formatDate } from '../util/format';
 import { useDocumentTitle } from '../a11y/documentTitle';
 import { SavedNote } from '../a11y/SavedNote';
 import { CopyField } from '../components/CopyField';
+import { DataExport } from '../components/DataExport';
 
 /**
  * The current user's account (ARCHITECTURE §8.4/§8.5): profile, linked identities (connect / unlink with
@@ -351,6 +352,8 @@ export function AccountPage() {
           onCancel={() => setRevoking(null)}
         />
       )}
+
+      <DataExport />
 
       <h2>{t('account.deleteHeading')}</h2>
       <div className="mc-danger">

@@ -96,7 +96,12 @@ public class Notification {
      * @param params values the shell substitutes into it
      */
     public static Notification system(UUID userId, NotificationKind kind, Map<String, String> params) {
-        return new Notification(userId, SOURCE_SYSTEM, kind.wireName(), params, null);
+        return system(userId, kind, params, null);
+    }
+
+    /** A message core sends, with a link to the place it is about — a path core chose, never one it was given. */
+    public static Notification system(UUID userId, NotificationKind kind, Map<String, String> params, String link) {
+        return new Notification(userId, SOURCE_SYSTEM, kind.wireName(), params, link);
     }
 
     /**

@@ -49,6 +49,16 @@ public class NotificationService {
     }
 
     /**
+     * Tells a user about something core did, linking to where it is (§17) — the data export's account page.
+     *
+     * @param link an internal path core chose, e.g. {@code /account#export}
+     */
+    @Transactional
+    public void system(UUID userId, NotificationKind kind, Map<String, String> params, String link) {
+        deliver(Notification.system(userId, kind, params, link));
+    }
+
+    /**
      * Delivers a warning an admin wrote (§17).
      *
      * @param userId  who to warn
