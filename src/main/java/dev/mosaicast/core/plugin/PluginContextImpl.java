@@ -203,4 +203,18 @@ public class PluginContextImpl implements PluginContext {
     java.util.List<java.util.function.Consumer<String>> releaseListeners() {
         return releaseListeners;
     }
+
+    /** What this plugin's backend asked to hear about phase changes (SDK 0.19.0, core#270). */
+    private final java.util.List<java.util.function.BiConsumer<String, dev.mosaicast.plugin.api.EpisodePhase>>
+            phaseListeners = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    @Override
+    public void onEpisodePhaseChanged(
+            java.util.function.BiConsumer<String, dev.mosaicast.plugin.api.EpisodePhase> listener) {
+        phaseListeners.add(java.util.Objects.requireNonNull(listener, "listener"));
+    }
+
+    java.util.List<java.util.function.BiConsumer<String, dev.mosaicast.plugin.api.EpisodePhase>> phaseListeners() {
+        return phaseListeners;
+    }
 }

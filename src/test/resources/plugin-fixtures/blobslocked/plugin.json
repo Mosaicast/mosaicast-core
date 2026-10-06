@@ -1,7 +1,7 @@
 {
   "id": "blobslocked",
   "version": "1.0.0",
-  "platformApi": "0.18.0",
+  "platformApi": "0.19.0",
   "name": "Blob Fixture (locked)",
   "backend": {
     "basePath": "/api/plugins/blobslocked",

@@ -254,6 +254,22 @@ export interface AdminPlugin {
   blobs: AdminBlobs | null;
   /** What the plugin declared about the instance's external services (§16); `null` when it declared none. */
   external: AdminExternal | null;
+  /** Who may reach its data, as the host enforces it (core#259, core#261); `null` when it failed to load. */
+  access: AdminAccess | null;
+}
+
+/**
+ * The effective floors of a plugin's data surfaces, as lower-case role names (`anonymous | fan | podcaster |
+ * admin`). A surface the plugin does not declare is `null`.
+ */
+export interface AdminAccess {
+  dataRead: string;
+  dataWrite: string;
+  schemaRead: string | null;
+  blobRead: string | null;
+  blobWrite: string | null;
+  /** `data.keyFloors`, in manifest order; a direction the entry does not raise is `null`. */
+  keyFloors: { keys: string[]; readableBy: string | null; writableBy: string | null }[];
 }
 
 /**

@@ -129,8 +129,14 @@ public class Reconciler {
                 boolean relationsMoved = !java.util.Objects.equals(known.getFeedSeason(), raw.season())
                         || !java.util.Objects.equals(known.getFeedEpisodeNo(), raw.episodeNumber())
                         || known.getStatus() == EpisodeStatus.WITHDRAWN;
+                boolean returning = known.getStatus() == EpisodeStatus.WITHDRAWN;
                 known.refreshFromFeed(raw.season(), raw.episodeNumber());
                 refs.save(known);
+                if (returning) {
+                    // Back in the feed after it vanished (core#270).
+                    events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(
+                            known.getSlug(), dev.mosaicast.plugin.api.EpisodePhase.RELEASED));
+                }
                 // Counted only when something about it actually changed: a poll that finds one new episode
                 // used to report every other item as "updated" too, which is the reverse of useful.
                 if (upsertDisplay(known.getId(), raw) || relationsMoved) {
@@ -175,6 +181,9 @@ public class Reconciler {
                     && !seenGuids.contains(ref.getExternalGuid())) {
                 ref.withdraw();
                 refs.save(ref);
+                // Gone from the feed: a plugin that publishes about it should stop now, not at its next tick.
+                events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(
+                        ref.getSlug(), dev.mosaicast.plugin.api.EpisodePhase.WITHDRAWN));
                 withdrawn++;
             }
         }

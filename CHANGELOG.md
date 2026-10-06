@@ -14,11 +14,51 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
-- **⚠️ Plugins must be rebuilt for `platformApi` 0.18.0.** Core now pins SDK 0.18.0, and a plugin built
-  against 0.17.0 is rejected at load until it is rebuilt against the new SDK.
+- **⚠️ Plugins must be rebuilt for `platformApi` 0.19.0 (`0.7.8`).** Core now pins SDK 0.19.0, and a plugin
+  built against 0.18.0 is rejected at load until it is rebuilt. The bump is a security one as much as a
+  linking one: the host ignores manifest keys it doesn't know, so an older host would have loaded a plugin
+  declaring `keyFloors` or `schemaReadableBy` and served those keys and rows at the plugin floor.
+- **`ctx.feeds.displayMany` splits instead of clamping (`0.7.8`, core#269).** Past 200 slugs it sends
+  several requests and merges the answers, so `displayMany(ctx.episodes)` covers every episode of a long
+  show. Before, everything past the 200th was silently missing, which reads exactly like "not visible to
+  you". If one request fails, the whole call rejects.
+- **⚠️ Plugins must be rebuilt for `platformApi` 0.18.0 (`0.7.7`).** Core pinned SDK 0.18.0; a plugin built
+  against 0.17.0 was rejected at load until rebuilt.
 
 ### Added
 
+- **Plugins hear about every write that moves an episode's phase (`0.7.8`, core#270, SDK 0.19.0).**
+  `PluginContext.onEpisodePhaseChanged((slug, phase) -> …)` fires after the commit when a write changes an
+  episode's derived phase. That covers an announce, an `announceAt` edit either way, every release path, a
+  withdrawal, a withdrawn episode returning, and an episode ceasing to exist (`phase` is `null`): a
+  cancelled plan, or the duplicate a match or a confirmed suggestion removes. Before, a plan set back to
+  quiet stayed named in whatever a plugin published, until its next schedule tick. On a release the
+  `onEpisodeReleased` listeners run first, then the phase listeners, one plugin's listeners in order on a
+  thread of their own. The clock passing `announceAt` still fires nothing: becoming visible late is
+  harmless.
+- **Per-key read and write floors in the plugin doc store (`0.7.8`, core#259, SDK 0.19.0).**
+  `data.keyFloors: [{ keys, readableBy?, writableBy? }]` raises the floor of the keys it names, using the
+  `backendOwned` selector grammar: private bookkeeping beside public numbers, or an admin-only setting
+  beside podcaster-writable ones.
+  - **Raise-only.** A floor below the plugin's own, `writableBy: "anonymous"`, an empty `keys`, an entry
+    with neither floor, or a malformed selector rejects the plugin at load.
+  - **Strictest wins.** Where several entries match a key, the highest floor applies, per direction.
+  - **Writes** are checked plugin floor → `backendOwned` → key floor, so a backend-owned key stays
+    unwritable. The new 403 has its own problem type, `…/problems/key-floor`.
+  - **Reads.** A single read below a key's floor is a 403. A **listing** leaves such keys out *before*
+    paging, so its totals count only what the reader may see. A **batch read** leaves them absent, like a
+    miss.
+  - Ignored for the per-user (`USER`) scope and for the backend's own `ctx.store()`.
+- **The admin plugin page says who can reach a plugin's data (`0.7.8`).** It shows the effective floors
+  for documents, tables and files, and each key floor. Before, none of them was visible there, although
+  whether to run a plugin is decided on that page.
+- **A plugin's tables can have a read floor of their own (`0.7.8`, core#261, SDK 0.19.0).**
+  `storage.schemaReadableBy` gates all four schema read endpoints (`select`, `search`, `count`, one row) and
+  defaults to `data.readableBy`. Before, a plugin whose tile had to be anonymous, such as bingo, also served
+  every schema row to anonymous visitors: players' entries keyed by user id, including players who opted
+  out of the leaderboard, and rows for quiet planned episodes. Any of the four roles is allowed, like
+  `blobs.readableBy`; a value outside them rejects the plugin at load. The backend's `SchemaStore` is
+  unaffected.
 - **A podcaster can set an episode's season and episode number by hand (`0.7.7`, core#264).** A feed
   can't say "episode 0": Apple's spec allows only a non-zero `itunes:episode`, so Acast drops it, and a
   season prologue arrives with a season and no number. The episode page now has a *Season & episode*
@@ -373,6 +413,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A plugin can list the planned episode being prepared (`0.7.8`, core#258).** The SDK has always said a
+  quiet planned episode is in `ctx.episodes` for podcasters and admins, but the endpoint behind it ignored
+  who was asking, so it was missing for everyone. A wiki citation picker or a bingo setup screen couldn't
+  offer the one episode being prepared, and `ctx.episodeLabels` had no label for it. Quiet plans now lead
+  the first page for podcasters and admins, in every scope (site, feed, season, episode). Everyone else
+  still sees only what is public.
 - **A script can upload a file without naming its type (`0.7.8`, core#260).** curl and most HTTP clients
   send `application/octet-stream` for every uploaded file unless told otherwise, and a plugin that doesn't
   store that type answered `415`. The stats plugin's README had to tell people to append

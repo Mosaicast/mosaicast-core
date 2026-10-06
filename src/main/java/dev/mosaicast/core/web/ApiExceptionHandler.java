@@ -66,6 +66,19 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * The third doc-store 403: a key whose {@code data.keyFloors} entry is above the caller (core#259). Its own
+     * {@code type}, like the backend-owned one, so a plugin tells "your role is too low for this plugin" from
+     * "too low for this key" without matching English.
+     */
+    @ExceptionHandler(KeyFloorException.class)
+    public ProblemDetail handleKeyFloor(KeyFloorException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problem.setTitle("Forbidden");
+        problem.setType(URI.create("https://mosaicast.dev/problems/key-floor"));
+        return problem;
+    }
+
     @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(
             org.springframework.security.access.AccessDeniedException ex, WebRequest request) {

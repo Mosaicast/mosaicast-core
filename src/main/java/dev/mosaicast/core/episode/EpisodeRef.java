@@ -254,6 +254,14 @@ public class EpisodeRef {
 
     /** Where this episode stands at {@code now} (core#252). */
     public EpisodePhase phase(Instant now) {
+        return phaseOf(status, announceAt, now);
+    }
+
+    /**
+     * The phase a stored state derives at {@code now} — for comparing the state before a write with the state
+     * after it at one instant (core#270), which {@link #phase(Instant)} alone cannot do once the write happened.
+     */
+    public static EpisodePhase phaseOf(EpisodeStatus status, Instant announceAt, Instant now) {
         return switch (status) {
             case WITHDRAWN -> EpisodePhase.WITHDRAWN;
             case PUBLISHED -> EpisodePhase.RELEASED;

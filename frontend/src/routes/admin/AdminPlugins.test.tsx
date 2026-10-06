@@ -242,6 +242,30 @@ afterEach(() => vi.unstubAllGlobals());
     expect(screen.getByText(/untitled/)).toBeInTheDocument();
   });
 
+  it('says who can reach the data, key floors included (core#259, core#261)', async () => {
+    stubFetch([
+      {
+        ...PLUGIN,
+        access: {
+          dataRead: 'anonymous',
+          dataWrite: 'podcaster',
+          schemaRead: 'admin',
+          blobRead: null,
+          blobWrite: null,
+          keyFloors: [{ keys: ['import:*', 'staged:*'], readableBy: 'podcaster', writableBy: null }],
+        },
+      },
+    ]);
+    render(<AdminPlugins />);
+
+    expect(await screen.findByText('Who can reach its data')).toBeInTheDocument();
+    expect(screen.getByText('Documents: read: Everyone · write: Podcaster')).toBeInTheDocument();
+    expect(screen.getByText('Tables: read: Admin')).toBeInTheDocument();
+    expect(screen.queryByText(/^Files:/)).toBeNull();
+    expect(screen.getByText('import:*')).toBeInTheDocument();
+    expect(screen.getByText('staged:*').closest('p')).toHaveTextContent('import:*, staged:*: read: Podcaster');
+  });
+
   it('toggles activation through the enabled endpoint', async () => {
     const calls = stubFetch();
     render(<AdminPlugins />);

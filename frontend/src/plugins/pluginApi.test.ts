@@ -544,6 +544,42 @@ describe('makePluginFeeds', () => {
     vi.unstubAllGlobals();
   });
 
+  it('splits a long show into several requests and merges them, instead of dropping the rest (core#269)', async () => {
+    const captured: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string) => {
+        captured.push(url);
+        const asked = new URL(url, 'http://host').searchParams.get('slugs')!.split(',');
+        return reply(Object.fromEntries(asked.map((slug) => [slug, { title: slug, description: '' }])));
+      }),
+    );
+    // 250 episodes, one of them twice: the duplicate is asked for once.
+    const slugs = Array.from({ length: 250 }, (_, i) => `ep-${i}`);
+
+    const answer = await makePluginFeeds('wiki').displayMany([...slugs, 'ep-7']);
+
+    expect(captured).toHaveLength(2);
+    expect(captured.map((url) => new URL(url, 'http://host').searchParams.get('slugs')!.split(',').length))
+      .toEqual([200, 50]);
+    expect(Object.keys(answer)).toHaveLength(250);
+    expect(answer['ep-249']).toMatchObject({ title: 'ep-249' });
+    vi.unstubAllGlobals();
+  });
+
+  it('rejects the whole call when one chunk fails, rather than answering with hidden-looking gaps', async () => {
+    let calls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => (++calls === 2 ? Promise.resolve(new Response('', { status: 500 })) : reply({}))),
+    );
+
+    await expect(
+      makePluginFeeds('wiki').displayMany(Array.from({ length: 201 }, (_, i) => `ep-${i}`)),
+    ).rejects.toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+
   it('asks for nothing when given nothing', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);

@@ -369,6 +369,8 @@ public class FeedService {
         refs.flush();
 
         planned.bindToFeedItem(suggestion.getRawGuid(), season, episodeNo);
+        // The imported item it replaces was a released episode in its own right; it no longer exists (core#270).
+        events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(auto.getSlug(), null));
         if (auto.isNumbersPinned()) {
             // Numbers a podcaster set on the imported item are a decision about it, and move with it (§4.4).
             planned.pinNumbers(auto.getSeason(), auto.getEpisodeNo());

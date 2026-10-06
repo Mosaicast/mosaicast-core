@@ -209,14 +209,26 @@ public record PluginManifest(
      * @param readsAllUsers whether the backend may read every user's {@code USER} partition at once
      *                     ({@code PluginContext.allUsers()}, SDK 0.16.0). Absent means no: it is the one read
      *                     that crosses an ownership boundary, so it is declared, and shown to the operator.
+     * @param keyFloors    per-key raises of the floors above (platformApi 0.19.0, core#259) — private
+     *                     bookkeeping beside public numbers, an admin-only setting. Absent means none.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DataAccess(String readableBy, String writableBy, List<String> backendOwned,
-                             Boolean readsAllUsers) {
+                             Boolean readsAllUsers, List<KeyFloor> keyFloors) {
 
         /** The pre-0.16 shape, without {@code readsAllUsers} — which is then absent, meaning no. */
         public DataAccess(String readableBy, String writableBy, List<String> backendOwned) {
-            this(readableBy, writableBy, backendOwned, null);
+            this(readableBy, writableBy, backendOwned, null, null);
+        }
+
+        /** The 0.16–0.18 shape, without {@code keyFloors}. */
+        public DataAccess(String readableBy, String writableBy, List<String> backendOwned, Boolean readsAllUsers) {
+            this(readableBy, writableBy, backendOwned, readsAllUsers, null);
+        }
+
+        /** The declared key floors; empty when the manifest raises none. */
+        public List<KeyFloor> keyFloorsOrEmpty() {
+            return keyFloors == null ? List.of() : keyFloors;
         }
 
         /** Whether the manifest declares the cross-user read; absent means no. */
@@ -239,6 +251,35 @@ public record PluginManifest(
         /** The declared backend-owned key patterns; empty when the manifest reserves nothing. */
         public List<String> backendOwnedOrEmpty() {
             return backendOwned == null ? List.of() : backendOwned;
+        }
+    }
+
+    /**
+     * One {@code data.keyFloors} entry (platformApi 0.19.0, core#259): the keys it names may be read, or
+     * written, only from a role at or above the floors it gives. Raise-only — {@link #validate()} refuses an
+     * entry that would open a key wider than the plugin.
+     *
+     * @param keys       selectors in the {@code backendOwned} grammar ({@link DocStore#KEY_SELECTOR_PATTERN}):
+     *                   an exact key, a {@code *}-terminated prefix, or the bare {@code *}
+     * @param readableBy the read floor of those keys, or null to leave reads at the plugin floor
+     * @param writableBy the write floor of those keys, or null to leave writes at the plugin floor
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record KeyFloor(List<String> keys, String readableBy, String writableBy) {
+
+        /** The declared selectors; empty if none were given (which validation refuses). */
+        public List<String> keysOrEmpty() {
+            return keys == null ? List.of() : keys;
+        }
+
+        /** The read floor, lower-cased, or null when this entry does not raise reads. */
+        public String readFloor() {
+            return readableBy == null || readableBy.isBlank() ? null : readableBy.trim().toLowerCase(Locale.ROOT);
+        }
+
+        /** The write floor, lower-cased, or null when this entry does not raise writes. */
+        public String writeFloor() {
+            return writableBy == null || writableBy.isBlank() ? null : writableBy.trim().toLowerCase(Locale.ROOT);
         }
     }
 
@@ -320,6 +361,18 @@ public record PluginManifest(
     /** Who may list and download this plugin's files: {@code blobs.readableBy}, else the data read floor. */
     public String blobReadFloor() {
         String own = blobs == null ? null : blobs.readableBy();
+        return own == null || own.isBlank()
+                ? dataOrDefault().readableByOrDefault() : own.trim().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Who may read this plugin's schema rows over HTTP: {@code storage.schemaReadableBy}, else the data read
+     * floor (platformApi 0.19.0, core#261). Any of the four roles, like {@link #blobReadFloor()}: a plugin whose
+     * tile must be anonymous can still keep per-user rows from anonymous visitors. {@code SchemaStore} on the
+     * backend is unaffected.
+     */
+    public String schemaReadFloor() {
+        String own = storageOrDefault().schemaReadableBy();
         return own == null || own.isBlank()
                 ? dataOrDefault().readableByOrDefault() : own.trim().toLowerCase(Locale.ROOT);
     }
@@ -834,6 +887,7 @@ public record PluginManifest(
         // Resolving the schema is the validation: it refuses any entity, field name or type spec that
         // could not become safe DDL, and the result is what the migration runner provisions from.
         PluginSchemaValidator.resolve(id, storageOrDefault());
+        validateSchemaFloor();
         if (slots != null) {
             for (Slot slot : slots) {
                 if (slot.placement() == null || !KNOWN_PLACEMENTS.contains(slot.placement())) {
@@ -981,6 +1035,19 @@ public record PluginManifest(
     }
 
     /**
+     * Rejects a {@code storage.schemaReadableBy} outside the role vocabulary, as {@link #validateBlobs()} does
+     * for its floors (core#261) — a typo that loaded would leave the rows at {@code data.readableBy} while the
+     * manifest claims otherwise.
+     */
+    private void validateSchemaFloor() {
+        String floor = storageOrDefault().schemaReadableBy();
+        if (floor != null && !KNOWN_DATA_ACCESS.contains(floor.trim().toLowerCase(Locale.ROOT))) {
+            throw new PluginValidationException(
+                    "storage.schemaReadableBy '%s' is not one of %s".formatted(floor, KNOWN_DATA_ACCESS));
+        }
+    }
+
+    /**
      * Rejects a {@code tags} block that asks for nothing.
      *
      * <p>{@code {"readsVocabulary": false, "writesEpisodes": false}} is a declaration whose every answer is
@@ -1059,11 +1126,12 @@ public record PluginManifest(
             java.util.regex.Pattern.compile("[a-z0-9_-]{1,40}", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     /**
-     * The grammar of one {@code data.backendOwned} entry, taken from the SDK so the two cannot drift: an
+     * The grammar of one {@code data.backendOwned} entry or {@code keyFloors} selector, taken from the SDK so
+     * the two cannot drift: an
      * exact key, a key-legal prefix with a single trailing {@code *}, or the bare {@code *}.
      */
     private static final java.util.regex.Pattern BACKEND_OWNED =
-            java.util.regex.Pattern.compile(DocStore.BACKEND_OWNED_PATTERN);
+            java.util.regex.Pattern.compile(DocStore.KEY_SELECTOR_PATTERN);
 
     /**
      * Validates the declared data floors and the backend-owned key patterns.
@@ -1099,6 +1167,63 @@ public record PluginManifest(
                 throw new PluginValidationException(
                         ("data.backendOwned entry '%s' is not usable: it must be an exact key, a prefix "
                                 + "ending in a single '*', or the bare '*'").formatted(pattern));
+            }
+        }
+        validateKeyFloors();
+    }
+
+    /** The rank order of the data-access vocabulary, for comparing floors at load. */
+    private static final List<String> DATA_ACCESS_ORDER = List.of("anonymous", "fan", "podcaster", "admin");
+
+    /**
+     * Validates {@code data.keyFloors} (platformApi 0.19.0, core#259). Every failure rejects the plugin rather
+     * than dropping the entry, for the reason {@code backendOwned} is refused: a dropped floor loads a plugin
+     * whose manifest says a key is private while the host serves it at the plugin floor.
+     *
+     * <p><strong>Raise-only.</strong> A key floor below the plugin's own would make a key <em>more</em> open than
+     * the plugin — a manifest-level escape from the floors the operator reads — so it is refused, compared
+     * against the effective floors (an absent {@code readableBy} is the write floor).
+     */
+    private void validateKeyFloors() {
+        int pluginRead = DATA_ACCESS_ORDER.indexOf(data.readableByOrDefault());
+        int pluginWrite = DATA_ACCESS_ORDER.indexOf(data.writableByOrDefault());
+        for (KeyFloor floor : data.keyFloorsOrEmpty()) {
+            if (floor == null || floor.keysOrEmpty().isEmpty()) {
+                throw new PluginValidationException("data.keyFloors entry names no keys");
+            }
+            for (String selector : floor.keysOrEmpty()) {
+                if (selector == null || !BACKEND_OWNED.matcher(selector).matches()) {
+                    throw new PluginValidationException(
+                            ("data.keyFloors selector '%s' is not usable: it must be an exact key, a prefix "
+                                    + "ending in a single '*', or the bare '*'").formatted(selector));
+                }
+            }
+            if (floor.readFloor() == null && floor.writeFloor() == null) {
+                throw new PluginValidationException(
+                        "data.keyFloors entry for %s raises neither readableBy nor writableBy"
+                                .formatted(floor.keysOrEmpty()));
+            }
+            for (String role : new String[] {floor.readFloor(), floor.writeFloor()}) {
+                if (role != null && !KNOWN_DATA_ACCESS.contains(role)) {
+                    throw new PluginValidationException(
+                            "data.keyFloors floor '%s' is not one of %s".formatted(role, KNOWN_DATA_ACCESS));
+                }
+            }
+            if (ACCESS_ANONYMOUS.equals(floor.writeFloor())) {
+                throw new PluginValidationException(
+                        "data.keyFloors writableBy may not be 'anonymous' — a write needs a signed-in user");
+            }
+            if (floor.readFloor() != null && DATA_ACCESS_ORDER.indexOf(floor.readFloor()) < pluginRead) {
+                throw new PluginValidationException(
+                        ("data.keyFloors readableBy '%s' for %s is below the plugin's read floor '%s'; a key "
+                                + "floor can only raise it").formatted(
+                                floor.readFloor(), floor.keysOrEmpty(), data.readableByOrDefault()));
+            }
+            if (floor.writeFloor() != null && DATA_ACCESS_ORDER.indexOf(floor.writeFloor()) < pluginWrite) {
+                throw new PluginValidationException(
+                        ("data.keyFloors writableBy '%s' for %s is below the plugin's write floor '%s'; a key "
+                                + "floor can only raise it").formatted(
+                                floor.writeFloor(), floor.keysOrEmpty(), data.writableByOrDefault()));
             }
         }
     }

@@ -212,7 +212,32 @@ public class AdminPluginController {
                 config,
                 manifest == null ? null : manifest.consent(),
                 blobsOf(manifest, role),
-                externalOf(manifest));
+                externalOf(manifest),
+                accessOf(manifest));
+    }
+
+    /**
+     * Who may reach this plugin's data, as the host enforces it (core#259, core#261): the effective floors of
+     * every surface it declares, and each {@code data.keyFloors} entry. Null for a plugin that failed to load.
+     *
+     * <p>Shown because the decision these inform — whether to run the plugin, and whether its private keys are
+     * private — is made on this page, and a manifest that omits a floor reads as the value the host applies
+     * rather than as a blank.
+     */
+    private static AdminAccess accessOf(PluginManifest manifest) {
+        if (manifest == null) {
+            return null;
+        }
+        PluginManifest.DataAccess data = manifest.dataOrDefault();
+        return new AdminAccess(
+                data.readableByOrDefault(),
+                data.writableByOrDefault(),
+                manifest.storageOrDefault().declaresSchema() ? manifest.schemaReadFloor() : null,
+                manifest.declaresBlobs() ? manifest.blobReadFloor() : null,
+                manifest.declaresBlobs() ? manifest.blobWriteFloor() : null,
+                data.keyFloorsOrEmpty().stream()
+                        .map(floor -> new AdminKeyFloor(floor.keysOrEmpty(), floor.readFloor(), floor.writeFloor()))
+                        .toList());
     }
 
     /**
@@ -284,10 +309,29 @@ public class AdminPluginController {
      *                while {@code LOADED} + {@code enabled=false} means it was switched off since
      * @param readsAllUsers whether the manifest declares {@code data.readsAllUsers}: the backend may read
      *                every user's per-user data at once (SDK 0.16.0), which an operator should see
+     * @param access  who may reach its data, as the host enforces it; null when it failed to load
      */
     public record AdminPlugin(String id, String status, String reason, String name, String version,
                               boolean enabled, boolean readsAllUsers, Map<String, AdminConfigField> config,
-                              Consent consent, AdminBlobs blobs, AdminExternal external) {
+                              Consent consent, AdminBlobs blobs, AdminExternal external, AdminAccess access) {
+    }
+
+    /**
+     * The effective floors of a plugin's data surfaces, lower-case role names.
+     *
+     * @param dataRead   who may read its documents
+     * @param dataWrite  who may write them
+     * @param schemaRead who may read its tables, or null when it declares none
+     * @param blobRead   who may list and download its files, or null when it stores none
+     * @param blobWrite  who may upload and delete them, or null when it stores none
+     * @param keyFloors  its {@code data.keyFloors} entries, in manifest order
+     */
+    public record AdminAccess(String dataRead, String dataWrite, String schemaRead, String blobRead,
+                              String blobWrite, List<AdminKeyFloor> keyFloors) {
+    }
+
+    /** One {@code data.keyFloors} entry: its selectors and the floors it raises (null where it raises none). */
+    public record AdminKeyFloor(List<String> keys, String readableBy, String writableBy) {
     }
 
     /**

@@ -1,10 +1,10 @@
 {
-  "id": "schema",
+  "id": "wikiprivate",
   "version": "1.0.0",
   "platformApi": "0.19.0",
-  "name": "Schema Fixture",
+  "name": "Schema Fixture (anonymous docs, podcaster-only rows)",
   "backend": {
-    "basePath": "/api/plugins/schema",
+    "basePath": "/api/plugins/wikiprivate",
     "extensions": [
       "dev.mosaicast.plugin.fixture.FixturePlugin"
     ]
@@ -23,7 +23,20 @@
       "visibleTo": "anonymous"
     }
   ],
-  "storage": "schema",
+  "storage": {
+    "schema": {
+      "page": {
+        "slug": "string:indexed:unique",
+        "title": "string",
+        "markdown": "text:fulltext",
+        "views": "integer",
+        "rating": "number",
+        "published": "boolean",
+        "updatedAt": "timestamp:indexed"
+      }
+    },
+    "schemaReadableBy": "podcaster"
+  },
   "data": {
     "readableBy": "anonymous",
     "writableBy": "podcaster"

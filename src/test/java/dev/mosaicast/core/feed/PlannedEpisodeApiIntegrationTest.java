@@ -306,6 +306,58 @@ class PlannedEpisodeApiIntegrationTest {
     }
 
     @Test
+    void aWriteThatMovesAPlansPhaseTellsPluginsAndOneThatDoesNotStaysQuiet() throws Exception {
+        // core#270: the leak was an announced episode going quiet again with no plugin told.
+        String secret = token();
+        String slug = plan(secret, "{\"title\":\"Phase check\"}").path("slug").asString();
+
+        call(secret, HttpMethod.POST, "/api/admin/episodes/" + slug + "/announce", null);
+        assertThat(awaitPhase(slug, "upcoming")).isEqualTo("upcoming");
+
+        call(secret, HttpMethod.PATCH, "/api/admin/episodes/" + slug, "{\"announceAt\":\"2999-01-01T00:00:00Z\"}");
+        assertThat(awaitPhase(slug, "planned")).isEqualTo("planned");
+
+        // A title edit leaves the phase where it was: nothing to tell. A stray event would overwrite the
+        // sentinel; the delivery that would do it lands well inside a second.
+        call(secret, HttpMethod.PUT, "/api/plugins/good/data/site/main/phase:" + slug, "\"sentinel\"");
+        call(secret, HttpMethod.PATCH, "/api/admin/episodes/" + slug, "{\"title\":\"Phase check, renamed\"}");
+        Thread.sleep(1000);
+        assertThat(awaitPhase(slug, "sentinel")).isEqualTo("sentinel");
+
+        call(secret, HttpMethod.DELETE, "/api/admin/episodes/" + slug, null);
+        assertThat(awaitPhase(slug, "gone")).isEqualTo("gone");
+    }
+
+    @Test
+    void aReleaseRunsTheReleaseListenersFirstThenThePhaseOnes() throws Exception {
+        String secret = token();
+        String plannedSlug = plan(secret, "{\"title\":\"Order check\"}").path("slug").asString();
+        EpisodeRef imported = importedEpisode("guid-order", "Order check, released", 7, 1);
+
+        call(secret, HttpMethod.POST, "/api/admin/episodes/" + plannedSlug + "/match",
+                "{\"episode\":\"" + imported.getSlug() + "\"}");
+
+        assertThat(awaitPhase(plannedSlug, "released after " + plannedSlug))
+                .isEqualTo("released after " + plannedSlug);
+        // And the duplicate the match removed is gone for plugins too.
+        assertThat(awaitPhase(imported.getSlug(), "gone")).isEqualTo("gone");
+    }
+
+    /** What the fixture's phase listener last wrote for this slug, waiting a while for a specific value. */
+    private String awaitPhase(String slug, String expected) throws InterruptedException {
+        String last = null;
+        for (int i = 0; i < 50; i++) {
+            String body = rest.getForObject("/api/plugins/good/data/site/main/phase:" + slug, String.class);
+            last = body == null ? null : JSON.readTree(body).asString();
+            if (expected.equals(last)) {
+                return last;
+            }
+            Thread.sleep(100);
+        }
+        return last;
+    }
+
+    @Test
     void aMatchOntoAnEpisodeThatAlreadyHasPluginDataIsRefusedAndChangesNothing() {
         String secret = token();
         String plannedSlug = plan(secret, "{\"title\":\"The quiz\"}").path("slug").asString();
@@ -321,6 +373,36 @@ class PlannedEpisodeApiIntegrationTest {
         assertThat(refused.getBody()).contains("planned.match.targetHasPluginData").contains("plugin data");
         assertThat(refs.findBySlug(plannedSlug).orElseThrow().getStatus()).isEqualTo(EpisodeStatus.PLANNED);
         assertThat(refs.findBySlug(imported.getSlug())).isPresent();
+    }
+
+    @Test
+    void aPluginListsAQuietPlanForAPodcasterAndForNobodyElse() {
+        // core#258: ctx.episodes comes from scope-episodes, which ignored the viewer.
+        String secret = token();
+        importedEpisode("guid-out", "Already out", 2, 0);
+        String slug = plan(secret, "{\"season\":2,\"episodeNo\":1,\"title\":\"The Secret Season Opener\"}")
+                .path("slug").asString();
+        String site = "/api/plugins/scope-episodes?type=site&id=main";
+        String feedScope = "/api/plugins/scope-episodes?type=feed&id=" + feed.getSlug();
+        String season = "/api/plugins/scope-episodes?type=season&id=" + feed.getSlug() + ":2";
+        String episode = "/api/plugins/scope-episodes?type=episode&id=" + slug;
+
+        // This feed's own scopes: the plan leads. The site scope also holds other tests' quiet plans, in
+        // whatever order they ran, so there it only has to be present.
+        for (String path : List.of(feedScope, season, episode)) {
+            JsonNode options = JSON.readTree(call(secret, HttpMethod.GET, path, null).getBody());
+            assertThat(options.get(0).path("id").asString()).as(path).isEqualTo(slug);
+            assertThat(options.get(0).path("label").asString()).as(path).contains("The Secret Season Opener");
+        }
+        assertThat(call(secret, HttpMethod.GET, site, null).getBody()).contains(slug);
+        for (String path : List.of(site, feedScope, season, episode)) {
+            assertThat(rest.getForObject(path, String.class)).as("anonymous: " + path).doesNotContain(slug);
+        }
+        DevLogin.Cookies fan = DevLogin.login(rest, "fan");
+        assertThat(rest.exchange(feedScope, HttpMethod.GET, new HttpEntity<>(session(fan)), String.class).getBody())
+                .doesNotContain(slug);
+        // Only on the first page, so the public pages after it are what they were.
+        assertThat(call(secret, HttpMethod.GET, feedScope + "&page=1&size=1", null).getBody()).doesNotContain(slug);
     }
 
     @Test

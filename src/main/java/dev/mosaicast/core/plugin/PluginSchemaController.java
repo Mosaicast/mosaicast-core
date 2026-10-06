@@ -193,7 +193,8 @@ public class PluginSchemaController {
      * admits. So the floor is the whole rule here.
      */
     private void requireReadable(PluginManifest manifest, Authentication authentication) {
-        if (!PluginAccessPolicy.canRead(manifest, CurrentUser.role(authentication))) {
+        // The schema surface's own floor when declared, else data.readableBy (platformApi 0.19.0, core#261).
+        if (!PluginAccessPolicy.canReadSchema(manifest, CurrentUser.role(authentication))) {
             throw new AccessDeniedException("Not allowed to read plugin data: " + manifest.id());
         }
     }

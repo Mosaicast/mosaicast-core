@@ -6,6 +6,7 @@ package dev.mosaicast.core.plugin;
 import tools.jackson.databind.JsonNode;
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.web.BackendOwnedKeyException;
+import dev.mosaicast.core.web.KeyFloorException;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.web.PagedResponse;
 import dev.mosaicast.plugin.api.DocEntry;
@@ -91,6 +92,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireReadable(manifest, scope, authentication);
+        requireKeyReadable(manifest, scope, key, authentication);
         return data.getRaw(id, scope, key)
                 .map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.noContent().build());
@@ -126,7 +128,11 @@ public class PluginDataController {
             requireReadable(manifest, scope, authentication);
             Map<String, JsonNode> found = new LinkedHashMap<>();
             for (String key : new LinkedHashSet<>(keys)) {
-                data.getRaw(id, scope, key).ifPresent(value -> found.put(key, value));
+                // A key above the caller's key floor is absent, exactly like a miss (core#259): refusing the
+                // batch would make one private key fail a page of public ones.
+                if (PluginAccessPolicy.canReadKey(manifest, scope.type(), key, CurrentUser.role(authentication))) {
+                    data.getRaw(id, scope, key).ifPresent(value -> found.put(key, value));
+                }
             }
             answer.put(scopeId, found);
         }
@@ -147,7 +153,11 @@ public class PluginDataController {
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireReadable(manifest, scope, authentication);
         Pageable pageable = PageRequest.of(PagedResponse.page(page), PagedResponse.size(size));
-        return PagedResponse.of(data.queryPage(id, scope, prefix, pageable), e -> e);
+        // Keys above the caller's key floor are left out by the query itself, so the totals count only what
+        // the caller may see (core#259).
+        List<String> hidden =
+                PluginAccessPolicy.hiddenSelectors(manifest, scope.type(), CurrentUser.role(authentication));
+        return PagedResponse.of(data.queryPage(id, scope, prefix, hidden, pageable), e -> e);
     }
 
     /** Upserts a document (last-write-wins). Body is the raw JSON value. */
@@ -161,6 +171,7 @@ public class PluginDataController {
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireWritable(manifest, scope, authentication);
         requireNotBackendOwned(manifest, scope, key);
+        requireKeyWritable(manifest, scope, key, authentication);
         data.putRaw(id, scope, key, body);
         return ResponseEntity.noContent().build();
     }
@@ -176,6 +187,7 @@ public class PluginDataController {
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireWritable(manifest, scope, authentication);
         requireNotBackendOwned(manifest, scope, key);
+        requireKeyWritable(manifest, scope, key, authentication);
         data.delete(id, scope, key);
         return ResponseEntity.noContent().build();
     }
@@ -238,6 +250,29 @@ public class PluginDataController {
                 .ifPresent(pattern -> {
                     throw new BackendOwnedKeyException(manifest.id(), key, pattern);
                 });
+    }
+
+    /**
+     * Refuses a read of a key whose {@code data.keyFloors} entry is above the caller (core#259) — after the
+     * plugin floor, so a caller below that never learns a key has a floor of its own.
+     */
+    private void requireKeyReadable(PluginManifest manifest, DataScope scope, String key,
+                                    Authentication authentication) {
+        if (!PluginAccessPolicy.canReadKey(manifest, scope.type(), key, CurrentUser.role(authentication))) {
+            throw new KeyFloorException(manifest.id(), key, false);
+        }
+    }
+
+    /**
+     * Refuses a write or delete of a key whose {@code data.keyFloors} entry is above the caller (core#259).
+     * Last, after the plugin floor and {@code backendOwned}: a backend-owned key stays unwritable whatever its
+     * key floor, and each refusal keeps the problem type of the first rule that failed.
+     */
+    private void requireKeyWritable(PluginManifest manifest, DataScope scope, String key,
+                                    Authentication authentication) {
+        if (!PluginAccessPolicy.canWriteKey(manifest, scope.type(), key, CurrentUser.role(authentication))) {
+            throw new KeyFloorException(manifest.id(), key, true);
+        }
     }
 
     /**
