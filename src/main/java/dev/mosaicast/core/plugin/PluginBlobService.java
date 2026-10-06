@@ -47,6 +47,9 @@ public class PluginBlobService {
     /** The namespace prefix every plugin's files live under; see {@link #namespaceOf}. */
     static final String NAMESPACE_PREFIX = "plugin/";
 
+    /** The declared type that says nothing about a file — treated as no declaration (core#260). */
+    private static final String UNDECLARED = "application/octet-stream";
+
     /** Page size ceiling for a listing, matching the doc and schema surfaces. */
     static final int MAX_PAGE_SIZE = 200;
 
@@ -123,7 +126,12 @@ public class PluginBlobService {
         }
         Set<String> allowed = effectiveMimeTypes(manifest);
         String claimed = MimeSniffer.canonicalType(declared);
-        if (!allowed.contains(claimed)) {
+        // `application/octet-stream` and no type at all say "unknown", not "this is a binary blob": curl sends
+        // it for every `-F file=@…` part, and so do most scripts, which have no SDK to fix the type first
+        // (core#260). Refusing that claim refused the uploader's tooling, not their file. It is not a pass:
+        // the bytes below are still checked against the same allow-list, and unrecognised bytes are refused.
+        boolean undeclared = claimed.isEmpty() || UNDECLARED.equals(claimed);
+        if (!undeclared && !allowed.contains(claimed)) {
             throw new BlobTypeNotAllowedException(
                     "content type '%s' is not one this plugin may store; allowed: %s".formatted(declared, allowed));
         }
@@ -136,8 +144,9 @@ public class PluginBlobService {
         if (actual == null || !allowed.contains(actual)) {
             // Deliberately not naming what it turned out to be: the useful half is that the file is not what
             // it said, and echoing a sniffed type invites probing the sniffer through the error message.
-            throw new BlobTypeNotAllowedException(
-                    "the file's content is not '%s'; upload the format you declared".formatted(claimed));
+            throw new BlobTypeNotAllowedException(undeclared
+                    ? "the file's content is not a type this plugin may store; allowed: %s".formatted(allowed)
+                    : "the file's content is not '%s'; upload the format you declared".formatted(claimed));
         }
         // Re-checked against the real length, because the client reported the one above.
         if (bytes.length > maxFile) {

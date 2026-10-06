@@ -373,6 +373,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A script can upload a file without naming its type (`0.7.8`, core#260).** curl and most HTTP clients
+  send `application/octet-stream` for every uploaded file unless told otherwise, and a plugin that doesn't
+  store that type answered `415`. The stats plugin's README had to tell people to append
+  `;type=application/zip`. That type, like an empty one, now counts as no declaration: the file's bytes
+  decide, checked against the same allow-list, and unrecognised bytes are still refused.
 - **An unnumbered prologue keeps its season label (`0.7.7`, core#264).** Feeds can't carry episode `0`
   (Apple's spec allows only a non-zero `itunes:episode`, so Acast drops it), so a season's prologue
   arrives as season 5 with no number. Every shell surface — card, episode page, player bar, related
