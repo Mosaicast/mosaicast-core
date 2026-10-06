@@ -19,6 +19,15 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A podcaster can set an episode's season and episode number by hand (`0.7.7`, core#264).** A feed
+  can't say "episode 0": Apple's spec allows only a non-zero `itunes:episode`, so Acast drops it, and a
+  season prologue arrives with a season and no number. The episode page now has a *Season & episode*
+  panel for podcasters and admins, below the related pins. Saved numbers stay put across feed polls, and
+  *Use the feed's numbers* hands them back at once. They apply everywhere numbers do: labels, the season
+  filter, listing order, and the `season` / `episodeNo` plugins receive. The slug and previous/next
+  (release order) don't change. A manual or suggested match carries numbers set on the imported item
+  over to the plan. `GET/PUT/DELETE /api/admin/episodes/{slug}/numbers`; migration `V40` adds
+  `numbers_pinned`, `feed_season` and `feed_episode_no`. Planned episodes keep their numbers in the plan.
 - **Plugins can tell where an episode stands in its release cycle (`0.7.7`, core#252, part 3, SDK 0.18.0).**
   - **Frontend.** An episode-scoped plugin UI receives `ctx.episode = { status, phase, announceAt? }`.
     `phase` is `planned` (quiet), `upcoming`, `released` or `withdrawn`. The element gets a new `ctx` when

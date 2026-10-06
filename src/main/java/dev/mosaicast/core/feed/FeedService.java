@@ -358,8 +358,8 @@ public class FeedService {
         DisplaySnapshot snapshot = displays.findById(auto.getId())
                 .map(EpisodeDisplay::getSnapshot)
                 .orElse(null);
-        Integer season = auto.getSeason();
-        Integer episodeNo = auto.getEpisodeNo();
+        Integer season = auto.getFeedSeason();
+        Integer episodeNo = auto.getFeedEpisodeNo();
 
         // Free the GUID first: delete the auto ref's display + the ref, and flush so the DELETE hits the DB
         // before the planned UPDATE claims the same (feed, guid). CASCADE would drop the display anyway, but
@@ -369,6 +369,10 @@ public class FeedService {
         refs.flush();
 
         planned.bindToFeedItem(suggestion.getRawGuid(), season, episodeNo);
+        if (auto.isNumbersPinned()) {
+            // Numbers a podcaster set on the imported item are a decision about it, and move with it (§4.4).
+            planned.pinNumbers(auto.getSeason(), auto.getEpisodeNo());
+        }
         refs.save(planned);
         events.publishEvent(new dev.mosaicast.core.episode.EpisodeReleasedEvent(planned.getSlug()));
         if (snapshot != null) {

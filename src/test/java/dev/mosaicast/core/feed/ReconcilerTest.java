@@ -168,6 +168,25 @@ class ReconcilerTest {
     }
 
     @Test
+    void case2_numbersAPodcasterPinnedSurviveThePoll() {
+        // §4.4, core#264: the feed cannot say "episode 0", so the podcaster did.
+        EpisodeRef prologue = EpisodeRef.published(FEED, "g0", 5, null, "test-s05-prolog");
+        prologue.pinNumbers(5, 0);
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(prologue));
+
+        reconciler.reconcile(FEED, "Test Feed", List.of(raw("g0", "Prolog", 5, null)));
+
+        assertThat(prologue.getEpisodeNo()).isZero();
+
+        reconciler.reconcile(FEED, "Test Feed", List.of(raw("g0", "Prolog", 6, 3)));
+
+        assertThat(prologue.getSeason()).isEqualTo(5);
+        assertThat(prologue.getEpisodeNo()).isZero();
+        assertThat(prologue.getFeedSeason()).isEqualTo(6);
+        assertThat(prologue.getFeedEpisodeNo()).isEqualTo(3);
+    }
+
+    @Test
     void case3_missingGuid_withdrawsNeverDeletes() {
         EpisodeRef gone = EpisodeRef.published(FEED, "g-old", 1, 3, "test-s01e03");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(gone));

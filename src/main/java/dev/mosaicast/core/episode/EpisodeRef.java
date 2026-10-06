@@ -59,6 +59,21 @@ public class EpisodeRef {
     @Column(name = "episode_no")
     private Integer episodeNo;
 
+    /**
+     * Whether a podcaster set {@link #season} and {@link #episodeNo} by hand (ARCHITECTURE §4.4, core#264).
+     * While set, a poll updates only {@link #feedSeason} / {@link #feedEpisodeNo}.
+     */
+    @Column(name = "numbers_pinned", nullable = false)
+    private boolean numbersPinned;
+
+    /** The season the feed last declared, whatever the effective one is; null while planned. */
+    @Column(name = "feed_season")
+    private Integer feedSeason;
+
+    /** The episode number the feed last declared, whatever the effective one is; null while planned. */
+    @Column(name = "feed_episode_no")
+    private Integer feedEpisodeNo;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EpisodeStatus status;
@@ -111,6 +126,8 @@ public class EpisodeRef {
         ref.externalGuid = externalGuid;
         ref.season = season;
         ref.episodeNo = episodeNo;
+        ref.feedSeason = season;
+        ref.feedEpisodeNo = episodeNo;
         ref.slug = slug;
         return ref;
     }
@@ -137,15 +154,24 @@ public class EpisodeRef {
         this.externalGuid = externalGuid;
         this.season = season;
         this.episodeNo = episodeNo;
+        this.feedSeason = season;
+        this.feedEpisodeNo = episodeNo;
         this.status = EpisodeStatus.PUBLISHED;
         this.provisionalDisplay = null;
         this.lastSeenAt = Instant.now();
     }
 
-    /** Refreshes the season/episode relations and last-seen marker for a known, still-present item (§5.2 case 2). */
+    /**
+     * Refreshes the season/episode relations and last-seen marker for a known, still-present item (§5.2 case 2).
+     * Numbers a podcaster pinned stay as they are; only the record of what the feed says moves (§4.4).
+     */
     public void refreshFromFeed(Integer season, Integer episodeNo) {
-        this.season = season;
-        this.episodeNo = episodeNo;
+        this.feedSeason = season;
+        this.feedEpisodeNo = episodeNo;
+        if (!numbersPinned) {
+            this.season = season;
+            this.episodeNo = episodeNo;
+        }
         if (this.status == EpisodeStatus.WITHDRAWN) {
             // Re-appeared in the feed after having vanished — revive it.
             this.status = EpisodeStatus.PUBLISHED;
@@ -175,6 +201,42 @@ public class EpisodeRef {
         this.season = season;
         this.episodeNo = episodeNo;
         this.provisionalDisplay = provisional;
+    }
+
+    /**
+     * Sets a released episode's numbers by hand, so a poll no longer overwrites them (§4.4, core#264) — both
+     * together, either may be null. A planned episode's numbers are edited with the plan instead
+     * ({@link #replan}); on binding the feed's would replace a pin anyway.
+     */
+    public void pinNumbers(Integer season, Integer episodeNo) {
+        if (status == EpisodeStatus.PLANNED) {
+            throw new IllegalStateException("A planned episode's numbers are edited with the plan");
+        }
+        this.season = season;
+        this.episodeNo = episodeNo;
+        this.numbersPinned = true;
+    }
+
+    /** Goes back to the feed's numbers at once, rather than at the next poll (§4.4). */
+    public void unpinNumbers() {
+        this.numbersPinned = false;
+        this.season = feedSeason;
+        this.episodeNo = feedEpisodeNo;
+    }
+
+    /** Whether a podcaster set this episode's numbers by hand. */
+    public boolean isNumbersPinned() {
+        return numbersPinned;
+    }
+
+    /** The season the feed last declared; differs from {@link #getSeason()} only while pinned. */
+    public Integer getFeedSeason() {
+        return feedSeason;
+    }
+
+    /** The episode number the feed last declared; differs from {@link #getEpisodeNo()} only while pinned. */
+    public Integer getFeedEpisodeNo() {
+        return feedEpisodeNo;
     }
 
     /** When a planned episode becomes public, or null while it is quiet until announced. */
