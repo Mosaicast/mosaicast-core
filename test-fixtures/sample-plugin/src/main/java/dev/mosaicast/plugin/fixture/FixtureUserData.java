@@ -38,4 +38,19 @@ public class FixtureUserData implements UserDataHandler {
         // Idempotent, as the contract requires: the same mark, however many times this is retried.
         ctx.store().put(Scope.site(), "erased:" + userId, true);
     }
+
+    /**
+     * The fixture's part of a data export (SDK 0.19.0): one file in its own format, naming the person, so the
+     * host's test can find it under {@code plugins/good/}. Throws when {@code failExport} is on, for the
+     * host's "a failed part is named, never dropped" rule.
+     */
+    @Override
+    public java.util.Optional<dev.mosaicast.plugin.api.UserExport> exportFiles(String userId) {
+        PluginContext ctx = FixturePlugin.shared;
+        if (ctx != null && ctx.config().get("failExport", Boolean.class, false)) {
+            throw new IllegalStateException("fixture was told to fail its export");
+        }
+        return java.util.Optional.of(dev.mosaicast.plugin.api.UserExport.of(dev.mosaicast.plugin.api.ExportFile.text(
+                "marks/fixture.json", "application/json", "{\"user\":\"" + userId + "\"}")));
+    }
 }

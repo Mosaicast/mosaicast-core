@@ -652,6 +652,8 @@ src/main/java/dev/mosaicast/core/
   episode/   EpisodeRef identity + display snapshot, read/search API (ARCHITECTURE §4, §6)
   feed/      FeedSource SPI, RssFeedSource, reconciler, ShedLock scheduler, admin API (§5)
   auth/      User + LinkedIdentity, Discord oauth2Login, merging rules, /api/me, PATs (§8)
+  erasure/   account deletion reaching every plugin, with recorded debts (§12.8)
+  export/    the GDPR data export: job, ZIP archive, per-plugin outcomes, retention sweep (§12.8.1)
   plugin/    PF4J loading, PluginContext (doc store / feeds / config / onSchedule), /api/plugins surface (§7)
   config/    security (oauth2/session/CSRF/RBAC), headers, scheduling/ShedLock
   web/       SPA serving, RFC 7807 handling, pagination envelope
@@ -716,6 +718,9 @@ sections per source — see `SearchProvider` below);
 `GET /api/me`, `DELETE /api/me` (delete the account: core's own data, plus every plugin's
 `UserDataHandler`; the answer names any plugin that has not finished, §12),
 `GET /api/admin/erasures` + `POST /api/admin/erasures/retry` (**ADMIN**: what a plugin still owes),
+`POST/GET /api/me/export` + `GET /api/me/export/{id}/download` (the GDPR data export: a job, one ZIP for
+the owner only, kept 7 days, §12.8.1), `GET /api/admin/exports` (**ADMIN**: the jobs and each plugin's
+outcome, never an archive),
 `GET/DELETE /api/me/identities`,
 `GET/POST/DELETE /api/me/tokens`, `GET/PUT /api/me/progress` (authenticated). All lists paginate; errors are
 `application/problem+json`.

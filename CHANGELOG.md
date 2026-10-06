@@ -27,6 +27,24 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A person can download everything the site holds about them (`0.8.0`, core#263, SDK 0.19.0).** GDPR
+  Art. 15 and Art. 20. The account page has a *Download your data* section.
+  - **How it works.** `POST /api/me/export` starts a job and answers a receipt (`202`). When the archive is
+    ready, an in-app notification links to the account page. The download is one ZIP, for that account
+    only, kept for seven days and then deleted.
+  - **What's in it.** `core/account.json` (account, linked providers, name history, access tokens — never
+    a secret), `core/listening.json`, `core/notifications.json`, the per-user plugin documents core holds,
+    `plugins/<id>/…` in each plugin's own format, a bilingual `README.txt`, and `outcome.json`.
+  - **Plugins are asked like erasure asks them.** Each plugin's outcome is recorded before it is asked.
+    The SDK's order applies: `exportFiles`, else `exportUser` written as `data.json`, else `empty`. A
+    switched-off plugin is `outstanding`. One that throws, runs past 60 s or hands over more than 32 MiB is
+    `failed` — never truncated. One with no handler is `not-supported`, because core can't know it holds
+    nothing.
+  - **Limits.** One export per account per day; a failed one doesn't count. The interval, retention and
+    plugin limits are configurable under `mosaicast.export.*`, and the plugin limits can only be lowered.
+  - **Admins** see the jobs and each plugin's outcome under *Users*, never an archive.
+  - **Account deletion** deletes the exports, archives included. A sweep deletes expired archives and
+    fails jobs a restart interrupted.
 - **Plugins hear about every write that moves an episode's phase (`0.7.8`, core#270, SDK 0.19.0).**
   `PluginContext.onEpisodePhaseChanged((slug, phase) -> …)` fires after the commit when a write changes an
   episode's derived phase. That covers an announce, an `announceAt` edit either way, every release path, a
