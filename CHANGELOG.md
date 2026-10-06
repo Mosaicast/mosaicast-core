@@ -14,8 +14,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
-- **⚠️ Plugins must be rebuilt for `platformApi` 0.18.0.** Core now pins SDK 0.18.0, and a plugin built
-  against 0.17.0 is rejected at load until it is rebuilt against the new SDK.
+- **⚠️ Plugins must be rebuilt for `platformApi` 0.19.0 (`0.7.8`).** Core now pins SDK 0.19.0, and a plugin
+  built against 0.18.0 is rejected at load until it is rebuilt. The bump is a security one as much as a
+  linking one: the host ignores manifest keys it doesn't know, so an older host would have loaded a plugin
+  declaring `keyFloors` or `schemaReadableBy` and served those keys and rows at the plugin floor.
+- **`ctx.feeds.displayMany` splits instead of clamping (`0.7.8`, core#269).** Past 200 slugs it sends
+  several requests and merges the answers, so `displayMany(ctx.episodes)` covers every episode of a long
+  show. Before, everything past the 200th was silently missing, which reads exactly like "not visible to
+  you". If one request fails, the whole call rejects.
+- **⚠️ Plugins must be rebuilt for `platformApi` 0.18.0 (`0.7.7`).** Core pinned SDK 0.18.0; a plugin built
+  against 0.17.0 was rejected at load until rebuilt.
 
 ### Added
 

@@ -361,12 +361,14 @@ export function makePluginFeeds(pluginId: string): FeedsClient {
     if (slugs.length === 0) {
       return Promise.resolve({});
     }
-    // Clamped rather than rejected, matching `scope-episodes` and what the SDK's double does: a plugin
-    // asking about more episodes than the host will answer for in one call gets an answer, not an error.
-    const asked = slugs.slice(0, DISPLAY_BATCH_LIMIT);
-    return api.get<Record<string, DisplaySnapshot>>(
-      `${base}?slugs=${asked.map(encodeURIComponent).join(',')}`,
+    // Split and merged, never clamped (SDK 0.19.0, core#269). `ctx.episodes` is uncapped, and the SDK's own
+    // example hands it straight to `displayMany`; clamping at the server's per-request ceiling dropped
+    // everything past the 200th episode of a long show — indistinguishable from "not visible to you". One
+    // failed chunk rejects the whole call for the same reason: a partial answer would read as hidden episodes.
+    const requests = chunks([...new Set(slugs)], DISPLAY_BATCH_LIMIT).map((asked) =>
+      api.get<Record<string, DisplaySnapshot>>(`${base}?slugs=${asked.map(encodeURIComponent).join(',')}`),
     );
+    return Promise.all(requests).then((answers) => Object.assign({}, ...answers));
   };
   return {
     display: (slug: string) => fetchMany([slug]).then((byslug) => byslug[slug] ?? null),
@@ -528,8 +530,8 @@ export function makePluginBlobs(pluginId: string): BlobClient {
 /**
  * `ctx.users` — resolves user ids to people (ARCHITECTURE §8.8).
  *
- * The batch is clamped rather than rejected, matching `feeds` and `tags`: a plugin drawing a long
- * leaderboard gets an answer, not an error. The host clamps too, so this is a courtesy rather than the
+ * The batch is clamped rather than rejected, matching `tags` (`feeds` splits instead, SDK 0.19.0): a plugin
+ * drawing a long leaderboard gets an answer, not an error. The host clamps too, so this is a courtesy rather than the
  * boundary.
  *
  * Unresolvable ids come back **absent, not redacted** — the array may be shorter than the request and is

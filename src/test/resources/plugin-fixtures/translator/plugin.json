@@ -1,7 +1,7 @@
 {
   "id": "translator",
   "version": "1.0.0",
-  "platformApi": "0.18.0",
+  "platformApi": "0.19.0",
   "name": "Translator Fixture",
   "frontend": {
     "entry": "fixture.js",
