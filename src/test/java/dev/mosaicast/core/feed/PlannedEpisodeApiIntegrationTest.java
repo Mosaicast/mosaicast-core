@@ -387,10 +387,15 @@ class PlannedEpisodeApiIntegrationTest {
         String season = "/api/plugins/scope-episodes?type=season&id=" + feed.getSlug() + ":2";
         String episode = "/api/plugins/scope-episodes?type=episode&id=" + slug;
 
-        for (String path : List.of(site, feedScope, season, episode)) {
+        // This feed's own scopes: the plan leads. The site scope also holds other tests' quiet plans, in
+        // whatever order they ran, so there it only has to be present.
+        for (String path : List.of(feedScope, season, episode)) {
             JsonNode options = JSON.readTree(call(secret, HttpMethod.GET, path, null).getBody());
             assertThat(options.get(0).path("id").asString()).as(path).isEqualTo(slug);
             assertThat(options.get(0).path("label").asString()).as(path).contains("The Secret Season Opener");
+        }
+        assertThat(call(secret, HttpMethod.GET, site, null).getBody()).contains(slug);
+        for (String path : List.of(site, feedScope, season, episode)) {
             assertThat(rest.getForObject(path, String.class)).as("anonymous: " + path).doesNotContain(slug);
         }
         DevLogin.Cookies fan = DevLogin.login(rest, "fan");
