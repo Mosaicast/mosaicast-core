@@ -6,6 +6,7 @@ package dev.mosaicast.core.plugin;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import dev.mosaicast.core.plugin.PluginManifest.DataAccess;
+import dev.mosaicast.core.plugin.PluginManifest.KeyFloor;
 import dev.mosaicast.core.plugin.PluginManifest.Slot;
 import dev.mosaicast.plugin.api.Role;
 import dev.mosaicast.plugin.api.ScopeType;
@@ -178,6 +179,46 @@ class PluginAccessPolicyTest {
         assertThat(PluginAccessPolicy.canRead(m, Optional.empty())).isTrue();
         assertThat(PluginAccessPolicy.canWrite(m, Optional.of(Role.FAN))).isFalse();
         assertThat(PluginAccessPolicy.canWrite(m, Optional.of(Role.PODCASTER))).isTrue();
+    }
+
+    @Test
+    void keyFloorsRaiseNamedKeysAndTheStrictestMatchWins() {
+        // core#259: public numbers, podcaster-only bookkeeping, one record raised again to admin.
+        PluginManifest m = manifest(new DataAccess("anonymous", "podcaster", List.of(), null, List.of(
+                new KeyFloor(List.of("import:*"), "podcaster", null),
+                new KeyFloor(List.of("import:secret"), "admin", null),
+                new KeyFloor(List.of("bundles"), null, "admin"))));
+        Optional<Role> anonymous = Optional.empty();
+
+        assertThat(PluginAccessPolicy.canReadKey(m, ScopeType.SITE, "stats", anonymous)).isTrue();
+        assertThat(PluginAccessPolicy.canReadKey(m, ScopeType.SITE, "import:1", anonymous)).isFalse();
+        assertThat(PluginAccessPolicy.canReadKey(m, ScopeType.SITE, "import:1", Optional.of(Role.PODCASTER)))
+                .isTrue();
+        assertThat(PluginAccessPolicy.canReadKey(m, ScopeType.SITE, "import:secret", Optional.of(Role.PODCASTER)))
+                .isFalse();
+        // A read floor says nothing about writes, and the other way round.
+        assertThat(PluginAccessPolicy.canWriteKey(m, ScopeType.SITE, "import:1", Optional.of(Role.PODCASTER)))
+                .isTrue();
+        assertThat(PluginAccessPolicy.canReadKey(m, ScopeType.SITE, "bundles", anonymous)).isTrue();
+        assertThat(PluginAccessPolicy.canWriteKey(m, ScopeType.SITE, "bundles", Optional.of(Role.PODCASTER)))
+                .isFalse();
+
+        assertThat(PluginAccessPolicy.hiddenSelectors(m, ScopeType.SITE, anonymous))
+                .containsExactly("import:*", "import:secret");
+        assertThat(PluginAccessPolicy.hiddenSelectors(m, ScopeType.SITE, Optional.of(Role.PODCASTER)))
+                .containsExactly("import:secret");
+        assertThat(PluginAccessPolicy.hiddenSelectors(m, ScopeType.SITE, Optional.of(Role.ADMIN))).isEmpty();
+    }
+
+    @Test
+    void keyFloorsNeverApplyToTheUserScope() {
+        PluginManifest m = manifest(new DataAccess("anonymous", "podcaster", List.of(), null,
+                List.of(new KeyFloor(List.of("*"), "admin", "admin"))));
+
+        assertThat(PluginAccessPolicy.canReadKey(m, ScopeType.USER, "anything", Optional.of(Role.FAN))).isTrue();
+        assertThat(PluginAccessPolicy.canWriteKey(m, ScopeType.USER, "anything", Optional.of(Role.FAN))).isTrue();
+        assertThat(PluginAccessPolicy.hiddenSelectors(m, ScopeType.USER, Optional.of(Role.FAN))).isEmpty();
+        assertThat(PluginAccessPolicy.hiddenSelectors(m, ScopeType.SITE, Optional.of(Role.FAN))).containsExactly("*");
     }
 
     /** Sample-shaped floors (anonymous reads, podcaster writes) with the given keys reserved. */

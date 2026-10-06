@@ -595,6 +595,39 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void keyFloorsThatRaiseTheFloorsLoad() throws Exception {
+        PluginManifest manifest = parse(withData("""
+                {"readableBy":"anonymous","writableBy":"podcaster","keyFloors":[
+                  {"keys":["import:*","staged:*"],"readableBy":"podcaster"},
+                  {"keys":["bundles"],"writableBy":"Admin"},
+                  {"keys":["*"],"readableBy":"anonymous"}]}
+                """));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.data().keyFloorsOrEmpty()).hasSize(3);
+        assertThat(manifest.data().keyFloorsOrEmpty().get(1).writeFloor()).isEqualTo("admin");
+    }
+
+    @Test
+    void aKeyFloorThatCannotMeanWhatItSaysRejectsThePlugin() throws Exception {
+        // core#259: each would load a plugin whose manifest claims a key is private while the host serves it.
+        for (String bad : new String[] {
+                // below the plugin's read floor (podcaster reads, defaulting from writableBy)
+                "{\"writableBy\":\"podcaster\",\"keyFloors\":[{\"keys\":[\"a\"],\"readableBy\":\"fan\"}]}",
+                // below the plugin's write floor
+                "{\"writableBy\":\"podcaster\",\"keyFloors\":[{\"keys\":[\"a\"],\"writableBy\":\"fan\"}]}",
+                "{\"writableBy\":\"fan\",\"keyFloors\":[{\"keys\":[\"a\"],\"writableBy\":\"anonymous\"}]}",
+                "{\"keyFloors\":[{\"keys\":[],\"readableBy\":\"admin\"}]}",
+                "{\"keyFloors\":[{\"readableBy\":\"admin\"}]}",
+                "{\"keyFloors\":[{\"keys\":[\"a\"]}]}",
+                "{\"keyFloors\":[{\"keys\":[\"a*b\"],\"readableBy\":\"admin\"}]}",
+                "{\"keyFloors\":[{\"keys\":[\"a\"],\"readableBy\":\"admins\"}]}"}) {
+            assertThatThrownBy(parse(withData(bad))::validate).as(bad)
+                    .isInstanceOf(PluginValidationException.class)
+                    .hasMessageContaining("keyFloors");
+        }
+    }
+
+    @Test
     void backendOwnedAcceptsAnExactKeyAPrefixAndABareStar() throws Exception {
         PluginManifest manifest = parse(withData("""
                 {"readableBy":"anonymous","writableBy":"podcaster",

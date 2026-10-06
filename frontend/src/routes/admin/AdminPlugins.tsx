@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: 2026 The Mosaicast Authors
 
 import { useCallback, useEffect, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import { ApiError, api } from '../../api/client';
@@ -210,6 +211,40 @@ export function AdminPlugins() {
                 <p className="mc-muted mc-pluginrow__readsAllUsers">{t('admin.plugins.readsAllUsers')}</p>
               )}
 
+              {/* Who can reach what it stores, as the host enforces it (core#259, core#261). Here for the same
+                  reason as the external block below: whether to run a plugin is decided on this page, and
+                  "are its private keys private" is part of that. */}
+              {plugin.access && (
+                <div className="mc-pluginrow__external">
+                  <p className="mc-pluginrow__storageTitle">{t('admin.plugins.access.title')}</p>
+                  <p className="mc-muted">
+                    {t('admin.plugins.access.documents')}: {accessParts(t, plugin.access.dataRead, plugin.access.dataWrite)}
+                  </p>
+                  {plugin.access.schemaRead && (
+                    <p className="mc-muted">
+                      {t('admin.plugins.access.tables')}: {accessParts(t, plugin.access.schemaRead, null)}
+                    </p>
+                  )}
+                  {plugin.access.blobRead && (
+                    <p className="mc-muted">
+                      {t('admin.plugins.access.files')}:{' '}
+                      {accessParts(t, plugin.access.blobRead, plugin.access.blobWrite, 'upload')}
+                    </p>
+                  )}
+                  {plugin.access.keyFloors.map((floor) => (
+                    <p key={floor.keys.join(',')} className="mc-muted">
+                      {floor.keys.map((key, index) => (
+                        <span key={key}>
+                          {index > 0 && ', '}
+                          <code>{key}</code>
+                        </span>
+                      ))}
+                      : {accessParts(t, floor.readableBy, floor.writableBy)}
+                    </p>
+                  ))}
+                </div>
+              )}
+
               {/* What this plugin may spend, read straight off its manifest (§16). Here rather than only in
                   plugin.json because the decision it informs — whether to run this plugin at all — is made
                   on this page, and the floor is the effective one the host enforces, not the file's. */}
@@ -340,4 +375,18 @@ function statusKey(plugin: AdminPlugin) {
 
 function statusClass(plugin: AdminPlugin) {
   return plugin.status === 'LOADED' && plugin.enabled ? 'mc-chip' : 'mc-chip mc-chip--lock';
+}
+
+/**
+ * "read: Everyone · write: Podcaster" for one surface — either half left out when it is `null`, which is how
+ * a key floor that raises only one direction reads.
+ */
+function accessParts(t: TFunction, read: string | null, write: string | null, writeVerb: 'write' | 'upload' = 'write') {
+  const role = (name: string) => t(`role.${name}`, name);
+  return [
+    read && t('admin.plugins.access.read', { role: role(read) }),
+    write && t(`admin.plugins.access.${writeVerb}`, { role: role(write) }),
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }

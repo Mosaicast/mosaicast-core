@@ -37,6 +37,9 @@ public class PluginDataService {
     private final ObjectMapper objectMapper;
     private final ScopeIds scopeIds;
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager entityManager;
+
     public PluginDataService(PluginDataRepository repository, PluginSettingsService settings,
                              ObjectMapper objectMapper, ScopeIds scopeIds) {
         this.repository = repository;
@@ -144,9 +147,64 @@ public class PluginDataService {
     /** Paginated slice of {@link #query} for the HTTP list endpoint. */
     @Transactional(readOnly = true)
     public Page<DocEntry> queryPage(String pluginId, DataScope scope, String keyPrefix, Pageable pageable) {
-        return repository
-                .pageInScope(pluginId, scope.typeColumn(), canonical(scope), keyPrefix, pageable)
-                .map(d -> new DocEntry(d.getId().getKey(), d.getValue()));
+        return queryPage(pluginId, scope, keyPrefix, List.of(), pageable);
+    }
+
+    /**
+     * {@link #queryPage(String, DataScope, String, Pageable)} leaving out every key a selector in {@code hidden}
+     * covers — the keys a {@code data.keyFloors} entry keeps from this reader (core#259).
+     *
+     * <p>Excluded <strong>in the query</strong>, not after it: filtering a fetched page would leave pages short
+     * and {@code totalElements} counting documents the reader may not see, which both breaks paging and tells
+     * them how many private keys there are. Selectors become bound parameters ({@code key <> ?} for an exact
+     * key, a {@code substring} comparison for a prefix) rather than {@code LIKE} patterns, so a key's own
+     * {@code _} never acts as a wildcard.
+     *
+     * @param hidden selectors in the {@code backendOwned} grammar; a bare {@code *} hides everything
+     */
+    @Transactional(readOnly = true)
+    public Page<DocEntry> queryPage(String pluginId, DataScope scope, String keyPrefix, List<String> hidden,
+                                    Pageable pageable) {
+        if (hidden.isEmpty()) {
+            return repository
+                    .pageInScope(pluginId, scope.typeColumn(), canonical(scope), keyPrefix, pageable)
+                    .map(d -> new DocEntry(d.getId().getKey(), d.getValue()));
+        }
+        if (hidden.contains("*")) {
+            return Page.empty(pageable);
+        }
+        StringBuilder where = new StringBuilder(" where d.id.pluginId = :pluginId and d.id.scopeType = :scopeType"
+                + " and d.id.scopeId = :scopeId and d.id.key like concat(:prefix, '%')");
+        for (int i = 0; i < hidden.size(); i++) {
+            where.append(hidden.get(i).endsWith("*")
+                    ? " and substring(d.id.key, 1, :len%d) <> :sel%d".formatted(i, i)
+                    : " and d.id.key <> :sel%d".formatted(i));
+        }
+        var rows = entityManager.createQuery(
+                "select d from PluginData d" + where + " order by d.id.key asc", PluginData.class);
+        var count = entityManager.createQuery("select count(d) from PluginData d" + where, Long.class);
+        for (jakarta.persistence.Query query : List.<jakarta.persistence.Query>of(rows, count)) {
+            query.setParameter("pluginId", pluginId);
+            query.setParameter("scopeType", scope.typeColumn());
+            query.setParameter("scopeId", canonical(scope));
+            query.setParameter("prefix", keyPrefix);
+            for (int i = 0; i < hidden.size(); i++) {
+                String selector = hidden.get(i);
+                if (selector.endsWith("*")) {
+                    String prefix = selector.substring(0, selector.length() - 1);
+                    query.setParameter("len" + i, prefix.length());
+                    query.setParameter("sel" + i, prefix);
+                } else {
+                    query.setParameter("sel" + i, selector);
+                }
+            }
+        }
+        List<DocEntry> page = rows.setFirstResult((int) pageable.getOffset())
+                .setMaxResults(pageable.getPageSize())
+                .getResultList().stream()
+                .map(d -> new DocEntry(d.getId().getKey(), d.getValue()))
+                .toList();
+        return new org.springframework.data.domain.PageImpl<>(page, pageable, count.getSingleResult());
     }
 
     /**

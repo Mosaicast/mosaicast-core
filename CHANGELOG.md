@@ -27,6 +27,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Per-key read and write floors in the plugin doc store (`0.7.8`, core#259, SDK 0.19.0).**
+  `data.keyFloors: [{ keys, readableBy?, writableBy? }]` raises the floor of the keys it names, using the
+  `backendOwned` selector grammar: private bookkeeping beside public numbers, or an admin-only setting
+  beside podcaster-writable ones.
+  - **Raise-only.** A floor below the plugin's own, `writableBy: "anonymous"`, an empty `keys`, an entry
+    with neither floor, or a malformed selector rejects the plugin at load.
+  - **Strictest wins.** Where several entries match a key, the highest floor applies, per direction.
+  - **Writes** are checked plugin floor → `backendOwned` → key floor, so a backend-owned key stays
+    unwritable. The new 403 has its own problem type, `…/problems/key-floor`.
+  - **Reads.** A single read below a key's floor is a 403. A **listing** leaves such keys out *before*
+    paging, so its totals count only what the reader may see. A **batch read** leaves them absent, like a
+    miss.
+  - Ignored for the per-user (`USER`) scope and for the backend's own `ctx.store()`.
+- **The admin plugin page says who can reach a plugin's data (`0.7.8`).** It shows the effective floors
+  for documents, tables and files, and each key floor. Before, none of them was visible there, although
+  whether to run a plugin is decided on that page.
 - **A plugin's tables can have a read floor of their own (`0.7.8`, core#261, SDK 0.19.0).**
   `storage.schemaReadableBy` gates all four schema read endpoints (`select`, `search`, `count`, one row) and
   defaults to `data.readableBy`. Before, a plugin whose tile had to be anonymous, such as bingo, also served

@@ -27,7 +27,8 @@ import java.util.Optional;
  * {@code USER} scope, which no floor opens and no request can name ({@link PluginDataController}). And a
  * manifest may reserve the keys its own backend authors — {@link #backendOwnedBy} — which is the one
  * <em>per-key</em> rule on this surface, and the only reason a plugin can compute a value and have it still
- * be that value when a visitor reads it.
+ * be that value when a visitor reads it. {@code data.keyFloors} (core#259) is the other: it raises the floors of
+ * named keys, never lowers them.
  */
 final class PluginAccessPolicy {
 
@@ -90,15 +91,69 @@ final class PluginAccessPolicy {
             return Optional.empty();
         }
         for (String pattern : manifest.dataOrDefault().backendOwnedOrEmpty()) {
-            // A bare "*" needs no special case: it is the empty prefix, and every key starts with that.
-            boolean matches = pattern.endsWith("*")
-                    ? key.startsWith(pattern.substring(0, pattern.length() - 1))
-                    : pattern.equals(key);
-            if (matches) {
+            if (selects(pattern, key)) {
                 return Optional.of(pattern);
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * Whether one selector — an exact key, a {@code *}-terminated prefix, or the bare {@code *} — covers a key.
+     * Case-sensitive, like keys. A bare {@code *} needs no special case: it is the empty prefix.
+     */
+    static boolean selects(String selector, String key) {
+        return selector.endsWith("*")
+                ? key.startsWith(selector.substring(0, selector.length() - 1))
+                : selector.equals(key);
+    }
+
+    /**
+     * Whether the role may read this key, given the manifest's {@code data.keyFloors} (core#259) — on top of,
+     * never instead of, {@link #canRead}. The strictest matching entry wins. Never applies to {@code USER}.
+     */
+    static boolean canReadKey(PluginManifest manifest, ScopeType scope, String key, Optional<Role> role) {
+        return rank(role) >= keyFloor(manifest, scope, key, true);
+    }
+
+    /** The write-side twin of {@link #canReadKey}: checked after the plugin floor and {@code backendOwned}. */
+    static boolean canWriteKey(PluginManifest manifest, ScopeType scope, String key, Optional<Role> role) {
+        return rank(role) >= keyFloor(manifest, scope, key, false);
+    }
+
+    /**
+     * The selectors whose keys this role may not read — what a listing must leave out <em>before</em> paging,
+     * so its totals count only what the reader may see (core#259). Empty for {@code USER} and for a plugin
+     * that declares no key floors. Strictest-wins falls out of the union: a key is hidden as soon as one
+     * matching entry is above the reader.
+     */
+    static java.util.List<String> hiddenSelectors(PluginManifest manifest, ScopeType scope, Optional<Role> role) {
+        if (scope == ScopeType.USER) {
+            return java.util.List.of();
+        }
+        int caller = rank(role);
+        java.util.List<String> hidden = new java.util.ArrayList<>();
+        for (PluginManifest.KeyFloor floor : manifest.dataOrDefault().keyFloorsOrEmpty()) {
+            if (floor.readFloor() != null && rank(floor.readFloor()) > caller) {
+                hidden.addAll(floor.keysOrEmpty());
+            }
+        }
+        return hidden;
+    }
+
+    /** The highest floor any matching key-floor entry sets in one direction, or anonymous when none does. */
+    private static int keyFloor(PluginManifest manifest, ScopeType scope, String key, boolean read) {
+        if (scope == ScopeType.USER || key == null) {
+            return ANONYMOUS;
+        }
+        int strictest = ANONYMOUS;
+        for (PluginManifest.KeyFloor floor : manifest.dataOrDefault().keyFloorsOrEmpty()) {
+            String role = read ? floor.readFloor() : floor.writeFloor();
+            if (role != null && floor.keysOrEmpty().stream().anyMatch(selector -> selects(selector, key))) {
+                strictest = Math.max(strictest, rank(role));
+            }
+        }
+        return strictest;
     }
 
     private static int readFloor(PluginManifest manifest) {
