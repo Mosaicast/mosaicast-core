@@ -60,6 +60,12 @@ public class FixturePlugin implements PluginBackend, SitemapProvider {
         ctx.store().put(Scope.site(), "reads-all-users", ctx.allUsers() != null);
         // SDK 0.18.0: records the last episode whose plan its feed item released, for the hook's test.
         ctx.onEpisodeReleased(slug -> ctx.store().put(Scope.site(), "released-last", slug));
+        // SDK 0.19.0: one key per episode, so concurrent changes to different episodes never race. A release
+        // also notes what released-last said when this ran, which shows the release listener ran first.
+        ctx.onEpisodePhaseChanged((slug, phase) -> ctx.store().put(Scope.site(), "phase:" + slug,
+                phase == null ? "gone" : phase == dev.mosaicast.plugin.api.EpisodePhase.RELEASED
+                        ? "released after " + ctx.store().get(Scope.site(), "released-last", String.class).orElse("-")
+                        : phase.name().toLowerCase(java.util.Locale.ROOT)));
         ctx.onSchedule(Duration.ofMinutes(Math.max(1, refresh)), () -> {
             // Nothing to do on tick in the fixture; registering it proves onSchedule accepts the task.
         });

@@ -306,6 +306,58 @@ class PlannedEpisodeApiIntegrationTest {
     }
 
     @Test
+    void aWriteThatMovesAPlansPhaseTellsPluginsAndOneThatDoesNotStaysQuiet() throws Exception {
+        // core#270: the leak was an announced episode going quiet again with no plugin told.
+        String secret = token();
+        String slug = plan(secret, "{\"title\":\"Phase check\"}").path("slug").asString();
+
+        call(secret, HttpMethod.POST, "/api/admin/episodes/" + slug + "/announce", null);
+        assertThat(awaitPhase(slug, "upcoming")).isEqualTo("upcoming");
+
+        call(secret, HttpMethod.PATCH, "/api/admin/episodes/" + slug, "{\"announceAt\":\"2999-01-01T00:00:00Z\"}");
+        assertThat(awaitPhase(slug, "planned")).isEqualTo("planned");
+
+        // A title edit leaves the phase where it was: nothing to tell. A stray event would overwrite the
+        // sentinel; the delivery that would do it lands well inside a second.
+        call(secret, HttpMethod.PUT, "/api/plugins/good/data/site/main/phase:" + slug, "\"sentinel\"");
+        call(secret, HttpMethod.PATCH, "/api/admin/episodes/" + slug, "{\"title\":\"Phase check, renamed\"}");
+        Thread.sleep(1000);
+        assertThat(awaitPhase(slug, "sentinel")).isEqualTo("sentinel");
+
+        call(secret, HttpMethod.DELETE, "/api/admin/episodes/" + slug, null);
+        assertThat(awaitPhase(slug, "gone")).isEqualTo("gone");
+    }
+
+    @Test
+    void aReleaseRunsTheReleaseListenersFirstThenThePhaseOnes() throws Exception {
+        String secret = token();
+        String plannedSlug = plan(secret, "{\"title\":\"Order check\"}").path("slug").asString();
+        EpisodeRef imported = importedEpisode("guid-order", "Order check, released", 7, 1);
+
+        call(secret, HttpMethod.POST, "/api/admin/episodes/" + plannedSlug + "/match",
+                "{\"episode\":\"" + imported.getSlug() + "\"}");
+
+        assertThat(awaitPhase(plannedSlug, "released after " + plannedSlug))
+                .isEqualTo("released after " + plannedSlug);
+        // And the duplicate the match removed is gone for plugins too.
+        assertThat(awaitPhase(imported.getSlug(), "gone")).isEqualTo("gone");
+    }
+
+    /** What the fixture's phase listener last wrote for this slug, waiting a while for a specific value. */
+    private String awaitPhase(String slug, String expected) throws InterruptedException {
+        String last = null;
+        for (int i = 0; i < 50; i++) {
+            String body = rest.getForObject("/api/plugins/good/data/site/main/phase:" + slug, String.class);
+            last = body == null ? null : JSON.readTree(body).asString();
+            if (expected.equals(last)) {
+                return last;
+            }
+            Thread.sleep(100);
+        }
+        return last;
+    }
+
+    @Test
     void aMatchOntoAnEpisodeThatAlreadyHasPluginDataIsRefusedAndChangesNothing() {
         String secret = token();
         String plannedSlug = plan(secret, "{\"title\":\"The quiz\"}").path("slug").asString();

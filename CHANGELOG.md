@@ -27,6 +27,15 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Plugins hear about every write that moves an episode's phase (`0.7.8`, core#270, SDK 0.19.0).**
+  `PluginContext.onEpisodePhaseChanged((slug, phase) -> …)` fires after the commit when a write changes an
+  episode's derived phase. That covers an announce, an `announceAt` edit either way, every release path, a
+  withdrawal, a withdrawn episode returning, and an episode ceasing to exist (`phase` is `null`): a
+  cancelled plan, or the duplicate a match or a confirmed suggestion removes. Before, a plan set back to
+  quiet stayed named in whatever a plugin published, until its next schedule tick. On a release the
+  `onEpisodeReleased` listeners run first, then the phase listeners, one plugin's listeners in order on a
+  thread of their own. The clock passing `announceAt` still fires nothing: becoming visible late is
+  harmless.
 - **Per-key read and write floors in the plugin doc store (`0.7.8`, core#259, SDK 0.19.0).**
   `data.keyFloors: [{ keys, readableBy?, writableBy? }]` raises the floor of the keys it names, using the
   `backendOwned` selector grammar: private bookkeeping beside public numbers, or an admin-only setting

@@ -132,6 +132,7 @@ public class PlannedEpisodeService {
     @Transactional
     public PlannedView update(String slug, JsonNode patch) {
         EpisodeRef ref = planned(slug);
+        Instant announcedBefore = ref.getAnnounceAt();
         DisplaySnapshot current = ref.getProvisionalDisplay();
         String title = patch.has("title") ? text(patch, "title") : current.title();
         if (title == null || title.isBlank()) {
@@ -152,6 +153,7 @@ public class PlannedEpisodeService {
             ref.announceAt(parseAnnounce(when.isNull() ? null : when.asString()));
         }
         refs.save(ref);
+        publishIfPhaseMoved(ref, announcedBefore);
         log.info("Planned episode '{}' edited", slug);
         return view(ref, feeds.findById(ref.getFeedId()).orElse(null));
     }
@@ -160,10 +162,27 @@ public class PlannedEpisodeService {
     @Transactional
     public PlannedView announce(String slug) {
         EpisodeRef ref = planned(slug);
+        Instant announcedBefore = ref.getAnnounceAt();
         ref.announceAt(Instant.now());
         refs.save(ref);
+        publishIfPhaseMoved(ref, announcedBefore);
         log.info("Planned episode '{}' announced", slug);
         return view(ref, feeds.findById(ref.getFeedId()).orElse(null));
+    }
+
+    /**
+     * Tells plugins when an edit moved a plan between {@code PLANNED} and {@code UPCOMING} (core#270) — compared
+     * before and after at <em>one</em> instant, taken after the write, so an {@code announceAt} of "now" counts
+     * as announced and an untouched one as no change. A plan going quiet again is the case that matters: until
+     * this, a plugin kept publishing the hidden episode until its next schedule tick.
+     */
+    private void publishIfPhaseMoved(EpisodeRef ref, Instant announcedBefore) {
+        Instant now = Instant.now();
+        dev.mosaicast.plugin.api.EpisodePhase before = EpisodeRef.phaseOf(ref.getStatus(), announcedBefore, now);
+        dev.mosaicast.plugin.api.EpisodePhase after = ref.phase(now);
+        if (before != after) {
+            events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(ref.getSlug(), after));
+        }
     }
 
     /**
@@ -177,6 +196,9 @@ public class PlannedEpisodeService {
         EpisodeRef ref = planned(slug);
         int documents = pluginData.deleteByScope(EPISODE_SCOPE, List.of(slug));
         refs.delete(ref);
+        // Its episode-scoped documents went with it; a site- or feed-scope one a plugin published can still
+        // name it, and is the plugin's to drop (core#270).
+        events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(slug, null));
         log.info("Planned episode '{}' cancelled, {} plugin document(s) removed", slug, documents);
         return documents;
     }
@@ -273,6 +295,8 @@ public class PlannedEpisodeService {
         }
         refs.save(plan);
         events.publishEvent(new dev.mosaicast.core.episode.EpisodeReleasedEvent(plan.getSlug()));
+        // The duplicate was a released episode a plugin may have named; it no longer exists (core#270).
+        events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(importedSlug, null));
         if (snapshot != null) {
             displays.save(new EpisodeDisplay(to, snapshot));
         }

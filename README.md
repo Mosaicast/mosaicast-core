@@ -216,6 +216,9 @@ curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/j
 - Plugins see where the episode stands: an episode-scoped UI reads `ctx.episode.phase` (`planned`,
   `upcoming`, `released`, `withdrawn`), a backend reads `DisplaySnapshot.phase()`, and
   `ctx.onEpisodeReleased(slug -> …)` fires once the episode is released (SDK 0.18.0).
+  `ctx.onEpisodePhaseChanged((slug, phase) -> …)` fires after any write that changes the phase: announce,
+  an `announceAt` edit either way, a release, a withdrawal, a return, or a cancel (`phase` is `null`)
+  (SDK 0.19.0).
 
 ## Versioning & releases
 

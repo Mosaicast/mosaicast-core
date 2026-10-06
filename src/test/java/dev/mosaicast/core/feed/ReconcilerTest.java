@@ -187,6 +187,27 @@ class ReconcilerTest {
     }
 
     @Test
+    void aWithdrawalAndAReturnTellPluginsAndAQuietPollTellsThemNothing() {
+        // core#270: becoming hidden late is a leak, so a withdrawal is announced by the poll that saw it.
+        List<Object> published = new java.util.ArrayList<>();
+        Reconciler telling = new Reconciler(refs, displays, tags, vocabulary, related, published::add);
+        EpisodeRef staying = EpisodeRef.published(FEED, "g-stay", 1, 1, "test-s01e01");
+        EpisodeRef leaving = EpisodeRef.published(FEED, "g-leave", 1, 2, "test-s01e02");
+        when(refs.findByFeedId(FEED)).thenReturn(List.of(staying, leaving));
+
+        telling.reconcile(FEED, "Test Feed", List.of(raw("g-stay", "Stay", 1, 1)));
+
+        assertThat(published).containsExactly(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(
+                "test-s01e02", dev.mosaicast.plugin.api.EpisodePhase.WITHDRAWN));
+
+        published.clear();
+        telling.reconcile(FEED, "Test Feed", List.of(raw("g-stay", "Stay", 1, 1), raw("g-leave", "Back", 1, 2)));
+
+        assertThat(published).containsExactly(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(
+                "test-s01e02", dev.mosaicast.plugin.api.EpisodePhase.RELEASED));
+    }
+
+    @Test
     void case3_missingGuid_withdrawsNeverDeletes() {
         EpisodeRef gone = EpisodeRef.published(FEED, "g-old", 1, 3, "test-s01e03");
         when(refs.findByFeedId(FEED)).thenReturn(List.of(gone));
