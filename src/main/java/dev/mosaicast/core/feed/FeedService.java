@@ -196,7 +196,8 @@ public class FeedService {
      * — their display snapshots, tags, listening progress and pins. Plus the plugin documents stored
      * against the scopes those slugs named, which cascade from nothing because a plugin's store is keyed
      * by the host's scope strings rather than by a foreign key. What stays: the tag vocabulary, which is
-     * the site's and may still be carried by other feeds' episodes.
+     * the site's and may still be carried by other feeds' episodes. Every episode is announced to plugins
+     * as gone ({@code onEpisodePhaseChanged} with {@code null}).
      *
      * @return what was removed, so the admin UI can say it rather than claim it
      */
@@ -231,6 +232,11 @@ public class FeedService {
 
         refs.deleteAll(episodes);
         feeds.delete(feed);
+        // Each episode no longer exists (core#270's null): a plugin's site-scope documents can still name
+        // them, and would until its next tick. After the commit, like every phase event, so a deletion that
+        // rolls back tells nobody anything.
+        episodeScopes.forEach(slug ->
+                events.publishEvent(new dev.mosaicast.core.episode.EpisodePhaseChangedEvent(slug, null)));
 
         log.info("Deleted feed '{}' ({}): {} episode(s), {} plugin document(s)",
                 LogSafe.of(feed.getTitle()), id, episodes.size(), documents);

@@ -27,6 +27,9 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Deleting a feed tells plugins each of its episodes is gone (`0.8.1`).** `onEpisodePhaseChanged` now
+  fires with `null` for every episode of a deleted feed, after the commit, like a cancelled plan. Before,
+  a plugin's site-scope documents kept naming them until its next schedule tick.
 - **A person can download everything the site holds about them (`0.8.0`, core#263, SDK 0.19.0).** GDPR
   Art. 15 and Art. 20. The account page has a *Download your data* section.
   - **How it works.** `POST /api/me/export` starts a job and answers a receipt (`202`). When the archive is
