@@ -127,7 +127,8 @@
    install with no sidebar plugin — which is every install by default. */
 .mc-detail:has(.mc-detail__side .mc-slot:not(:empty)),
 .mc-detail:has(.mc-detail__side .mc-related),
-.mc-detail:has(.mc-detail__side .mc-pins) {
+.mc-detail:has(.mc-detail__side .mc-pins),
+.mc-detail:has(.mc-detail__side .mc-numbers) {
   grid-template-columns: minmax(0, 2fr) 1fr;
 }
 /* The sidebar follows while the notes scroll — its content is a companion to reading. */
@@ -145,7 +146,8 @@
      two-column split it has no room for. */
   .mc-detail:has(.mc-detail__side .mc-slot:not(:empty)),
   .mc-detail:has(.mc-detail__side .mc-related),
-  .mc-detail:has(.mc-detail__side .mc-pins) {
+  .mc-detail:has(.mc-detail__side .mc-pins),
+  .mc-detail:has(.mc-detail__side .mc-numbers) {
     grid-template-columns: 1fr;
   }
   .mc-detail__side {
@@ -303,8 +305,9 @@
   font-size: var(--mc-text-xs);
 }
 
-/* ---- M6: pinned-related curation (§6.3), podcaster/admin only ---- */
-.mc-pins {
+/* ---- M6: pinned-related curation (§6.3) and hand-set numbers (§4.4), podcaster/admin only ---- */
+.mc-pins,
+.mc-numbers {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -313,7 +316,8 @@
   border: 1px dashed var(--mc-border);
   border-radius: var(--mc-radius-lg);
 }
-.mc-pins__heading {
+.mc-pins__heading,
+.mc-numbers__heading {
   margin: 0;
   font-size: var(--mc-text-sm);
   font-weight: 600;
@@ -323,10 +327,12 @@
 }
 .mc-pins__hint,
 .mc-pins__list,
-.mc-pins__search {
+.mc-pins__search,
+.mc-numbers__hint {
   width: 100%;
 }
-.mc-pins__hint {
+.mc-pins__hint,
+.mc-numbers__hint {
   margin: 0;
   font-size: var(--mc-text-xs);
 }
@@ -370,6 +376,12 @@
 .mc-pins__result:hover,
 .mc-pins__result:focus-visible {
   border-color: var(--mc-accent);
+}
+.mc-numbers__fields,
+.mc-numbers__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mc-space-2) var(--mc-space-4);
 }
 
 /* ---- /about (§12.6) ---- */

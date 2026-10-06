@@ -207,6 +207,18 @@ export interface EpisodeSummary {
  * detail carries the real {@code audioUrl} and has **no** {@code hasAudio} flag — playability is
  * `audioUrl != null`.
  */
+/**
+ * An episode's numbers as a podcaster edits them (`/api/admin/episodes/{slug}/numbers`, core#264): the effective
+ * pair every surface shows, whether it was set by hand, and what the feed itself declares.
+ */
+export interface EpisodeNumbers {
+  season: number | null;
+  episodeNo: number | null;
+  pinned: boolean;
+  feedSeason: number | null;
+  feedEpisodeNo: number | null;
+}
+
 export interface EpisodeDetail {
   id: string; // internal UUID (progress, media identity)
   slug: string; // public identifier (URLs, episode API, plugin scope)

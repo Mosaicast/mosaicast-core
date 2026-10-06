@@ -12,6 +12,7 @@ import { useFeeds } from '../components/FeedsContext';
 import { Icon } from '../components/Icon';
 import { useResource } from '../hooks/useResource';
 import { RelatedEpisodes } from '../components/RelatedEpisodes';
+import { EpisodeNumbersEditor } from '../components/EpisodeNumbersEditor';
 import { RelatedPins } from '../components/RelatedPins';
 import { ShareButton } from '../components/ShareButton';
 import { SlotRegion } from '../components/SlotRegion';
@@ -228,6 +229,17 @@ export function EpisodePage() {
               site with no plugins still has something in its sidebar. */}
           <RelatedEpisodes episodes={related} error={relatedError} />
           <RelatedPins slug={episode.slug} onChange={reloadRelated} />
+          {/* A planned episode is numbered with its plan, in the admin area (§4.3). */}
+          {episode.status !== 'PLANNED' && (
+            <EpisodeNumbersEditor
+              slug={episode.slug}
+              onChange={() => {
+                reload();
+                // Related scores season proximity, so its answer moves with the numbers.
+                reloadRelated();
+              }}
+            />
+          )}
           <SlotRegion
             name="sidebar"
             scope={{ type: 'episode', id: episode.slug }}

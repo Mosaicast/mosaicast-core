@@ -266,7 +266,11 @@ public class PlannedEpisodeService {
         // The duplicate goes first: the feed's guid is unique per feed, and the plan is about to carry it.
         refs.delete(imported);
         refs.flush();
-        plan.bindToFeedItem(guid, imported.getSeason(), imported.getEpisodeNo());
+        plan.bindToFeedItem(guid, imported.getFeedSeason(), imported.getFeedEpisodeNo());
+        if (imported.isNumbersPinned()) {
+            // Like its tags and pins: numbers a podcaster set on the duplicate move across with it (§4.4).
+            plan.pinNumbers(imported.getSeason(), imported.getEpisodeNo());
+        }
         refs.save(plan);
         events.publishEvent(new dev.mosaicast.core.episode.EpisodeReleasedEvent(plan.getSlug()));
         if (snapshot != null) {

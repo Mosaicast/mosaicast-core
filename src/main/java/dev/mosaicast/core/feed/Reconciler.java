@@ -123,9 +123,11 @@ public class Reconciler {
 
             EpisodeRef known = byGuid.get(raw.externalGuid());
             if (known != null) {
-                // Case 2: known GUID — refresh relations, overwrite the snapshot. Identity untouched.
-                boolean relationsMoved = !java.util.Objects.equals(known.getSeason(), raw.season())
-                        || !java.util.Objects.equals(known.getEpisodeNo(), raw.episodeNumber())
+                // Case 2: known GUID — refresh relations, overwrite the snapshot. Identity untouched. Compared
+                // with what the feed said last time, not the effective numbers: a podcaster-pinned episode
+                // (§4.4) would otherwise count as "updated" on every poll.
+                boolean relationsMoved = !java.util.Objects.equals(known.getFeedSeason(), raw.season())
+                        || !java.util.Objects.equals(known.getFeedEpisodeNo(), raw.episodeNumber())
                         || known.getStatus() == EpisodeStatus.WITHDRAWN;
                 known.refreshFromFeed(raw.season(), raw.episodeNumber());
                 refs.save(known);
