@@ -404,6 +404,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A plugin can list the planned episode being prepared (`0.7.8`, core#258).** The SDK has always said a
+  quiet planned episode is in `ctx.episodes` for podcasters and admins, but the endpoint behind it ignored
+  who was asking, so it was missing for everyone. A wiki citation picker or a bingo setup screen couldn't
+  offer the one episode being prepared, and `ctx.episodeLabels` had no label for it. Quiet plans now lead
+  the first page for podcasters and admins, in every scope (site, feed, season, episode). Everyone else
+  still sees only what is public.
 - **A script can upload a file without naming its type (`0.7.8`, core#260).** curl and most HTTP clients
   send `application/octet-stream` for every uploaded file unless told otherwise, and a plugin that doesn't
   store that type answered `415`. The stats plugin's README had to tell people to append

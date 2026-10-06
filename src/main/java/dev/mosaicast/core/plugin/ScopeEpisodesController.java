@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Locale;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -45,7 +46,8 @@ public class ScopeEpisodesController {
     @GetMapping("/api/plugins/scope-episodes")
     public List<EpisodeOption> episodesIn(@RequestParam String type, @RequestParam String id,
                                           @RequestParam(defaultValue = "0") int page,
-                                          @RequestParam(defaultValue = "200") int size) {
+                                          @RequestParam(defaultValue = "200") int size,
+                                          Authentication authentication) {
         ScopeType scopeType;
         try {
             scopeType = ScopeType.valueOf(type.toUpperCase(Locale.ROOT));
@@ -53,7 +55,10 @@ public class ScopeEpisodesController {
             throw new NotFoundException("Unknown scope type: " + type);
         }
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE));
-        return feeds.summariesIn(new Scope(scopeType, id), pageable).stream()
+        // For the viewer: a quiet planned episode is in the list for a podcaster or an admin, and nobody else
+        // (SDK PluginContext.episodes, core#258) — the same rule every other surface applies.
+        boolean quiet = dev.mosaicast.core.episode.Previews.canSeeQuiet(authentication);
+        return feeds.summariesIn(new Scope(scopeType, id), pageable, quiet).stream()
                 .map(s -> new EpisodeOption(s.slug(), label(s)))
                 .toList();
     }

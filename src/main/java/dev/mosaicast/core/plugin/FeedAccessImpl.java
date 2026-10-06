@@ -55,6 +55,34 @@ public class FeedAccessImpl implements FeedAccess {
         return summariesIn(scope, Pageable.unpaged());
     }
 
+    /**
+     * As {@link #summariesIn(Scope, Pageable)}, for a viewer: with {@code includeQuiet} — a podcaster or an
+     * admin, {@code Previews.canSeeQuiet} — the quiet planned episodes in the scope lead the first page, the way
+     * upcoming ones lead the public list (core#258). The SDK has always promised this on {@code ctx.episodes};
+     * the endpoint behind it had no viewer to widen the answer for, so a plugin listing what it can prepare
+     * could not offer the one episode being prepared.
+     *
+     * <p>Only on the first page, so the public pages after it are exactly what they were and a client paging
+     * until a short page still ends: page 0 may carry more than its size, never fewer.
+     */
+    public List<EpisodeSummary> summariesIn(Scope scope, Pageable pageable, boolean includeQuiet) {
+        List<EpisodeSummary> released = summariesIn(scope, pageable);
+        if (!includeQuiet || (pageable.isPaged() && pageable.getPageNumber() > 0)) {
+            return released;
+        }
+        List<dev.mosaicast.core.episode.EpisodeRef> quiet = quietRefsIn(scope);
+        if (quiet.isEmpty()) {
+            return released;
+        }
+        java.util.Map<java.util.UUID, EpisodeSummary> byId = new java.util.HashMap<>();
+        query.summariesByIds(quiet.stream().map(dev.mosaicast.core.episode.EpisodeRef::getId).toList())
+                .forEach(summary -> byId.put(summary.id(), summary));
+        List<EpisodeSummary> answer = new java.util.ArrayList<>();
+        quiet.forEach(ref -> java.util.Optional.ofNullable(byId.get(ref.getId())).ifPresent(answer::add));
+        answer.addAll(released);
+        return answer;
+    }
+
     /** As {@link #summariesIn(Scope)}, bounded — the form anything reachable from the network should use. */
     public List<EpisodeSummary> summariesIn(Scope scope, Pageable pageable) {
         return switch (scope.type()) {
@@ -87,7 +115,12 @@ public class FeedAccessImpl implements FeedAccess {
     }
 
     private List<String> quietSlugsIn(Scope scope) {
-        List<dev.mosaicast.core.episode.EpisodeRef> quiet = switch (scope.type()) {
+        return quietRefsIn(scope).stream().map(dev.mosaicast.core.episode.EpisodeRef::getSlug).toList();
+    }
+
+    /** The quiet planned episodes in a scope — never part of a public read. */
+    private List<dev.mosaicast.core.episode.EpisodeRef> quietRefsIn(Scope scope) {
+        return switch (scope.type()) {
             case SITE -> query.quietPlanned(null, null);
             case FEED -> resolveFeed(scope.id()).map(feedId -> query.quietPlanned(feedId, null)).orElseGet(List::of);
             case SEASON -> parseSeason(scope.id())
@@ -99,7 +132,6 @@ public class FeedAccessImpl implements FeedAccess {
                     .orElseGet(List::of);
             case USER -> List.of();
         };
-        return quiet.stream().map(dev.mosaicast.core.episode.EpisodeRef::getSlug).toList();
     }
 
     /** The backend's display read: a quiet planned episode included, for the same reason as above. */

@@ -324,6 +324,31 @@ class PlannedEpisodeApiIntegrationTest {
     }
 
     @Test
+    void aPluginListsAQuietPlanForAPodcasterAndForNobodyElse() {
+        // core#258: ctx.episodes comes from scope-episodes, which ignored the viewer.
+        String secret = token();
+        importedEpisode("guid-out", "Already out", 2, 0);
+        String slug = plan(secret, "{\"season\":2,\"episodeNo\":1,\"title\":\"The Secret Season Opener\"}")
+                .path("slug").asString();
+        String site = "/api/plugins/scope-episodes?type=site&id=main";
+        String feedScope = "/api/plugins/scope-episodes?type=feed&id=" + feed.getSlug();
+        String season = "/api/plugins/scope-episodes?type=season&id=" + feed.getSlug() + ":2";
+        String episode = "/api/plugins/scope-episodes?type=episode&id=" + slug;
+
+        for (String path : List.of(site, feedScope, season, episode)) {
+            JsonNode options = JSON.readTree(call(secret, HttpMethod.GET, path, null).getBody());
+            assertThat(options.get(0).path("id").asString()).as(path).isEqualTo(slug);
+            assertThat(options.get(0).path("label").asString()).as(path).contains("The Secret Season Opener");
+            assertThat(rest.getForObject(path, String.class)).as("anonymous: " + path).doesNotContain(slug);
+        }
+        DevLogin.Cookies fan = DevLogin.login(rest, "fan");
+        assertThat(rest.exchange(feedScope, HttpMethod.GET, new HttpEntity<>(session(fan)), String.class).getBody())
+                .doesNotContain(slug);
+        // Only on the first page, so the public pages after it are what they were.
+        assertThat(call(secret, HttpMethod.GET, feedScope + "&page=1&size=1", null).getBody()).doesNotContain(slug);
+    }
+
+    @Test
     void aFanCannotPlan() {
         DevLogin.Cookies fan = DevLogin.login(rest, "fan");
         HttpHeaders headers = session(fan);
