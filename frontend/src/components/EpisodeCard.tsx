@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import type { EpisodeSummary } from '../api/types';
 import { usePlayerActions } from '../player/PlayerContext';
 import { listenedFraction } from '../player/progress';
-import { formatPublishedDate, formatDuration } from '../util/format';
+import { formatPublishedDate, formatDuration, formatSeasonEpisode } from '../util/format';
 import { Cover } from './Cover';
 import { Icon } from './Icon';
 import { SlotRegion } from './SlotRegion';
@@ -33,10 +33,7 @@ export function EpisodeCard({ episode, feedTitle }: { episode: EpisodeSummary; f
   const locked = episode.access === 'TIER';
   const playable = episode.hasAudio && !upcoming && !locked;
   const listened = playable ? listenedFraction(episode.id, episode.durationSeconds) : 0;
-  const seasonEp =
-    episode.season != null && episode.episodeNo != null
-      ? `S${String(episode.season).padStart(2, '0')} · E${String(episode.episodeNo).padStart(2, '0')}`
-      : null;
+  const seasonEp = formatSeasonEpisode(episode.season, episode.episodeNo, { pad: true });
 
   return (
     <article className={`mc-card${upcoming ? ' mc-card--upcoming' : ''}${locked ? ' mc-card--locked' : ''}`}>

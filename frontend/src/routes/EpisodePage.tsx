@@ -16,7 +16,7 @@ import { RelatedPins } from '../components/RelatedPins';
 import { ShareButton } from '../components/ShareButton';
 import { SlotRegion } from '../components/SlotRegion';
 import { usePlayerActions, type PlayableEpisode } from '../player/PlayerContext';
-import { formatPublishedDate, formatDuration } from '../util/format';
+import { formatPublishedDate, formatDuration, formatSeasonEpisode } from '../util/format';
 import { sanitizeFeedHtml } from '../util/sanitize';
 import { useRoutedLinks } from '../util/useRoutedLinks';
 import { parseTimestamp } from '../util/timestamp';
@@ -122,8 +122,7 @@ export function EpisodePage() {
 
   const upcoming = episode.status === 'PLANNED';
   const playable = isPlayable(episode);
-  const seasonEp =
-    episode.season != null && episode.episodeNo != null ? `S${episode.season} · E${episode.episodeNo}` : null;
+  const seasonEp = formatSeasonEpisode(episode.season, episode.episodeNo);
   // Show notes are feed HTML → sanitize before rendering (no scripts/handlers).
   const safeNotes = sanitizeFeedHtml(episode.description);
 

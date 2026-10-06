@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
 import type { EpisodeSummary } from '../api/types';
+import { formatSeasonEpisode } from '../util/format';
 import { Cover } from './Cover';
 
 /**
@@ -43,21 +44,20 @@ export function RelatedEpisodes({
         {title ?? t('episode.related')}
       </h2>
       <ul className="mc-related__list">
-        {data.map((episode) => (
-          <li key={episode.id} className="mc-related__item">
-            <Link className="mc-related__link" to={`/episodes/${episode.slug}`}>
-              <Cover id={episode.id} imageUrl={episode.imageUrl} size={56} />
-              <span className="mc-related__text">
-                <span className="mc-related__title">{episode.title}</span>
-                {episode.season != null && episode.episodeNo != null && (
-                  <span className="mc-related__meta mc-muted">
-                    S{episode.season} · E{episode.episodeNo}
-                  </span>
-                )}
-              </span>
-            </Link>
-          </li>
-        ))}
+        {data.map((episode) => {
+          const seasonEp = formatSeasonEpisode(episode.season, episode.episodeNo);
+          return (
+            <li key={episode.id} className="mc-related__item">
+              <Link className="mc-related__link" to={`/episodes/${episode.slug}`}>
+                <Cover id={episode.id} imageUrl={episode.imageUrl} size={56} />
+                <span className="mc-related__text">
+                  <span className="mc-related__title">{episode.title}</span>
+                  {seasonEp && <span className="mc-related__meta mc-muted">{seasonEp}</span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

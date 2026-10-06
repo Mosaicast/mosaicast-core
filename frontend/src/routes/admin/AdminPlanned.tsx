@@ -9,7 +9,7 @@ import { api } from '../../api/client';
 import { problemMessage } from '../../api/problemMessage';
 import type { AdminFeed, MatchCandidate, PlannedEpisode } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
-import { formatPublishedDate } from '../../util/format';
+import { formatPublishedDate, formatSeasonEpisode } from '../../util/format';
 
 type Visibility = 'quiet' | 'now' | 'at';
 
@@ -290,11 +290,9 @@ export function AdminPlanned() {
                 <strong>{plan.title}</strong>
                 <div className="mc-muted">
                   {feeds.length > 1 && <>{feedTitle(plan)} · </>}
-                  {plan.season != null && plan.episodeNo != null
-                    ? `S${plan.season} · E${plan.episodeNo} · `
-                    : plan.season != null
-                      ? `S${plan.season} · `
-                      : ''}
+                  {formatSeasonEpisode(plan.season, plan.episodeNo) && (
+                    <>{formatSeasonEpisode(plan.season, plan.episodeNo)} · </>
+                  )}
                   <code>{plan.slug}</code>
                 </div>
                 <PhaseChip plan={plan} />
@@ -365,7 +363,7 @@ export function AdminPlanned() {
                     <span>
                       {c.title}
                       <span className="mc-muted">
-                        {c.season != null && c.episodeNo != null ? ` · S${c.season} · E${c.episodeNo}` : ''}
+                        {formatSeasonEpisode(c.season, c.episodeNo) && <> · {formatSeasonEpisode(c.season, c.episodeNo)}</>}
                         {c.hasPluginData && <> — {t('admin.planned.candidateHasData')}</>}
                       </span>
                     </span>

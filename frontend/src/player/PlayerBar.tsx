@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
 import { Cover } from '../components/Cover';
 import { Icon } from '../components/Icon';
 import { SlotRegion } from '../components/SlotRegion';
-import { formatDuration } from '../util/format';
+import { formatDuration, formatSeasonEpisode } from '../util/format';
 import { PLAYBACK_RATES, usePlayer } from './PlayerContext';
 
 /**
@@ -95,10 +95,7 @@ export function PlayerBar() {
     return null;
   }
 
-  const seasonEp =
-    current.season != null && current.episodeNo != null
-      ? `S${String(current.season).padStart(2, '0')} · E${String(current.episodeNo).padStart(2, '0')}`
-      : null;
+  const seasonEp = formatSeasonEpisode(current.season, current.episodeNo, { pad: true });
   const detailPath = `/episodes/${current.slug}`;
   const played = duration > 0 ? (currentTime / duration) * 100 : 0;
   const rateIndex = PLAYBACK_RATES.indexOf(rate as (typeof PLAYBACK_RATES)[number]);
