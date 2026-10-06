@@ -436,6 +436,43 @@ class PluginBlobControllerIntegrationTest {
     }
 
     @Test
+    void aFileDeclaredAsOctetStreamIsJudgedByItsBytes() {
+        // What `curl -F file=@result.zip` sends, and most scripts with it: a type that says "unknown". The
+        // declaration is treated as absent, so the bytes decide, against the same allow-list (core#260).
+        String base = "/api/plugins/blobsprivate/blob";
+        DevLogin.Cookies session = DevLogin.login(rest, "podcaster");
+        HttpHeaders auth = new HttpHeaders();
+        auth.add(HttpHeaders.COOKIE, session.session() + "; " + session.xsrf());
+        auth.add("X-XSRF-TOKEN", session.token());
+        ResponseEntity<String> stored =
+                uploadTo(base, zip(), "result.zip", "application/octet-stream", session);
+        assertThat(stored.getStatusCode()).as(stored.getBody()).isEqualTo(HttpStatus.CREATED);
+        try {
+            assertThat(JSON.readTree(stored.getBody()).path("mime").asString()).isEqualTo("application/zip");
+        } finally {
+            rest.exchange(base + "/" + refOf(stored), HttpMethod.DELETE, new HttpEntity<>(auth), String.class);
+        }
+    }
+
+    @Test
+    void anOctetStreamIsNoWayPastTheAllowList() {
+        DevLogin.Cookies session = DevLogin.login(rest, "podcaster");
+
+        // Recognised, but not a type this plugin may store.
+        ResponseEntity<String> pdf = upload("%PDF-1.4".getBytes(StandardCharsets.US_ASCII), "notes.bin",
+                "application/octet-stream", session);
+        assertThat(pdf.getStatusCode()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(pdf.getBody()).doesNotContainIgnoringCase("pdf");
+
+        // Not recognised at all: unknown bytes are refused whatever the declaration said, or did not say.
+        ResponseEntity<String> svg = upload(
+                "<svg xmlns=\"http://www.w3.org/2000/svg\" onload=\"alert(1)\"/>".getBytes(StandardCharsets.UTF_8),
+                "image.bin", "application/octet-stream", session);
+        assertThat(svg.getStatusCode()).isEqualTo(HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(svg.getBody()).doesNotContain("svg");
+    }
+
+    @Test
     void uploadsCanBePrivateWhileTheDataStaysPublic() {
         // Raw analysis archives behind public numbers: the data floor stays anonymous, the files do not.
         String base = "/api/plugins/blobsprivate/blob";
