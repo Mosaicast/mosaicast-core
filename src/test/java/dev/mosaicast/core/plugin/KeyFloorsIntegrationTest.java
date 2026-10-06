@@ -67,8 +67,14 @@ class KeyFloorsIntegrationTest {
     @Autowired
     private PluginDataService data;
 
+    @Autowired
+    private org.springframework.jdbc.core.JdbcTemplate jdbc;
+
     @BeforeEach
     void seed() {
+        // From scratch each time: the write test leaves kf:bundles behind, and in random order that would
+        // change what the listing test counts.
+        jdbc.update("delete from plugin_data where plugin_id = 'keyfloors'");
         // Through the service, as a backend would: a client could not write half of these.
         for (String key : List.of("kf:public", "kf:import:1", "kf:import:2", "kf:import:secret", "kf:importer",
                 "kf:staged:a", "kf:stats")) {
