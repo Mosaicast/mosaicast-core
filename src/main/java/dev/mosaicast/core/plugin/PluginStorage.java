@@ -21,11 +21,14 @@ import tools.jackson.databind.annotation.JsonDeserialize;
  * entities. Modelling it as one type keeps the either/or in a place that can be reasoned about, instead of
  * a {@code String} plus a parallel field that only makes sense when the string says {@code schema}.
  *
- * @param kind   {@link #DOC} or {@link #SCHEMA}; never null
- * @param schema entity name → (field name → type spec) when {@code kind} is {@link #SCHEMA}; empty for doc
+ * @param kind             {@link #DOC} or {@link #SCHEMA}; never null
+ * @param schema           entity name → (field name → type spec) when {@code kind} is {@link #SCHEMA}; empty
+ *                         for doc
+ * @param schemaReadableBy the schema read surface's own floor ({@code storage.schemaReadableBy}, platformApi
+ *                         0.19.0), as written; null when undeclared, meaning {@code data.readableBy}
  */
 @JsonDeserialize(using = PluginStorageDeserializer.class)
-public record PluginStorage(String kind, Map<String, Map<String, String>> schema) {
+public record PluginStorage(String kind, Map<String, Map<String, String>> schema, String schemaReadableBy) {
 
     /** The generic JSONB doc store — the v1 default, and what a manifest saying nothing gets. */
     public static final String DOC = "doc";
@@ -36,6 +39,11 @@ public record PluginStorage(String kind, Map<String, Map<String, String>> schema
     /** Canonical constructor; normalizes a null schema to empty so callers never null-check it. */
     public PluginStorage {
         schema = schema == null ? Map.of() : Map.copyOf(schema);
+    }
+
+    /** A declaration without its own schema read floor. */
+    public PluginStorage(String kind, Map<String, Map<String, String>> schema) {
+        this(kind, schema, null);
     }
 
     /** The doc-store declaration — also what an absent {@code storage} key means. */
@@ -79,6 +87,10 @@ public record PluginStorage(String kind, Map<String, Map<String, String>> schema
             }
             entities.put(entity, fields);
         });
-        return new PluginStorage(SCHEMA, entities);
+        // A sibling of `schema` rather than a key inside it: `schema` maps entity names, and a floor there would
+        // take one up. Read as text so a non-string value reaches validate() and is refused there by name.
+        JsonNode floor = node.get("schemaReadableBy");
+        return new PluginStorage(SCHEMA, entities,
+                floor == null || floor.isNull() ? null : floor.asString());
     }
 }

@@ -55,6 +55,11 @@ final class PluginAccessPolicy {
         return rank(role) >= rank(manifest.blobReadFloor());
     }
 
+    /** True if the (possibly absent) role may read this plugin's schema rows over HTTP (core#261). */
+    static boolean canReadSchema(PluginManifest manifest, Optional<Role> role) {
+        return rank(role) >= rank(manifest.schemaReadFloor());
+    }
+
     /** True if the (possibly absent) role may upload and delete this plugin's files (core#247). */
     static boolean canWriteBlobs(PluginManifest manifest, Optional<Role> role) {
         return rank(role) >= rank(manifest.blobWriteFloor());

@@ -233,6 +233,24 @@ class PluginSchemaControllerIntegrationTest {
         assertThat(get(locked, podcaster).getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    @Test
+    void theSchemaSurfaceCanHaveAFloorOfItsOwn() {
+        // core#261: documents anonymous (a public tile), rows podcaster-only (per-user inputs behind it).
+        String rows = "/api/plugins/wikiprivate/schema/page";
+
+        assertThat(status(rows)).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(status(rows + "/count")).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(status(rows + "/search?field=markdown&q=squid")).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(status(rows + "/1")).isEqualTo(HttpStatus.FORBIDDEN);
+        // The doc surface keeps the plugin's own floor: a miss is 204, not a refusal.
+        assertThat(status("/api/plugins/wikiprivate/data/site/main/tile")).isEqualTo(HttpStatus.NO_CONTENT);
+
+        DevLogin.Cookies fan = DevLogin.login(rest, "fan");
+        assertThat(get(rows, fan).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        DevLogin.Cookies podcaster = DevLogin.login(rest, "podcaster");
+        assertThat(get(rows, podcaster).getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     // ---- helpers ----
 
     private JsonNode ok(String path) {

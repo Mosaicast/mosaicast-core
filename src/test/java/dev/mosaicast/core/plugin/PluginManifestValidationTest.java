@@ -574,6 +574,27 @@ class PluginManifestValidationTest {
     }
 
     @Test
+    void theSchemaReadFloorDefaultsToTheDataFloorAndMayDifferFromIt() throws Exception {
+        // core#261: absent means data.readableBy; declared, it may be any role, lower included, like blobs.
+        PluginManifest inherited = parse(withSchemaStorage(""));
+        assertThatCode(inherited::validate).doesNotThrowAnyException();
+        assertThat(inherited.schemaReadFloor()).isEqualTo("anonymous");
+
+        PluginManifest own = parse(withSchemaStorage(",\"schemaReadableBy\":\"Podcaster\""));
+        assertThatCode(own::validate).doesNotThrowAnyException();
+        assertThat(own.schemaReadFloor()).isEqualTo("podcaster");
+        assertThat(own.schemaEntities()).containsOnlyKeys("entry");
+    }
+
+    @Test
+    void aSchemaReadFloorOutsideTheRoleVocabularyIsRejected() throws Exception {
+        // Loading it would leave the rows at data.readableBy while the manifest claims otherwise.
+        assertThatThrownBy(parse(withSchemaStorage(",\"schemaReadableBy\":\"podcasters\""))::validate)
+                .isInstanceOf(PluginValidationException.class)
+                .hasMessageContaining("schemaReadableBy");
+    }
+
+    @Test
     void backendOwnedAcceptsAnExactKeyAPrefixAndABareStar() throws Exception {
         PluginManifest manifest = parse(withData("""
                 {"readableBy":"anonymous","writableBy":"podcaster",
@@ -708,6 +729,15 @@ class PluginManifestValidationTest {
                  "slots":[],"storage":"doc","config":{},
                  "data":{"readableBy":"anonymous","writableBy":"podcaster"},"blobs":%s}
                 """.formatted(blobs);
+    }
+
+    /** A valid schema manifest with public data and the given extra {@code storage} keys (core#261). */
+    private static String withSchemaStorage(String extra) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
+                 "slots":[],"config":{},"data":{"readableBy":"anonymous","writableBy":"podcaster"},
+                 "storage":{"schema":{"entry":{"slug":"string:indexed:unique"}}%s}}
+                """.formatted(extra);
     }
 
     /** A valid manifest carrying the given {@code data} block, to isolate data validation. */

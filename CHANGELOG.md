@@ -27,6 +27,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **A plugin's tables can have a read floor of their own (`0.7.8`, core#261, SDK 0.19.0).**
+  `storage.schemaReadableBy` gates all four schema read endpoints (`select`, `search`, `count`, one row) and
+  defaults to `data.readableBy`. Before, a plugin whose tile had to be anonymous, such as bingo, also served
+  every schema row to anonymous visitors: players' entries keyed by user id, including players who opted
+  out of the leaderboard, and rows for quiet planned episodes. Any of the four roles is allowed, like
+  `blobs.readableBy`; a value outside them rejects the plugin at load. The backend's `SchemaStore` is
+  unaffected.
 - **A podcaster can set an episode's season and episode number by hand (`0.7.7`, core#264).** A feed
   can't say "episode 0": Apple's spec allows only a non-zero `itunes:episode`, so Acast drops it, and a
   season prologue arrives with a season and no number. The episode page now has a *Season & episode*

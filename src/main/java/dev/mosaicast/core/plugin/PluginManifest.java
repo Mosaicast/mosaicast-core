@@ -324,6 +324,18 @@ public record PluginManifest(
                 ? dataOrDefault().readableByOrDefault() : own.trim().toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Who may read this plugin's schema rows over HTTP: {@code storage.schemaReadableBy}, else the data read
+     * floor (platformApi 0.19.0, core#261). Any of the four roles, like {@link #blobReadFloor()}: a plugin whose
+     * tile must be anonymous can still keep per-user rows from anonymous visitors. {@code SchemaStore} on the
+     * backend is unaffected.
+     */
+    public String schemaReadFloor() {
+        String own = storageOrDefault().schemaReadableBy();
+        return own == null || own.isBlank()
+                ? dataOrDefault().readableByOrDefault() : own.trim().toLowerCase(Locale.ROOT);
+    }
+
     /** Who may upload and delete this plugin's files: {@code blobs.writableBy}, else the data write floor. */
     public String blobWriteFloor() {
         String own = blobs == null ? null : blobs.writableBy();
@@ -834,6 +846,7 @@ public record PluginManifest(
         // Resolving the schema is the validation: it refuses any entity, field name or type spec that
         // could not become safe DDL, and the result is what the migration runner provisions from.
         PluginSchemaValidator.resolve(id, storageOrDefault());
+        validateSchemaFloor();
         if (slots != null) {
             for (Slot slot : slots) {
                 if (slot.placement() == null || !KNOWN_PLACEMENTS.contains(slot.placement())) {
@@ -977,6 +990,19 @@ public record PluginManifest(
         if (ACCESS_ANONYMOUS.equals(blobWriteFloor())) {
             throw new PluginValidationException(
                     "blobs.writableBy may not be 'anonymous' — an upload needs a signed-in user to belong to");
+        }
+    }
+
+    /**
+     * Rejects a {@code storage.schemaReadableBy} outside the role vocabulary, as {@link #validateBlobs()} does
+     * for its floors (core#261) — a typo that loaded would leave the rows at {@code data.readableBy} while the
+     * manifest claims otherwise.
+     */
+    private void validateSchemaFloor() {
+        String floor = storageOrDefault().schemaReadableBy();
+        if (floor != null && !KNOWN_DATA_ACCESS.contains(floor.trim().toLowerCase(Locale.ROOT))) {
+            throw new PluginValidationException(
+                    "storage.schemaReadableBy '%s' is not one of %s".formatted(floor, KNOWN_DATA_ACCESS));
         }
     }
 
