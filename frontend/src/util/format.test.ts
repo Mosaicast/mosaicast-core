@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { formatDate, formatDuration, formatPublishedDate } from './format';
+import { formatDate, formatDuration, formatPublishedDate, formatSeasonEpisode } from './format';
 
 describe('formatDuration', () => {
   it('formats h:mm:ss and m:ss, and handles empty', () => {
@@ -26,5 +26,20 @@ describe('formatDate', () => {
     // 23:30 UTC on the 5th is the 6th in Berlin; the show published it on the 5th.
     expect(formatPublishedDate('2026-07-05T23:30:00Z', 'en-GB')).toBe('5 Jul 2026');
     expect(formatPublishedDate('2026-07-05T00:30:00Z', 'en-GB')).toBe('5 Jul 2026');
+  });
+});
+
+describe('formatSeasonEpisode', () => {
+  it('labels season and episode, padded or not', () => {
+    expect(formatSeasonEpisode(5, 1)).toBe('S5 · E1');
+    expect(formatSeasonEpisode(5, 1, { pad: true })).toBe('S05 · E01');
+    expect(formatSeasonEpisode(5, 0, { pad: true })).toBe('S05 · E00');
+  });
+
+  it('keeps the season of an unnumbered prologue instead of dropping both', () => {
+    expect(formatSeasonEpisode(5, null)).toBe('S5');
+    expect(formatSeasonEpisode(5, undefined, { pad: true })).toBe('S05');
+    expect(formatSeasonEpisode(null, 7)).toBe('E7');
+    expect(formatSeasonEpisode(null, null)).toBeNull();
   });
 });

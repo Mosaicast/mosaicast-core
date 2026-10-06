@@ -364,6 +364,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **An unnumbered prologue keeps its season label (`0.7.7`, core#264).** Feeds can't carry episode `0`
+  (Apple's spec allows only a non-zero `itunes:episode`, so Acast drops it), so a season's prologue
+  arrives as season 5 with no number. Every shell surface — card, episode page, player bar, related
+  episodes, the planned-episodes admin — showed a label only when both numbers were present, and so
+  showed nothing. They now show whichever half is known: `S05`.
 - **Previewing a quiet planned episode no longer fails in the background (`0.7.7`, core#252).** For a
   podcaster or admin, the page itself answered `404`, as did its previous/next and related lookups, even
   though the page rendered. All three now answer the previewer, and everyone else still gets `404`. The

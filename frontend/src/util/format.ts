@@ -49,3 +49,20 @@ export function formatPublishedDate(iso: string | null | undefined, locale?: str
   return new Intl.DateTimeFormat(locale, { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
     .format(date);
 }
+
+/**
+ * An episode's place in its feed as a compact label: `S5 · E1`, or `S05 · E01` with `pad`. Either half stands
+ * on its own when the other is missing — real feeds number a season and leave its prologue unnumbered (Apple's
+ * spec has no `itunes:episode` 0, so Acast drops it), and that episode still belongs in season 5. Neither →
+ * `null`, so callers render nothing rather than an empty separator.
+ */
+export function formatSeasonEpisode(
+  season: number | null | undefined,
+  episodeNo: number | null | undefined,
+  { pad = false }: { pad?: boolean } = {},
+): string | null {
+  const num = (n: number) => (pad ? String(n).padStart(2, '0') : String(n));
+  const parts = [season != null ? `S${num(season)}` : null, episodeNo != null ? `E${num(episodeNo)}` : null];
+  const present = parts.filter((p): p is string => p != null);
+  return present.length > 0 ? present.join(' · ') : null;
+}

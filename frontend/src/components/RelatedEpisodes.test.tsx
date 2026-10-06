@@ -46,6 +46,13 @@ describe('RelatedEpisodes', () => {
     expect(screen.getByRole('heading', { name: 'Related episodes' })).toBeInTheDocument();
   });
 
+  it("keeps an unnumbered prologue's season instead of dropping the label", async () => {
+    renderWidget([{ ...summary('prolog', 'Prolog'), episodeNo: null }, summary('deep-water', 'Deep Water')]);
+
+    expect(await screen.findByText('S1')).toBeInTheDocument();
+    expect(screen.getByText('S1 · E2')).toBeInTheDocument();
+  });
+
   it('renders nothing at all when there is nothing to suggest', () => {
     // A heading over an empty list reads as breakage; a site with one episode simply has no related ones.
     expect(renderWidget([]).container).toBeEmptyDOMElement();
