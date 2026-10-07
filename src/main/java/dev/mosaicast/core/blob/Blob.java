@@ -14,8 +14,12 @@ import java.util.UUID;
 
 /**
  * A stored binary object (ARCHITECTURE §11). In v1 the bytes live in Postgres {@code BYTEA}; the same
- * {@link BlobStore} interface fronts S3/CDN backends later, routed per namespace. The {@link #data} is
- * lazily fetched so metadata lookups (ETag, existence) don't pull the whole blob into memory.
+ * {@link BlobStore} interface fronts S3/CDN backends later, routed per namespace.
+ *
+ * <p><strong>Read-only mapping, for JPQL projections.</strong> {@link #data} is declared lazy, but a lazy
+ * {@code byte[]} needs bytecode enhancement this build does not have, so loading the entity loads every byte.
+ * {@link PostgresBlobStore} therefore never loads one: metadata comes from column projections, bytes stream
+ * in {@code substring} chunks, and writes go through SQL.
  */
 @Entity
 @Table(name = "blob")
@@ -66,28 +70,6 @@ public class Blob {
         // for JPA
     }
 
-    Blob(UUID id, String namespace, String key, String mime, byte[] data) {
-        this.id = id;
-        this.namespace = namespace;
-        this.key = key;
-        this.mime = mime;
-        this.data = data;
-        this.sizeBytes = data.length;
-    }
-
-    /** Records who uploaded this and under what name; both are optional and neither is ever a path. */
-    void attribute(String filename, UUID createdBy) {
-        this.filename = filename;
-        this.createdBy = createdBy;
-    }
-
-    void replace(String mime, byte[] data) {
-        this.mime = mime;
-        this.data = data;
-        this.sizeBytes = data.length;
-        this.updatedAt = Instant.now();
-    }
-
     public UUID getId() {
         return id;
     }
@@ -108,9 +90,6 @@ public class Blob {
         return sizeBytes;
     }
 
-    public byte[] getData() {
-        return data;
-    }
 
     public String getFilename() {
         return filename;
