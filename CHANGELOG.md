@@ -14,6 +14,9 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **Core pins SDK 0.19.1 (`0.8.2`).** A patch release: `platformApi` stays 0.19.0, so plugins built for
+  0.19.0 keep loading. It changes the plugin-side `i18n.bytes` helper to binary units (KiB/MiB, as core's
+  admin already shows) and catches the SDK's docs up with core 0.8.1. Nothing changes in the host.
 - **⚠️ Plugins must be rebuilt for `platformApi` 0.19.0 (`0.7.8`).** Core now pins SDK 0.19.0, and a plugin
   built against 0.18.0 is rejected at load until it is rebuilt. The bump is a security one as much as a
   linking one: the host ignores manifest keys it doesn't know, so an older host would have loaded a plugin
