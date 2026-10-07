@@ -277,4 +277,6 @@ for spec in "${SPECS[@]}"; do
     install_one "$spec"
 done
 
-info "plugins are read at startup — restart Mosaicast to load them"
+# Printed by the container's entrypoint too, where Mosaicast has not started yet, so it must not read as an
+# instruction to restart: it is one only for an instance that is already running.
+info "Mosaicast loads plugins when it starts. Already running? Restart it to pick these up; otherwise nothing to do."
