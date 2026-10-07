@@ -434,6 +434,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Serving a stored file no longer loads it whole into memory (`0.8.2`).** The Postgres blob store declared
+  its bytes lazy, but without bytecode enhancement Hibernate loads a lazy `byte[]` anyway. So every
+  download, range request, ETag check and even upload existence check loaded the entire file. A few
+  concurrent downloads of a data-export archive (up to 32 MiB per plugin) could exhaust the heap.
+  - **Reads** are metadata by column projection, then bytes streamed in 1 MiB `substring` chunks as the
+    response is written. Each chunk is pinned to the version the read started from, so a file replaced
+    mid-download fails that download instead of mixing two versions.
+  - **Writes** are spooled to a temporary file and streamed in with `setBinaryStream`.
+  - **Storage.** Migration `V42` stores the column `EXTERNAL` (uncompressed, out of line), so Postgres
+    reads only the chunks a request covers, and rewrites the existing rows once.
 - **A plugin can list the planned episode being prepared (`0.7.8`, core#258).** The SDK has always said a
   quiet planned episode is in `ctx.episodes` for podcasters and admins, but the endpoint behind it ignored
   who was asking, so it was missing for everyone. A wiki citation picker or a bingo setup screen couldn't

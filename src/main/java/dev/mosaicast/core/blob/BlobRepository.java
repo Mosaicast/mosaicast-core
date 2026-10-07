@@ -40,6 +40,29 @@ public interface BlobRepository extends JpaRepository<Blob, UUID> {
     long countByNamespace(String namespace);
 
     /**
+     * One blob's metadata by id, <strong>without its bytes</strong> — for the same reason as
+     * {@link #listByNamespace}: {@code findById} loads the entity, and with it every byte, for what is often
+     * only an ETag check.
+     */
+    @Query("""
+            SELECT new dev.mosaicast.core.blob.BlobMetadata(
+                       new dev.mosaicast.core.blob.BlobRef(b.id, b.namespace),
+                       b.key, b.mime, b.sizeBytes, b.updatedAt, b.filename, b.createdBy)
+            FROM Blob b WHERE b.id = :id
+            """)
+    java.util.Optional<BlobMetadata> findMetadataById(@Param("id") java.util.UUID id);
+
+    /** {@link #findMetadataById} by namespace and key. */
+    @Query("""
+            SELECT new dev.mosaicast.core.blob.BlobMetadata(
+                       new dev.mosaicast.core.blob.BlobRef(b.id, b.namespace),
+                       b.key, b.mime, b.sizeBytes, b.updatedAt, b.filename, b.createdBy)
+            FROM Blob b WHERE b.namespace = :namespace AND b.key = :key
+            """)
+    java.util.Optional<BlobMetadata> findMetadataByNamespaceAndKey(@Param("namespace") String namespace,
+                                                                   @Param("key") String key);
+
+    /**
      * The namespaces present at or below a prefix — what a migration is asked to move when it is given
      * {@code plugin} rather than {@code plugin/wiki} (§11, #105).
      */
@@ -69,11 +92,4 @@ public interface BlobRepository extends JpaRepository<Blob, UUID> {
     @Query("DELETE FROM Blob b WHERE b.namespace = :namespace")
     int deleteByNamespace(@Param("namespace") String namespace);
 
-    /**
-     * Reads a byte range straight from Postgres ({@code substring} on the {@code BYTEA}) so a range request
-     * never pulls the whole blob into memory. {@code from} is 1-indexed (Postgres convention); the args are
-     * {@code int} because Postgres' {@code substring(bytea, int, int)} takes integers.
-     */
-    @Query(value = "SELECT substring(data FROM :from FOR :len) FROM blob WHERE id = :id", nativeQuery = true)
-    byte[] readRange(@Param("id") UUID id, @Param("from") int from, @Param("len") int len);
 }

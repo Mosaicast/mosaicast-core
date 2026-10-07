@@ -4,21 +4,38 @@
 package dev.mosaicast.core.blob;
 
 import dev.mosaicast.core.web.NotFoundException;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * The v1 {@link BlobStore} backend: bytes in Postgres {@code BYTEA} (ARCHITECTURE §11). Ranges are read
- * with a server-side {@code substring}, so a range request never materializes the whole blob. Supports
- * ranges; no presigned URLs (that arrives with S3).
+ * The v1 {@link BlobStore} backend: bytes in Postgres {@code BYTEA} (ARCHITECTURE §11).
+ *
+ * <p><strong>No call holds a whole blob in heap.</strong> It used to: {@code Blob.data} is declared lazy, but a
+ * lazy {@code byte[]} needs bytecode enhancement this build does not have, so every {@code findById} — a
+ * download, a range request, even an ETag check — loaded every byte, and a handful of concurrent downloads of
+ * a data-export archive could take the heap with them. Now:
+ * <ul>
+ *   <li><strong>Metadata</strong> is read by column projection, never as an entity.</li>
+ *   <li><strong>Reads stream</strong> in {@link #CHUNK_BYTES} pieces, each a server-side {@code substring},
+ *       fetched as the caller consumes them. The column is stored {@code EXTERNAL} (uncompressed, out of
+ *       line, V42), which is what lets Postgres answer a {@code substring} from the TOAST chunks it covers
+ *       instead of decompressing the whole value first.</li>
+ *   <li><strong>Writes stream</strong> too: the input is spooled to a temporary file to learn its length, then
+ *       sent with {@code setBinaryStream}.</li>
+ * </ul>
+ *
+ * <p>No presigned URLs; those arrive with an object-store backend.
  */
 @Component
 public class PostgresBlobStore implements NamedBlobStore {
@@ -26,17 +43,22 @@ public class PostgresBlobStore implements NamedBlobStore {
     /** The name {@code mosaicast.blobs.*} routes to, and the default backend. */
     public static final String NAME = "postgres";
 
+    /** How much of a blob one read fetches: bounds the heap a download costs, whatever the blob's size. */
+    static final int CHUNK_BYTES = 1024 * 1024;
+
     private static final BlobCapabilities CAPABILITIES = new BlobCapabilities(true, false);
 
     private final BlobRepository blobs;
+    private final JdbcTemplate jdbc;
 
     @Override
     public String backendName() {
         return NAME;
     }
 
-    public PostgresBlobStore(BlobRepository blobs) {
+    public PostgresBlobStore(BlobRepository blobs, JdbcTemplate jdbc) {
         this.blobs = blobs;
+        this.jdbc = jdbc;
     }
 
     @Override
@@ -45,20 +67,39 @@ public class PostgresBlobStore implements NamedBlobStore {
         return put(namespace, key, data, mime, null, null);
     }
 
+    /**
+     * Stores a blob under {@code (namespace, key)}, replacing one already there — which keeps its id and its
+     * creation time, as it always has.
+     */
     @Override
     @Transactional
     public BlobRef put(String namespace, String key, InputStream data, String mime, String filename,
                        UUID uploader) {
-        byte[] bytes = readAll(data);
-        Blob blob = blobs.findByNamespaceAndKey(namespace, key)
-                .map(existing -> {
-                    existing.replace(mime, bytes);
-                    return existing;
-                })
-                .orElseGet(() -> new Blob(UUID.randomUUID(), namespace, key, mime, bytes));
-        blob.attribute(filename, uploader);
-        blobs.save(blob);
-        return new BlobRef(blob.getId(), blob.getNamespace());
+        return withSpooled(data, (file, length) -> {
+            try (InputStream in = Files.newInputStream(file)) {
+                UUID id = jdbc.query(con -> {
+                    var statement = con.prepareStatement("""
+                            INSERT INTO blob (id, namespace, blob_key, mime, size_bytes, data, filename, created_by,
+                                              created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, now(), now())
+                            ON CONFLICT (namespace, blob_key) DO UPDATE SET
+                                mime = excluded.mime, size_bytes = excluded.size_bytes, data = excluded.data,
+                                filename = excluded.filename, created_by = excluded.created_by, updated_at = now()
+                            RETURNING id
+                            """);
+                    statement.setObject(1, UUID.randomUUID());
+                    statement.setString(2, namespace);
+                    statement.setString(3, key);
+                    statement.setString(4, mime);
+                    statement.setLong(5, length);
+                    statement.setBinaryStream(6, in, length);
+                    statement.setString(7, filename);
+                    statement.setObject(8, uploader);
+                    return statement;
+                }, rs -> rs.next() ? rs.getObject(1, UUID.class) : null);
+                return new BlobRef(id, namespace);
+            }
+        });
     }
 
     /**
@@ -71,17 +112,29 @@ public class PostgresBlobStore implements NamedBlobStore {
     @Override
     @Transactional
     public BlobRef putVerbatim(BlobMetadata metadata, InputStream data) {
-        byte[] bytes = readAll(data);
-        Blob blob = blobs.findById(metadata.ref().id())
-                .map(existing -> {
-                    existing.replace(metadata.mime(), bytes);
-                    return existing;
-                })
-                .orElseGet(() -> new Blob(metadata.ref().id(), metadata.ref().namespace(), metadata.key(),
-                        metadata.mime(), bytes));
-        blob.attribute(metadata.filename(), null);
-        blobs.save(blob);
-        return new BlobRef(blob.getId(), blob.getNamespace());
+        return withSpooled(data, (file, length) -> {
+            try (InputStream in = Files.newInputStream(file)) {
+                jdbc.update(con -> {
+                    var statement = con.prepareStatement("""
+                            INSERT INTO blob (id, namespace, blob_key, mime, size_bytes, data, filename, created_by,
+                                              created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, NULL, now(), now())
+                            ON CONFLICT (id) DO UPDATE SET
+                                mime = excluded.mime, size_bytes = excluded.size_bytes, data = excluded.data,
+                                filename = excluded.filename, created_by = NULL, updated_at = now()
+                            """);
+                    statement.setObject(1, metadata.ref().id());
+                    statement.setString(2, metadata.ref().namespace());
+                    statement.setString(3, metadata.key());
+                    statement.setString(4, metadata.mime());
+                    statement.setLong(5, length);
+                    statement.setBinaryStream(6, in, length);
+                    statement.setString(7, metadata.filename());
+                    return statement;
+                });
+                return new BlobRef(metadata.ref().id(), metadata.ref().namespace());
+            }
+        });
     }
 
     @Override
@@ -93,41 +146,40 @@ public class PostgresBlobStore implements NamedBlobStore {
     @Override
     @Transactional(readOnly = true)
     public Optional<BlobMetadata> stat(String namespace, String key) {
-        return blobs.findByNamespaceAndKey(namespace, key).map(PostgresBlobStore::toMetadata);
+        return blobs.findMetadataByNamespaceAndKey(namespace, key);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<BlobMetadata> stat(BlobRef ref) {
-        return blobs.findById(ref.id()).map(PostgresBlobStore::toMetadata);
+        return blobs.findMetadataById(ref.id());
     }
 
     @Override
     @Transactional(readOnly = true)
     public BlobContent get(BlobRef ref) {
-        Blob blob = require(ref);
-        return new BlobContent(blob.getMime(), blob.getSizeBytes(), blob.getUpdatedAt(),
-                new ByteArrayInputStream(blob.getData()));
+        BlobMetadata blob = require(ref);
+        return new BlobContent(blob.mime(), blob.size(), blob.updatedAt(),
+                new ChunkedStream(ref.id(), blob, 0, blob.size()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public BlobContent getRange(BlobRef ref, long start, long endInclusive) {
-        Blob blob = require(ref);
-        long total = blob.getSizeBytes();
+        BlobMetadata blob = require(ref);
+        long total = blob.size();
         long clampedStart = Math.max(0, start);
         long clampedEnd = Math.min(endInclusive, total - 1);
         long length = Math.max(0, clampedEnd - clampedStart + 1);
-        byte[] slice = length == 0
-                ? new byte[0]
-                : blobs.readRange(ref.id(), Math.toIntExact(clampedStart + 1), Math.toIntExact(length));
-        return new BlobContent(blob.getMime(), total, blob.getUpdatedAt(), new ByteArrayInputStream(slice));
+        return new BlobContent(blob.mime(), total, blob.updatedAt(),
+                new ChunkedStream(ref.id(), blob, clampedStart, length));
     }
 
+    /** Deleted by statement: {@code deleteById} would load the entity, bytes and all, just to remove it. */
     @Override
     @Transactional
     public void delete(BlobRef ref) {
-        blobs.deleteById(ref.id());
+        jdbc.update("DELETE FROM blob WHERE id = ?", ref.id());
     }
 
     /**
@@ -177,22 +229,107 @@ public class PostgresBlobStore implements NamedBlobStore {
         return CAPABILITIES;
     }
 
-    private Blob require(BlobRef ref) {
-        return blobs.findById(ref.id())
+    private BlobMetadata require(BlobRef ref) {
+        return blobs.findMetadataById(ref.id())
                 .orElseThrow(() -> new NotFoundException("Blob not found: " + ref.id()));
     }
 
-    private static BlobMetadata toMetadata(Blob blob) {
-        return new BlobMetadata(new BlobRef(blob.getId(), blob.getNamespace()),
-                blob.getKey(), blob.getMime(), blob.getSizeBytes(), blob.getUpdatedAt(), blob.getFilename(),
-                blob.getCreatedBy());
+    /** What to do with an input once it is on disk with a known length. */
+    @FunctionalInterface
+    private interface SpooledWrite {
+        BlobRef write(Path file, long length) throws IOException;
     }
 
-    private static byte[] readAll(InputStream data) {
+    /**
+     * Copies the input to a temporary file, runs the write against it, and deletes the file.
+     *
+     * <p>A file rather than a buffer because the point is not to hold the blob in heap; the length is what
+     * {@code setBinaryStream} needs to stream rather than buffer.
+     */
+    private static BlobRef withSpooled(InputStream data, SpooledWrite write) {
+        Path file = null;
         try (data) {
-            return data.readAllBytes();
+            file = Files.createTempFile("mosaicast-blob-", ".bin");
+            long length = Files.copy(data, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            return write.write(file, length);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to read blob data", e);
+            throw new UncheckedIOException("Failed to store blob data", e);
+        } finally {
+            if (file != null) {
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException ignored) {
+                    // A leftover temp file is the OS's to clean; the write itself has already succeeded or not.
+                }
+            }
+        }
+    }
+
+    /**
+     * A blob read lazily, one {@link #CHUNK_BYTES} {@code substring} at a time, as the response is written.
+     *
+     * <p>Each chunk is pinned to the {@code updated_at} the read started from. A blob replaced halfway through
+     * a download would otherwise splice two versions into one response; instead the read fails, which the
+     * client sees as a broken transfer it can retry.
+     */
+    private final class ChunkedStream extends InputStream {
+
+        private final UUID id;
+        private final Timestamp version;
+        private long position;
+        private final long end;
+        private byte[] buffer = new byte[0];
+        private int offset;
+
+        ChunkedStream(UUID id, BlobMetadata blob, long start, long length) {
+            this.id = id;
+            this.version = Timestamp.from(blob.updatedAt());
+            this.position = start;
+            this.end = start + length;
+        }
+
+        @Override
+        public int read() throws IOException {
+            if (!fill()) {
+                return -1;
+            }
+            return buffer[offset++] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] target, int targetOffset, int length) throws IOException {
+            if (length == 0) {
+                return 0;
+            }
+            if (!fill()) {
+                return -1;
+            }
+            int n = Math.min(length, buffer.length - offset);
+            System.arraycopy(buffer, offset, target, targetOffset, n);
+            offset += n;
+            return n;
+        }
+
+        /** Makes sure there is something to read; false at the end of the range. */
+        private boolean fill() throws IOException {
+            if (offset < buffer.length) {
+                return true;
+            }
+            if (position >= end) {
+                return false;
+            }
+            int want = (int) Math.min(CHUNK_BYTES, end - position);
+            // substring is 1-based.
+            List<byte[]> chunk = jdbc.query(
+                    "SELECT substring(data FROM ? FOR ?) FROM blob WHERE id = ? AND updated_at = ?",
+                    (rs, i) -> rs.getBytes(1), Math.toIntExact(position + 1), want, id, version);
+            if (chunk.isEmpty() || chunk.get(0) == null || chunk.get(0).length == 0) {
+                throw new IOException("Blob " + id + " was replaced or deleted while it was being read");
+            }
+            buffer = chunk.get(0);
+            offset = 0;
+            position += buffer.length;
+            return true;
         }
     }
 }
