@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@mosaicast/plugin-sdk": "^0.19.1",
-    "dompurify": "^3.4.11",
+    "dompurify": "^3.4.16",
     "i18next": "^24.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
