@@ -94,7 +94,8 @@ export function CookieSettings({
             name: item.name,
             type: t(`consent.type.${item.type}`, { defaultValue: item.type }),
             purpose: t(item.purposeKey),
-            duration: t(item.durationKey),
+            duration:
+              item.durationCount == null ? t(item.durationKey) : t(item.durationKey, { count: item.durationCount }),
           }))}
         />
         {/* The server half: the table above is only what is on this device, and the page called it the

@@ -335,6 +335,8 @@
   "consent.purpose.nowPlaying": "Merkt sich, welche Folge Sie gehört haben, damit der Player nach dem Neuladen der Seite noch da ist",
   "consent.purpose.volume": "Merkt sich die eingestellte Lautstärke",
   "consent.duration.session": "Bis Sie den Browser schließen",
+  "consent.duration.signedIn_one": "Bis Sie sich abmelden, oder {{count}} Tag nach Ihrem letzten Besuch",
+  "consent.duration.signedIn_other": "Bis Sie sich abmelden, oder {{count}} Tage nach Ihrem letzten Besuch",
   "consent.duration.persistent": "Bis Sie es löschen",
   "consent.duration.months12": "12 Monate",
   "consent.progress.title": "Hörposition merken",

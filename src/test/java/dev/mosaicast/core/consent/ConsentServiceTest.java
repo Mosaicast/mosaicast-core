@@ -57,7 +57,8 @@ class ConsentServiceTest {
         lenient().when(legal.footer("en")).thenReturn(List.of());
         // Unapproved by default — a plugin's `necessary` claim is a proposal until an admin rules on it.
         lenient().when(approvals.isApproved(any(), any())).thenReturn(false);
-        service = new ConsentService(plugins, legal, siteConfig, approvals);
+        service = new ConsentService(plugins, legal, siteConfig, approvals,
+                new dev.mosaicast.core.config.SessionProperties(null, null));
     }
 
     /** Approves every `necessary` claim, for the tests about what an approved one does. */

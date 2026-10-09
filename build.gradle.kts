@@ -80,6 +80,8 @@ dependencies {
 
     // --- Sessions: server-side, in-memory in v1, Redis-ready later (ARCHITECTURE §8.5) ---
     implementation("org.springframework.session:spring-session-core")
+    // Optional Postgres session store (MOSAICAST_SESSION_STORE=jdbc); the in-memory store stays the default.
+    implementation("org.springframework.session:spring-session-jdbc")
 
     // --- Migrations: Flyway only (ARCHITECTURE §2) ---
     // Boot 4 requires the starter rather than a bare flyway-core dependency for auto-configuration.
