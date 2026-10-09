@@ -72,8 +72,12 @@ public class ConsentService {
     private final SiteConfigService siteConfig;
     private final NecessaryApprovalService approvals;
 
+    private final dev.mosaicast.core.config.SessionProperties sessions;
+
     public ConsentService(PluginLoaderService plugins, LegalService legal, SiteConfigService siteConfig,
-                          NecessaryApprovalService approvals) {
+                          NecessaryApprovalService approvals,
+                          dev.mosaicast.core.config.SessionProperties sessions) {
+        this.sessions = sessions;
         this.plugins = plugins;
         this.legal = legal;
         this.siteConfig = siteConfig;
@@ -216,7 +220,8 @@ public class ConsentService {
                 .toList();
 
         return new ConsentView(fingerprint(), categories,
-                new EssentialView(CoreStorageInventory.items(), CoreStorageInventory.accountItems()),
+                new EssentialView(CoreStorageInventory.items(sessions.timeoutDays()),
+                        CoreStorageInventory.accountItems()),
                 List.copyOf(necessary), privacySlug());
     }
 

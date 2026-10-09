@@ -335,6 +335,8 @@
   "consent.purpose.nowPlaying": "Remembers which episode you were listening to, so the player is still there after the page reloads",
   "consent.purpose.volume": "Remembers the volume you set",
   "consent.duration.session": "Until you close the browser",
+  "consent.duration.signedIn_one": "Until you log out, or {{count}} day after your last visit",
+  "consent.duration.signedIn_other": "Until you log out, or {{count}} days after your last visit",
   "consent.duration.persistent": "Until you clear it",
   "consent.duration.months12": "12 months",
   "consent.progress.title": "Remember where I stopped listening",

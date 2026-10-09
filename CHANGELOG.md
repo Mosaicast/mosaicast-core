@@ -437,6 +437,23 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A sign-in no longer ends after half an hour away (`0.8.3`).** Sessions used Spring Session's in-memory
+  default of 30 minutes, so someone who came back the next day had to sign in with Discord again.
+  - **Timeout:** `MOSAICAST_SESSION_TIMEOUT` (default `30d`) sets how long a session lasts without a visit,
+    and every visit starts the count again.
+  - **Cookie:** it now lives as long as the session and is re-sent at most once a day, so closing the
+    browser doesn't sign anyone out either.
+  - **Sweep:** expired sessions are removed hourly. Before, the in-memory store kept one nobody returned
+    to, such as an abandoned login, for good.
+  - **Optional Postgres store:** `MOSAICAST_SESSION_STORE=jdbc` keeps sessions in Postgres (`V43`), so
+    sign-ins survive a restart. The default stays `memory`.
+  - **Disclosure:** the privacy and cookie page now lists the session cookie as lasting "until you log out,
+    or N days after your last visit", following the setting.
+- **The prod compose passes the proxy and key-rotation settings through (`0.8.3`).**
+  `MOSAICAST_FORWARD_HEADERS_STRATEGY`, `MOSAICAST_TRUSTED_PROXIES`, `MOSAICAST_PLUGINS_ALLOW_UNVERIFIED`,
+  `MOSAICAST_ENCRYPTION_KEY_PREVIOUS` and the LibreTranslate API key were documented but never reached the
+  container. The `.env.example` example for `MOSAICAST_TRUSTED_PROXIES` is now a regex, which is what the
+  value is.
 - **Serving a stored file no longer loads it whole into memory (`0.8.2`).** The Postgres blob store declared
   its bytes lazy, but without bytecode enhancement Hibernate loads a lazy `byte[]` anyway. So every
   download, range request, ETag check and even upload existence check loaded the entire file. A few

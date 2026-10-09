@@ -482,7 +482,7 @@ In short: **auto-link only with two verified emails or a logged-in user, otherwi
 `GET /api/me/identities` → per configured provider `{provider, linked, email?, since?}`. UI shows a green check when linked, otherwise a "Connect" button (flow = merging case 2). **The last remaining identity cannot be removed** (lockout protection).
 
 ### 8.5 Sessions & roles
-- **httpOnly cookie + server-side session** (Spring Session). **No JWT** (revoke/ban/role change must take effect immediately). In-memory in v1 → **Redis from v3** (app instances stay stateless). Cookie sessions require **CSRF protection** (Spring's `XSRF-TOKEN` cookie pattern for the SPA) and `SameSite=Lax`.
+- **httpOnly cookie + server-side session** (Spring Session). **No JWT** (revoke/ban/role change must take effect immediately). In-memory by default in v1, or in **Postgres** (`MOSAICAST_SESSION_STORE=jdbc`) so sign-ins survive a restart → **Redis from v3** (app instances stay stateless). A session expires after `MOSAICAST_SESSION_TIMEOUT` without a visit (default 30 days), and the cookie lives as long, so closing the browser does not sign anyone out. Cookie sessions require **CSRF protection** (Spring's `XSRF-TOKEN` cookie pattern for the SPA) and `SameSite=Lax`.
 - RBAC, `role` on the `User`: **ADMIN** (site config, users, plugin activation) · **PODCASTER** (bingos, wiki, episodes, feeds/Patreon sources, planned episodes) · **FAN** (fill in/view). Anonymous: read only.
 - Bootstrap admin via env on first start; afterwards the admin promotes fans → podcasters.
 - **Personal access tokens** (podcaster-scoped) for automation (e.g. MAT upload, planning episodes from a CMS, §4.3).

@@ -46,6 +46,9 @@ services:
       # Secure session cookie (default true; keep true behind TLS). Social login needs a secure context —
       # over plain http on a non-localhost host the browser drops the cookie and login fails. See .env.example.
       MOSAICAST_SECURITY_SECURE_COOKIE: ${MOSAICAST_SECURITY_SECURE_COOKIE:-true}
+      # How long a sign-in lasts without a visit, and where sessions live (see .env.example).
+      MOSAICAST_SESSION_TIMEOUT: ${MOSAICAST_SESSION_TIMEOUT:-30d}
+      MOSAICAST_SESSION_STORE: ${MOSAICAST_SESSION_STORE:-memory}
       ADMIN_BOOTSTRAP_PROVIDER: ${ADMIN_BOOTSTRAP_PROVIDER:-discord}
       ADMIN_BOOTSTRAP_EXTERNAL_ID: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:-}
       MOSAICAST_ENCRYPTION_KEY: ${MOSAICAST_ENCRYPTION_KEY:-}

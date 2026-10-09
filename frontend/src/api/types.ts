@@ -547,6 +547,8 @@ export interface EssentialStorage {
   durationKey: string;
   /** True for listening progress, the one item with an off switch rather than a consent gate. */
   optional: boolean;
+  /** The number the duration text counts (the session cookie's days), or null when it has none. */
+  durationCount?: number | null;
 }
 
 /** One kind of personal data kept in a signed-in account; every field is an i18n key. */

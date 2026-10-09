@@ -50,13 +50,19 @@ public final class CoreStorageInventory {
      *                    listening progress (the positions, and which episode was playing), which gets a switch
      *                    rather than a consent gate because it is first-party, local, never profiled, and
      *                    written only after a deliberate press of play
+     * @param durationCount the number the duration text counts, or null for a text without one — the session
+     *                    cookie's days, which follow {@code MOSAICAST_SESSION_TIMEOUT}
      */
-    public record Item(String name, String type, String purposeKey, String durationKey, boolean optional) {
+    public record Item(String name, String type, String purposeKey, String durationKey, boolean optional,
+                       Integer durationCount) {
+
+        /** An item whose duration text has no number in it. */
+        public Item(String name, String type, String purposeKey, String durationKey, boolean optional) {
+            this(name, type, purposeKey, durationKey, optional, null);
+        }
     }
 
     private static final List<Item> ITEMS = List.of(
-            new Item(SessionConfig.SESSION_COOKIE_NAME, "cookie",
-                    "consent.purpose.session", "consent.duration.session", false),
             new Item("XSRF-TOKEN", "cookie",
                     "consent.purpose.csrf", "consent.duration.session", false),
             new Item("mc.locale", "localStorage",
@@ -81,9 +87,17 @@ public final class CoreStorageInventory {
             new Item("mc.prefs.volume", "localStorage",
                     "consent.purpose.volume", "consent.duration.persistent", false));
 
-    /** Every item core stores, in the order the disclosure lists them. */
-    public static List<Item> items() {
-        return ITEMS;
+    /**
+     * Every item core stores, in the order the disclosure lists them.
+     *
+     * @param sessionDays how long the session cookie lasts without a visit, in days ({@code SessionProperties})
+     */
+    public static List<Item> items(int sessionDays) {
+        List<Item> items = new java.util.ArrayList<>();
+        items.add(new Item(SessionConfig.SESSION_COOKIE_NAME, "cookie",
+                "consent.purpose.session", "consent.duration.signedIn", false, sessionDays));
+        items.addAll(ITEMS);
+        return List.copyOf(items);
     }
 
     /**
