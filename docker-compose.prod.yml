@@ -52,6 +52,17 @@ services:
       # Exact origins the outbound filter may reach on a private address (§16) — a self-hosted
       # LibreTranslate, say. Empty by default, which permits none. See .env.example.
       MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS: ${MOSAICAST_EXTERNAL_ALLOWED_PRIVATE_ORIGINS:-}
+      # Optional provider credential for a LibreTranslate with API keys (see .env.example).
+      MOSAICAST_EXTERNAL_TRANSLATION_LIBRETRANSLATE_API_KEY:
+      # Only for rotating MOSAICAST_ENCRYPTION_KEY (see .env.example).
+      MOSAICAST_ENCRYPTION_KEY_PREVIOUS:
+      # Install plugins without a #sha256 digest. Off by default (see .env.example).
+      MOSAICAST_PLUGINS_ALLOW_UNVERIFIED: ${MOSAICAST_PLUGINS_ALLOW_UNVERIFIED:-false}
+      # Behind a TLS proxy: which forwarded headers to believe, and from whom (see .env.example).
+      MOSAICAST_FORWARD_HEADERS_STRATEGY: ${MOSAICAST_FORWARD_HEADERS_STRATEGY:-native}
+      # No value here on purpose: unset in .env means unset in the container, so the app keeps its
+      # private-range default. An empty value would mean "trust no proxy".
+      MOSAICAST_TRUSTED_PROXIES:
     ports:
       # Bound to loopback, not 0.0.0.0. The app speaks plain http and the session cookie is Secure by
       # default, so the only working deployment is one with a TLS terminator in front — and with the port
