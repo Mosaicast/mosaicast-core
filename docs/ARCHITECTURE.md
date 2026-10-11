@@ -31,6 +31,7 @@ Mosaicast is an **extensible website platform for podcasts**. A podcast has seve
 | Cache/Sessions | in-memory in v1 → **Redis** from v3 (config switch, no rewrite) |
 | Frontend | **TypeScript + React + Vite** (host shell). Plugins ship UI as **Web Components**. **No Vaadin.** |
 | Deployment | **Docker Compose** on a VPS (app, postgres, caddy/traefik; redis later) |
+| Edge (optional) | **Go**, standard library only: `mosaicast-edge`, the reverse proxy that applies site access (§18) |
 
 Naming conventions: see §15.
 
@@ -49,6 +50,9 @@ mosaicast-plugin-sample  ← reference plugin + build.sh (React-specific, replac
 mosaicast-plugin-bingo   ┐
 mosaicast-plugin-stats   ├ own repos, depend ONLY on the SDK
 mosaicast-plugin-wiki    ┘
+
+mosaicast-edge           ← optional reverse proxy in front of core (Go, §18). Talks to core over public HTTP only;
+                           depends on neither the SDK nor core code.
 ```
 
 **Build order:** SDK → core → sample → individual plugins.
@@ -808,3 +812,44 @@ This is the **first plugin surface that writes into another user's experience**.
 
 ### 17.2 Lifecycle
 Notifications are user data. They are erased with the account (§12.8) rather than left keyed to a UUID nobody can resolve, a plugin's notifications go when the plugin's data does, read ones are purged after a retention period and unread ones are capped per user — an inbox nobody empties is not a feature, and an unbounded one is a table that only grows.
+
+---
+
+## 18. Site access & the edge
+
+A site is not always meant to be seen. Before a launch it should show a countdown, during planned work a holding page, and while core restarts — which every plugin install requires (§7.8) — something better than a proxy's 502. Staff need the real site through all of it. Two components share the job, and the split is the design: **core owns the policy, the edge enforces and presents it.**
+
+- **Core decides who may see the site** (the guardrail of §10: the host decides access). The policy is a row in core's database, edited on an admin page, read by anyone over a public endpoint.
+- **`mosaicast-edge` is a reverse proxy in front of core** that applies the policy to every request and renders the pages a visitor sees instead of the site. It exists as a separate process because its most important page is the one shown **while core is not running**, which nothing inside core can serve.
+- **Without an edge the policy has no effect** on what visitors see, except where core enforces a part of it itself (sign-ups, below). The admin page says so plainly whenever no edge has reported in, instead of letting an admin believe a site is closed that is not.
+
+### 18.1 The policy
+```
+SiteAccess (state, opens_at, ends_at, pass_floor, staff_login_visible, signups_while_closed,
+            revision, updated_at, updated_by)
+        state: open | scheduled | maintenance | closed
+```
+- **`open`** — everyone is proxied through.
+- **`scheduled`** — closed until `opens_at`, open from that instant on. The edge flips on its own clock at that moment and does not wait for a poll, so a launch happens on the second even if core is slow to answer. A `scheduled` policy whose `opens_at` has passed **is** open; core reports both the stored and the effective state so nobody has to compute it twice.
+- **`maintenance`** — closed, with an optional `ends_at` that is **shown, never acted on**. Planned work overruns; a site that reopened itself on an estimate would reopen mid-migration. An admin ends maintenance.
+- **`closed`** — closed with no end in sight: the sudden off switch.
+- **No row means `open`.** An existing install that upgrades must not find itself closed.
+- **`pass_floor`** is the lowest role that is let through while not open: `podcaster` (default) or `admin`. ADMIN always passes — an admin locked out of their own site by their own setting cannot fix it.
+- **Timing rules**, so the countdown a visitor is watching never lies: a `scheduled` `opens_at` must lie at least 60 s ahead when saved. The one exception is **open now**, which sets `scheduled` with `opens_at` = now + 12 s, so the last ten seconds still play rather than the page jumping. Postponing is an ordinary save of a later time.
+- **`revision`** increments on every write and is the `ETag` of the public read, so a poll that changed nothing is a `304`.
+
+### 18.2 What core exposes
+- **`GET /api/site/access`** — public: `state`, `effectiveState`, `opensAt`, `endsAt`, `passFloor`, `staffLogin` (`visible` + the configured providers as `{id, path}`), `now`, `revision`. Public because nothing in it is secret: the countdown shows the date anyway, and the provider list is the login button core already renders.
+- **Who someone is: `GET /api/me`, unchanged.** The edge forwards the visitor's session cookie and reads `role`. There is deliberately no signed "pass" cookie: §8.5 rejected stateless tokens so that a ban or a demotion takes effect at once, and a pass the edge could verify offline would be exactly such a token. The edge may cache an answer briefly (≤ 30 s), which bounds how long a demoted podcaster keeps seeing a closed site.
+- **Look and legal text, unchanged:** `GET /api/site` (name, generated light/dark tokens, mode policy), `/branding/*` (logo, favicon), `GET /api/legal` and `GET /api/legal/{slug}`. The edge copies what it needs while core is up, because its pages must render while core is down.
+- **The edge reports in.** A poll carrying `Mosaicast-Edge-Token` equal to `MOSAICAST_EDGE_TOKEN` is recorded — when, and the build the edge names in `Mosaicast-Edge-Build` — in memory, not the database: it is a liveness signal, not history. The token exists so that "edge connected" on the admin page cannot be produced by anyone who can send a header; with no token configured the page shows the edge as unknown. A poll without the token is still answered: the endpoint is public.
+
+### 18.3 What core enforces itself: sign-ups
+**While the effective state is not `open`, core refuses to create new accounts** (§8.3 case 3, a first login with an unknown identity), unless `signups_while_closed` is on. Existing accounts sign in, linking an identity to a signed-in account still works, and the bootstrap admin (§8.5) is always created. This is core's to enforce rather than the edge's because the account is created in core, and a hidden login path is not a closed one: anyone who finds it can complete an OAuth flow. The refusal is a login failure with its own code, so the edge can say what happened. An admin who wants a new podcaster in before launch turns the switch on for the moment it takes.
+
+### 18.4 The edge
+- **A separate process in Go** — the one component outside §2's stack, chosen for the property that justifies its existence: a ~10 MB static binary that starts in milliseconds and shares none of core's failure modes. It talks to core only over the HTTP above, so it needs neither the SDK nor any core code.
+- **Request flow** while the site is not open: the edge's own paths (`/_a/*`) and the OAuth paths (`/oauth2/authorization/*`, `/login/oauth2/code/*`) always pass; a request **without** a session cookie gets the page for the current state without core being asked anything, so anonymous load costs core nothing; a request **with** one is checked against `/api/me` and proxied if the role meets `pass_floor`. Any error during the check shows the page — **fail closed**. While open, everything is proxied untouched, with `Host` and the forwarded headers preserved so core builds its absolute URLs (the OAuth redirect among them) correctly.
+- **Pages:** `countdown` (state `scheduled`, phases wait → final → party → handoff), `maintenance`, `closed`, `unavailable` (core does not answer — the edge decides this one itself, from the proxy's own failures), plus `/_a/login` (staff sign-in, always reachable, linked from the pages only when `staff_login_visible`) and `/_a/legal/{slug}` (the site's legal pages, from the copy). The **edge owns the HTTP semantics**: maintenance, closed and unavailable answer `503` with `Retry-After` so search engines keep the site's index, and non-HTML requests get a plain `503` whatever the page looks like.
+- **Themes** change how these pages look and nothing about how they behave. A theme may provide any page, restyle the edge's default for it, or provide nothing; whatever it leaves out falls back to the edge's default, which is drawn from the site's own tokens and logo and so looks like the site with no theme at all. The clock, the state machine and the handoff belong to the edge's runtime, not to the theme: they are where a launch page can go wrong, and every theme reimplementing them is every theme free to reintroduce the same bugs. Themes are **self-contained** (no external requests, no fetches from core at runtime) because the page they are most needed for is the one shown while core is down. The theme contract is the edge repo's to document.
+- **The edge trusts its own clock** for the moment of opening, and tells the browser the time: a visitor's device clock is not evidence of anything.
