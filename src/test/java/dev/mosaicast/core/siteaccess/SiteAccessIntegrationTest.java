@@ -160,6 +160,19 @@ class SiteAccessIntegrationTest {
         assertThat(edge.get("build").asString()).isEqualTo("abc123");
     }
 
+    @Test
+    void theSessionCookieHasTheShapeTheEdgeChecksBeforeAskingCore() {
+        // The edge treats any other shape as anonymous without calling /api/me, so random cookies cannot be
+        // used to load core (§18.4). Changing the session id or its encoding breaks that check: pinned here.
+        String pair = DevLogin.login(rest, "fan").session();
+        String value = pair.substring(pair.indexOf('=') + 1);
+
+        assertThat(value).hasSize(48);
+        String decoded = new String(java.util.Base64.getDecoder().decode(value),
+                java.nio.charset.StandardCharsets.US_ASCII);
+        assertThat(decoded).matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}");
+    }
+
     private JsonNode edge(DevLogin.Cookies admin) {
         HttpHeaders headers = new HttpHeaders();
         headers.add(HttpHeaders.COOKIE, admin.session());

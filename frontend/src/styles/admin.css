@@ -800,3 +800,20 @@
   padding-top: 0.75rem;
   border-top: 1px solid var(--mc-border);
 }
+
+/* Site access (§18): what visitors see right now, then whether anything is enforcing it. The warning uses
+   the same amber as the WARN chip, and words that carry the meaning on their own. */
+.mc-access__now {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--mc-border);
+  border-radius: 6px;
+  background: var(--mc-surface);
+  font-weight: 600;
+}
+.mc-access__warning {
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, #d69e45 18%, transparent);
+}

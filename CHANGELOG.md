@@ -14,6 +14,9 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **New accounts are refused while the site is not open (`0.8.4`, §18.3).** A first login then fails with
+  `login_error=signups_closed` unless an admin turns on "Allow new accounts". Existing accounts, linking
+  and the bootstrap admin are unaffected.
 - **Core pins SDK 0.19.1 (`0.8.2`).** A patch release: `platformApi` stays 0.19.0, so plugins built for
   0.19.0 keep loading. It changes the plugin-side `i18n.bytes` helper to binary units (KiB/MiB, as core's
   admin already shows) and catches the SDK's docs up with core 0.8.1. Nothing changes in the host.
@@ -30,6 +33,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Site access: countdown, maintenance and closed, with staff let through (`0.8.4`, ARCHITECTURE §18).**
+  Admin → Site access holds the policy (open, countdown to a time, maintenance with an optional expected
+  end, closed) and who sees the real site meanwhile (podcasters and admins, or admins only). The new
+  `mosaicast-edge` proxy reads it from the public
+  `GET /api/site/access` (ETag on a revision, so an unchanged poll is a 304) and shows the pages. With
+  `MOSAICAST_EDGE_TOKEN` set on both sides, the admin page shows whether the edge is reporting in. No
+  saved policy means open, so an upgrade changes nothing.
 - **Deleting a feed tells plugins each of its episodes is gone (`0.8.1`).** `onEpisodePhaseChanged` now
   fires with `null` for every episode of a deleted feed, after the commit, like a cancelled plan. Before,
   a plugin's site-scope documents kept naming them until its next schedule tick.

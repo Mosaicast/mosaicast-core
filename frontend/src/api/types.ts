@@ -73,6 +73,34 @@ export interface SeoView {
   known: AiCrawler[];
 }
 
+/** Who sees the site (ARCHITECTURE §18.1). */
+export type SiteState = 'open' | 'scheduled' | 'maintenance' | 'closed';
+
+/** The lowest role the edge lets through while the site is not open; admins always pass. */
+export type PassFloor = 'podcaster' | 'admin';
+
+/** The public site-access policy the edge polls (`siteaccess/SiteAccessController.java`). */
+export interface SiteAccessView {
+  state: SiteState;
+  /** The state as of `now`: a scheduled opening that has passed reads as `open`. */
+  effectiveState: SiteState;
+  opensAt: string | null;
+  endsAt: string | null;
+  passFloor: PassFloor;
+  staffLogin: { visible: boolean; providers: { id: string; path: string }[] };
+  now: string;
+  revision: number;
+}
+
+/** The admin editor's view, `GET /api/admin/site/access`. */
+export interface AdminSiteAccessView {
+  access: SiteAccessView;
+  signupsWhileClosed: boolean;
+  updatedAt: string | null;
+  /** Whether the edge is reporting in; `unknown` when no token is configured. */
+  edge: { status: 'connected' | 'stale' | 'unknown'; lastSeen: string | null; build: string | null };
+}
+
 /** One language on the admin languages page (`i18n/LocaleViews.java`), `GET /api/admin/i18n`. */
 export interface AdminLocale {
   code: string;

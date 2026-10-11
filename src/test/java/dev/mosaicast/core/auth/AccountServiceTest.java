@@ -275,4 +275,16 @@ class AccountServiceTest {
 
         assertThat(result.getRole()).isEqualTo(Role.ADMIN);
     }
+
+    @Test
+    void signupsClosed_theDevLoginBypassStillCreatesItsUsers() {
+        AccountService closed = new AccountService(users, identities, new AuthProperties("", ""), displayNames,
+                avatars, CLOSED);
+        when(identities.findByProviderAndExternalId("dev", "PODCASTER")).thenReturn(Optional.empty());
+
+        User result = closed.resolveDevLogin(claim("dev", "PODCASTER", null, false));
+
+        assertThat(result).isNotNull();
+        verify(users).save(any(User.class));
+    }
 }

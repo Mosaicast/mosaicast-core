@@ -10,6 +10,7 @@ import { problemMessage } from '../../api/problemMessage';
 import type { AdminFeed, MatchCandidate, PlannedEpisode } from '../../api/types';
 import { ConfirmDialog } from '../../components/ConfirmDialog';
 import { formatPublishedDate, formatSeasonEpisode } from '../../util/format';
+import { toLocalInput } from '../../util/localDateTime';
 
 type Visibility = 'quiet' | 'now' | 'at';
 
@@ -33,13 +34,6 @@ function announceAtOf(draft: Draft): string | null {
   if (draft.visibility === 'quiet') return null;
   if (draft.visibility === 'now' || !draft.at) return 'now';
   return new Date(draft.at).toISOString();
-}
-
-/** An instant as a `datetime-local` value in the admin's time zone. */
-function toLocalInput(iso: string): string {
-  const date = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function draftOf(plan: PlannedEpisode): Draft {

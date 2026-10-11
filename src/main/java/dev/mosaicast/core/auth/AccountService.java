@@ -69,12 +69,24 @@ public class AccountService {
      */
     @Transactional
     public User resolveLogin(IdentityClaim claim, @Nullable UUID currentUserId) {
-        User user = resolve(claim, currentUserId);
+        User user = resolve(claim, currentUserId, signups);
         applyBootstrap(user, claim);
         return user;
     }
 
-    private User resolve(IdentityClaim claim, @Nullable UUID currentUserId) {
+    /**
+     * {@link #resolveLogin} for the dev-only login bypass, which creates its per-role users whatever the
+     * site-access policy says (§18.3). It exists to test the site, including a closed one; gating it would
+     * make the first dev-login on a closed dev instance fail and nothing else.
+     */
+    @Transactional
+    public User resolveDevLogin(IdentityClaim claim) {
+        User user = resolve(claim, null, SignupGate.OPEN);
+        applyBootstrap(user, claim);
+        return user;
+    }
+
+    private User resolve(IdentityClaim claim, @Nullable UUID currentUserId, SignupGate signups) {
         // Case 1: known identity → log in, refreshing the captured email/verification.
         String email = normalizeEmail(claim.email());
         var existing = identities.findByProviderAndExternalId(claim.provider(), claim.externalId());
