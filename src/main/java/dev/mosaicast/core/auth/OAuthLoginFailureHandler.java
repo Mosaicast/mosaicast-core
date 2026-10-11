@@ -19,7 +19,8 @@ import org.springframework.security.web.authentication.AuthenticationFailureHand
  * Redirects a failed social login to {@code /?login_error=<code>}, preserving the reason so the shell can
  * show a useful message (ARCHITECTURE §8.3). The account-merging outcomes that stop a login carry a code —
  * {@code account_conflict} (identity owned by another user) and {@code link_required} (verified-email match,
- * link explicitly) — set in {@link DiscordOAuth2UserService}; anything else is {@code failed}.
+ * link explicitly) and {@code signups_closed} (a first login while the site is not open, §18.3) — set in
+ * {@link DiscordOAuth2UserService}; anything else is {@code failed}.
  *
  * <p>Every failure is also logged server-side: Spring only logs OAuth login failures at {@code DEBUG}, so
  * without this an operator sees the shell's generic "Login failed." with nothing in the logs to explain it.
@@ -33,7 +34,7 @@ public class OAuthLoginFailureHandler implements AuthenticationFailureHandler {
 
     /** Outcomes that are a person's choice rather than a fault — logged, but not as a problem. */
     private static final java.util.Set<String> EXPECTED =
-            java.util.Set.of("account_conflict", "link_required");
+            java.util.Set.of("account_conflict", "link_required", "signups_closed");
 
     @Override
     public void onAuthenticationFailure(

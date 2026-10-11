@@ -133,6 +133,11 @@ mosaicast:
     # The (provider, external_id) granted ADMIN on first login (ARCHITECTURE §8.5).
     bootstrap-provider: ${ADMIN_BOOTSTRAP_PROVIDER:}
     bootstrap-external-id: ${ADMIN_BOOTSTRAP_EXTERNAL_ID:}
+  # The edge in front of core (ARCHITECTURE §18). A poll of /api/site/access carrying this token in
+  # Mosaicast-Edge-Token is recorded, so the admin page can say whether the edge is enforcing the policy.
+  # Blank: the edge is still answered, the page shows it as unknown.
+  edge:
+    token: ${MOSAICAST_EDGE_TOKEN:}
   # The avatar proxy (ARCHITECTURE §8.7). Pictures are fetched from the provider the user chose, served as
   # bytes by the host, and held in memory only — a picture the host *stores* is a picture the host has to
   # moderate, retain and erase, which is exactly what §8.7 declines to take on.

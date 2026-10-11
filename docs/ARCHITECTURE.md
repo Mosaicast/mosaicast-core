@@ -826,7 +826,7 @@ A site is not always meant to be seen. Before a launch it should show a countdow
 ### 18.1 The policy
 ```
 SiteAccess (state, opens_at, ends_at, pass_floor, staff_login_visible, signups_while_closed,
-            revision, updated_at, updated_by)
+            revision, updated_at)
         state: open | scheduled | maintenance | closed
 ```
 - **`open`** — everyone is proxied through.

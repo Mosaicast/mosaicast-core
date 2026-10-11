@@ -70,6 +70,8 @@ public class SecurityConfig {
     private static final String[] PUBLIC_GET_PATHS = {
         // The consent payload has to be readable before anyone logs in — that is the whole point of a banner.
         "/api/meta", "/api/site", "/api/legal/**", "/api/consent",
+        // The site-access policy the edge polls (§18.2): nothing in it is secret, and the edge has no session.
+        "/api/site/access",
         // The language list and the message catalogs: the shell fetches them before anyone logs in, and a
         // plugin reads the list to know which languages it may offer to author in (§12.7).
         "/api/i18n/**",

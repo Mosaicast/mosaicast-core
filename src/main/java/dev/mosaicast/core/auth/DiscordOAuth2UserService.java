@@ -100,6 +100,8 @@ public class DiscordOAuth2UserService implements OAuth2UserService<OAuth2UserReq
             throw new OAuth2AuthenticationException(new OAuth2Error("account_conflict"), e.getMessage(), e);
         } catch (ExplicitLinkRequiredException e) {
             throw new OAuth2AuthenticationException(new OAuth2Error("link_required"), e.getMessage(), e);
+        } catch (SignupsClosedException e) {
+            throw new OAuth2AuthenticationException(new OAuth2Error("signups_closed"), e.getMessage(), e);
         }
     }
 

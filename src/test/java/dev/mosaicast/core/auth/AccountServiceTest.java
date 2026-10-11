@@ -60,7 +60,8 @@ class AccountServiceTest {
         displayNames = new DisplayNameService(
                 users, nameHistory, new DisplayNameProperties(null, null, null, List.of(), List.of()),
                 notifications);
-        service = new AccountService(users, identities, new AuthProperties("", ""), displayNames, avatars);
+        service = new AccountService(users, identities, new AuthProperties("", ""), displayNames, avatars,
+                SignupGate.OPEN);
         lenient().when(users.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         lenient().when(identities.save(any(LinkedIdentity.class))).thenAnswer(inv -> inv.getArgument(0));
     }
@@ -213,11 +214,64 @@ class AccountServiceTest {
     @Test
     void bootstrapIdentity_isPromotedToAdmin() {
         AccountService bootstrapService =
-                new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"), displayNames, avatars);
+                new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"), displayNames, avatars,
+                        SignupGate.OPEN);
         when(identities.findByProviderAndExternalId("discord", "ADMIN123")).thenReturn(Optional.empty());
         when(identities.findByEmailAndEmailVerifiedTrue(any())).thenReturn(List.of());
 
         User result = bootstrapService.resolveLogin(claim("discord", "ADMIN123", "boss@x.io", true), null);
+
+        assertThat(result.getRole()).isEqualTo(Role.ADMIN);
+    }
+
+    // ---- §18.3: no new accounts while the site is not open ----
+
+    private static final SignupGate CLOSED = () -> false;
+
+    @Test
+    void signupsClosed_aFirstLoginIsRefusedAndNothingIsCreated() {
+        AccountService closed = new AccountService(users, identities, new AuthProperties("", ""), displayNames,
+                avatars, CLOSED);
+        when(identities.findByProviderAndExternalId("discord", "NEW1")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> closed.resolveLogin(claim("discord", "NEW1", "n@x.io", false), null))
+                .isInstanceOf(SignupsClosedException.class);
+        verify(users, never()).save(any());
+        verify(identities, never()).save(any());
+    }
+
+    @Test
+    void signupsClosed_anExistingAccountStillSignsIn() {
+        AccountService closed = new AccountService(users, identities, new AuthProperties("", ""), displayNames,
+                avatars, CLOSED);
+        UUID userId = UUID.randomUUID();
+        User existing = User.create(userId, "Alex", "alex", null, Role.PODCASTER);
+        when(identities.findByProviderAndExternalId("discord", "E1"))
+                .thenReturn(Optional.of(LinkedIdentity.link(userId, "discord", "E1", null, false, null)));
+        when(users.findById(userId)).thenReturn(Optional.of(existing));
+
+        assertThat(closed.resolveLogin(claim("discord", "E1", null, false), null)).isSameAs(existing);
+    }
+
+    @Test
+    void signupsClosed_linkingWhileSignedInStillWorks() {
+        AccountService closed = new AccountService(users, identities, new AuthProperties("", ""), displayNames,
+                avatars, CLOSED);
+        UUID currentUserId = UUID.randomUUID();
+        User current = User.create(currentUserId, "Alex", "alex", null, Role.PODCASTER);
+        when(identities.findByProviderAndExternalId("patreon", "P1")).thenReturn(Optional.empty());
+        when(users.findById(currentUserId)).thenReturn(Optional.of(current));
+
+        assertThat(closed.resolveLogin(claim("patreon", "P1", null, false), currentUserId)).isSameAs(current);
+    }
+
+    @Test
+    void signupsClosed_theBootstrapAdminIsAlwaysCreated() {
+        AccountService closed = new AccountService(users, identities, new AuthProperties("discord", "ADMIN123"),
+                displayNames, avatars, CLOSED);
+        when(identities.findByProviderAndExternalId("discord", "ADMIN123")).thenReturn(Optional.empty());
+
+        User result = closed.resolveLogin(claim("discord", "ADMIN123", null, false), null);
 
         assertThat(result.getRole()).isEqualTo(Role.ADMIN);
     }
