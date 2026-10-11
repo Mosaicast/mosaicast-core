@@ -20,12 +20,18 @@ import java.util.Locale;
 public record SiteView(String name, String modePolicy, String accentSeed, String defaultLocale,
                        GeneratedTheme theme, Branding branding) {
 
-    /** Branding asset URLs. Logo/favicon always resolve (they fall back to bundled defaults); dark logo is optional. */
+    /**
+     * Branding asset URLs. Logo/favicon always resolve (they fall back to bundled defaults). The dark logo is
+     * there when it fits the logo in use: the uploaded one, or — while the logo is still the bundled one —
+     * the bundled dark variant, whose lettering stays readable on a dark background. A site with its own logo
+     * and no dark one gets {@code null} and shows its own logo in both modes, rather than ours in one.
+     */
     public record Branding(String logo, String favicon, String darkLogo) {
     }
 
     public static SiteView of(SiteConfig config, GeneratedTheme theme) {
-        String darkLogo = config.getDarkLogoAssetId() != null ? "/branding/dark-logo" : null;
+        boolean darkFitsTheLogo = config.getDarkLogoAssetId() != null || config.getLogoAssetId() == null;
+        String darkLogo = darkFitsTheLogo ? "/branding/dark-logo" : null;
         return new SiteView(
                 config.getSiteName(),
                 config.getModePolicy().name().toLowerCase(Locale.ROOT),
