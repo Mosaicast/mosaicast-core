@@ -69,4 +69,63 @@ class ThemeSeedGeneratorTest {
         // sanity: conversion is stable enough that a hex survives the round trip within rounding.
         assertThat(Oklch.oklchToHex(Oklch.hexToOklch("#c8553d"))).isEqualTo("#c8553d");
     }
+
+    // ---- core#281: accent2 is used as text and as a chip fill, so it carries the same guarantees ----
+
+    /**
+     * A grid of accents — hue in 15° steps at several lightness/chroma levels, plus the extremes. The
+     * existing cases all passed while accent2 was unreadable for half of the usual brand colours, because
+     * none of them had a light accent in light mode or a dark one in dark mode.
+     */
+    static java.util.stream.Stream<String> accentGrid() {
+        java.util.List<String> accents = new java.util.ArrayList<>(
+                java.util.List.of("#000000", "#111111", "#ffffff", "#ffff00", "#c8981c", "#cc9720"));
+        for (double l : new double[] {0.30, 0.55, 0.75, 0.92}) {
+            for (double c : new double[] {0.05, 0.12, 0.20}) {
+                for (int h = 0; h < 360; h += 15) {
+                    accents.add(Oklch.oklchToHex(new Oklch.Color(l, c, h)));
+                }
+            }
+        }
+        return accents.stream();
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.MethodSource("accentGrid")
+    void theSecondAccentReadsAsTextAndCarriesReadableChipText(String accent) {
+        GeneratedTheme theme = generator.generate(accent);
+        for (ThemeTokenSet tokens : java.util.List.of(theme.light(), theme.dark())) {
+            assertTextReadable(tokens);
+            assertThat(Oklch.contrast(tokens.accent2(), tokens.bg()))
+                    .as("accent2 vs bg for %s", accent)
+                    .isGreaterThanOrEqualTo(ThemeSeedGenerator.MIN_TEXT_CONTRAST);
+            assertThat(Oklch.contrast(tokens.accent2(), tokens.surface()))
+                    .as("accent2 vs surface for %s", accent)
+                    .isGreaterThanOrEqualTo(ThemeSeedGenerator.MIN_TEXT_CONTRAST);
+            assertThat(Oklch.contrast(tokens.accent2Contrast(), tokens.accent2()))
+                    .as("chip text on accent2 for %s", accent)
+                    .isGreaterThanOrEqualTo(ThemeSeedGenerator.MIN_TEXT_CONTRAST);
+        }
+    }
+
+    @Test
+    void aGoldAccentKeepsAWarmSecondAccent() {
+        // Game of Pods: +40° turned its gold into olive green. Warm accents rotate the other way.
+        double goldHue = Oklch.hexToOklch("#c8981c").h();
+        double secondHue = ThemeSeedGenerator.secondaryAccent(Oklch.hexToOklch("#c8981c")).h();
+
+        assertThat(goldHue).isBetween(ThemeSeedGenerator.WARM_FROM, ThemeSeedGenerator.WARM_TO);
+        assertThat(secondHue).isCloseTo(goldHue - 40.0, org.assertj.core.data.Offset.offset(0.001));
+        // and the light-mode value really is no longer a green (OKLCH greens sit around 120–150°)
+        assertThat(Oklch.hexToOklch(generator.generate("#c8981c").light().accent2()).h()).isLessThan(WARM_GREEN);
+    }
+
+    private static final double WARM_GREEN = 100.0;
+
+    @Test
+    void aCoolAccentStillRotatesForwards() {
+        Oklch.Color blue = Oklch.hexToOklch("#1a5fb4");
+        assertThat(ThemeSeedGenerator.secondaryAccent(blue).h())
+                .isCloseTo((blue.h() + 40.0) % 360.0, org.assertj.core.data.Offset.offset(0.001));
+    }
 }

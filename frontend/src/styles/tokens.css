@@ -18,13 +18,17 @@
  * `theme/applyTheme.ts` and the no-flash script in `public/theme-init.js`, which set them as inline
  * styles on `:root`. Keep those three lists in step.
  *
- * ## One more from the generator, CSS-only
+ * ## Two more from the generator, CSS-only
  *
  * `--mc-accent-text` is the accent clamped to WCAG AA as a *foreground* (core#162). The generator emits it
  * beside the eight and `applyTheme.ts` / `theme-init.js` set it, but it is not part of `ctx.theme` — the
  * SDK's `ThemeTokens` is the eight, and `buildCtx` hands over exactly those. Plugins read it here, through
  * CSS, like every other token. Use it wherever the accent colours text or a ring; keep `--mc-accent` for
  * fills paired with `--mc-accent-contrast`.
+ *
+ * `--mc-accent-2-contrast` is readable text on `--mc-accent-2` used as a fill (core#281); pair those two
+ * the way `--mc-accent` pairs with `--mc-accent-contrast`. `--mc-accent-2` itself is guaranteed readable as
+ * text on `--mc-bg` and `--mc-surface` (≥ 4.5:1, both modes), so it works as a foreground too.
  *
  * ## Everything else is derived, on purpose
  *
@@ -47,6 +51,7 @@
   --mc-accent-contrast: #fff8f2;
   --mc-border: #e7ddcf;
   --mc-accent-2: #3d7d8c;
+  --mc-accent-2-contrast: #fff8f2;
 
   /* --- surfaces and interaction states, derived from the eight --- */
   /** A surface raised above `--mc-surface` (inset panels, table heads, code blocks). */
@@ -139,6 +144,7 @@
   --mc-accent-contrast: #1c1712;
   --mc-border: #342d23;
   --mc-accent-2: #6bb0c0;
+  --mc-accent-2-contrast: #1c1712;
   /* 6.2:1 on --mc-bg and 5.7:1 on --mc-surface: the dark accent already reads as text. */
   --mc-accent-text: #e07a5f;
 

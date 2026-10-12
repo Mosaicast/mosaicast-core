@@ -1041,6 +1041,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
   empty by default, which grants nothing.
   - `docker-compose.prod.yml` is the one that mattered: it pulls the released image, so it is what a real
     install runs, and a self-hosted provider is exactly the case it was missing.
+- **The second accent is readable, and warm brands keep it warm (`0.8.4`, core#281).** `--mc-accent-2`
+  (feed names on episode cards, chips, `ctx.theme.accent2`) was never contrast-checked: a gold accent such
+  as Game of Pods' gave olive-green feed names at 2.49:1, and dark accents produced chips with invisible
+  labels in dark mode. It is now clamped to 4.5:1 on the page in both modes (dark mode from the lifted
+  accent), warm accents rotate towards bronze instead of green, and chips get their own readable label
+  colour, `--mc-accent-2-contrast` (CSS-only for now). Plugins need no rebuild; `ctx.theme.accent2` is
+  simply readable as text from now on.
 
 ## [0.6.24] — 2026-09-02
 

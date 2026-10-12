@@ -11,6 +11,11 @@ import org.springframework.stereotype.Component;
  * the system derives the rest in OKLCH (perceptually even) and <strong>clamps text against its background
  * to WCAG AA (≥ 4.5:1)</strong>, so no accent can produce an unreadable theme. Neutrals are tinted with a
  * trace of the accent hue so light and dark feel of a piece.
+ *
+ * <p>What is guaranteed, in both modes: {@code text}, {@code textMuted}, {@code accentText} and
+ * {@code accent2} reach 4.5:1 on {@code bg} and {@code surface} (the last two are used as text by the shell
+ * and by plugins through {@code ctx.theme}); {@code accentContrast} is the more readable of white and
+ * near-black on {@code accent}, and {@code accent2Contrast} reaches 4.5:1 on {@code accent2} (core#281).
  */
 @Component
 public class ThemeSeedGenerator {
@@ -35,9 +40,10 @@ public class ThemeSeedGenerator {
         String text = clampText(new Color(0.22, 0.02, hue), bg, true);
         String textMuted = clampText(new Color(0.50, 0.02, hue), bg, true);
         String accentHex = Oklch.oklchToHex(accent);
+        String accent2 = accentText(secondaryAccent(accent), bg, surface, true);
         return new ThemeTokenSet(bg, surface, text, textMuted,
-                accentHex, accentContrast(accentHex), border, secondaryAccent(accent),
-                accentText(accent, bg, surface, true));
+                accentHex, accentContrast(accentHex), border, accent2,
+                accentText(accent, bg, surface, true), accentContrast(accent2));
     }
 
     private ThemeTokenSet dark(Color accent, double hue) {
@@ -49,9 +55,12 @@ public class ThemeSeedGenerator {
         // On a dark page the accent needs enough lightness to read as a colour, not a smudge.
         Color darkAccent = new Color(Math.max(accent.l(), 0.62), accent.c(), hue);
         String accentHex = Oklch.oklchToHex(darkAccent);
+        // From the lifted accent, like every other dark token: from the raw one, a dark seed gave an accent2
+        // that vanished on the dark page (#111111 measured 1.09:1, core#281).
+        String accent2 = accentText(secondaryAccent(darkAccent), bg, surface, false);
         return new ThemeTokenSet(bg, surface, text, textMuted,
-                accentHex, accentContrast(accentHex), border, secondaryAccent(accent),
-                accentText(darkAccent, bg, surface, false));
+                accentHex, accentContrast(accentHex), border, accent2,
+                accentText(darkAccent, bg, surface, false), accentContrast(accent2));
     }
 
     /**
@@ -72,9 +81,22 @@ public class ThemeSeedGenerator {
         return Oklch.oklchToHex(new Color(lightness, NEUTRAL_CHROMA, hue));
     }
 
-    private static String secondaryAccent(Color accent) {
-        // A harmonious second accent: rotate the hue, keep lightness/chroma.
-        return Oklch.oklchToHex(new Color(accent.l(), accent.c(), (accent.h() + 40.0) % 360.0));
+    /** OKLCH hues of the warm band (orange through yellow and gold), where +40° would land in green. */
+    static final double WARM_FROM = 35.0;
+    static final double WARM_TO = 115.0;
+
+    /**
+     * A harmonious second accent: the hue rotated by 40°, lightness and chroma kept, before the text clamp.
+     *
+     * <p>Warm accents rotate the other way. +40° turns any gold, yellow or orange into green — technically
+     * harmonious, and wrong for a brand built on gold (Game of Pods' {@code #c8981c} became olive). −40°
+     * keeps them warm: gold becomes bronze and rust, orange becomes red (core#281).
+     */
+    static Color secondaryAccent(Color accent) {
+        double hue = accent.h();
+        boolean warm = hue >= WARM_FROM && hue < WARM_TO;
+        double rotated = warm ? hue - 40.0 : hue + 40.0;
+        return new Color(accent.l(), accent.c(), ((rotated % 360.0) + 360.0) % 360.0);
     }
 
     /**

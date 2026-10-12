@@ -27,6 +27,11 @@ export interface ThemeTokenSet {
    * Optional because the no-flash cache written by an older version has no such field.
    */
   accentText?: string;
+  /**
+   * Readable text on `accent2` used as a fill (`--mc-accent-2-contrast`, core#281), e.g. the episode chips.
+   * Optional for the same reason as `accentText`.
+   */
+  accent2Contrast?: string;
 }
 
 /** The generated theme (`branding/GeneratedTheme.java`): seed + light/dark token sets. */
