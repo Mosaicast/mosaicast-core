@@ -46,15 +46,17 @@ public class AccountService {
     private final AuthProperties auth;
     private final DisplayNameService displayNames;
     private final dev.mosaicast.core.auth.avatar.AvatarService avatars;
+    private final SignupGate signups;
 
     public AccountService(UserRepository users, LinkedIdentityRepository identities, AuthProperties auth,
                           DisplayNameService displayNames,
-                          dev.mosaicast.core.auth.avatar.AvatarService avatars) {
+                          dev.mosaicast.core.auth.avatar.AvatarService avatars, SignupGate signups) {
         this.users = users;
         this.identities = identities;
         this.auth = auth;
         this.displayNames = displayNames;
         this.avatars = avatars;
+        this.signups = signups;
     }
 
     /**
@@ -67,12 +69,24 @@ public class AccountService {
      */
     @Transactional
     public User resolveLogin(IdentityClaim claim, @Nullable UUID currentUserId) {
-        User user = resolve(claim, currentUserId);
+        User user = resolve(claim, currentUserId, signups);
         applyBootstrap(user, claim);
         return user;
     }
 
-    private User resolve(IdentityClaim claim, @Nullable UUID currentUserId) {
+    /**
+     * {@link #resolveLogin} for the dev-only login bypass, which creates its per-role users whatever the
+     * site-access policy says (§18.3). It exists to test the site, including a closed one; gating it would
+     * make the first dev-login on a closed dev instance fail and nothing else.
+     */
+    @Transactional
+    public User resolveDevLogin(IdentityClaim claim) {
+        User user = resolve(claim, null, SignupGate.OPEN);
+        applyBootstrap(user, claim);
+        return user;
+    }
+
+    private User resolve(IdentityClaim claim, @Nullable UUID currentUserId, SignupGate signups) {
         // Case 1: known identity → log in, refreshing the captured email/verification.
         String email = normalizeEmail(claim.email());
         var existing = identities.findByProviderAndExternalId(claim.provider(), claim.externalId());
@@ -116,6 +130,13 @@ public class AccountService {
             throw new ExplicitLinkRequiredException(
                     "An account with this email already exists. Log in with your existing method, then link "
                             + claim.provider() + " in settings.");
+        }
+
+        // While the site is not open, no new accounts (§18.3) — except the bootstrap admin, who is how an
+        // install that has never had an admin gets one, and must never depend on a setting only an admin can
+        // change. Checked after the merging rules so a link-required answer still reads as one.
+        if (!signups.allowsNewAccounts() && !auth.isBootstrapAdmin(claim.provider(), claim.externalId())) {
+            throw new SignupsClosedException();
         }
 
         // Otherwise: a brand-new account (default role FAN; the bootstrap identity is promoted below).

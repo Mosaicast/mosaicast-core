@@ -64,9 +64,8 @@ public class DevLoginController {
 
         Role selected = Roles.parse(role);
         // A stable dev user per role: (provider=dev, external_id=<role>).
-        User user = accounts.resolveLogin(
-                new IdentityClaim(DEV_PROVIDER, selected.name(), null, false, "Dev " + selected.name(), null),
-                null);
+        User user = accounts.resolveDevLogin(
+                new IdentityClaim(DEV_PROVIDER, selected.name(), null, false, "Dev " + selected.name(), null));
         if (user.getRole() != selected) {
             user.changeRole(selected);
             users.save(user);

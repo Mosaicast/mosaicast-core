@@ -221,6 +221,26 @@ curl -s -X PUT -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/j
   (`phase` is `null`)
   (SDK 0.19.0).
 
+## Site access: countdown, maintenance, closed
+
+Under **Admin → Site access** an admin decides what visitors see: the site, a countdown to a launch, a
+maintenance page or a closed page, and whether podcasters or only admins see the real site meanwhile
+(ARCHITECTURE §18). Core only holds this policy. The pages come from
+`mosaicast-edge`, a small reverse proxy in front of core that
+polls `GET /api/site/access` and keeps answering while core restarts. Without an edge the settings change
+nothing visitors see, and the admin page says so.
+
+- **Countdown:** pick the opening time; the edge opens the site on the second by itself. **Open now**
+  opens it in about 12 seconds, so anyone watching sees the last seconds count down.
+- **Staff sign in** at `/_a/login` on the edge (or through a link on the pages, if switched on).
+- **Sign-ups** are the one part core enforces itself: while the site is not open, a first login does not
+  create an account (`login_error=signups_closed`) unless **Allow new accounts** is on. Existing accounts
+  sign in as usual, and the bootstrap admin is always created.
+- **Connecting the edge:** set the same random value as `MOSAICAST_EDGE_TOKEN` in core's `.env` and
+  `EDGE_CORE_TOKEN` on the edge (`openssl rand -hex 32`), and the admin page shows whether the edge is
+  reporting in. Without it everything still works; the page shows the edge as unknown.
+- An install that never saves a policy stays open, so upgrading changes nothing.
+
 ## Versioning & releases
 
 - **Single source of truth:** the core version lives in **`gradle.properties`** (`version=…`). It is

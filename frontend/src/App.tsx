@@ -23,6 +23,7 @@ import { NotificationsPage } from './routes/NotificationsPage';
 import { SearchPage } from './routes/SearchPage';
 import { AccountPage } from './routes/AccountPage';
 import { CookiesPage } from './routes/CookiesPage';
+import { AdminAccess } from './routes/admin/AdminAccess';
 import { AdminConsent } from './routes/admin/AdminConsent';
 import { AdminExternal } from './routes/admin/AdminExternal';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
@@ -109,6 +110,14 @@ export default function App() {
                       element={
                         <RequireRole roles={['admin']}>
                           <AdminSite />
+                        </RequireRole>
+                      }
+                    />
+                    <Route
+                      path="access"
+                      element={
+                        <RequireRole roles={['admin']}>
+                          <AdminAccess />
                         </RequireRole>
                       }
                     />
