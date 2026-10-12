@@ -15,12 +15,17 @@ package dev.mosaicast.core.branding;
  * @param accent         accent ({@code --mc-accent})
  * @param accentContrast readable text on the accent ({@code --mc-accent-contrast})
  * @param border         borders/dividers ({@code --mc-border})
- * @param accent2        secondary accent ({@code --mc-accent-2})
+ * @param accent2        secondary accent ({@code --mc-accent-2}), readable as text on {@code bg} and
+ *                       {@code surface} (≥ 4.5:1): the shell sets feed names in it, and plugins read it
+ *                       through {@code ctx.theme.accent2} (core#281)
  * @param accentText     the accent as a <em>foreground</em> — links, the active tab, the focus ring
  *                       ({@code --mc-accent-text}) — clamped to WCAG AA against both {@code bg} and
  *                       {@code surface}. {@code accent} stays the raw seed: it is paired with
  *                       {@code accentContrast} as a background, which is where it belongs, and it is a
  *                       plugin-facing token whose meaning does not change (core#162).
+ * @param accent2Contrast readable text on {@code accent2} used as a fill ({@code --mc-accent-2-contrast}),
+ *                       e.g. the episode chips. CSS-only for now: not part of {@code ctx.theme} until an
+ *                       SDK minor adds it (core#281).
  */
 public record ThemeTokenSet(
         String bg,
@@ -31,5 +36,6 @@ public record ThemeTokenSet(
         String accentContrast,
         String border,
         String accent2,
-        String accentText) {
+        String accentText,
+        String accent2Contrast) {
 }

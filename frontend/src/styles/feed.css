@@ -350,7 +350,9 @@
   padding: 0.15rem var(--mc-space-2);
   border-radius: var(--mc-radius-pill);
   background: var(--mc-accent-2);
-  color: var(--mc-accent-contrast);
+  /* paired with accent2 itself: --mc-accent-contrast is chosen against --mc-accent and could match accent2's
+     own shade (core#281) */
+  color: var(--mc-accent-2-contrast);
   font-size: var(--mc-text-xs);
   font-weight: var(--mc-weight-medium);
   white-space: nowrap;

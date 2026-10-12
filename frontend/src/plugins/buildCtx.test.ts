@@ -110,6 +110,17 @@ describe('buildCtx', () => {
     expect(buildCtx({ ...base, theme: tokens }).theme.accent).toBe('#fff176');
   });
 
+  it('keeps ctx.theme to the SDK fields: the chip pairing stays CSS-only (core#281)', () => {
+    const tokens = {
+      bg: '#fffef0', surface: '#ffffff', text: '#1c1a17', textMuted: '#6b6459', accent: '#fff176',
+      accentContrast: '#1c1a17', accentText: '#6b5f00', accent2: '#3d7d8c', border: '#e7ddcf',
+      accent2Contrast: '#ffffff',
+    };
+    expect(Object.keys(buildCtx({ ...base, theme: tokens }).theme).sort()).toEqual(
+      ['accent', 'accent2', 'accentContrast', 'accentText', 'bg', 'border', 'surface', 'text', 'textMuted'],
+    );
+  });
+
   it('sanitizes with the shell’s own feed-HTML policy (SDK 0.16.0)', () => {
     const { sanitize } = buildCtx(base);
     // The payload that defaced the wiki plugin under DOMPurify's defaults.

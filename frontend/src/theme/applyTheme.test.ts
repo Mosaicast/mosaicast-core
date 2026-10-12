@@ -15,6 +15,7 @@ const tokens = (accent: string): ThemeTokenSet => ({
   accentContrast: '#000006',
   border: '#000007',
   accent2: '#000008',
+  accent2Contrast: '#000009',
 });
 
 const theme: GeneratedTheme = {
@@ -31,6 +32,7 @@ describe('applyTheme', () => {
     expect(root.style.getPropertyValue('--mc-bg')).toBe('#000001');
     expect(root.style.getPropertyValue('--mc-accent')).toBe(theme.dark.accent);
     expect(root.style.getPropertyValue('--mc-accent-2')).toBe('#000008');
+    expect(root.style.getPropertyValue('--mc-accent-2-contrast')).toBe('#000009');
   });
 
   it('switches token values when the mode changes', () => {

@@ -20,6 +20,7 @@ const TOKEN_VARS: Record<keyof ThemeTokenSet, string> = {
   border: '--mc-border',
   accent2: '--mc-accent-2',
   accentText: '--mc-accent-text',
+  accent2Contrast: '--mc-accent-2-contrast',
 };
 
 /** Resolves the effective mode: an explicit policy wins; `system` follows the OS preference. */
