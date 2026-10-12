@@ -13,7 +13,7 @@ public enum BrandingAsset {
 
     LOGO("logo", "branding/mosaicast-logo.svg"),
     FAVICON("favicon", "branding/mosaicast-mark.svg"),
-    DARK_LOGO("dark-logo", "branding/mosaicast-logo.svg");
+    DARK_LOGO("dark-logo", "branding/mosaicast-logo-dark.svg");
 
     /** Blob key within the {@code branding} namespace and the {@code /branding/<key>} URL segment. */
     private final String key;

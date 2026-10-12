@@ -447,6 +447,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **The default logo is readable in dark mode (`0.8.4`).** Core shipped a dark variant of its wordmark but
+  served the light one for `/branding/dark-logo` and told the shell there was no dark logo, so the dark
+  "Mosai" lettering was barely visible on a dark background. A site still on the bundled logo now gets the
+  bundled dark variant; a site with its own logo and no dark one keeps showing its own in both modes.
 - **A sign-in no longer ends after half an hour away (`0.8.3`).** Sessions used Spring Session's in-memory
   default of 30 minutes, so someone who came back the next day had to sign in with Discord again.
   - **Timeout:** `MOSAICAST_SESSION_TIMEOUT` (default `30d`) sets how long a session lasts without a visit,
