@@ -26,6 +26,9 @@ repositories {
     maven {
         name = "GitHubPackages"
         url = uri("https://maven.pkg.github.com/Mosaicast/mosaicast-plugin-sdk")
+        content {
+            includeGroup("dev.mosaicast") // only the SDK; see the root build for why
+        }
         credentials {
             username = providers.gradleProperty("gpr.user")
                 .orElse(providers.environmentVariable("GITHUB_ACTOR")).orNull

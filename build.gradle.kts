@@ -53,6 +53,13 @@ repositories {
     maven {
         name = "GitHubPackages"
         url = uri("https://maven.pkg.github.com/Mosaicast/mosaicast-plugin-sdk")
+        // Only the SDK lives here. Without this filter every dependency was looked up here first, and an
+        // unauthenticated lookup fails hard ("Username must not be null!") instead of falling through to
+        // Maven Central: a cold cache — a new Gradle version, a fresh machine — then broke every local
+        // build without a token, -PuseMavenLocal or not.
+        content {
+            includeGroup("dev.mosaicast")
+        }
         credentials {
             username = providers.gradleProperty("gpr.user")
                 .orElse(providers.environmentVariable("GITHUB_ACTOR")).orNull
