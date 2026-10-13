@@ -133,4 +133,25 @@ class IndexHtmlServiceTest {
         assertThat(html).doesNotContain("rel=\"canonical\"");
         assertThat(html).doesNotContain("application/ld+json");
     }
+
+    @Test
+    void anUploadedFaviconReplacesTheBundledMarkWithAVersionedLink() {
+        SiteConfigService service = mock(SiteConfigService.class);
+        SiteConfig config = mock(SiteConfig.class);
+        when(config.getSiteName()).thenReturn("Test Cast");
+        when(config.getFaviconAssetId()).thenReturn(java.util.UUID.fromString("0a1b2c3d-0000-0000-0000-000000000000"));
+        when(service.get()).thenReturn(config);
+
+        String html = new IndexHtmlService(service).render(new IndexHtmlService.Meta("Test Cast", "", null));
+
+        assertThat(html).contains("<link rel=\"icon\" href=\"/branding/favicon?v=0a1b2c3d\" />");
+        assertThat(html).doesNotContain("mosaicast-mark.svg");
+    }
+
+    @Test
+    void withoutAnUploadTheBundledMarkStays() {
+        String html = indexHtml.render(new IndexHtmlService.Meta("Test Cast", "", null));
+
+        assertThat(html).contains("href=\"/brand/mosaicast-mark.svg\"").doesNotContain("href=\"/branding/favicon");
+    }
 }

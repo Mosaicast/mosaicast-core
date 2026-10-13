@@ -38,6 +38,7 @@ public class IndexHtmlService {
     /** Stand-in for a build without the frontend bundle: enough of a document to carry meta tags. */
     private static final String MINIMAL_SHELL =
             "<!doctype html>\n<html lang=\"en\">\n  <head>\n    <meta charset=\"UTF-8\" />\n"
+                    + "    <link rel=\"icon\" type=\"image/svg+xml\" href=\"/brand/mosaicast-mark.svg\" />\n"
                     + "    <title>Mosaicast</title>\n"
                     + "  </head>\n  <body>\n    <div id=\"root\"></div>\n  </body>\n</html>\n";
 
@@ -119,7 +120,7 @@ public class IndexHtmlService {
         // before any `?lang=` existed.
         String resolved = locale == null || locale.isBlank()
                 ? siteConfig.get().getDefaultLocale() : locale.trim();
-        String html = withTitle(withLangAttribute(index(), resolved), view.meta());
+        String html = withFavicon(withTitle(withLangAttribute(index(), resolved), view.meta()));
         int headEnd = html.indexOf(HEAD_END);
         if (headEnd < 0) {
             // No head to inject into (a stripped or unexpected build) — serve the shell unchanged rather
@@ -176,6 +177,30 @@ public class IndexHtmlService {
             return html;
         }
         return html.substring(0, open) + "<title>" + escape(pageTitle(meta)) + html.substring(close);
+    }
+
+    /** The built shell's icon link: the bundled Mosaicast mark. */
+    private static final java.util.regex.Pattern ICON_LINK =
+            java.util.regex.Pattern.compile("<link rel=\"icon\"[^>]*>");
+
+    /**
+     * Points the shell's icon at the site's own favicon once an admin has uploaded one (§12.2).
+     *
+     * <p>The built {@code index.html} links the bundled Mosaicast mark, and nothing ever replaced it: an
+     * uploaded favicon was served at {@code /branding/favicon} and linked from nowhere, so every tab showed
+     * Mosaicast's mark while the title already said the site's name. No {@code type}: an upload is PNG, ICO
+     * or WebP, and a wrong type makes some browsers skip the icon altogether. The asset id rides along as a
+     * version, because browsers keep favicons long past any cache header and a replaced one would otherwise
+     * not show until someone cleared their cache.
+     */
+    private String withFavicon(String html) {
+        java.util.UUID asset = siteConfig.get().getFaviconAssetId();
+        if (asset == null) {
+            return html;
+        }
+        String version = asset.toString().substring(0, 8);
+        return ICON_LINK.matcher(html).replaceFirst(
+                java.util.regex.Matcher.quoteReplacement("<link rel=\"icon\" href=\"/branding/favicon?v=" + version + "\" />"));
     }
 
     /** {@code Page — Site}; the same composition as the shell's {@code composeTitle}. */
