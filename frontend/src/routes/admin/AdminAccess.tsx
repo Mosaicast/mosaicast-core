@@ -21,6 +21,7 @@ interface Draft {
   passFloor: PassFloor;
   staffLoginVisible: boolean;
   signupsWhileClosed: boolean;
+  edgeCounting: boolean;
 }
 
 function draftOf(view: AdminSiteAccessView): Draft {
@@ -31,6 +32,7 @@ function draftOf(view: AdminSiteAccessView): Draft {
     passFloor: view.access.passFloor,
     staffLoginVisible: view.access.staffLogin.visible,
     signupsWhileClosed: view.signupsWhileClosed,
+    edgeCounting: view.access.edgeCounting ?? true,
   };
 }
 
@@ -80,6 +82,7 @@ export function AdminAccess() {
           passFloor: draft.passFloor,
           staffLoginVisible: draft.staffLoginVisible,
           signupsWhileClosed: draft.signupsWhileClosed,
+          edgeCounting: draft.edgeCounting,
         }),
       );
       setSaved(true);
@@ -215,6 +218,21 @@ export function AdminAccess() {
           <span>
             {t('admin.access.signups')}
             <span className="mc-muted"> — {t('admin.access.signups.hint')}</span>
+          </span>
+        </label>
+      </fieldset>
+
+      <fieldset className="mc-options">
+        <legend>{t('admin.access.edgeCounting.legend')}</legend>
+        <label className="mc-toggle">
+          <input
+            type="checkbox"
+            checked={draft.edgeCounting}
+            onChange={(event) => set({ edgeCounting: event.target.checked })}
+          />
+          <span>
+            {t('admin.access.edgeCounting')}
+            <span className="mc-muted"> — {t('admin.access.edgeCounting.hint')}</span>
           </span>
         </label>
       </fieldset>

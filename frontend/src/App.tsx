@@ -23,6 +23,7 @@ import { NotificationsPage } from './routes/NotificationsPage';
 import { SearchPage } from './routes/SearchPage';
 import { AccountPage } from './routes/AccountPage';
 import { CookiesPage } from './routes/CookiesPage';
+import { CountingTracker } from './metrics/CountingTracker';
 import { AdminAccess } from './routes/admin/AdminAccess';
 import { AdminConsent } from './routes/admin/AdminConsent';
 import { AdminExternal } from './routes/admin/AdminExternal';
@@ -33,6 +34,7 @@ import { AdminLegal } from './routes/admin/AdminLegal';
 import { AdminLogs } from './routes/admin/AdminLogs';
 import { AdminNavigation } from './routes/admin/AdminNavigation';
 import { AdminPlanned } from './routes/admin/AdminPlanned';
+import { AdminReach } from './routes/admin/AdminReach';
 import { AdminPlugins } from './routes/admin/AdminPlugins';
 import { AdminSeo } from './routes/admin/AdminSeo';
 import { AdminSite } from './routes/admin/AdminSite';
@@ -66,6 +68,7 @@ export default function App() {
               <TopBar />
               <LiveRegion />
               <RouteFocus />
+              <CountingTracker />
               <main className="mc-main" id="main" tabIndex={-1}>
                 <LoginErrorBanner />
                 {/* Outside the route boundary: a crashing route must not take the consent ask with it. */}
@@ -146,6 +149,8 @@ export default function App() {
                       }
                     />
                     <Route path="feeds" element={<AdminFeeds />} />
+                    {/* Reach is for podcasters too (§19); the counting switch on it is admin-only. */}
+                    <Route path="reach" element={<AdminReach />} />
                     <Route path="planned" element={<AdminPlanned />} />
                     <Route
                       path="navigation"

@@ -817,3 +817,93 @@
   border-radius: 6px;
   background: color-mix(in srgb, #d69e45 18%, transparent);
 }
+
+/* Reach (§19): anonymous counts. The chart is inline SVG drawn with theme tokens, so it follows light and
+   dark and re-themes with the accent; line identity is carried by the legend text as well as colour. */
+.mc-reach__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  margin: 0;
+}
+.mc-reach__totals dt {
+  color: var(--mc-text-muted);
+  font-size: var(--mc-text-sm, 0.875rem);
+}
+.mc-reach__totals dd {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.mc-reach__chart {
+  margin: 0;
+}
+.mc-reach__chart svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.mc-reach__axis {
+  stroke: var(--mc-border);
+}
+.mc-reach__tick {
+  fill: var(--mc-text-muted);
+  font-size: 11px;
+}
+.mc-reach__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.mc-reach__line--core-view {
+  stroke: var(--mc-accent-text);
+}
+.mc-reach__line--core-play {
+  stroke: var(--mc-accent-2);
+}
+.mc-reach__line--edge-view {
+  stroke: var(--mc-text-muted);
+  stroke-dasharray: 4 3;
+}
+.mc-reach__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  font-size: var(--mc-text-sm, 0.875rem);
+}
+.mc-reach__key::before {
+  content: '';
+  display: inline-block;
+  width: 1rem;
+  height: 0.2rem;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+}
+.mc-reach__key--core-view::before {
+  background: var(--mc-accent-text);
+}
+.mc-reach__key--core-play::before {
+  background: var(--mc-accent-2);
+}
+.mc-reach__key--edge-view::before {
+  background: var(--mc-text-muted);
+}
+.mc-reach__tables {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1.5rem;
+}
+.mc-reach__top {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.mc-reach__top li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+.mc-reach__top a {
+  overflow-wrap: anywhere;
+}

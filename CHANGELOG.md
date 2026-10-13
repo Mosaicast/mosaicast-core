@@ -33,6 +33,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Anonymous counting and Admin → Reach (`0.9.0`, ARCHITECTURE §19, #291).** Page views and web-player
+  plays (with 25/50/75/100 % milestones) are counted per hour without any identifier: no cookie, nothing
+  on the device, no IP or browser string stored. Staff, crawlers, link previews and Global Privacy
+  Control are left out. Admins and podcasters see totals, a chart and the top episodes; admins switch
+  core's counting there. The edge reports its own page views and how many are waiting to
+  `POST /api/site/edge/report` (§18.5), with its own switch under Site access (`edgeCounting` in
+  `GET /api/site/access`). Hourly counts are folded into daily ones after 30 days.
 - **Site access: countdown, maintenance and closed, with staff let through (`0.8.4`, ARCHITECTURE §18).**
   Admin → Site access holds the policy (open, countdown to a time, maintenance with an optional expected
   end, closed) and who sees the real site meanwhile (podcasters and admins, or admins only). The new

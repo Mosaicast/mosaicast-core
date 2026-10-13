@@ -93,8 +93,46 @@ export interface SiteAccessView {
   endsAt: string | null;
   passFloor: PassFloor;
   staffLogin: { visible: boolean; providers: { id: string; path: string }[] };
+  /** Whether the edge counts anonymously (§18.1, §19); absent from an older core = on. */
+  edgeCounting?: boolean;
   now: string;
   revision: number;
+}
+
+/** One point of a counted series (`metrics/MetricsStore.SeriesPoint`). */
+export interface ReachSeriesPoint {
+  bucket: string;
+  source: 'core' | 'edge';
+  kind: 'view' | 'play';
+  count: number;
+}
+
+/** A subject's total for a kind in the range (`metrics/MetricsStore.SubjectTotal`). */
+export interface ReachSubjectTotal {
+  subject: string;
+  kind: 'view' | 'play' | 'progress';
+  milestone: number;
+  count: number;
+}
+
+/** Admin → Reach, `GET /api/admin/metrics` (ARCHITECTURE §19). */
+export interface ReachView {
+  counting: boolean;
+  from: string;
+  to: string;
+  granularity: 'hour' | 'day';
+  series: ReachSeriesPoint[];
+  top: ReachSubjectTotal[];
+  edgeViews: ReachSubjectTotal[];
+  edge: {
+    counting: boolean;
+    waiting: number | null;
+    waitingCapped: boolean;
+    waitingAt: string | null;
+    page: SiteState;
+    peakToday: number;
+    peakThisPolicy: number;
+  };
 }
 
 /** The admin editor's view, `GET /api/admin/site/access`. */
@@ -364,6 +402,8 @@ export interface Meta {
   devLoginEnabled: boolean;
   /** Whether the app runs under the dev profile — for dev-only diagnostics. */
   devProfile?: boolean;
+  /** Whether the shell sends its anonymous counting beacons (§19); absent on an older core = off. */
+  counting?: boolean;
 }
 
 /** Admin-facing feed (`feed/FeedView.java`), `GET /api/admin/feeds` — includes poll state. */
