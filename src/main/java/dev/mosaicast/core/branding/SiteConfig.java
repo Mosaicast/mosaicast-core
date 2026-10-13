@@ -43,6 +43,10 @@ public class SiteConfig {
     @Column(name = "dark_logo_asset_id")
     private UUID darkLogoAssetId;
 
+    /** Core's anonymous counting (ARCHITECTURE §19); the edge's has its own switch (§18.1). */
+    @Column(name = "counting", nullable = false)
+    private boolean counting = true;
+
     @Column(name = "accent_seed", nullable = false)
     private String accentSeed;
 
@@ -199,5 +203,13 @@ public class SiteConfig {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public boolean isCounting() {
+        return counting;
+    }
+
+    public void setCounting(boolean counting) {
+        this.counting = counting;
     }
 }

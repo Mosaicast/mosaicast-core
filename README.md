@@ -241,6 +241,28 @@ nothing visitors see, and the admin page says so.
   reporting in. Without it everything still works; the page shows the edge as unknown.
 - An install that never saves a policy stays open, so upgrading changes nothing.
 
+## Anonymous counting (Admin → Reach)
+
+Mosaicast counts how often pages are viewed and episodes are played in the web player, and shows it under
+**Admin → Reach** to admins and podcasters (ARCHITECTURE §19). It counts **things, never people**:
+
+- **Nothing is stored on or read from a visitor's device** (no cookie, no local storage), and **nothing
+  about a visitor is stored**: no IP address, no browser string, no hash of either. So there are no unique
+  visitors, sessions or returning visitors, by design.
+- The shell sends a small beacon **without credentials** (only "what": e.g. `view` of `episode/<slug>`),
+  and sends nothing while an admin or podcaster is signed in, or when the browser sets **Global Privacy
+  Control**. Core counts only subjects that exist, keeps a per-client rate limit in memory only, and
+  ignores crawlers and link previews by a fixed list (§19).
+- Counts are kept per hour for 30 days, then per day. Reloads count; plays in podcast apps never reach the
+  site (they go from the feed to your audio host).
+- **Switches:** core's counting on the Reach page; the edge's (countdown and other edge pages, plus how
+  many are waiting) separately under **Site access** (§18.5).
+- **Privacy notice:** because nothing is stored on the device and nothing personal is kept, this design
+  is meant to need no consent banner. Mention it in your privacy policy anyway, for example: *"We count
+  page views and plays in our web player anonymously. No cookies or similar technologies are used, and
+  neither IP addresses nor other information that could identify you is stored."* Adapt it to your
+  situation — Mosaicast ships the mechanism, not legal text, and this is not legal advice.
+
 ## Versioning & releases
 
 - **Single source of truth:** the core version lives in **`gradle.properties`** (`version=…`). It is

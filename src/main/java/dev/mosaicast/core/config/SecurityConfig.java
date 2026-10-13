@@ -137,7 +137,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler())
                         // Bearer-token automation carries no cookies, so CSRF does not apply.
-                        .ignoringRequestMatchers(SecurityConfig::isBearerOnly))
+                        .ignoringRequestMatchers(SecurityConfig::isBearerOnly)
+                        // Anonymous counting (§19) is sent without credentials, and the edge's report
+                        // authenticates with its token and carries no cookies: no session to ride.
+                        .ignoringRequestMatchers(SecurityConfig::isCookielessCounting))
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 // Bearer auth (sets a bare principal), then the per-request user reload (fills the role and
                 // makes role changes / deletion take effect immediately), both before authorization.
@@ -178,6 +181,10 @@ public class SecurityConfig {
                         // most listeners are not signed in — and bounded in the controller to one log line
                         // per episode per quiet period, however many requests arrive (core#170).
                         .requestMatchers(HttpMethod.POST, "/api/episodes/*/playback-error").permitAll()
+                        // Anonymous counting (§19): a beacon without credentials, always answered 204.
+                        .requestMatchers(HttpMethod.POST, "/api/metrics/events").permitAll()
+                        // The edge's report (§18.5): the controller requires the shared edge token.
+                        .requestMatchers(HttpMethod.POST, "/api/site/edge/report").permitAll()
                         .requestMatchers("/api/plugins/**").authenticated()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()
@@ -198,6 +205,8 @@ public class SecurityConfig {
                         // read to exactly the fields they may already write. Activation, purge and blob
                         // limits stay ADMIN on the catch-all.
                         .requestMatchers(HttpMethod.GET, "/api/admin/plugins").hasAnyRole("ADMIN", "PODCASTER")
+                        // Reach (§19): podcasters care most about plays; switching counting stays ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/api/admin/metrics").hasAnyRole("ADMIN", "PODCASTER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Deny any other API path by default (no accidental fail-open for new endpoints).
                         .requestMatchers("/api/**").denyAll()
@@ -271,6 +280,13 @@ public class SecurityConfig {
      * CORS preflight and this host configures no CORS — but the exemption should describe the credential
      * it covers rather than rely on that.
      */
+    /** The two counting endpoints (§18.5, §19): neither has a session to protect. */
+    static boolean isCookielessCounting(jakarta.servlet.http.HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return "POST".equals(request.getMethod())
+                && ("/api/metrics/events".equals(path) || "/api/site/edge/report".equals(path));
+    }
+
     static boolean isBearerOnly(jakarta.servlet.http.HttpServletRequest request) {
         if (!PatAuthenticationFilter.hasBearer(request)) {
             return false;

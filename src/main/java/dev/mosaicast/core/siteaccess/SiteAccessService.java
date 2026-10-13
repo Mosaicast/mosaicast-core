@@ -38,10 +38,12 @@ public class SiteAccessService implements SignupGate {
 
     private final SiteAccessRepository repository;
     private final Clock clock;
+    private final EdgeHeartbeat heartbeat;
 
-    public SiteAccessService(SiteAccessRepository repository, Clock clock) {
+    public SiteAccessService(SiteAccessRepository repository, Clock clock, EdgeHeartbeat heartbeat) {
         this.repository = repository;
         this.clock = clock;
+        this.heartbeat = heartbeat;
     }
 
     /** The current policy; an install that never saved one is open. */
@@ -57,7 +59,8 @@ public class SiteAccessService implements SignupGate {
 
     /** A requested change to the policy; every field is the complete new value. */
     public record Change(SiteState state, @Nullable Instant opensAt, @Nullable Instant endsAt,
-                         PassFloor passFloor, boolean staffLoginVisible, boolean signupsWhileClosed) {
+                         PassFloor passFloor, boolean staffLoginVisible, boolean signupsWhileClosed,
+                         boolean edgeCounting) {
     }
 
     /**
@@ -96,7 +99,7 @@ public class SiteAccessService implements SignupGate {
             }
         }
         return save(new Change(change.state(), opensAt, endsAt, change.passFloor(), change.staffLoginVisible(),
-                change.signupsWhileClosed()), now, actor);
+                change.signupsWhileClosed(), change.edgeCounting()), now, actor);
     }
 
     /**
@@ -108,14 +111,18 @@ public class SiteAccessService implements SignupGate {
         Instant now = clock.instant();
         SiteAccess current = current();
         return save(new Change(SiteState.SCHEDULED, now.plus(OPEN_NOW_LEAD), null, current.getPassFloor(),
-                current.isStaffLoginVisible(), current.isSignupsWhileClosed()), now, actor);
+                current.isStaffLoginVisible(), current.isSignupsWhileClosed(), current.isEdgeCounting()), now,
+                actor);
     }
 
     private SiteAccess save(Change change, Instant now, @Nullable UUID actor) {
         SiteAccess access = repository.findById(SiteAccess.SINGLETON_ID).orElseGet(SiteAccess::openByDefault);
         List<String> changes = describe(access, change);
+        if (access.isEdgeCounting() && !change.edgeCounting()) {
+            heartbeat.forgetWaiting();
+        }
         access.apply(change.state(), change.opensAt(), change.endsAt(), change.passFloor(),
-                change.staffLoginVisible(), change.signupsWhileClosed(), now);
+                change.staffLoginVisible(), change.signupsWhileClosed(), change.edgeCounting(), now);
         SiteAccess saved = repository.save(access);
         // Who and what, old → new: closing a site is the kind of change someone asks about a week later.
         log.info("Site access changed by {}: {}", actor, changes.isEmpty() ? "saved unchanged" : String.join(", ", changes));
@@ -138,6 +145,9 @@ public class SiteAccessService implements SignupGate {
         }
         if (before.isStaffLoginVisible() != after.staffLoginVisible()) {
             changes.add("staff login link %s → %s".formatted(before.isStaffLoginVisible(), after.staffLoginVisible()));
+        }
+        if (before.isEdgeCounting() != after.edgeCounting()) {
+            changes.add("edge counting %s → %s".formatted(before.isEdgeCounting(), after.edgeCounting()));
         }
         if (before.isSignupsWhileClosed() != after.signupsWhileClosed()) {
             changes.add("sign-ups while closed %s → %s"

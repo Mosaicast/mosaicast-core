@@ -195,4 +195,15 @@ public class SiteConfigService {
         }
         configs.save(config);
     }
+
+    /** Switches core's anonymous counting (ARCHITECTURE §19). */
+    @Transactional
+    public SiteConfig updateCounting(boolean counting) {
+        SiteConfig config = get();
+        if (config.isCounting() != counting) {
+            log.info("Site settings changed: anonymous counting {} → {}", config.isCounting(), counting);
+            config.setCounting(counting);
+        }
+        return configs.save(config);
+    }
 }

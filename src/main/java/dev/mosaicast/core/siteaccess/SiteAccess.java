@@ -46,6 +46,10 @@ public class SiteAccess {
     @Column(name = "signups_while_closed", nullable = false)
     private boolean signupsWhileClosed;
 
+    /** Whether the edge counts anonymously (§18.1, §19); independent of core's own switch. */
+    @Column(name = "edge_counting", nullable = false)
+    private boolean edgeCounting = true;
+
     /** Increments on every write; the public read's ETag, so an unchanged poll is a 304. */
     @Column(name = "revision", nullable = false)
     private long revision;
@@ -73,7 +77,8 @@ public class SiteAccess {
     }
 
     void apply(SiteState state, @Nullable Instant opensAt, @Nullable Instant endsAt, PassFloor passFloor,
-               boolean staffLoginVisible, boolean signupsWhileClosed, Instant now) {
+               boolean staffLoginVisible, boolean signupsWhileClosed, boolean edgeCounting, Instant now) {
+        this.edgeCounting = edgeCounting;
         this.state = state;
         this.opensAt = opensAt;
         this.endsAt = endsAt;
@@ -106,6 +111,10 @@ public class SiteAccess {
 
     public boolean isSignupsWhileClosed() {
         return signupsWhileClosed;
+    }
+
+    public boolean isEdgeCounting() {
+        return edgeCounting;
     }
 
     public long getRevision() {

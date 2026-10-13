@@ -38,7 +38,8 @@ class SiteAccessServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SiteAccessService(repository, Clock.fixed(NOW, ZoneOffset.UTC));
+        service = new SiteAccessService(repository, Clock.fixed(NOW, ZoneOffset.UTC),
+                new EdgeHeartbeat(new EdgeProperties(""), Clock.fixed(NOW, ZoneOffset.UTC)));
         when(repository.findById(SiteAccess.SINGLETON_ID)).thenReturn(Optional.empty());
         when(repository.save(any(SiteAccess.class))).thenAnswer(call -> call.getArgument(0));
     }
@@ -83,7 +84,7 @@ class SiteAccessServiceTest {
     @Test
     void openNowSchedulesTwelveSecondsOutAndKeepsTheOtherSettings() {
         SiteAccess current = service.update(
-                new SiteAccessService.Change(SiteState.CLOSED, null, null, PassFloor.ADMIN, true, false), null);
+                new SiteAccessService.Change(SiteState.CLOSED, null, null, PassFloor.ADMIN, true, false, true), null);
         when(repository.findById(SiteAccess.SINGLETON_ID)).thenReturn(Optional.of(current));
 
         SiteAccess opened = service.openNow(null);
@@ -116,6 +117,7 @@ class SiteAccessServiceTest {
 
     private static SiteAccessService.Change change(SiteState state, Instant opensAt, Instant endsAt,
                                                    boolean signupsWhileClosed) {
-        return new SiteAccessService.Change(state, opensAt, endsAt, PassFloor.PODCASTER, false, signupsWhileClosed);
+        return new SiteAccessService.Change(state, opensAt, endsAt, PassFloor.PODCASTER, false, signupsWhileClosed,
+                true);
     }
 }

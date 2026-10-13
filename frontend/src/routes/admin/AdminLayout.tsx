@@ -86,6 +86,10 @@ export function AdminLayout() {
           <NavLink to="/admin/planned" className={tab}>
             {t('admin.nav.planned')}
           </NavLink>
+          {/* Anonymous counts (§19): podcasters care most about plays, so they see it too. */}
+          <NavLink to="/admin/reach" className={tab}>
+            {t('admin.nav.reach')}
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin/site" className={tab}>
               {t('admin.nav.site')}

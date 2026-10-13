@@ -74,6 +74,7 @@ describe('AdminAccess', () => {
       passFloor: 'podcaster',
       staffLoginVisible: false,
       signupsWhileClosed: false,
+      edgeCounting: true,
     });
   });
 
