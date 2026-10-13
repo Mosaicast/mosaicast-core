@@ -83,7 +83,7 @@ class SiteAccessServiceTest {
     @Test
     void openNowSchedulesTwelveSecondsOutAndKeepsTheOtherSettings() {
         SiteAccess current = service.update(
-                new SiteAccessService.Change(SiteState.CLOSED, null, null, PassFloor.ADMIN, true, false), null);
+                new SiteAccessService.Change(SiteState.CLOSED, null, null, PassFloor.ADMIN, true, false, true), null);
         when(repository.findById(SiteAccess.SINGLETON_ID)).thenReturn(Optional.of(current));
 
         SiteAccess opened = service.openNow(null);
@@ -116,6 +116,7 @@ class SiteAccessServiceTest {
 
     private static SiteAccessService.Change change(SiteState state, Instant opensAt, Instant endsAt,
                                                    boolean signupsWhileClosed) {
-        return new SiteAccessService.Change(state, opensAt, endsAt, PassFloor.PODCASTER, false, signupsWhileClosed);
+        return new SiteAccessService.Change(state, opensAt, endsAt, PassFloor.PODCASTER, false, signupsWhileClosed,
+                true);
     }
 }

@@ -64,8 +64,8 @@ public class SiteAccessController {
      * @param now            core's clock, informational; the edge flips on its own
      */
     public record AccessView(String state, String effectiveState, @Nullable Instant opensAt,
-                             @Nullable Instant endsAt, String passFloor, StaffLogin staffLogin, Instant now,
-                             long revision) {
+                             @Nullable Instant endsAt, String passFloor, StaffLogin staffLogin,
+                             boolean edgeCounting, Instant now, long revision) {
     }
 
     /** What the edge last reported, for the admin page. */
@@ -79,7 +79,8 @@ public class SiteAccessController {
 
     /** An admin's complete new policy. Times are instants; the page converts from the admin's zone. */
     public record UpdateAccess(String state, @Nullable Instant opensAt, @Nullable Instant endsAt,
-                               String passFloor, boolean staffLoginVisible, boolean signupsWhileClosed) {
+                               String passFloor, boolean staffLoginVisible, boolean signupsWhileClosed,
+                               @Nullable Boolean edgeCounting) {
     }
 
     @GetMapping("/api/site/access")
@@ -109,7 +110,9 @@ public class SiteAccessController {
                 request.endsAt(),
                 parse(PassFloor.class, request.passFloor(), "passFloor"),
                 request.staffLoginVisible(),
-                request.signupsWhileClosed());
+                request.signupsWhileClosed(),
+                // absent in a request from an older page: keep what is stored rather than switch it on
+                request.edgeCounting() != null ? request.edgeCounting() : access.current().isEdgeCounting());
         return adminView(access.update(change, actor(authentication)));
     }
 
@@ -133,6 +136,7 @@ public class SiteAccessController {
                 current.getEndsAt(),
                 lower(current.getPassFloor()),
                 new StaffLogin(current.isStaffLoginVisible(), providers()),
+                current.isEdgeCounting(),
                 now,
                 current.getRevision());
     }

@@ -50,14 +50,43 @@ public class EdgeHeartbeat {
 
     /** Records a poll if {@code token} is the configured one; anything else is ignored silently. */
     public void record(@Nullable String token, @Nullable String build) {
+        if (tokenMatches(token)) {
+            last.set(new Seen(clock.instant(), sanitize(build)));
+        }
+    }
+
+    /** Whether {@code token} is the configured edge token, compared in constant time; false without one. */
+    public boolean tokenMatches(@Nullable String token) {
         if (!properties.hasToken() || token == null) {
-            return;
+            return false;
         }
         byte[] expected = properties.token().getBytes(StandardCharsets.UTF_8);
-        if (!MessageDigest.isEqual(expected, token.getBytes(StandardCharsets.UTF_8))) {
-            return;
+        return MessageDigest.isEqual(expected, token.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Whether an edge token is configured at all. */
+    public boolean hasToken() {
+        return properties.hasToken();
+    }
+
+    /** The edge's last reported waiting gauge (§18.5), or null before the first report. */
+    public record Waiting(long count, boolean capped, long policyRevision, Instant at) {
+    }
+
+    private final AtomicReference<@Nullable Waiting> waiting = new AtomicReference<>();
+
+    /** Keeps the waiting gauge from a report. In memory: it describes now, not history. */
+    public void recordWaiting(long count, boolean capped, long policyRevision) {
+        waiting.set(new Waiting(count, capped, policyRevision, clock.instant()));
+    }
+
+    /** The last waiting gauge, if the edge reported one within {@link #FRESH} ×2; else null. */
+    public @Nullable Waiting waiting() {
+        Waiting w = waiting.get();
+        if (w == null || Duration.between(w.at(), clock.instant()).compareTo(FRESH.multipliedBy(2)) > 0) {
+            return null;
         }
-        last.set(new Seen(clock.instant(), sanitize(build)));
+        return w;
     }
 
     /** The edge as the admin page should describe it. */

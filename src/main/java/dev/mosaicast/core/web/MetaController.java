@@ -23,9 +23,12 @@ public class MetaController {
     private final String version;
     private final boolean devLoginEnabled;
     private final boolean devProfile;
+    private final dev.mosaicast.core.branding.SiteConfigService site;
 
-    public MetaController(@Value("${mosaicast.version:dev}") String version, Environment environment) {
+    public MetaController(@Value("${mosaicast.version:dev}") String version, Environment environment,
+                          dev.mosaicast.core.branding.SiteConfigService site) {
         this.version = version;
+        this.site = site;
         // The dev-login bypass exists only under the dev profile (DevLoginController is @Profile("dev")),
         // so the shell shows that login option only when it will actually work (§8).
         this.devLoginEnabled = environment.acceptsProfiles(Profiles.of("dev"));
@@ -48,7 +51,8 @@ public class MetaController {
      */
     @GetMapping("/api/meta")
     public Map<String, Object> meta() {
+        // `counting`: whether the shell sends its anonymous counting beacons at all (§19).
         return Map.of("name", "Mosaicast", "version", version, "devLoginEnabled", devLoginEnabled,
-                "devProfile", devProfile);
+                "devProfile", devProfile, "counting", site.get().isCounting());
     }
 }

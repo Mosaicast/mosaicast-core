@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 The Mosaicast Authors
+#
+# The frozen crawler list of ARCHITECTURE §19: lower-cased User-Agent substrings. A change here is a spec
+# change; CrawlerListTest pins this file against the spec's block, and mosaicast-edge pins its own copy.
+bot crawl spider slurp preview fetch scan
+facebookexternalhit facebookcatalog meta-externalagent whatsapp embedly iframely vkshare pinterest
+google-pagerenderer google-read-aloud mastodon bluesky snapchat
+headlesschrome lighthouse pagespeed uptime pingdom statuscake monitor
+curl/ wget/ python- go-http-client java/ okhttp node-fetch axios httpclient libwww mosaicast-
