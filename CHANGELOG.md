@@ -454,6 +454,13 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **An uploaded favicon shows in the browser tab (`0.9.1`).** The shell always linked the bundled Mosaicast
+  mark; an uploaded favicon was served at `/branding/favicon` and linked from nowhere. The server now swaps
+  the link in the page it sends, with a version so a replaced icon shows without clearing the cache.
+- **The feed and site side panel scrolls on short windows (`0.9.1`).** It sticks below the top bar, and
+  when it was taller than the window (a plugin panel such as season stats under the cover) its lower part
+  could not be reached until the episode list ended. It is now capped at the window height and scrolls on
+  its own; on narrow screens it is unchanged.
 - **The default logo is readable in dark mode (`0.8.4`).** Core shipped a dark variant of its wordmark but
   served the light one for `/branding/dark-logo` and told the shell there was no dark logo, so the dark
   "Mosai" lettering was barely visible on a dark background. A site still on the bundled logo now gets the
