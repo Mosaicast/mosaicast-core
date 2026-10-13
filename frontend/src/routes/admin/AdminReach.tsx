@@ -45,21 +45,23 @@ function seriesOf(points: ReachSeriesPoint[], keys: string[]): Record<LineKey, n
  * time need none. Colours are theme tokens, so it is right in light and dark.
  */
 function Chart({ keys, lines, label }: { keys: string[]; lines: Record<LineKey, number[]>; label: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const width = 640;
   const height = 200;
   const pad = 28;
+  /** Room for the top value's label on the left, which a fixed pad cut off once counts reached thousands. */
+  const left = 56;
   const max = Math.max(1, ...LINES.flatMap((l) => lines[l]));
-  const x = (i: number) => pad + (keys.length <= 1 ? 0 : (i * (width - 2 * pad)) / (keys.length - 1));
+  const x = (i: number) => left + (keys.length <= 1 ? 0 : (i * (width - left - pad)) / (keys.length - 1));
   const y = (v: number) => height - pad - (v * (height - 2 * pad)) / max;
   return (
     <figure className="mc-reach__chart">
       <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
-        <line className="mc-reach__axis" x1={pad} y1={height - pad} x2={width - pad} y2={height - pad} />
-        <text className="mc-reach__tick" x={pad - 6} y={y(max) + 4} textAnchor="end">
-          {max}
+        <line className="mc-reach__axis" x1={left} y1={height - pad} x2={width - pad} y2={height - pad} />
+        <text className="mc-reach__tick" x={left - 6} y={y(max) + 4} textAnchor="end">
+          {max.toLocaleString(i18n.language, { notation: 'compact' })}
         </text>
-        <text className="mc-reach__tick" x={pad - 6} y={height - pad + 4} textAnchor="end">
+        <text className="mc-reach__tick" x={left - 6} y={height - pad + 4} textAnchor="end">
           0
         </text>
         {LINES.map((line) => (
@@ -216,9 +218,9 @@ export function AdminReach() {
                     policy: number(view.edge.peakThisPolicy),
                   })}
                 </p>
-                {view.edgeViews.length > 0 && (
+                {view.edgeViews.some((row) => row.count > 0) && (
                   <ul className="mc-reach__top">
-                    {view.edgeViews.map((row) => (
+                    {view.edgeViews.filter((row) => row.count > 0).map((row) => (
                       <li key={row.subject}>
                         <span>{t(`admin.reach.edge.page.${subjectLabel(row.subject)}`, subjectLabel(row.subject))}</span>
                         <span>{number(row.count)}</span>
