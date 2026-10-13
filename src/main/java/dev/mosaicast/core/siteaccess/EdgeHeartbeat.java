@@ -80,6 +80,11 @@ public class EdgeHeartbeat {
         waiting.set(new Waiting(count, capped, policyRevision, clock.instant()));
     }
 
+    /** Forgets the waiting gauge: the edge's counting was switched off, so nothing live is shown either. */
+    public void forgetWaiting() {
+        waiting.set(null);
+    }
+
     /** The last waiting gauge, if the edge reported one within {@link #FRESH} ×2; else null. */
     public @Nullable Waiting waiting() {
         Waiting w = waiting.get();

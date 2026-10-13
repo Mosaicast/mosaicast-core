@@ -76,6 +76,9 @@ class MetricsIntegrationTest {
     @Autowired
     private EpisodeRefRepository refs;
 
+    @Autowired
+    private dev.mosaicast.core.siteaccess.EdgeHeartbeat heartbeat;
+
     /** A client address of this test's own, so one test's rate-limit window cannot reach into another's. */
     private String client;
 
@@ -86,6 +89,7 @@ class MetricsIntegrationTest {
         jdbc.update("delete from metric_counts");
         jdbc.update("delete from metric_gauge");
         siteAccess.deleteAll();
+        heartbeat.forgetWaiting();
         site.updateCounting(true);
         if (refs.findBySlug("countcast-s01e01").isEmpty()) {
             Feed feed = feeds.save(Feed.rss("https://example.test/count.xml", "Count Cast"));
@@ -246,6 +250,7 @@ class MetricsIntegrationTest {
         assertThat(count("edge", "view", "edge/countdown", 0)).isZero();
         assertThat(jdbc.queryForObject("select count(*) from metric_gauge", Long.class)).isZero();
         assertThat(rest.getForObject("/api/site/access", String.class)).contains("\"edgeCounting\":false");
+        assertThat(heartbeat.waiting()).isNull();
     }
 
     // ---- reading, switching, folding ----

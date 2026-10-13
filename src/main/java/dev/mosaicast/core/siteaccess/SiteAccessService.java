@@ -38,10 +38,12 @@ public class SiteAccessService implements SignupGate {
 
     private final SiteAccessRepository repository;
     private final Clock clock;
+    private final EdgeHeartbeat heartbeat;
 
-    public SiteAccessService(SiteAccessRepository repository, Clock clock) {
+    public SiteAccessService(SiteAccessRepository repository, Clock clock, EdgeHeartbeat heartbeat) {
         this.repository = repository;
         this.clock = clock;
+        this.heartbeat = heartbeat;
     }
 
     /** The current policy; an install that never saved one is open. */
@@ -116,6 +118,9 @@ public class SiteAccessService implements SignupGate {
     private SiteAccess save(Change change, Instant now, @Nullable UUID actor) {
         SiteAccess access = repository.findById(SiteAccess.SINGLETON_ID).orElseGet(SiteAccess::openByDefault);
         List<String> changes = describe(access, change);
+        if (access.isEdgeCounting() && !change.edgeCounting()) {
+            heartbeat.forgetWaiting();
+        }
         access.apply(change.state(), change.opensAt(), change.endsAt(), change.passFloor(),
                 change.staffLoginVisible(), change.signupsWhileClosed(), change.edgeCounting(), now);
         SiteAccess saved = repository.save(access);

@@ -145,9 +145,11 @@ public class EdgeReportController {
         }
 
         SiteAccess current = access.current();
-        heartbeat.recordWaiting(waiting, capped, revision == null ? current.getRevision() : revision);
         Instant newest = parsed.keySet().stream().max(Instant::compareTo).orElse(null);
         if (current.isEdgeCounting()) {
+            // Off means nothing is shown either, not only nothing stored: a live "waiting now" from an
+            // older edge would contradict the switch the admin just set.
+            heartbeat.recordWaiting(waiting, capped, revision == null ? current.getRevision() : revision);
             parsed.forEach(store::setEdgeHour);
             Instant now = clock.instant();
             store.raisePeak("edge.waiting", "day:" + now.atZone(ZoneOffset.UTC).toLocalDate(), waiting, now);
