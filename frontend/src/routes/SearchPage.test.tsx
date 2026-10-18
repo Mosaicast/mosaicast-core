@@ -98,7 +98,7 @@ describe('SearchPage', () => {
 
     // Not silence: "found nothing" and "did not answer" are different answers, and a visitor given the
     // first when the second is true concludes the content is not on this site.
-    expect(await screen.findByText(/did not answer in time/i)).toBeInTheDocument();
+    expect(await screen.findByText(/took too long to answer/i)).toBeInTheDocument();
   });
 
   it('asks for nothing until there is a query', async () => {

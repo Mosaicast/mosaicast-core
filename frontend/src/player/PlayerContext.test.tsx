@@ -220,7 +220,7 @@ describe('PlayerProvider', () => {
         audio().dispatchEvent(new Event('error'));
       });
 
-      expect(screen.getByRole('status')).toHaveTextContent('This episode could not be played.');
+      expect(screen.getByRole('status')).toHaveTextContent("This episode couldn't be played.");
       expect(post).toHaveBeenCalledWith('/api/episodes/kraken/playback-error', { code: 4 });
 
       // A retry that fails again is the same episode: one report per page view is enough.

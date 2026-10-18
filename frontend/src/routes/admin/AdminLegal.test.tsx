@@ -39,7 +39,7 @@ describe('AdminLegal', () => {
     stubFetch(409, { detail: "A legal page with slug 'privacy' already exists" });
     render(<AdminLegal />);
 
-    fireEvent.change(await screen.findByPlaceholderText('New page slug (e.g. privacy)'), {
+    fireEvent.change(await screen.findByPlaceholderText('Address of the new page, like privacy'), {
       target: { value: 'privacy' },
     });
     fireEvent.click(screen.getByText('Create page'));
@@ -51,20 +51,20 @@ describe('AdminLegal', () => {
     stubFetch(400, { detail: 'A page address may use lowercase letters…', code: 'legal.slug.invalid' });
     render(<AdminLegal />);
 
-    fireEvent.change(await screen.findByPlaceholderText('New page slug (e.g. privacy)'), {
+    fireEvent.change(await screen.findByPlaceholderText('Address of the new page, like privacy'), {
       target: { value: 'qa test/2' },
     });
     fireEvent.click(screen.getByText('Create page'));
 
     // The catalog's sentence, not the server's English detail: the form speaks the admin's language.
-    expect(await screen.findByText(/e\.g\. privacy or terms-of-use/)).toBeInTheDocument();
+    expect(await screen.findByText(/lowercase letters, digits and single hyphens/)).toBeInTheDocument();
   });
 
   it('clears the input and reloads after a successful create', async () => {
     const calls = stubFetch(201);
     render(<AdminLegal />);
 
-    const input = (await screen.findByPlaceholderText('New page slug (e.g. privacy)')) as HTMLInputElement;
+    const input = (await screen.findByPlaceholderText('Address of the new page, like privacy')) as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'terms' } });
     fireEvent.click(screen.getByText('Create page'));
 

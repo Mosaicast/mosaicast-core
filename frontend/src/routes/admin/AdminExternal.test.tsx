@@ -129,7 +129,7 @@ describe('AdminExternal', () => {
     payload = [section({ encryptsSecrets: false })];
     render(<AdminExternal />);
 
-    expect(await screen.findByText(/MOSAICAST_ENCRYPTION_KEY is not set/)).toBeInTheDocument();
+    expect(await screen.findByText(/MOSAICAST_ENCRYPTION_KEY isn't set/)).toBeInTheDocument();
   });
 
   it('disables the test button until the host says a call would be attempted', async () => {

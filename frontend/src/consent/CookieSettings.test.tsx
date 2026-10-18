@@ -170,7 +170,7 @@ describe('Cookie settings (§12.5)', () => {
     expect(await screen.findByText('Email address')).toBeInTheDocument();
     expect(screen.getByText('Until you delete your account')).toBeInTheDocument();
     // And the playback-position switch no longer says the position stays on this device.
-    expect(screen.getByText(/in your account so it follows you to other devices/)).toBeInTheDocument();
+    expect(screen.getByText(/in your account when you're signed in, so it follows you/)).toBeInTheDocument();
   });
 
   it('waits for playback to pause before reloading, instead of ending it', async () => {

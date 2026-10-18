@@ -85,10 +85,10 @@ describe('AccountPage display name (ARCHITECTURE §8.6)', () => {
   });
 
   it.each([
-    ['display-name-taken', 'Somebody else already uses that name.'],
-    ['display-name-locked', 'You have changed your name recently. Please try again later.'],
-    ['display-name-refused', 'That name is not available. Please pick another.'],
-    ['display-name-invalid', 'Names must be between 3 and 32 characters.'],
+    ['display-name-taken', 'Someone else already uses that name.'],
+    ['display-name-locked', 'You changed your name recently. Try again later.'],
+    ['display-name-refused', "That name isn't available. Pick another one."],
+    ['display-name-invalid', 'Names need 3 to 32 characters.'],
   ])('translates the %s refusal from the problem type', async (problem, message) => {
     // The whole point of typing the refusals: the UI must not have to match the server's English.
     stubFetch(problem);
@@ -104,6 +104,6 @@ describe('AccountPage display name (ARCHITECTURE §8.6)', () => {
   it('says the name is public, because a leaderboard is a bad place to find that out', async () => {
     stubFetch();
     render(<AccountPage />);
-    expect(await screen.findByText(/name other people on this site see/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Other people on this site see this name/i)).toBeInTheDocument();
   });
 });

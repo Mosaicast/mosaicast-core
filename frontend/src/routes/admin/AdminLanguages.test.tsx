@@ -80,7 +80,7 @@ describe('AdminLanguages', () => {
     expect(screen.getByText('Dropped in')).toBeInTheDocument();
     expect(screen.getByText('88 strings missing')).toBeInTheDocument();
     // A content-only language has no catalog and says so rather than claiming zero strings.
-    expect(screen.getByText('No catalog — content only')).toBeInTheDocument();
+    expect(screen.getByText('No catalog, content only')).toBeInTheDocument();
   });
 
   it('cannot switch the source language off, or offer a language with no catalog in the shell', async () => {

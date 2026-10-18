@@ -180,7 +180,7 @@ afterEach(() => vi.unstubAllGlobals());
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
 
     // And the admin-only row says its value is hidden rather than showing an empty box as if it were one.
-    expect(screen.getByText('Hidden — only an admin can see and change this')).toBeInTheDocument();
+    expect(screen.getByText('Hidden. Only admins can see and change this.')).toBeInTheDocument();
   });
 
   it('never shows a podcaster a withheld choice as one of the real options (core#156)', async () => {
@@ -207,7 +207,7 @@ afterEach(() => vi.unstubAllGlobals());
     ]);
     render(<AdminPlugins />);
 
-    expect(await screen.findByText('Hidden — only an admin can see and change this')).toBeInTheDocument();
+    expect(await screen.findByText('Hidden. Only admins can see and change this.')).toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.queryByText('Lines')).not.toBeInTheDocument();
   });

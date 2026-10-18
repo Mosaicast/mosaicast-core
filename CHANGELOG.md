@@ -14,6 +14,11 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **Every UI text rewritten in one voice (`0.9.2`, `docs/WRITING.md`).** Shorter, plainer English and
+  German across the shell, account, consent and admin pages: no dashes between clauses, no explanations a
+  reader doesn't act on, contractions in English. German now says "du" everywhere; the consent banner,
+  cookie settings and sign-in page used "Sie". Keys and placeholders are unchanged, so drop-in catalogs
+  keep working. The plugin installer's closing line says when a restart is needed.
 - **New accounts are refused while the site is not open (`0.8.4`, §18.3).** A first login then fails with
   `login_error=signups_closed` unless an admin turns on "Allow new accounts". Existing accounts, linking
   and the bootstrap admin are unaffected.

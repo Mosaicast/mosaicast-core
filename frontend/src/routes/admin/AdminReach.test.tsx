@@ -65,7 +65,7 @@ describe('AdminReach', () => {
   it('says plainly what the numbers are not', async () => {
     render(<AdminReach />);
 
-    expect(await screen.findByText(/no unique visitors, sessions or returning visitors/)).toBeInTheDocument();
+    expect(await screen.findByText(/Plays in podcast apps go straight to your audio host/)).toBeInTheDocument();
   });
 
   it('lets an admin switch counting off', async () => {
@@ -73,7 +73,7 @@ describe('AdminReach', () => {
     fireEvent.click(await screen.findByRole('checkbox', { name: /Count anonymously/ }));
 
     await waitFor(() => expect(put).toHaveBeenCalledWith('/api/admin/metrics/settings', { counting: false }));
-    expect(await screen.findByText(/Counting is switched off/)).toBeInTheDocument();
+    expect(await screen.findByText(/Counting is off/)).toBeInTheDocument();
   });
 
   it('shows a podcaster the numbers but not the switch', async () => {

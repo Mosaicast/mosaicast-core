@@ -118,7 +118,7 @@ describe('PluginStorage (§11.1)', () => {
         saved={false}
       />,
     );
-    expect(screen.getByText(/accepts uploads of at most 12 MiB per file/)).toBeInTheDocument();
+    expect(screen.getByText(/takes uploads up to 12 MiB per file/)).toBeInTheDocument();
   });
 
   it('warns as soon as a typed per-file limit exceeds what the server accepts', () => {
@@ -126,6 +126,6 @@ describe('PluginStorage (§11.1)', () => {
 
     fireEvent.change(screen.getByLabelText('Largest single file (MiB)'), { target: { value: '50' } });
 
-    expect(screen.getByText(/accepts uploads of at most 12 MiB per file/)).toBeInTheDocument();
+    expect(screen.getByText(/takes uploads up to 12 MiB per file/)).toBeInTheDocument();
   });
 });
