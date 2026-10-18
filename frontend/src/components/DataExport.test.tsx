@@ -71,7 +71,7 @@ describe('DataExport', () => {
     post.mockRejectedValueOnce(new ApiError(429, 'Too Many Requests'));
 
     render(<DataExport />);
-    expect(await screen.findByText("Preparing your data didn't work. You can try again.")).toBeInTheDocument();
+    expect(await screen.findByText("Preparing your data didn't work. Try again.")).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Prepare my data' }));
 
     expect(await screen.findByText("You've already prepared your data recently. Try again later.")).toBeInTheDocument();

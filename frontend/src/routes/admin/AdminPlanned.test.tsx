@@ -89,6 +89,6 @@ describe('AdminPlanned (core#252)', () => {
     fireEvent.click(screen.getByLabelText(/A conversation/));
     fireEvent.click(screen.getByRole('button', { name: 'Match' }));
 
-    expect(await screen.findByText(/already has plugin data of its own/)).toBeInTheDocument();
+    expect(await screen.findByText(/already has its own plugin data/)).toBeInTheDocument();
   });
 });

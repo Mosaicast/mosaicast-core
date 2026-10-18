@@ -68,6 +68,13 @@ Java 21 · Spring Boot 4 (Jackson 3) · PostgreSQL · PF4J · React + Vite
   before first paint to avoid a flash). Check both for every visual change.
 - **i18n:** flat dotted keys in `frontend/src/locales/{en,de}.json`. **Both locales, always** — German is a
   launch-market requirement, not a translation afterthought. No hardcoded user-facing strings.
+- **Writing (binding, `docs/WRITING.md`):** every string a person reads is "friendly plain": say what it
+  does or what happens, then stop; a reason only when it changes what the reader does. Short sentences,
+  "you" with contractions, **"du" in German everywhere** (never "Sie"). No em/en dashes between clauses,
+  no "not X but Y" / "rather than" set-ups, no filler (simply, just, actually, by design, ensure…), no
+  examples in hints unless the format is unclear, no history. Budgets: button ≤3 words, hint one
+  sentence, confirm = action + what goes + "You can't undo this.", error = what happened + what to do.
+  Visitor text never says plugin/slot/manifest/host. The plugin skill ships the same guide.
 - Plugin UIs mount inside `SlotRegion`; shell CSS styles the region, never a plugin's internals.
 - **Structure is spec, looks are not.** ARCHITECTURE binds *what must exist and why* — per-feed tabs and the
   feed/site scope panels (§6.1), the slot region names plugins declare against (`top card main sidebar player

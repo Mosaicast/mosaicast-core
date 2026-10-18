@@ -191,7 +191,7 @@ describe('PluginMount', () => {
           </MemoryRouter>,
         );
 
-        expect(await screen.findByRole('status')).toHaveTextContent('This part of the page could not be shown.');
+        expect(await screen.findByRole('status')).toHaveTextContent("This part of the page couldn't load.");
         expect(logged).toHaveBeenCalledWith(expect.stringContaining("'boom'"), expect.any(Error));
       } finally {
         logged.mockRestore();
@@ -214,7 +214,7 @@ describe('PluginMount', () => {
           await vi.advanceTimersByTimeAsync(DEFINE_TIMEOUT_MS);
         });
 
-        expect(screen.getByRole('status')).toHaveTextContent('This part of the page could not be shown.');
+        expect(screen.getByRole('status')).toHaveTextContent("This part of the page couldn't load.");
       } finally {
         logged.mockRestore();
         vi.useRealTimers();

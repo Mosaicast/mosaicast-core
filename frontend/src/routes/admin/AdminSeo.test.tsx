@@ -56,7 +56,7 @@ describe('AdminSeo', () => {
 
     // A setting that reads like a lock and is not one is worse than no setting — this sentence is the
     // reason the panel is honest, so it is pinned rather than left to survive a copy edit.
-    expect(await screen.findByText(/request, not a barrier/)).toBeInTheDocument();
+    expect(await screen.findByText(/Crawlers can ignore robots.txt/)).toBeInTheDocument();
   });
 
   it('sends the policy and the block list on save', async () => {

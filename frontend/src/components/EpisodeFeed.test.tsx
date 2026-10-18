@@ -173,7 +173,7 @@ describe('EpisodeFeed', () => {
       stubEpisodes(() => serverError());
       renderFeed();
 
-      expect(await screen.findByText('Could not load episodes.')).toBeInTheDocument();
+      expect(await screen.findByText("Couldn't load episodes.")).toBeInTheDocument();
       // "No episodes yet" would be a false statement about the show, not about the request.
       expect(screen.queryByText('No episodes yet.')).not.toBeInTheDocument();
     });
@@ -222,7 +222,7 @@ describe('EpisodeFeed', () => {
       });
       renderFeed();
 
-      expect(await screen.findByText('Could not load more episodes. Try again.')).toBeInTheDocument();
+      expect(await screen.findByText("Couldn't load more episodes. Try again.")).toBeInTheDocument();
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 100));
       });
@@ -238,13 +238,13 @@ describe('EpisodeFeed', () => {
       renderFeed();
 
       fireEvent.click(await screen.findByRole('button', { name: 'Load more' }));
-      expect(await screen.findByText('Could not load more episodes. Try again.')).toBeInTheDocument();
+      expect(await screen.findByText("Couldn't load more episodes. Try again.")).toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'First' })).toBeInTheDocument();
 
       secondPageWorks = true;
       fireEvent.click(screen.getByRole('button', { name: 'Load more' }));
       expect(await screen.findByRole('link', { name: 'Second' })).toBeInTheDocument();
-      expect(screen.queryByText('Could not load more episodes. Try again.')).not.toBeInTheDocument();
+      expect(screen.queryByText("Couldn't load more episodes. Try again.")).not.toBeInTheDocument();
     });
   });
 });

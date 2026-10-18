@@ -139,7 +139,7 @@ describe('AboutPage', () => {
     renderPage();
 
     // Two scopes, because crediting only what ships would quietly drop the test and build tooling.
-    expect(await screen.findByText('Ships in the site you are using')).toBeInTheDocument();
+    expect(await screen.findByText('Part of this site')).toBeInTheDocument();
     expect(screen.getByText('Used to build and test it')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Spring Boot/ })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Vitest/ })).toBeInTheDocument();
