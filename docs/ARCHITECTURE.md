@@ -706,6 +706,7 @@ A person can download everything the site holds about them (GDPR Art. 15 access,
     core/account.json                 account, linked providers, name history, access tokens (never a secret)
     core/listening.json               listening progress
     core/notifications.json           the inbox
+    core/feedback.json                reports this person sent (§20)
     core/plugin-documents/<plugin>.json   USER-scope documents core holds on plugins' behalf (§7.6)
     plugins/<id>/…                    whatever each plugin hands over, in its own format
     outcome.json                      per plugin: complete | empty | failed | outstanding | not-supported
@@ -720,7 +721,7 @@ A person can download everything the site holds about them (GDPR Art. 15 access,
 - **Observability:** Spring **Actuator** `health`/`info` (compose healthcheck + uptime monitoring hook), structured logging. Nothing fancier in v1.
 - **API conventions:** the REST API is **internal** in v1 — the SDK is the only public contract, so no API-versioning machinery. Errors as **RFC 7807** `application/problem+json` (stable `type` codes; the UI translates) — including the external-service vocabulary listed in §16. **List endpoints paginate from day one.**
 - **GDPR:** store minimal (provider, external_id, optional email/name, and for the avatar a *reference* rather than a picture — §8.7), no passwords. Name history is retention-capped and dies with the account (§8.6). On account deletion **pseudonymize** public bingo contributions (cut the identity link, aggregates/leaderboard stay correct), don't hard delete — the mechanism is §12.8, because bingo is a plugin and core cannot keep that promise on its own. Not a lawyer — have the privacy policy reviewed.
-- **Security:** creator/OAuth tokens encrypted at rest — `MOSAICAST_ENCRYPTION_KEY` is wired and used for admin-entered external-service credentials (§16); absent, such values are stored in the clear with a startup warning and an admin badge, because refusing to boot would take a site down over a feature it may not use. Outbound requests to **admin-supplied service URLs** are gated by an exact-origin private allow-list, distinct from and **not** a widening of `mosaicast.feed.allow-private-targets`. SVG sanitizing. Presigned URLs for gated audio. **Baseline security headers** (CSP, X-Content-Type-Options, Referrer-Policy). **Upload limits** (max body size; archives additionally guarded against zip-slip and zip bombs — see the stats brief). **Basic rate limiting** on auth endpoints and uploads.
+- **Security:** creator/OAuth tokens encrypted at rest — `MOSAICAST_ENCRYPTION_KEY` is wired and used for admin-entered external-service credentials (§16); absent, such values are stored in the clear with a startup warning and an admin badge, because refusing to boot would take a site down over a feature it may not use. Outbound requests to **admin-supplied service URLs** are gated by an exact-origin private allow-list, distinct from and **not** a widening of `mosaicast.feed.allow-private-targets`. SVG sanitizing. Presigned URLs for gated audio. **Baseline security headers** (CSP, X-Content-Type-Options, Referrer-Policy). **Upload limits** (max body size; archives additionally guarded against zip-slip and zip bombs — see the stats brief). **Basic rate limiting** on auth endpoints, uploads and feedback (§20.4).
 - **Deployment:** Docker Compose (app, postgres, caddy/traefik; redis from v3). Secrets via `.env`, not committed. **Backups from day one:** nightly `pg_dump` of the database (host cron or sidecar) + keeping a copy off the VPS; test a restore once.
 
 ## 13.5 Testing Strategy
@@ -895,3 +896,55 @@ A podcast wants to know whether anyone listens. Mosaicast answers that with **co
   curl/ wget/ python- go-http-client java/ okhttp node-fetch axios httpclient libwww mosaicast-
   ```
 - **No consent banner follows from this** in the reading this design is built on — nothing is stored on or read from the device, and nothing personal is stored — but operators remain responsible for their own privacy notice; the README gives a sentence they can adapt. *(Not legal advice.)*
+
+---
+
+## 20. Feedback
+
+A visitor who hits a problem has nowhere to say so. The person most in need of a channel is the one for whom the site is broken, and the commonest breakage, a sign-in that fails, is exactly the one that leaves them anonymous. So feedback is a core surface that **works without an account**, and the design is mostly about keeping that from becoming an open inbox for spam.
+
+**It goes to the operator, never to the Mosaicast project.** Almost everything a visitor reports, from a broken OAuth app to a stale feed or a word on a page, is the operator's to fix and nobody else's to see. Sending it anywhere else would make every install a data transfer to a third party its privacy notice has to name, against the grain of §19. A report that turns out to be a bug in the software reaches its project **through the admin**, by a forwarding step the admin performs and edits (below), never by core phoning home.
+
+```
+Feedback (id, kind, message, context JSONB, user_id NULL, contact NULL, locale,
+          status, created_at, handled_by, handled_at, replied_at)
+        kind:   problem | idea | other
+        status: new | seen | done | spam
+```
+
+### 20.1 Who may send, who reads
+- **`feedback_mode`** (`site_config`, ADMIN only): `off` · `signed-in` · `everyone` (default) · `external`. `external` stores a URL (`https:` or `mailto:`) and the footer link goes there instead. Some operators already have a Discord, a mail address or a tracker and should not be made to run a second inbox. In `off` and `external` the endpoint answers 404, the same shape an undeclared surface has elsewhere.
+- **`feedback_floor`** (`site_config`, ADMIN only): the lowest role that reads reports, `admin` (default) or `podcaster`. The operator and the podcaster are not always the same person. A podcast hosted on someone else's install should be able to hand its listeners' ideas to the podcast without handing it the admin page. Whoever meets the floor sees everything a report holds, the contact included, and the admin page says so next to the setting.
+- **The entrances are shell chrome:** a footer link on every page and a "report this" action on the shell's own error states, the sign-in failure (§18.3's refusal among them) first. An entrance from an error state carries that error's code.
+- **While the site is not open (§18) there is no form for anonymous visitors**, because the edge answers them without asking core. That is accepted: a closed site has staff as its only audience, and staff can sign in. **When core itself is down** nothing in core can take a report. The fallback is the imprint (§12.6), which the edge serves from its copy and which a site that is required to have one already carries a contact in.
+
+### 20.2 What a report holds
+- **`message`** is plain text, at most 2000 characters, rendered as text and never as HTML or markdown.
+- **`context`** is what makes a report actionable without a conversation, and the form **shows the sender what goes with it** before they send. The shell proposes the route, the page's plugin ids and the error code; **core validates every part and adds the rest itself**. The route is length-capped, plugin ids not installed are dropped, an error code outside the fixed list is dropped, and the core version and each named plugin's version come from the server. A client that could write the version could make a report about a release that is not running. **No User-Agent, no address, no screenshot:** each is personal data or an upload surface, and none is needed to start fixing something.
+- **`contact`** is optional and offered only to anonymous senders, labelled as being for a reply and nothing else. It is **cleared when the report is closed** (`done` or `spam`): the purpose it was given for is over. A signed-in sender needs none (below).
+- **`locale`** is the sender's UI locale, so a reader knows which language to answer in.
+
+### 20.3 Reading and answering
+- **One inbox, on an admin page**, filterable by status and kind, with bulk `spam`. Opening a report marks it `seen`.
+- **Readers are told through §17, without being flooded.** A new report raises a `system` notification of kind `feedback.new` for every user at or above the floor, and **at most one is unread per reader**: a report arriving while one is unread raises its count instead of adding a row. A hundred spam reports must not become a hundred bells.
+- **A signed-in sender is answered in-app**, as an `admin` notification (§17), attributable and logged as those are; the report records `replied_at`. **An anonymous sender is answered by mail** through a `mailto:` link the reader's own client opens. Core still sends no mail (§17).
+- **Forwarding upstream** is a button, not a pipe. It assembles a plain-text summary from the kind, the message, the context and the versions, and **never** the contact or anything that identifies the sender. It copies that summary and opens the project's tracker: core's repository, or the reporting plugin's `homepage` (§7.2) if it declared one. The reader edits before anything is submitted, in their own browser, as themselves. Core makes no outbound request.
+
+### 20.4 Keeping it from being spammed
+Layered, so that no single layer has to be perfect, and **no third-party captcha**. Every hosted captcha is a transfer of visitor data to its vendor, needs consent (§12.5) before it can load, and puts a puzzle in front of the person who already cannot sign in.
+
+- **Proof of work for anonymous senders.** `GET /api/feedback/challenge` issues a challenge signed with a server secret, expiring within minutes. The browser solves it (a hash search in a worker, about a second on an ordinary phone) and sends the solution with the report. Core verifies the signature, the expiry and the solution, and accepts each challenge **once** (spent challenges are remembered in memory until they expire). It costs a person a second they do not notice and a bulk sender that second per message. It needs no cookie and no third party, and it involves no puzzle. The secret and the spent list live in memory, so a restart only invalidates challenges in flight. Several instances (v3) share both, as they share sessions. The difficulty is operator-configurable. The signed issue time also gives a **minimum fill time**: a report sent within a few seconds of its challenge is refused.
+- **Rate limits, the host's, in memory:** per client address for anonymous senders (transient, never stored, the same rule as §19) and per user for signed-in ones, with operator-configurable windows. Signed-in senders skip the proof of work. An account is already a cost, and one that abuses this can be blocked from sending (below).
+- **A ceiling on anonymous reports in the queue.** When unhandled anonymous reports reach a cap, or the last hour's anonymous reports reach a rate, further anonymous reports are refused until readers catch up. The cap protects the database and, more to the point, the reader's attention. **Signed-in senders are not subject to it:** a flood of anonymous spam must not silence the people the site can actually identify.
+- **Content rules:**
+  - an anonymous report with more than two URLs is refused;
+  - a report identical to one received in the last day (normalised text) is answered as accepted and stored once, so a double-click is harmless and a repeat gains nothing;
+  - the form carries a field no person fills in, and a report with it filled is answered as accepted and dropped.
+- **Levers for readers:** mark as spam, in bulk; **block a signed-in user from sending** (logged like a role change, §8.5); drop the mode to `signed-in` or `off` while an attack lasts.
+- **Failure vocabulary** (§13), each with its own problem type: `feedback-invalid` (400: too long, too many links, bad kind), `feedback-challenge-failed` (400: missing, expired, spent, wrong or too fast), `feedback-rate-limited` (429, `Retry-After`), `feedback-busy` (503, `Retry-After`: the anonymous ceiling), `feedback-blocked` (403). The form tells a person what to do about each. It does not tell a bot which check it tripped beyond that.
+
+### 20.5 Lifecycle
+- Reports are **user data when they have a user**: erased with the account (§12.8) and included in the export as `core/feedback.json` (§12.8.1), the person's own reports with their status. Anonymous reports have no one to export them to.
+- **`done` and `spam` reports are purged** after a retention period (operator-configurable, default 90 days). Open reports are kept until handled, and the anonymous ceiling bounds how many of those can pile up.
+- The privacy notice needs a sentence about the contact field. The README gives one operators can adapt. *(Not legal advice.)*
+- **Not in this section:** attachments, a sender-visible status page, and a plugin surface for opening the form with a topic (`ctx.feedback`). The page context already records which plugin a report came from, which covers the common case, and each of these is additive later.
