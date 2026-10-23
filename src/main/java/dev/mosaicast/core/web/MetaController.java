@@ -52,7 +52,19 @@ public class MetaController {
     @GetMapping("/api/meta")
     public Map<String, Object> meta() {
         // `counting`: whether the shell sends its anonymous counting beacons at all (§19).
-        return Map.of("name", "Mosaicast", "version", version, "devLoginEnabled", devLoginEnabled,
-                "devProfile", devProfile, "counting", site.get().isCounting());
+        // `feedback*`: whether the footer offers the form, a link elsewhere, or nothing (§20.1), and which role
+        // reads reports — so the shell shows a podcaster the inbox only when the operator handed it to them.
+        var config = site.get();
+        Map<String, Object> meta = new java.util.LinkedHashMap<>();
+        meta.put("name", "Mosaicast");
+        meta.put("version", version);
+        meta.put("devLoginEnabled", devLoginEnabled);
+        meta.put("devProfile", devProfile);
+        meta.put("counting", config.isCounting());
+        meta.put("feedbackMode", config.getFeedbackMode().wire());
+        meta.put("feedbackUrl", config.getFeedbackMode() == dev.mosaicast.core.feedback.FeedbackMode.EXTERNAL
+                ? config.getFeedbackUrl() : null);
+        meta.put("feedbackFloor", config.getFeedbackFloor().name().toLowerCase(java.util.Locale.ROOT));
+        return meta;
     }
 }

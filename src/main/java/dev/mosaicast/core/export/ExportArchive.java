@@ -120,6 +120,7 @@ public class ExportArchive {
             putJson(zip, "core/account.json", account(user));
             putJson(zip, "core/listening.json", listening(userId));
             putJson(zip, "core/notifications.json", notifications(userId));
+            putJson(zip, "core/feedback.json", feedback(userId));
             for (Map.Entry<String, Map<String, Object>> plugin : userDocuments(userId).entrySet()) {
                 putJson(zip, "core/plugin-documents/" + plugin.getKey() + ".json", plugin.getValue());
             }
@@ -277,6 +278,25 @@ public class ExportArchive {
                 }, userId);
     }
 
+    /** The reports this person sent (§20.5), with where each stands. Anonymous reports have no one to go to. */
+    private List<Map<String, Object>> feedback(UUID userId) {
+        return jdbc.query("""
+                select kind, message, context::text as context, status, locale, created_at, replied_at
+                from feedback where user_id = ? order by created_at desc
+                """, (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("kind", rs.getString("kind"));
+                    row.put("message", rs.getString("message"));
+                    row.put("context", json.readTree(rs.getString("context")));
+                    row.put("status", rs.getString("status"));
+                    row.put("locale", rs.getString("locale"));
+                    row.put("sentAt", text(rs.getTimestamp("created_at").toInstant()));
+                    java.sql.Timestamp replied = rs.getTimestamp("replied_at");
+                    row.put("answeredAt", replied == null ? null : text(replied.toInstant()));
+                    return row;
+                }, userId);
+    }
+
     private List<Map<String, Object>> notifications(UUID userId) {
         return jdbc.query("""
                 select source, kind, payload::text as payload, link, created_at, read_at
@@ -317,6 +337,7 @@ public class ExportArchive {
                                          secret)
                 core/listening.json      where you stopped in each episode
                 core/notifications.json  your inbox
+                core/feedback.json       feedback you sent
                 core/plugin-documents/   what plugins stored for you personally, one file per plugin
                 plugins/<plugin>/        what each plugin handed over, in its own format
                 outcome.json             what came of asking each plugin:
@@ -333,6 +354,7 @@ public class ExportArchive {
                                          und deine Zugriffstoken (Name und Datum, nie das Geheimnis)
                 core/listening.json      wo du in jeder Folge aufgehört hast
                 core/notifications.json  deine Benachrichtigungen
+                core/feedback.json       dein gesendetes Feedback
                 core/plugin-documents/   was Plugins persönlich für dich gespeichert haben, je Plugin eine Datei
                 plugins/<plugin>/        was jedes Plugin übergeben hat, in seinem eigenen Format
                 outcome.json             was beim Anfragen jedes Plugins herauskam:

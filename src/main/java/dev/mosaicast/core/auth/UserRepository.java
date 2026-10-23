@@ -16,6 +16,9 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     /** How many users hold a given role — used to protect the last ADMIN from being demoted (§8.5). */
     long countByRole(Role role);
 
+    /** Every user holding one of these roles, unlocked — who reads feedback (§20.3). */
+    java.util.List<User> findByRoleIn(java.util.Collection<Role> roles);
+
     /**
      * Every holder of a role, with a write lock on the rows and a deterministic lock order (§8.5).
      *

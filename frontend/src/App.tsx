@@ -10,6 +10,7 @@ import { RequireRole } from './auth/RequireRole';
 import { UserProvider } from './auth/UserContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { FeedsProvider } from './components/FeedsContext';
+import { FeedbackProvider } from './feedback/FeedbackContext';
 import { Footer } from './components/Footer';
 import { LoginErrorBanner } from './components/LoginErrorBanner';
 import { TopBar } from './components/TopBar';
@@ -27,6 +28,7 @@ import { CountingTracker } from './metrics/CountingTracker';
 import { AdminAccess } from './routes/admin/AdminAccess';
 import { AdminConsent } from './routes/admin/AdminConsent';
 import { AdminExternal } from './routes/admin/AdminExternal';
+import { AdminFeedback } from './routes/admin/AdminFeedback';
 import { AdminFeeds } from './routes/admin/AdminFeeds';
 import { AdminLayout } from './routes/admin/AdminLayout';
 import { AdminLanguages } from './routes/admin/AdminLanguages';
@@ -64,6 +66,7 @@ export default function App() {
           <PlayerProvider>
             <ConsentProvider>
             <PluginRegistryProvider>
+            <FeedbackProvider>
             <div className="mc-root">
               <TopBar />
               <LiveRegion />
@@ -151,6 +154,9 @@ export default function App() {
                     <Route path="feeds" element={<AdminFeeds />} />
                     {/* Reach is for podcasters too (§19); the counting switch on it is admin-only. */}
                     <Route path="reach" element={<AdminReach />} />
+                    {/* Admins, and podcasters when the operator hands them the inbox; the page asks the
+                        server, which checks the floor actually set (§20.1). */}
+                    <Route path="feedback" element={<AdminFeedback />} />
                     <Route path="planned" element={<AdminPlanned />} />
                     <Route
                       path="navigation"
@@ -209,6 +215,7 @@ export default function App() {
               </main>
               <Footer />
             </div>
+            </FeedbackProvider>
             </PluginRegistryProvider>
             </ConsentProvider>
           </PlayerProvider>

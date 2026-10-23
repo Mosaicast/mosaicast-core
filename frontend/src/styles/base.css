@@ -163,3 +163,11 @@ code {
     scroll-behavior: auto !important;
   }
 }
+
+/* "Go home" and "report this" side by side on the not-found page (§20.1). */
+.mc-notfound__ways {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-4);
+}

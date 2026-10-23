@@ -32,7 +32,19 @@ public enum NotificationKind {
      * The data export this user asked for is ready (§12.8.1). Carries {@code expiresAt}, because the archive is
      * deleted then and a notice that does not say so invites a download link that no longer works.
      */
-    EXPORT_READY;
+    EXPORT_READY,
+
+    /**
+     * Feedback arrived for a reader (§20.3). At most one is unread per reader: a report arriving while one is
+     * unread raises its {@code count} instead of adding a row, so a burst of spam is one bell, not a hundred.
+     */
+    FEEDBACK_NEW,
+
+    /**
+     * A reader answered this user's feedback. An {@code admin}-source kind, unlike the rest: the text is the
+     * reader's, attributable and logged as a warning is, but it is not a warning and is not listed as one.
+     */
+    FEEDBACK_REPLY;
 
     /** The stored form — lower-cased with dashes, matching the problem types and role names on the wire. */
     public String wireName() {

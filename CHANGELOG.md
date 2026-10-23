@@ -12,6 +12,12 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ## [Unreleased]
 
+### Fixed
+
+- **A sign-up refused because the site isn't open says so (`0.11.0`).** The sign-in banner showed the
+  generic "Login failed" for `signups_closed`, although the wording existed. Its close button is now the
+  icon set's, not a literal ×.
+
 ### Changed
 
 - **⚠️ Plugins must be rebuilt for `platformApi` 0.20.0 (`0.10.0`, core#298).** Core pins SDK 0.20.0, and a
@@ -42,6 +48,22 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Visitor feedback (`0.11.0`, ARCHITECTURE §20).** *Send feedback* in the footer and *Report this* on a
+  failed sign-in, a crashed or missing page and a page that didn't load. Works without an account. Reports
+  go only to the operator: Admin → Feedback lists them for admins, or for podcasters too if an admin says
+  so, with filters, bulk spam, an in-app answer to signed-in senders, a mail link for anonymous ones,
+  *Forward upstream* (a summary without the contact, pasted by the reader into the project's tracker) and
+  blocking a signed-in sender. One bell per reader counts new reports. The site can take reports from
+  everyone, signed-in people only, nobody, or point the footer at its own channel (`https:` or `mailto:`).
+  - **Spam layers, no third-party captcha:** a self-hosted proof of work for anonymous senders, per-address
+    and per-user rate limits, a ceiling on unhandled anonymous reports (signed-in senders exempt), at most
+    two links per anonymous report, duplicate and trap-field reports accepted and dropped. Refusals are
+    `feedback-invalid`, `feedback-challenge-failed`, `feedback-rate-limited`, `feedback-busy` and
+    `feedback-blocked`. Knobs under `mosaicast.feedback.*`.
+  - **Lifecycle:** a closed report loses its contact and is deleted after 90 days; a person's reports are
+    erased with their account and exported as `core/feedback.json`.
+  - `GET /api/meta` gains `feedbackMode`, `feedbackUrl` and `feedbackFloor`. The notification kind is
+    `feedback-new`; §20.3 now says so (it said `feedback.new`, which no kind is stored as).
 - **Realtime plugins: actions, channels, timers (`0.10.0`, ARCHITECTURE §7.9, core#298, SDK 0.20.0).**
   For turn-based games, live quizzes and typing indicators. All of it is opt-in per manifest and shown on
   Admin → Plugins.

@@ -3,6 +3,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { withTranslation, type WithTranslation } from 'react-i18next';
+import { ReportThis } from '../feedback/ReportThis';
 
 interface Props extends WithTranslation {
   children: ReactNode;
@@ -48,6 +49,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
           <button type="button" className="mc-btn mc-btn--accent" onClick={() => window.location.assign('/')}>
             {t('error.home')}
           </button>
+          <ReportThis code="crash" />
         </div>
       </div>
     );

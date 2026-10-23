@@ -210,6 +210,36 @@
   cursor: pointer;
   color: inherit;
 }
+/* The close glyph is the generated icon set's, drawn as a mask so it takes the banner's colour (no literal ×). */
+.mc-banner__closeicon {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  mask-image: var(--mc-icon-close);
+  mask-size: contain;
+  mask-repeat: no-repeat;
+  background: currentColor;
+}
+.mc-banner__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--mc-space-2);
+}
+
+/* A button that reads as a link: the footer's feedback entrance and "report this" beside a link. */
+.mc-linkbutton {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--mc-accent-text);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.mc-linkbutton:focus-visible {
+  outline: 2px solid var(--mc-accent-text);
+  outline-offset: 2px;
+}
 
 /* ---- footer ---- */
 .mc-foot {

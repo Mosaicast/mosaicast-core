@@ -404,6 +404,12 @@ export interface Meta {
   devProfile?: boolean;
   /** Whether the shell sends its anonymous counting beacons (§19); absent on an older core = off. */
   counting?: boolean;
+  /** Who may send feedback (§20.1); absent on an older core means no form. */
+  feedbackMode?: 'off' | 'signed-in' | 'everyone' | 'external';
+  /** In `external` mode, where the footer link points: an `https:` or `mailto:` address. */
+  feedbackUrl?: string | null;
+  /** The lowest role that reads reports, `admin` or `podcaster`. */
+  feedbackFloor?: 'admin' | 'podcaster';
 }
 
 /** Admin-facing feed (`feed/FeedView.java`), `GET /api/admin/feeds` — includes poll state. */
@@ -500,6 +506,35 @@ export interface NotificationView {
   link: string | null;
   createdAt: string;
   readAt: string | null;
+}
+
+/** One feedback report as a reader sees it (`feedback/FeedbackAdminController.FeedbackView`, §20.3). */
+export interface FeedbackReport {
+  id: string;
+  kind: 'problem' | 'idea' | 'other';
+  message: string;
+  /** What the server checked and added: `route`, `error`, `plugins` (id/version/homepage), `core`. */
+  context: {
+    route?: string;
+    error?: string;
+    core?: string;
+    plugins?: { id: string; version: string; homepage?: string }[];
+  };
+  status: 'new' | 'seen' | 'done' | 'spam';
+  createdAt: string;
+  locale: string | null;
+  /** Only for an anonymous sender whose report is still open. */
+  contact: string | null;
+  sender: { id: string; displayName: string; blocked: boolean } | null;
+  repliedAt: string | null;
+  handledAt: string | null;
+}
+
+/** The feedback settings (§20.1), `GET`/`PUT /api/admin/feedback/settings`. */
+export interface FeedbackSettings {
+  mode: 'off' | 'signed-in' | 'everyone' | 'external';
+  url: string | null;
+  floor: 'admin' | 'podcaster';
 }
 
 /** The pagination envelope (`web/PagedResponse.java`) returned by list endpoints. */

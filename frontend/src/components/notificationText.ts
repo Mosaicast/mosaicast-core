@@ -22,7 +22,12 @@ export function describeNotification(
   locale: string,
 ): string {
   if (item.source === 'system' && item.kind) {
-    return t(`notifications.kind.${item.kind}`, item.payload);
+    // Payload values are strings on the wire; a count has to be a number for the plural to be chosen.
+    const params: Record<string, unknown> = { ...item.payload };
+    if (typeof item.payload.count === 'string') {
+      params.count = Number(item.payload.count);
+    }
+    return t(`notifications.kind.${item.kind}`, params);
   }
   if (item.source === 'admin') {
     return item.payload.text ?? '';

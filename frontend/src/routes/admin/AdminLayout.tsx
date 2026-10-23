@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
+import { useMeta } from '../../api/MetaContext';
 import { useUser } from '../../auth/UserContext';
 import { useDocumentTitle } from '../../a11y/documentTitle';
 
@@ -16,6 +17,9 @@ export function AdminLayout() {
   const { t, i18n } = useTranslation();
   const { user } = useUser();
   const isAdmin = user?.role === 'admin';
+  // Who reads feedback is the operator's choice (§20.1): admins always, podcasters when handed the inbox.
+  const meta = useMeta();
+  const readsFeedback = isAdmin || (user?.role === 'podcaster' && meta?.feedbackFloor === 'podcaster');
   const nav = useRef<HTMLElement>(null);
   const { pathname } = useLocation();
   // "Feeds · Admin": the section, which is what differs between the tabs a visitor has open.
@@ -90,6 +94,11 @@ export function AdminLayout() {
           <NavLink to="/admin/reach" className={tab}>
             {t('admin.nav.reach')}
           </NavLink>
+          {readsFeedback && (
+            <NavLink to="/admin/feedback" className={tab}>
+              {t('admin.nav.feedback')}
+            </NavLink>
+          )}
           {isAdmin && (
             <NavLink to="/admin/site" className={tab}>
               {t('admin.nav.site')}

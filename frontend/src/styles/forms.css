@@ -389,3 +389,21 @@
   font-family: var(--mc-font-mono);
   font-size: var(--mc-text-xs);
 }
+
+/* ---- feedback form (§20) ---- */
+.mc-feedback__count {
+  font-size: var(--mc-text-sm);
+}
+.mc-feedback__context ul {
+  margin: 0;
+  padding-left: var(--mc-space-5);
+  font-size: var(--mc-text-sm);
+}
+/* The honeypot: present for a bot that fills every field, absent for a person and for assistive tech. */
+.mc-feedback__trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}

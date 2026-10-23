@@ -9,6 +9,7 @@ import type { EpisodeSummary } from '../api/types';
 import { RelatedEpisodes } from '../components/RelatedEpisodes';
 import { useResource } from '../hooks/useResource';
 import { useDocumentTitle } from '../a11y/documentTitle';
+import { ReportThis } from '../feedback/ReportThis';
 
 /**
  * Real HTTP-style 404 landmark for unknown routes (ARCHITECTURE §6.6 hygiene).
@@ -62,8 +63,9 @@ export function NotFound() {
         </button>
       </form>
 
-      <p>
+      <p className="mc-notfound__ways">
         <Link to="/">{t('notFound.home')}</Link>
+        <ReportThis code="not-found" className="mc-linkbutton" />
       </p>
 
       {/* Cheap and useful: whoever landed here came for this podcast, and the newest episodes are the

@@ -47,6 +47,18 @@ public class SiteConfig {
     @Column(name = "counting", nullable = false)
     private boolean counting = true;
 
+    /** Who may send feedback (ARCHITECTURE §20.1); stored as the enum name. */
+    @Column(name = "feedback_mode", nullable = false)
+    private String feedbackMode = "EVERYONE";
+
+    /** Where the footer link points in {@code EXTERNAL} mode: an {@code https:} or {@code mailto:} URL. */
+    @Column(name = "feedback_url")
+    private String feedbackUrl;
+
+    /** The lowest role that reads reports (§20.1): {@code ADMIN} or {@code PODCASTER}. */
+    @Column(name = "feedback_floor", nullable = false)
+    private String feedbackFloor = "ADMIN";
+
     @Column(name = "accent_seed", nullable = false)
     private String accentSeed;
 
@@ -207,6 +219,25 @@ public class SiteConfig {
 
     public boolean isCounting() {
         return counting;
+    }
+
+    public dev.mosaicast.core.feedback.FeedbackMode getFeedbackMode() {
+        return dev.mosaicast.core.feedback.FeedbackMode.valueOf(feedbackMode);
+    }
+
+    public String getFeedbackUrl() {
+        return feedbackUrl;
+    }
+
+    public dev.mosaicast.core.siteaccess.PassFloor getFeedbackFloor() {
+        return dev.mosaicast.core.siteaccess.PassFloor.valueOf(feedbackFloor);
+    }
+
+    public void setFeedback(dev.mosaicast.core.feedback.FeedbackMode mode, String url,
+                            dev.mosaicast.core.siteaccess.PassFloor floor) {
+        this.feedbackMode = mode.name();
+        this.feedbackUrl = url;
+        this.feedbackFloor = floor.name();
     }
 
     public void setCounting(boolean counting) {

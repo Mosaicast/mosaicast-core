@@ -164,6 +164,23 @@ mosaicast:
     hard-per-user-per-day: ${MOSAICAST_PLUGIN_NOTIFY_HARD:20}
     # The most recipients one call may reach — a page of a leaderboard, not a mailing list.
     max-batch: ${MOSAICAST_PLUGIN_NOTIFY_MAX_BATCH:200}
+  # Visitor feedback (ARCHITECTURE §20.4, §20.5). Who may send and who reads are admin settings on a page; these
+  # are the spam layers and retention.
+  feedback:
+    # Leading zero bits an anonymous sender's proof of work must find: 18 is about a second on a phone, each bit
+    # doubles it.
+    pow-bits: ${MOSAICAST_FEEDBACK_POW_BITS:18}
+    challenge-ttl: ${MOSAICAST_FEEDBACK_CHALLENGE_TTL:10m}
+    min-fill-time: ${MOSAICAST_FEEDBACK_MIN_FILL_TIME:3s}
+    anonymous-per-window: ${MOSAICAST_FEEDBACK_ANONYMOUS_PER_WINDOW:5}
+    signed-in-per-window: ${MOSAICAST_FEEDBACK_SIGNED_IN_PER_WINDOW:10}
+    window: ${MOSAICAST_FEEDBACK_WINDOW:1h}
+    # Unhandled anonymous reports, or anonymous reports in the last hour, at which further anonymous ones wait.
+    # Signed-in senders are never held back by these.
+    anonymous-open-ceiling: ${MOSAICAST_FEEDBACK_ANONYMOUS_OPEN_CEILING:200}
+    anonymous-per-hour-ceiling: ${MOSAICAST_FEEDBACK_ANONYMOUS_PER_HOUR_CEILING:60}
+    retention: ${MOSAICAST_FEEDBACK_RETENTION:90d}
+    purge-interval-ms: ${MOSAICAST_FEEDBACK_PURGE_INTERVAL_MS:86400000}
   # Plugin actions and channels (ARCHITECTURE §7.9). `default-`/`hard-` pairs work as above: what a plugin gets
   # when its manifest names no number, and the ceiling none can reach past. The rest is the host's alone.
   plugin-realtime:
