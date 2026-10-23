@@ -58,6 +58,19 @@ let reopenFailures = 0;
 const accessListeners = new Set<() => void>();
 
 /**
+ * Frames for a subscription id this tab has not heard back about yet.
+ *
+ * The server admits a subscription, and may publish to it — from the plugin's own `onJoin`, typically — before
+ * the subscribe request has returned its id here. Without this, those first events were dropped as "for nobody",
+ * which is exactly when a game sends its presence list. They are held briefly and replayed in order once the id
+ * is known; anything still unclaimed after {@link EARLY_TTL_MS} belonged to a subscription this tab gave up on.
+ */
+type EarlyFrame = { type: 'msg' | 'refused' | 'closed'; data: unknown; at: number };
+const early = new Map<string, EarlyFrame[]>();
+const EARLY_TTL_MS = 10_000;
+const EARLY_PER_SUB = 64;
+
+/**
  * Subscribes to "the host ended live updates because access changed" — a sign-out elsewhere, a role change,
  * the site closing. The user context listens and re-reads who is signed in, which hands every plugin a new
  * `ctx` with the right role.
@@ -121,6 +134,14 @@ function onHello(es: EventSource, e: MessageEvent) {
 
 function onMessage(e: MessageEvent) {
   const frame = parse<{ sub: string; event: string; data: unknown; at: string }>(e.data);
+  if (frame && !bySub.has(frame.sub)) {
+    hold(frame.sub, 'msg', frame);
+    return;
+  }
+  deliver(frame);
+}
+
+function deliver(frame: { sub: string; event: string; data: unknown; at: string } | null) {
   const entry = frame ? bySub.get(frame.sub) : undefined;
   if (frame && entry) {
     try {
@@ -134,6 +155,10 @@ function onMessage(e: MessageEvent) {
 
 function onRefused(e: MessageEvent) {
   const frame = parse<{ sub: string }>(e.data);
+  if (frame && !bySub.has(frame.sub)) {
+    hold(frame.sub, 'refused', frame);
+    return;
+  }
   const entry = frame ? bySub.get(frame.sub) : undefined;
   if (entry) {
     end(entry, 'refused', false);
@@ -149,6 +174,8 @@ function onClosed(e: MessageEvent) {
     const entry = bySub.get(sub);
     if (entry) {
       end(entry, 'closed', false);
+    } else if (frame.reason !== 'access') {
+      hold(sub, 'closed', null);
     }
   }
   if (frame.reason === 'access') {
@@ -207,6 +234,7 @@ async function register(entry: Entry) {
       entry.onReset?.();
     }
     entry.opened = true;
+    replayEarly(answer.sub);
   } catch (err) {
     if (!entries.has(entry) || attempt !== entry.attempt) {
       return;
@@ -245,6 +273,38 @@ function end(entry: Entry, status: 'closed' | 'refused', byClient: boolean) {
   }
 }
 
+/** Keeps a frame for a subscription id not known yet; bounded per id and in time. */
+function hold(sub: string, type: EarlyFrame['type'], data: unknown) {
+  const now = Date.now();
+  for (const [id, frames] of early) {
+    if (frames.length > 0 && now - frames[0].at > EARLY_TTL_MS) {
+      early.delete(id);
+    }
+  }
+  const frames = early.get(sub) ?? [];
+  if (frames.length < EARLY_PER_SUB) {
+    frames.push({ type, data, at: now });
+    early.set(sub, frames);
+  }
+}
+
+/** Replays what arrived for a subscription before its id did, in arrival order. */
+function replayEarly(sub: string) {
+  const frames = early.get(sub);
+  early.delete(sub);
+  for (const frame of frames ?? []) {
+    const entry = bySub.get(sub);
+    if (!entry) {
+      return;
+    }
+    if (frame.type === 'msg') {
+      deliver(frame.data as { sub: string; event: string; data: unknown; at: string });
+    } else {
+      end(entry, frame.type, false);
+    }
+  }
+}
+
 function shutDown() {
   // Ended by the server (access changed) with subscriptions still listed: they are over too.
   [...entries].forEach((entry) => end(entry, 'closed', false));
@@ -256,6 +316,7 @@ function shutDown() {
   source = null;
   streamId = null;
   bySub.clear();
+  early.clear();
 }
 
 function setStatus(entry: Entry, status: ChannelStatus) {

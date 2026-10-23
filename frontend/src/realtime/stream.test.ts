@@ -163,6 +163,31 @@ describe('the tab stream', () => {
     expect(a.events).toEqual([]);
   });
 
+  it('keeps an event that arrives before its subscription id, and delivers it', async () => {
+    // The plugin's onJoin publishes the moment the server admits the subscription, which can be before the
+    // subscribe request has answered with its id here.
+    let answer!: (r: ReturnType<typeof response>) => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((url: string, init?: RequestInit) => {
+        if (init?.method === 'POST') {
+          posts.push({ url, body: JSON.parse(init.body as string) });
+          return new Promise((resolve) => (answer = resolve));
+        }
+        return Promise.resolve(response({ status: 204 }));
+      }),
+    );
+    const a = open('a');
+    es().emit('hello', { stream: 'st1', resumed: false });
+    await vi.waitFor(() => expect(posts).toHaveLength(1));
+    es().emit('msg', { sub: 's9', event: 'presence', data: ['me'], at: 't1' });
+    es().emit('msg', { sub: 's9', event: 'moved', data: 1, at: 't2' });
+    expect(a.events).toEqual([]);
+    answer(response({ status: 200, body: { sub: 's9' } }));
+    await vi.waitFor(() => expect(a.events.map((e) => e.event)).toEqual(['presence', 'moved']));
+    expect(a.statuses).toEqual(['connecting', 'open']);
+  });
+
   it('a plugin the authorizer refuses is refused, not retried', async () => {
     replies.push({ status: 403, body: { type: 'https://mosaicast.dev/problems/forbidden' } });
     const a = open('a');
