@@ -14,6 +14,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **A plugin's first channel events reach the subscriber that caused them (`0.11.1`, §7.9).** An event published
+  as a subscription was admitted (from the plugin's `onJoin`, typically a presence list) could reach the tab
+  before the subscribe request returned its id, and the shell dropped it. The shell now holds such events
+  briefly and delivers them, in order, once the id arrives.
 - **A sign-up refused because the site isn't open says so (`0.11.0`).** The sign-in banner showed the
   generic "Login failed" for `signups_closed`, although the wording existed. Its close button is now the
   icon set's, not a literal ×.
