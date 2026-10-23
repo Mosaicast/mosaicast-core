@@ -391,8 +391,26 @@
 }
 
 /* ---- feedback form (§20) ---- */
+/* The form is the sheet's body, so it carries the sheet's inner margin itself and its controls fill it. */
+.mc-dialog__sheet > .mc-feedback {
+  margin: var(--mc-space-4) var(--mc-space-5) var(--mc-space-5);
+  gap: var(--mc-space-3);
+}
+.mc-feedback .mc-options {
+  max-width: none;
+}
+.mc-feedback .mc-textarea,
+.mc-feedback .mc-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+.mc-feedback > .mc-muted,
 .mc-feedback__count {
+  margin-top: calc(-1 * var(--mc-space-2));
   font-size: var(--mc-text-sm);
+}
+.mc-feedback .mc-dialog__actions {
+  margin: 0;
 }
 .mc-feedback__context ul {
   margin: 0;
