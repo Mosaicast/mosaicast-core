@@ -187,6 +187,11 @@ public class SecurityConfig {
                         // most listeners are not signed in — and bounded in the controller to one log line
                         // per episode per quiet period, however many requests arrive (core#170).
                         .requestMatchers(HttpMethod.POST, "/api/episodes/*/playback-error").permitAll()
+                        // Feedback (§20): open without an account, because the commonest thing to report is a
+                        // sign-in that failed. The controller answers 404 when the operator has the form off,
+                        // and anonymous senders pass a proof of work; CSRF still applies.
+                        .requestMatchers(HttpMethod.GET, "/api/feedback/challenge").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/feedback").permitAll()
                         // Anonymous counting (§19): a beacon without credentials, always answered 204.
                         .requestMatchers(HttpMethod.POST, "/api/metrics/events").permitAll()
                         // The edge's report (§18.5): the controller requires the shared edge token.
@@ -216,6 +221,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/admin/plugins").hasAnyRole("ADMIN", "PODCASTER")
                         // Reach (§19): podcasters care most about plays; switching counting stays ADMIN.
                         .requestMatchers(HttpMethod.GET, "/api/admin/metrics").hasAnyRole("ADMIN", "PODCASTER")
+                        // Who reads feedback is a setting (§20.1): the chain admits both roles a floor can name
+                        // and the controller checks the one set. Changing the setting stays ADMIN.
+                        .requestMatchers("/api/admin/feedback/settings").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/feedback/**", "/api/admin/feedback").hasAnyRole("ADMIN", "PODCASTER")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Deny any other API path by default (no accidental fail-open for new endpoints).
                         .requestMatchers("/api/**").denyAll()

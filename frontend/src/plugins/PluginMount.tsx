@@ -15,6 +15,7 @@ import { usePlayerActions } from '../player/PlayerContext';
 import { useSite } from '../theme/SiteContext';
 import { pluginEpisodeState } from './episodeState';
 import { buildCtx } from './buildCtx';
+import { noteMounted } from '../feedback/mountedPlugins';
 
 /**
  * Mounts one plugin custom element (ARCHITECTURE §7.5). Waits for the element to be defined (its bundle is
@@ -97,6 +98,9 @@ export function PluginMount({
   hasActions,
   hasChannels,
 }: PluginMountProps) {
+  // What a feedback report offers as "on this page" (§20.2); the server keeps only real, installed ids.
+  useEffect(() => noteMounted(pluginId), [pluginId]);
+
   // Only a page mount is addressed by the URL, so only a page mount reads the query and hash off it. On a
   // card in a slot region that query belongs to the shell's own filters (`ctx.filter`), and subscribing to
   // it here would rebuild every mounted plugin's ctx on a navigation that had nothing to do with it.

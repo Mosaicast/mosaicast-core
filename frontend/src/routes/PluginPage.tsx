@@ -8,6 +8,7 @@ import { SlotRegion } from '../components/SlotRegion';
 import { usePluginRegistry } from '../plugins/PluginRegistry';
 import { NotFound } from './NotFound';
 import { useDocumentTitle } from '../a11y/documentTitle';
+import { ReportThis } from '../feedback/ReportThis';
 
 /**
  * A plugin's deep-link page (ARCHITECTURE §6.4). The host reserves `/p/{pluginId}/*` and hands the subpath
@@ -40,9 +41,12 @@ export function PluginPage() {
       <section className="mc-page" role="alert">
         <h1 className="mc-page__title">{t('error.title')}</h1>
         <p className="mc-muted">{t('error.body')}</p>
-        <button type="button" className="mc-btn" onClick={reload}>
-          {t('error.retry')}
-        </button>
+        <div className="mc-errorpage__actions">
+          <button type="button" className="mc-btn" onClick={reload}>
+            {t('error.retry')}
+          </button>
+          <ReportThis code="load-failed" />
+        </div>
       </section>
     );
   }

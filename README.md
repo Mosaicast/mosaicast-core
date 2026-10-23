@@ -263,6 +263,37 @@ Mosaicast counts how often pages are viewed and episodes are played in the web p
   neither IP addresses nor other information that could identify you is stored."* Adapt it to your
   situation — Mosaicast ships the mechanism, not legal text, and this is not legal advice.
 
+## Feedback (Admin → Feedback)
+
+Visitors can tell you about a problem or an idea through **Send feedback** in the footer, and through
+**Report this** on a failed sign-in, a crashed or missing page, or a page that didn't load (ARCHITECTURE
+§20). It works without an account, because a sign-in that fails is the commonest thing to report. Reports
+go to **you, the operator**, and nowhere else: core never sends anything to the Mosaicast project.
+
+- **Who may send** (Admin → Feedback, admins only): everyone (default), signed-in people only, nobody, or
+  **somewhere else**: an `https:` or `mailto:` address the footer link points to instead, for operators who
+  already have a Discord, a mail address or a tracker.
+- **Who reads:** admins (default), or podcasters and admins. Readers see everything a report holds,
+  including the contact an anonymous sender gave. A new report raises one bell per reader, which counts up
+  while it is unread.
+- **What a report carries:** the kind, the message (plain text, at most 2000 characters), the page, the
+  error it came from, and the versions of core and the plugins on that page, which the server adds itself.
+  No browser string, no IP address, no screenshot. The form shows the sender what goes with it.
+- **Answering:** in-app for a signed-in sender; by your own mail client for an anonymous one who left a
+  contact. **Forward upstream** copies a summary without the contact and opens the project's tracker
+  (core's, or the plugin's homepage) in your browser; you edit it before anything is sent.
+- **Spam:** no third-party captcha. An anonymous sender's browser solves a short proof of work (about a
+  second on a phone), each address may send a few reports an hour, a full queue of unhandled anonymous
+  reports holds further anonymous ones (never signed-in ones), and an anonymous report may carry at most
+  two links. Repeats and a hidden trap field are accepted and dropped. Readers can mark reports as spam in
+  bulk and block a signed-in sender. The knobs are `mosaicast.feedback.*` in `application.yml`
+  (`MOSAICAST_FEEDBACK_POW_BITS`, `…_ANONYMOUS_PER_WINDOW`, `…_ANONYMOUS_OPEN_CEILING`, `…_RETENTION`, …).
+- **Lifecycle:** closing a report (done or spam) deletes its contact; closed reports are deleted after 90
+  days. A person's reports go with their account and are in their data export.
+- **Privacy notice:** if you take anonymous reports, say what happens to the contact field, for example:
+  *"If you give us a way to reach you with your feedback, we use it only to answer you and delete it once
+  your report is closed."* Adapt it to your situation; this is not legal advice.
+
 ## Versioning & releases
 
 - **Single source of truth:** the core version lives in **`gradle.properties`** (`version=…`). It is

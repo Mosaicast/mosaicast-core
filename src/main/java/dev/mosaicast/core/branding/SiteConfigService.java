@@ -206,4 +206,19 @@ public class SiteConfigService {
         }
         return configs.save(config);
     }
+
+    /** Who may send feedback, where an external channel is, and who reads reports (ARCHITECTURE §20.1). */
+    @Transactional
+    public SiteConfig updateFeedback(dev.mosaicast.core.feedback.FeedbackMode mode, String url,
+                                     dev.mosaicast.core.siteaccess.PassFloor floor) {
+        SiteConfig config = get();
+        String kept = mode == dev.mosaicast.core.feedback.FeedbackMode.EXTERNAL ? url : config.getFeedbackUrl();
+        if (config.getFeedbackMode() != mode || config.getFeedbackFloor() != floor
+                || !java.util.Objects.equals(config.getFeedbackUrl(), kept)) {
+            log.info("Site settings changed: feedback {} → {}, readers {} → {}", config.getFeedbackMode(), mode,
+                    config.getFeedbackFloor(), floor);
+            config.setFeedback(mode, kept, floor);
+        }
+        return configs.save(config);
+    }
 }

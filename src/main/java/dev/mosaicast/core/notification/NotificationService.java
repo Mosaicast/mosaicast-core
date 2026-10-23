@@ -84,6 +84,31 @@ public class NotificationService {
      * @param text     one finished sentence per locale code
      * @param link     an already-validated internal path, or null
      */
+    /**
+     * Tells a reader feedback arrived (§20.3), coalescing: an unread notice of the same kind gets its count raised
+     * rather than a second row, so a flood of reports is one bell.
+     */
+    @Transactional
+    public void coalesce(UUID userId, NotificationKind kind, String link) {
+        var unread = notifications.findFirstByUserIdAndSourceAndKindAndReadAtIsNull(
+                userId, Notification.SOURCE_SYSTEM, kind.wireName());
+        if (unread.isPresent()) {
+            notifications.bumpCount(unread.get().getId());
+        } else {
+            deliver(Notification.system(userId, kind, Map.of("count", "1"), link));
+        }
+    }
+
+    /**
+     * A reader's answer to a signed-in sender's feedback (§20.3): admin text, attributable and logged like a
+     * warning, but its own kind so it is not listed as one.
+     */
+    @Transactional
+    public void feedbackReply(UUID userId, String text, UUID readerId, String link) {
+        deliver(Notification.adminReply(userId, truncate(text), link));
+        log.info("Reader {} answered feedback of user {}", readerId, userId);
+    }
+
     @Transactional
     public void fromPlugin(UUID userId, String pluginId, Map<String, String> text, String link) {
         Map<String, String> capped = text.entrySet().stream().collect(java.util.stream.Collectors.toMap(
@@ -100,7 +125,7 @@ public class NotificationService {
      */
     @Transactional(readOnly = true)
     public List<Notification> warningsFor(UUID userId) {
-        return notifications.findByUserIdAndSourceOrderByCreatedAtDesc(userId, Notification.SOURCE_ADMIN);
+        return notifications.findByUserIdAndSourceAndKindIsNullOrderByCreatedAtDesc(userId, Notification.SOURCE_ADMIN);
     }
 
     /** One user's inbox, newest first. */

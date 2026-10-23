@@ -56,6 +56,7 @@ public class AccountErasureService {
 
     private final PluginLoaderService plugins;
     private final org.springframework.context.ApplicationEventPublisher events;
+    private final dev.mosaicast.core.feedback.FeedbackService feedback;
     private final PluginExtensions extensions;
     private final PluginErasureCall pluginErasure;
     private final ErasureDebtRecorder debts;
@@ -78,8 +79,10 @@ public class AccountErasureService {
                                  dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory,
                                  dev.mosaicast.core.notification.NotificationService notifications,
                                  dev.mosaicast.core.export.ExportService exports,
-                                 org.springframework.context.ApplicationEventPublisher events) {
+                                 org.springframework.context.ApplicationEventPublisher events,
+                                 dev.mosaicast.core.feedback.FeedbackService feedback) {
         this.events = events;
+        this.feedback = feedback;
         this.plugins = plugins;
         this.extensions = extensions;
         this.pluginErasure = pluginErasure;
@@ -124,6 +127,8 @@ public class AccountErasureService {
         // left them in (§8.6).
         nameHistory.deleteByUserId(userId);
         notifications.deleteForUser(userId);
+        // Named rather than left to the cascade, like the rest of this list (§20.5).
+        feedback.eraseFor(userId);
         // Archives first, then their rows: the foreign key would drop the rows with the account, but not the
         // blobs — and an export of a deleted account is that account's data outliving it (§12.8.1).
         exports.eraseFor(userId);

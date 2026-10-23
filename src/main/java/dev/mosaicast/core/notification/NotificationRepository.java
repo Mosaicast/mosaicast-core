@@ -41,6 +41,27 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
      */
     List<Notification> findByUserIdAndSourceOrderByCreatedAtDesc(UUID userId, String source);
 
+    /** Admin messages without a kind — warnings — leaving out feedback replies. */
+    List<Notification> findByUserIdAndSourceAndKindIsNullOrderByCreatedAtDesc(UUID userId, String source);
+
+    /** The reader's unread notice of this kind, if any — the row a new one coalesces into. */
+    Optional<Notification> findFirstByUserIdAndSourceAndKindAndReadAtIsNull(UUID userId, String source, String kind);
+
+    /**
+     * Raises the {@code count} of an unread coalescing notice and moves it to now, so the bell shows one row that
+     * says how many arrived (§20.3). Native, because the payload is JSONB and otherwise write-once.
+     */
+    @Modifying
+    @Transactional
+    @Query(value = """
+            update notification
+               set payload = jsonb_set(payload, '{count}',
+                       to_jsonb((coalesce((payload->>'count')::int, 1) + 1)::text)),
+                   created_at = now()
+             where id = :id and read_at is null
+            """, nativeQuery = true)
+    int bumpCount(@Param("id") UUID id);
+
     /** Everything addressed to one user, dropped when the account is erased (§17.2, §12.8). */
     @Transactional
     long deleteByUserId(UUID userId);

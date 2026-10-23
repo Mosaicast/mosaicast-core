@@ -907,3 +907,92 @@
 .mc-reach__top a {
   overflow-wrap: anywhere;
 }
+
+/* ---- feedback inbox (§20.3) ---- */
+.mc-feedbackadmin__settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+  margin-bottom: var(--mc-space-5);
+}
+.mc-feedbacklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--mc-border);
+}
+.mc-feedbacklist__row {
+  border-bottom: 1px solid var(--mc-border);
+}
+.mc-feedbacklist__head {
+  display: flex;
+  align-items: center;
+  gap: var(--mc-space-3);
+  padding: var(--mc-space-2) 0;
+}
+.mc-feedbacklist__open {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mc-space-2);
+  min-width: 0;
+  min-height: 1.5rem;
+  padding: var(--mc-space-1);
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mc-feedbacklist__open:focus-visible {
+  outline: 2px solid var(--mc-accent-text);
+  outline-offset: 2px;
+}
+/* New reports read heavier; the status chip says it in words too. */
+.mc-feedbacklist__row--new .mc-feedbacklist__excerpt {
+  font-weight: 600;
+}
+.mc-feedbacklist__excerpt {
+  flex: 1 1 16rem;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.mc-feedbacklist__meta {
+  font-size: var(--mc-text-sm);
+}
+.mc-feedbacklist__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mc-space-3);
+  padding: 0 0 var(--mc-space-4) var(--mc-space-6);
+}
+/* Visitor text, shown as text: line breaks kept, long words broken, never markup. */
+.mc-feedbacklist__message {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mc-feedbacklist__context {
+  margin: 0;
+  padding-left: var(--mc-space-5);
+  font-size: var(--mc-text-sm);
+}
+.mc-feedbacklist__contact {
+  overflow-wrap: anywhere;
+}
+.mc-chip--feedback-new {
+  background: color-mix(in srgb, var(--mc-accent) 22%, transparent);
+}
+.mc-chip--feedback-spam {
+  background: color-mix(in srgb, #d64545 22%, transparent);
+}
+.mc-chip--feedback-done {
+  background: color-mix(in srgb, #4c9a6a 22%, transparent);
+}
+.mc-chip--feedback-seen {
+  background: color-mix(in srgb, var(--mc-text-muted) 15%, transparent);
+}

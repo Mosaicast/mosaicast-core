@@ -206,6 +206,15 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         return withRetryAfter(ResponseEntity.status(ex.status()), problem, ex.retryAfter());
     }
 
+    /** A feedback report the host refused (§20.4), each case with its own type and, where it applies, a retry hint. */
+    @ExceptionHandler(FeedbackRefusedException.class)
+    public ResponseEntity<ProblemDetail> handleFeedbackRefused(FeedbackRefusedException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+        problem.setTitle(ex.status().getReasonPhrase());
+        problem.setType(URI.create("https://mosaicast.dev/problems/" + ex.slug()));
+        return withRetryAfter(ResponseEntity.status(ex.status()), problem, ex.retryAfter());
+    }
+
     /** Adds {@code Retry-After} (whole seconds, at least one) and {@code retryAfterMs} when there is an answer. */
     private static ResponseEntity<ProblemDetail> withRetryAfter(ResponseEntity.BodyBuilder response,
                                                                 ProblemDetail problem, java.time.Duration retryAfter) {

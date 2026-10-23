@@ -23,6 +23,7 @@ import { useRoutedLinks } from '../util/useRoutedLinks';
 import { parseTimestamp } from '../util/timestamp';
 import { NotFound } from './NotFound';
 import { useDocumentTitle } from '../a11y/documentTitle';
+import { ReportThis } from '../feedback/ReportThis';
 
 /** Whether this episode has audio a visitor may actually play (upcoming/locked ones do not). */
 function isPlayable(episode: EpisodeDetail): boolean {
@@ -107,9 +108,12 @@ export function EpisodePage() {
       <section className="mc-page" role="alert">
         <h1 className="mc-page__title">{t('error.title')}</h1>
         <p className="mc-muted">{t('error.body')}</p>
-        <button type="button" className="mc-btn" onClick={reload}>
-          {t('error.retry')}
-        </button>
+        <div className="mc-errorpage__actions">
+          <button type="button" className="mc-btn" onClick={reload}>
+            {t('error.retry')}
+          </button>
+          <ReportThis code="load-failed" />
+        </div>
       </section>
     );
   }

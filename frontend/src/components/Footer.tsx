@@ -7,6 +7,7 @@ import { Link } from 'react-router-dom';
 import { MOSAICAST_REPO_URL } from '../api/constants';
 import { useMeta } from '../api/MetaContext';
 import { useLegalEntries } from '../hooks/useLegalEntries';
+import { FeedbackLink } from '../feedback/ReportThis';
 import { useSite } from '../theme/SiteContext';
 
 /**
@@ -43,6 +44,8 @@ export function Footer() {
       <Link className="mc-foot__consent" to="/cookies">
         {t('consent.settings')}
       </Link>
+      {/* The form, the operator's own channel, or nothing — whatever the site set (§20.1). */}
+      <FeedbackLink />
       {version && (
         <span className="mc-foot__version">
           <a href={MOSAICAST_REPO_URL} target="_blank" rel="noreferrer noopener">

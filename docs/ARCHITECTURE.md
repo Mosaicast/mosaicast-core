@@ -1024,7 +1024,7 @@ Feedback (id, kind, message, context JSONB, user_id NULL, contact NULL, locale,
 
 ### 20.3 Reading and answering
 - **One inbox, on an admin page**, filterable by status and kind, with bulk `spam`. Opening a report marks it `seen`.
-- **Readers are told through §17, without being flooded.** A new report raises a `system` notification of kind `feedback.new` for every user at or above the floor, and **at most one is unread per reader**: a report arriving while one is unread raises its count instead of adding a row. A hundred spam reports must not become a hundred bells.
+- **Readers are told through §17, without being flooded.** A new report raises a `system` notification of kind `feedback-new` (kinds are stored lower-case with dashes, like every other) for every user at or above the floor, and **at most one is unread per reader**: a report arriving while one is unread raises its count instead of adding a row. A hundred spam reports must not become a hundred bells.
 - **A signed-in sender is answered in-app**, as an `admin` notification (§17), attributable and logged as those are; the report records `replied_at`. **An anonymous sender is answered by mail** through a `mailto:` link the reader's own client opens. Core still sends no mail (§17).
 - **Forwarding upstream** is a button, not a pipe. It assembles a plain-text summary from the kind, the message, the context and the versions, and **never** the contact or anything that identifies the sender. It copies that summary and opens the project's tracker: core's repository, or the reporting plugin's `homepage` (§7.2) if it declared one. The reader edits before anything is submitted, in their own browser, as themselves. Core makes no outbound request.
 

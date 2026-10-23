@@ -121,6 +121,12 @@ public class Notification {
      * @param text     one finished sentence per locale code
      * @param link     an already-validated internal path, or null
      */
+    /** A reader's answer to this user's feedback (§20.3): admin text, with a kind so it is not read as a warning. */
+    public static Notification adminReply(UUID userId, String text, String link) {
+        return new Notification(userId, SOURCE_ADMIN, NotificationKind.FEEDBACK_REPLY.wireName(), Map.of("text", text),
+                link);
+    }
+
     public static Notification fromPlugin(UUID userId, String pluginId, Map<String, String> text, String link) {
         return new Notification(userId, SOURCE_PLUGIN_PREFIX + pluginId, null, text, link);
     }

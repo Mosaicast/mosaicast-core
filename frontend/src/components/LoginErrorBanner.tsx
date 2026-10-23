@@ -4,12 +4,15 @@
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 
+import { ReportThis } from '../feedback/ReportThis';
+
 /**
  * Surfaces a failed social login (ARCHITECTURE §8.3): the host redirects to `/?login_error=<code>` — the
- * account-merging outcomes `account_conflict` / `link_required` (M3 fix #9), else `failed`. Shows a
- * dismissible message and clears the query param.
+ * account-merging outcomes `account_conflict` / `link_required` (M3 fix #9), the sign-up refusal of a site that
+ * is not open yet `signups_closed` (§18.3), else `failed`. Shows a dismissible message, a way to report it —
+ * the visitor this happens to has no account to report it from (§20.1) — and clears the query param.
  */
-const KNOWN = new Set(['account_conflict', 'link_required', 'failed']);
+const KNOWN = new Set(['account_conflict', 'link_required', 'signups_closed', 'failed']);
 
 export function LoginErrorBanner() {
   const { t } = useTranslation();
@@ -18,6 +21,7 @@ export function LoginErrorBanner() {
   if (!code) {
     return null;
   }
+  // The server passes any OAuth error through; one this shell has no words for reads as a plain failure.
   const key = KNOWN.has(code) ? code : 'failed';
   const dismiss = () => {
     const next = new URLSearchParams(params);
@@ -27,9 +31,12 @@ export function LoginErrorBanner() {
   return (
     <div className="mc-banner mc-banner--error" role="alert">
       <span>{t(`loginError.${key}`)}</span>
-      <button type="button" className="mc-banner__close" onClick={dismiss} aria-label={t('common.dismiss')}>
-        ×
-      </button>
+      <span className="mc-banner__actions">
+        <ReportThis code={key} className="mc-btn mc-btn--ghost" />
+        <button type="button" className="mc-banner__close" onClick={dismiss} aria-label={t('common.dismiss')}>
+          <span className="mc-banner__closeicon" aria-hidden="true" />
+        </button>
+      </span>
     </div>
   );
 }

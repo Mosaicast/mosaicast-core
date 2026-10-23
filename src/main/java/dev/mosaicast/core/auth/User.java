@@ -56,6 +56,10 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
+    /** Set when a reader blocked this user from sending feedback (§20.4); null means they may. */
+    @Column(name = "feedback_blocked_at")
+    private Instant feedbackBlockedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -119,6 +123,15 @@ public class User {
 
     public String getDisplayKey() {
         return displayKey;
+    }
+
+    public Instant getFeedbackBlockedAt() {
+        return feedbackBlockedAt;
+    }
+
+    /** Blocks or unblocks this user from sending feedback; null unblocks. */
+    public void blockFeedback(Instant when) {
+        this.feedbackBlockedAt = when;
     }
 
     public Instant getRenameLockedUntil() {
