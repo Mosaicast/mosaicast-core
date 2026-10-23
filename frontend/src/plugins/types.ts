@@ -63,6 +63,10 @@ export interface PublicPlugin {
    * visitor holds a client whose `translate()` is a 403.
    */
   hasTranslation?: boolean;
+  /** Whether the plugin declares `actions` — the shell hands it a `ctx.actions` client (§7.9). */
+  hasActions?: boolean;
+  /** Whether the plugin declares `channels` — the shell hands it a `ctx.channels` client (§7.9). */
+  hasChannels?: boolean;
   /**
    * Credit, as the plugin declared it — all optional, all shown on `/about`.
    *
@@ -256,6 +260,8 @@ export interface AdminPlugin {
   external: AdminExternal | null;
   /** Who may reach its data, as the host enforces it (core#259, core#261); `null` when it failed to load. */
   access: AdminAccess | null;
+  /** Its actions and channels (§7.9); `null` when it declares neither. */
+  realtime?: AdminRealtime | null;
 }
 
 /**
@@ -270,6 +276,19 @@ export interface AdminAccess {
   blobWrite: string | null;
   /** `data.keyFloors`, in manifest order; a direction the entry does not raise is `null`. */
   keyFloors: { keys: string[]; readableBy: string | null; writableBy: string | null }[];
+  /** `data.backendPrivate` selectors: keys no client reaches, admins included (§7.6). */
+  backendPrivate?: string[];
+}
+
+/** A plugin's actions and channels (§7.9), as the host enforces them; absent when it declares neither. */
+export interface AdminRealtime {
+  /** Every callable action, in manifest order, mapped to the lowest role that may call it. */
+  actions: Record<string, string>;
+  actionsPerUserPerMinute: number | null;
+  actionsPerPluginPerMinute: number | null;
+  /** Who may subscribe to its channels; `null` when it declares none. */
+  subscribableBy: string | null;
+  subscriptionsPerUser: number | null;
 }
 
 /**

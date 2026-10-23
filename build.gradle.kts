@@ -182,7 +182,9 @@ tasks.bootJar {
 // (storage.schemaReadableBy); keyfloors declares data.keyFloors over public documents; blobslocked
 // is the blobs fixture behind a podcaster read floor (for how a file may be
 // cached); nopage loads but declares no `page` slot; translator declares external translation at
-// the default podcaster floor and translatoropen the same kind at `anonymous`, directory an `identity` and a `notifications` block)
+// the default podcaster floor and translatoropen the same kind at `anonymous`, directory an `identity` and a `notifications` block;
+// realtime, realtimeslow and realtimetight declare the same actions + channels + backendPrivate keys and differ
+// only in their budgets, so busy/timeout and rate-limit tests cannot starve the main one)
 // so the test can assert failure
 // isolation, the deep-link 404, the schema surface's access rules and the external floor.
 // Only when the test-only fixture project is present (it is absent from the production Docker build context,
@@ -198,7 +200,7 @@ val stageTestPlugins = fixtureProject?.let { fixture ->
         listOf("good", "broken", "schema", "wikifix", "wikilocked", "nopage", "ownedbad", "blobs",
             "tagger", "tagreader", "translator", "translatoropen", "directory", "directorylocked", "blobslocked",
             "wikiprivate", "keyfloors",
-            "blobsprivate")
+            "blobsprivate", "realtime", "realtimeslow", "realtimetight")
             .forEach { name ->
             into(name) {
                 from("src/test/resources/plugin-fixtures/$name")

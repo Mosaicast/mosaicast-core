@@ -6,6 +6,7 @@ package dev.mosaicast.core.plugin;
 import tools.jackson.databind.JsonNode;
 import dev.mosaicast.core.auth.CurrentUser;
 import dev.mosaicast.core.web.BackendOwnedKeyException;
+import dev.mosaicast.core.web.BackendPrivateKeyException;
 import dev.mosaicast.core.web.KeyFloorException;
 import dev.mosaicast.core.web.NotFoundException;
 import dev.mosaicast.core.web.PagedResponse;
@@ -92,6 +93,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireReadable(manifest, scope, authentication);
+        requireNotBackendPrivate(manifest, scope, key);
         requireKeyReadable(manifest, scope, key, authentication);
         return data.getRaw(id, scope, key)
                 .map(ResponseEntity::ok)
@@ -128,8 +130,8 @@ public class PluginDataController {
             requireReadable(manifest, scope, authentication);
             Map<String, JsonNode> found = new LinkedHashMap<>();
             for (String key : new LinkedHashSet<>(keys)) {
-                // A key above the caller's key floor is absent, exactly like a miss (core#259): refusing the
-                // batch would make one private key fail a page of public ones.
+                // A key above the caller's key floor, or backend-private, is absent, exactly like a miss
+                // (core#259): refusing the batch would make one private key fail a page of public ones.
                 if (PluginAccessPolicy.canReadKey(manifest, scope.type(), key, CurrentUser.role(authentication))) {
                     data.getRaw(id, scope, key).ifPresent(value -> found.put(key, value));
                 }
@@ -170,6 +172,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireWritable(manifest, scope, authentication);
+        requireNotBackendPrivate(manifest, scope, key);
         requireNotBackendOwned(manifest, scope, key);
         requireKeyWritable(manifest, scope, key, authentication);
         data.putRaw(id, scope, key, body);
@@ -186,6 +189,7 @@ public class PluginDataController {
         PluginManifest manifest = manifestOf(id);
         DataScope scope = scope(scopeType, scopeId, authentication);
         requireWritable(manifest, scope, authentication);
+        requireNotBackendPrivate(manifest, scope, key);
         requireNotBackendOwned(manifest, scope, key);
         requireKeyWritable(manifest, scope, key, authentication);
         data.delete(id, scope, key);
@@ -249,6 +253,18 @@ public class PluginDataController {
         PluginAccessPolicy.backendOwnedBy(manifest, scope.type(), key)
                 .ifPresent(pattern -> {
                     throw new BackendOwnedKeyException(manifest.id(), key, pattern);
+                });
+    }
+
+    /**
+     * Refuses any client access to a key the manifest keeps for the backend alone ({@code data.backendPrivate},
+     * platformApi 0.20.0) — after the plugin floor, for the reason {@code backendOwned} waits for it, and before
+     * every other key rule, since no role clears this one.
+     */
+    private void requireNotBackendPrivate(PluginManifest manifest, DataScope scope, String key) {
+        PluginAccessPolicy.backendPrivateBy(manifest, scope.type(), key)
+                .ifPresent(pattern -> {
+                    throw new BackendPrivateKeyException(manifest.id(), key, pattern);
                 });
     }
 

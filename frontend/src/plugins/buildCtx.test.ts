@@ -100,6 +100,20 @@ describe('buildCtx', () => {
     expect(buildCtx({ ...base, hasIdentity: true }).users).not.toBeNull();
   });
 
+  it('hands over ctx.notify only when the manifest declared notifications (§17.1)', () => {
+    expect(buildCtx(base).notify).toBeNull();
+    expect(buildCtx({ ...base, hasNotifications: true }).notify).not.toBeNull();
+  });
+
+  it('hands over ctx.actions and ctx.channels only when declared (§7.9)', () => {
+    const plain = buildCtx(base);
+    expect(plain.actions).toBeNull();
+    expect(plain.channels).toBeNull();
+    const live = buildCtx({ ...base, hasActions: true, hasChannels: true });
+    expect(typeof live.actions?.call).toBe('function');
+    expect(typeof live.channels?.subscribe).toBe('function');
+  });
+
   it('hands over the clamped text accent with the other tokens (SDK 0.16.0)', () => {
     const tokens = {
       bg: '#fffef0', surface: '#ffffff', text: '#1c1a17', textMuted: '#6b6459', accent: '#fff176',

@@ -45,13 +45,16 @@ public class UserAdminController {
     private static final Logger log = LoggerFactory.getLogger(UserAdminController.class);
 
     private final UserRepository users;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final LinkedIdentityRepository identities;
     private final DisplayNameService displayNames;
     private final dev.mosaicast.core.notification.NotificationService notifications;
 
     public UserAdminController(UserRepository users, LinkedIdentityRepository identities,
                                DisplayNameService displayNames,
-                               dev.mosaicast.core.notification.NotificationService notifications) {
+                               dev.mosaicast.core.notification.NotificationService notifications,
+                               org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.users = users;
         this.identities = identities;
         this.displayNames = displayNames;
@@ -197,6 +200,10 @@ public class UserAdminController {
         // Who can do what is worth a permanent record: display name for the reader, ids for correlation.
         log.info("Role of '{}' ({}) changed {} → {} by admin {}",
                 user.getDisplayName(), user.getId(), previous, newRole, currentUserId);
+        if (previous != newRole) {
+            // Requests see the new role on their own; an open plugin stream has to be told (§7.9, §8.5).
+            events.publishEvent(new UserAccessChangedEvent(user.getId()));
+        }
         return MeView.of(user);
     }
 

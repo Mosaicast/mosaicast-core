@@ -14,6 +14,10 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Changed
 
+- **⚠️ Plugins must be rebuilt for `platformApi` 0.20.0 (`0.10.0`, core#298).** Core pins SDK 0.20.0, and a
+  plugin built against 0.19.x is rejected at load until it is rebuilt. As with 0.19.0 the bump is a security
+  one: an older host ignores manifest keys it doesn't know, so it would load a plugin declaring
+  `data.backendPrivate` and serve those keys at the plugin floor.
 - **Every UI text rewritten in one voice (`0.9.2`, `docs/WRITING.md`).** Shorter, plainer English and
   German across the shell, account, consent and admin pages: no dashes between clauses, no explanations a
   reader doesn't act on, contractions in English. German now says "du" everywhere; the consent banner,
@@ -38,6 +42,27 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Added
 
+- **Realtime plugins: actions, channels, timers (`0.10.0`, ARCHITECTURE §7.9, core#298, SDK 0.20.0).**
+  For turn-based games, live quizzes and typing indicators. All of it is opt-in per manifest and shown on
+  Admin → Plugins.
+  - **Actions.** `POST /api/plugins/{id}/actions/{name}` runs a handler the plugin's backend registered, for
+    a signed-in caller the host resolved. The host checks, in order: the plugin declares the name, the caller
+    is signed in and above the name's `callableBy`, the body is at most 16 KiB, the scope exists for them,
+    the budget allows it, a handler is wired. Handlers run on a per-plugin pool with a deadline, never on a
+    request thread; a full pool is a 503 `action-busy`, a slow handler a 504 `action-timeout`. A plugin's
+    own refusal is a 422 `action-rejected` with its `code`. `call.store()` reaches the caller's own `USER`
+    partition, the one place a backend can.
+  - **Channels.** One Server-Sent Events stream per tab (`GET /api/realtime/stream`) carries every
+    plugin's subscriptions; the plugin's authorizer decides who joins. Events are never stored. A dropped
+    connection resumes from a short buffer, or the plugin is told to refetch. Streams are session-bound (a
+    personal access token can't open one) and close on sign-out, a role change, account deletion, the site
+    closing for that role, and the plugin being switched off.
+  - **Timers.** `ctx.runAfter(delay, task)` runs once, in memory, with no 10 s floor.
+  - **`data.backendPrivate`.** Keys only the plugin's backend reaches: every client request is a 403
+    `backend-private-key`, admins included; listings and batch reads leave them out.
+  - Budgets and limits are `mosaicast.plugin-realtime.*` (README, *Rate limiting*). A proxy in front must
+    not buffer `text/event-stream` and must allow a request to stay open longer than the 20 s heartbeat.
+  - A 429 now carries `retryAfterMs` in the body beside `Retry-After`, so a client backs off on one field.
 - **Anonymous counting and Admin → Reach (`0.9.0`, ARCHITECTURE §19, #291).** Page views and web-player
   plays (with 25/50/75/100 % milestones) are counted per hour without any identifier: no cookie, nothing
   on the device, no IP or browser string stored. Staff, crawlers, link previews and Global Privacy

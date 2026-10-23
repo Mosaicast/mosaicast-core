@@ -99,6 +99,24 @@ final class PluginAccessPolicy {
     }
 
     /**
+     * The {@code data.backendPrivate} selector that keeps this key from every client (platformApi 0.20.0,
+     * §7.6), or empty. Like {@link #backendOwnedBy} it never applies to {@code USER}: that partition is the
+     * user's own, so keeping a key from them there would protect nothing. Checked after the plugin floor and
+     * before {@code backendOwned}, for reads and writes alike, and no role clears it.
+     */
+    static Optional<String> backendPrivateBy(PluginManifest manifest, ScopeType scope, String key) {
+        if (scope == ScopeType.USER || key == null) {
+            return Optional.empty();
+        }
+        for (String pattern : manifest.dataOrDefault().backendPrivateOrEmpty()) {
+            if (selects(pattern, key)) {
+                return Optional.of(pattern);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Whether one selector — an exact key, a {@code *}-terminated prefix, or the bare {@code *} — covers a key.
      * Case-sensitive, like keys. A bare {@code *} needs no special case: it is the empty prefix.
      */
@@ -113,7 +131,7 @@ final class PluginAccessPolicy {
      * never instead of, {@link #canRead}. The strictest matching entry wins. Never applies to {@code USER}.
      */
     static boolean canReadKey(PluginManifest manifest, ScopeType scope, String key, Optional<Role> role) {
-        return rank(role) >= keyFloor(manifest, scope, key, true);
+        return backendPrivateBy(manifest, scope, key).isEmpty() && rank(role) >= keyFloor(manifest, scope, key, true);
     }
 
     /** The write-side twin of {@link #canReadKey}: checked after the plugin floor and {@code backendOwned}. */
@@ -124,7 +142,7 @@ final class PluginAccessPolicy {
     /**
      * The selectors whose keys this role may not read — what a listing must leave out <em>before</em> paging,
      * so its totals count only what the reader may see (core#259). Empty for {@code USER} and for a plugin
-     * that declares no key floors. Strictest-wins falls out of the union: a key is hidden as soon as one
+     * that declares no key floors and no {@code backendPrivate} keys. Strictest-wins falls out of the union: a key is hidden as soon as one
      * matching entry is above the reader.
      */
     static java.util.List<String> hiddenSelectors(PluginManifest manifest, ScopeType scope, Optional<Role> role) {
@@ -132,7 +150,8 @@ final class PluginAccessPolicy {
             return java.util.List.of();
         }
         int caller = rank(role);
-        java.util.List<String> hidden = new java.util.ArrayList<>();
+        // backendPrivate keys are hidden from every reader, whatever their role (platformApi 0.20.0).
+        java.util.List<String> hidden = new java.util.ArrayList<>(manifest.dataOrDefault().backendPrivateOrEmpty());
         for (PluginManifest.KeyFloor floor : manifest.dataOrDefault().keyFloorsOrEmpty()) {
             if (floor.readFloor() != null && rank(floor.readFloor()) > caller) {
                 hidden.addAll(floor.keysOrEmpty());

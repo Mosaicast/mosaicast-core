@@ -39,7 +39,7 @@ class SiteAccessServiceTest {
     @BeforeEach
     void setUp() {
         service = new SiteAccessService(repository, Clock.fixed(NOW, ZoneOffset.UTC),
-                new EdgeHeartbeat(new EdgeProperties(""), Clock.fixed(NOW, ZoneOffset.UTC)));
+                new EdgeHeartbeat(new EdgeProperties(""), Clock.fixed(NOW, ZoneOffset.UTC)), event -> { });
         when(repository.findById(SiteAccess.SINGLETON_ID)).thenReturn(Optional.empty());
         when(repository.save(any(SiteAccess.class))).thenAnswer(call -> call.getArgument(0));
     }

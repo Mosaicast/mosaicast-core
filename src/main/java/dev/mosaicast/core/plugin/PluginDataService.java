@@ -120,6 +120,31 @@ public class PluginDataService {
     }
 
     /**
+     * {@link #query(String, Scope, String)} at a resolved scope — what an action's caller-bound store uses to
+     * list the caller's own {@code USER} partition (§7.9).
+     */
+    @Transactional(readOnly = true)
+    public List<DocEntry> query(String pluginId, DataScope scope, String keyPrefix) {
+        return repository
+                .findInScope(pluginId, scope.typeColumn(), canonical(scope), keyPrefix)
+                .stream()
+                .map(d -> new DocEntry(d.getId().getKey(), d.getValue()))
+                .toList();
+    }
+
+    /** Reads a document at a resolved scope and coerces it to {@code type}, or empty when absent. */
+    @Transactional(readOnly = true)
+    public <T> Optional<T> get(String pluginId, DataScope scope, String key, Class<T> type) {
+        return getRaw(pluginId, scope, key).map(node -> objectMapper.convertValue(node, type));
+    }
+
+    /** Upserts a Java value at a resolved scope, last-write-wins. */
+    @Transactional
+    public void put(String pluginId, DataScope scope, String key, Object value) {
+        putRaw(pluginId, scope, key, objectMapper.valueToTree(value));
+    }
+
+    /**
      * Every user's documents under {@code keyPrefix}, across all {@code USER} partitions of one plugin.
      *
      * <p>The one read in this class that crosses an owner boundary, so it is deliberately awkward to reach:

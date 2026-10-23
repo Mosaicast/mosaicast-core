@@ -72,6 +72,9 @@ public class FixturePlugin implements PluginBackend, SitemapProvider {
         this.registered = ctx;
         shared = ctx;
         seedSchema(ctx);
+        if (ctx.actions() != null || ctx.channels() != null) {
+            FixtureRealtime.register(ctx);
+        }
     }
 
     /**

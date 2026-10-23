@@ -157,6 +157,8 @@ export function SlotRegion({
             hasIdentity={mount.hasIdentity}
             hasNotifications={mount.hasNotifications}
             hasTranslation={mount.hasTranslation}
+            hasActions={mount.hasActions}
+            hasChannels={mount.hasChannels}
           />
         </SlotErrorBoundary>
       ))}

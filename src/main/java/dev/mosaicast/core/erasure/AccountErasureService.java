@@ -55,6 +55,7 @@ public class AccountErasureService {
     private static final Logger log = LoggerFactory.getLogger(AccountErasureService.class);
 
     private final PluginLoaderService plugins;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final PluginExtensions extensions;
     private final PluginErasureCall pluginErasure;
     private final ErasureDebtRecorder debts;
@@ -76,7 +77,9 @@ public class AccountErasureService {
                                  ListeningProgressRepository progress,
                                  dev.mosaicast.core.auth.UserNameHistoryRepository nameHistory,
                                  dev.mosaicast.core.notification.NotificationService notifications,
-                                 dev.mosaicast.core.export.ExportService exports) {
+                                 dev.mosaicast.core.export.ExportService exports,
+                                 org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.plugins = plugins;
         this.extensions = extensions;
         this.pluginErasure = pluginErasure;
@@ -125,6 +128,9 @@ public class AccountErasureService {
         // blobs — and an export of a deleted account is that account's data outliving it (§12.8.1).
         exports.eraseFor(userId);
         users.deleteById(userId);
+        // Every other session of this account becomes anonymous at its next request; an open plugin stream
+        // makes no next request, so it is told (§7.9).
+        events.publishEvent(new dev.mosaicast.core.auth.UserAccessChangedEvent(userId));
 
         log.info("Erased account {}: {} user-scoped plugin document(s), {} plugin(s) still outstanding",
                 userId, documents, outstanding.size());

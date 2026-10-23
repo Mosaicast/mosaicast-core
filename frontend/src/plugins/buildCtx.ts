@@ -16,6 +16,7 @@ import {
   makePluginUsers,
   makePluginTranslation,
 } from './pluginApi';
+import { makePluginActions, makePluginChannels } from './pluginRealtime';
 import { storedPosition } from '../player/progress';
 import { sanitizeFeedHtml } from '../util/sanitize';
 import type { PluginEpisodeState } from './episodeState';
@@ -75,6 +76,10 @@ export interface CtxInputs {
    * `null` indistinguishable, so the shell is told the answer instead of reconstructing it.
    */
   hasTranslation?: boolean;
+  /** Whether the plugin declares an `actions` block — decides `ctx.actions` vs `null` (§7.9). */
+  hasActions?: boolean;
+  /** Whether the plugin declares a `channels` block — decides `ctx.channels` vs `null` (§7.9). */
+  hasChannels?: boolean;
   /**
    * Navigates the shell to an absolute path. Supplied by {@link PluginMount} from the router; absent in
    * tests and in any mount with no router above it, where `navigate` degrades to a no-op rather than
@@ -173,6 +178,10 @@ export function buildCtx(inputs: CtxInputs): HostPluginContext {
     // Null unless the manifest declared `notifications`. The block an operator most needs to read before
     // installing, because it is the only surface that writes into another user's view of the site (§17.1).
     notify: inputs.hasNotifications ? makePluginNotify(inputs.pluginId) : null,
+    // Null unless declared, like everything above (§7.9). Both default their scope to this mount's, and both
+    // refuse a signed-out visitor without a request — the answer the server would give anyway.
+    actions: inputs.hasActions ? makePluginActions(inputs.pluginId, inputs.user != null, inputs.scope) : null,
+    channels: inputs.hasChannels ? makePluginChannels(inputs.pluginId, inputs.user != null, inputs.scope) : null,
     // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).
     consent: {
       // Default deny: a plugin must not get third-party permission the visitor never gave (§12.5).

@@ -122,7 +122,8 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(
-            HttpSecurity http, ObjectProvider<ClientRegistrationRepository> clientRegistrations)
+            HttpSecurity http, ObjectProvider<ClientRegistrationRepository> clientRegistrations,
+            ObjectProvider<dev.mosaicast.core.plugin.RealtimeHub> realtime)
             throws Exception {
 
         http
@@ -148,6 +149,11 @@ public class SecurityConfig {
                 .addFilterBefore(new AuthenticatedUserFilter(users), AuthorizationFilter.class)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
+                        // A plugin channel stream (§7.9) ends in an ASYNC dispatch, which Spring Security
+                        // would authorize again — after a sign-out that would try to write a 401 onto a
+                        // response that has been streaming for minutes. The request was authorized when the
+                        // stream opened, and the hub ends it when access changes.
+                        .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                         .requestMatchers(PUBLIC_PATHS).permitAll()
                         // Everything else under /actuator is ADMIN-only. Without this line the catch-all
                         // `anyRequest().permitAll()` at the bottom is what answers for it, so the only thing
@@ -186,6 +192,9 @@ public class SecurityConfig {
                         // The edge's report (§18.5): the controller requires the shared edge token.
                         .requestMatchers(HttpMethod.POST, "/api/site/edge/report").permitAll()
                         .requestMatchers("/api/plugins/**").authenticated()
+                        // Plugin channel streams and subscriptions (§7.9): signed-in only; the controller
+                        // also refuses a token, since a stream must end with the session.
+                        .requestMatchers("/api/realtime/**").authenticated()
                         // The current user's own account (token creation is further gated by @PreAuthorize).
                         .requestMatchers("/api/me/**").authenticated()
                         // Feeds/planned episodes are a podcaster capability; other admin endpoints are ADMIN.
@@ -225,6 +234,15 @@ public class SecurityConfig {
                                 "You do not have access to this.")))
                 .logout(logout -> logout
                         .logoutUrl("/api/auth/logout")
+                        // Before the session is invalidated, while its id still names the streams it opened:
+                        // a plugin channel stream must end with the sign-out (§7.9, §8.5).
+                        .addLogoutHandler((req, res, authn) -> {
+                            jakarta.servlet.http.HttpSession session = req.getSession(false);
+                            dev.mosaicast.core.plugin.RealtimeHub hub = realtime.getIfAvailable();
+                            if (session != null && hub != null) {
+                                hub.closeSession(session.getId());
+                            }
+                        })
                         // No deleteCookies: invalidating the session makes Spring Session's cookie serializer
                         // expire MOSAICAST_SESSION itself, and a second expiry here answered logout with two
                         // Set-Cookie headers for the same cookie (core#201).

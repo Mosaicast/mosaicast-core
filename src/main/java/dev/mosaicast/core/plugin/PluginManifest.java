@@ -85,7 +85,11 @@ public record PluginManifest(
         String license,
         String author,
         String homepage,
-        String attribution) {
+        String attribution,
+        // Realtime (platformApi 0.20.0, §7.9). Last rather than beside the other capability blocks so the
+        // convenience constructors below only grow a tail of nulls.
+        Actions actions,
+        Channels channels) {
 
     /**
      * The manifest without its navigation or credit fields — everything the host needs to actually run a
@@ -99,7 +103,7 @@ public record PluginManifest(
                           Frontend frontend, List<Slot> slots, PluginStorage storage,
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, null,
-                null, null, null, consent, null, null, null, null, null);
+                null, null, null, consent, null, null, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares a {@code tags} block (§7.2). */
@@ -108,7 +112,7 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                null, null, null, consent, null, null, null, null, null);
+                null, null, null, consent, null, null, null, null, null, null, null);
     }
 
     /** As above, for a plugin that declares an {@code external} block (§7.2/§16). */
@@ -117,7 +121,7 @@ public record PluginManifest(
                           Map<String, ConfigField> config, DataAccess data, Blobs blobs, TagAccess tags,
                           External external, Consent consent) {
         this(id, version, platformApi, name, backend, frontend, slots, storage, config, data, blobs, tags,
-                null, null, external, consent, null, null, null, null, null);
+                null, null, external, consent, null, null, null, null, null, null, null);
     }
 
     /** The declared nav entries, or an empty list — callers never have to null-check. */
@@ -211,19 +215,33 @@ public record PluginManifest(
      *                     that crosses an ownership boundary, so it is declared, and shown to the operator.
      * @param keyFloors    per-key raises of the floors above (platformApi 0.19.0, core#259) — private
      *                     bookkeeping beside public numbers, an admin-only setting. Absent means none.
+     * @param backendPrivate keys no client reaches at all, admins included (platformApi 0.20.0, §7.6): state
+     *                     the backend keeps between calls and publishes to nobody. Same selector grammar as
+     *                     {@code backendOwned}. Absent means none.
      */
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record DataAccess(String readableBy, String writableBy, List<String> backendOwned,
-                             Boolean readsAllUsers, List<KeyFloor> keyFloors) {
+                             Boolean readsAllUsers, List<KeyFloor> keyFloors, List<String> backendPrivate) {
 
         /** The pre-0.16 shape, without {@code readsAllUsers} — which is then absent, meaning no. */
         public DataAccess(String readableBy, String writableBy, List<String> backendOwned) {
-            this(readableBy, writableBy, backendOwned, null, null);
+            this(readableBy, writableBy, backendOwned, null, null, null);
         }
 
         /** The 0.16–0.18 shape, without {@code keyFloors}. */
         public DataAccess(String readableBy, String writableBy, List<String> backendOwned, Boolean readsAllUsers) {
-            this(readableBy, writableBy, backendOwned, readsAllUsers, null);
+            this(readableBy, writableBy, backendOwned, readsAllUsers, null, null);
+        }
+
+        /** The 0.19 shape, without {@code backendPrivate}. */
+        public DataAccess(String readableBy, String writableBy, List<String> backendOwned, Boolean readsAllUsers,
+                          List<KeyFloor> keyFloors) {
+            this(readableBy, writableBy, backendOwned, readsAllUsers, keyFloors, null);
+        }
+
+        /** The declared backend-private key selectors; empty when the manifest keeps nothing back. */
+        public List<String> backendPrivateOrEmpty() {
+            return backendPrivate == null ? List.of() : backendPrivate;
         }
 
         /** The declared key floors; empty when the manifest raises none. */
@@ -443,6 +461,97 @@ public record PluginManifest(
         public boolean sendsOrDefault() {
             return !Boolean.FALSE.equals(sends);
         }
+    }
+
+    /**
+     * The {@code actions} block (platformApi 0.20.0, ARCHITECTURE §7.9): request-time calls into the plugin's
+     * backend.
+     *
+     * <p>Declared, never derived, like every capability beside it. {@code names} is the closed set a client
+     * may call, so an operator can read off the manifest exactly which functions the plugin exposes, and a
+     * name may raise its own floor above the block's — never lower it.
+     *
+     * @param callableBy         the lowest role that may call any action; absent means {@code fan}, and
+     *                           {@code anonymous} is refused at load
+     * @param names              every callable name, each with an optional floor of its own
+     * @param perUserPerMinute   what the plugin asks for per caller; the operator's cap is what it gets
+     * @param perPluginPerMinute what the plugin asks for across all callers; capped the same way
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Actions(String callableBy, Map<String, ActionDecl> names, Integer perUserPerMinute,
+                          Integer perPluginPerMinute) {
+
+        /** The block's floor, lower-cased, or {@code fan} when undeclared. */
+        public String callableByOrDefault() {
+            return callableBy == null || callableBy.isBlank()
+                    ? ACCESS_FAN : callableBy.trim().toLowerCase(Locale.ROOT);
+        }
+
+        /** The declared names in manifest order; empty when none were given (which validation refuses). */
+        public Map<String, ActionDecl> namesOrEmpty() {
+            return names == null ? Map.of() : names;
+        }
+
+        /** Whether {@code name} is one the manifest declares. */
+        public boolean declares(String name) {
+            return name != null && namesOrEmpty().containsKey(name);
+        }
+
+        /** The effective floor of one declared name: its own when it raises one, otherwise the block's. */
+        public String floorOf(String name) {
+            ActionDecl decl = namesOrEmpty().get(name);
+            String own = decl == null ? null : decl.floor();
+            return own != null ? own : callableByOrDefault();
+        }
+    }
+
+    /**
+     * One entry of {@code actions.names}.
+     *
+     * @param callableBy this name's own floor, raise-only against the block's; null keeps the block's
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record ActionDecl(String callableBy) {
+
+        /** The floor, lower-cased, or null when this name keeps the block's. */
+        public String floor() {
+            return callableBy == null || callableBy.isBlank() ? null : callableBy.trim().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * The {@code channels} block (platformApi 0.20.0, ARCHITECTURE §7.9): live events from the plugin's backend
+     * to subscribed browsers. How they travel is the host's business and appears nowhere here.
+     *
+     * @param subscribableBy       the lowest role that may subscribe; absent means {@code fan}, and
+     *                             {@code anonymous} is refused at load in this version
+     * @param perUserSubscriptions concurrent subscriptions one user may hold to this plugin, as asked; the
+     *                             operator's cap is what it gets
+     */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    public record Channels(String subscribableBy, Integer perUserSubscriptions) {
+
+        /** The subscribe floor, lower-cased, or {@code fan} when undeclared. */
+        public String subscribableByOrDefault() {
+            return subscribableBy == null || subscribableBy.isBlank()
+                    ? ACCESS_FAN : subscribableBy.trim().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    /**
+     * Whether the plugin declares an {@code actions} block (§7.9). Absent means {@code ctx.actions} is null,
+     * {@code PluginContext.actions()} is null and the endpoint 404s.
+     */
+    public boolean declaresActions() {
+        return actions != null;
+    }
+
+    /**
+     * Whether the plugin declares a {@code channels} block (§7.9). Absent means {@code ctx.channels} is null,
+     * {@code PluginContext.channels()} is null and the endpoints 404.
+     */
+    public boolean declaresChannels() {
+        return channels != null;
     }
 
     public record TagAccess(Boolean readsVocabulary, Boolean writesEpisodes) {
@@ -901,6 +1010,8 @@ public record PluginManifest(
         validateBlobs();
         validateTags();
         validateExternal();
+        validateActions();
+        validateChannels();
         validateConsent();
         validateNav();
     }
@@ -1169,7 +1280,89 @@ public record PluginManifest(
                                 + "ending in a single '*', or the bare '*'").formatted(pattern));
             }
         }
+        for (String pattern : data.backendPrivateOrEmpty()) {
+            // Refused rather than dropped, for the reason backendOwned is: a dropped entry would serve a key
+            // the manifest calls private.
+            if (pattern == null || !BACKEND_OWNED.matcher(pattern).matches()) {
+                throw new PluginValidationException(
+                        ("data.backendPrivate entry '%s' is not usable: it must be an exact key, a prefix "
+                                + "ending in a single '*', or the bare '*'").formatted(pattern));
+            }
+        }
         validateKeyFloors();
+    }
+
+    /** The grammar of an action name (§7.9), taken from the SDK so the two cannot drift. */
+    private static final java.util.regex.Pattern ACTION_NAME =
+            java.util.regex.Pattern.compile(dev.mosaicast.plugin.api.Actions.NAME_PATTERN);
+
+    /**
+     * Validates the {@code actions} block (§7.9). Every failure rejects the plugin: a dropped name would load
+     * a plugin whose UI calls a function the host then refuses, and a dropped floor would run a podcaster
+     * action for a fan.
+     *
+     * <p>{@code anonymous} is refused because an action runs plugin code on the caller's behalf, and a caller
+     * with no account is one nothing can rate-limit per user or hold to account. A block naming nothing is
+     * refused for the reason an empty {@code tags} block is: it would be a surface that exists and refuses
+     * everything.
+     */
+    private void validateActions() {
+        if (actions == null) {
+            return;
+        }
+        String blockFloor = requireSignedInFloor("actions.callableBy", actions.callableByOrDefault());
+        if (actions.namesOrEmpty().isEmpty()) {
+            throw new PluginValidationException("actions declares no names; list every action the plugin handles");
+        }
+        int blockRank = DATA_ACCESS_ORDER.indexOf(blockFloor);
+        for (Map.Entry<String, ActionDecl> entry : actions.namesOrEmpty().entrySet()) {
+            String name = entry.getKey();
+            if (name == null || !ACTION_NAME.matcher(name).matches()) {
+                throw new PluginValidationException(
+                        "action name '%s' does not match %s".formatted(name, ACTION_NAME.pattern()));
+            }
+            String own = entry.getValue() == null ? null : entry.getValue().floor();
+            if (own == null) {
+                continue;
+            }
+            requireSignedInFloor("actions.names." + name + ".callableBy", own);
+            if (DATA_ACCESS_ORDER.indexOf(own) < blockRank) {
+                throw new PluginValidationException(
+                        ("action '%s' callableBy '%s' is below the block's '%s'; a name can only raise it")
+                                .formatted(name, own, blockFloor));
+            }
+        }
+        requirePositive("actions.perUserPerMinute", actions.perUserPerMinute());
+        requirePositive("actions.perPluginPerMinute", actions.perPluginPerMinute());
+    }
+
+    /** Validates the {@code channels} block (§7.9): a signed-in floor and a usable number. */
+    private void validateChannels() {
+        if (channels == null) {
+            return;
+        }
+        requireSignedInFloor("channels.subscribableBy", channels.subscribableByOrDefault());
+        requirePositive("channels.perUserSubscriptions", channels.perUserSubscriptions());
+    }
+
+    /** A known role that is not {@code anonymous}; returns it for chaining. */
+    private static String requireSignedInFloor(String field, String floor) {
+        if (!KNOWN_DATA_ACCESS.contains(floor)) {
+            throw new PluginValidationException(
+                    "%s '%s' is not one of %s".formatted(field, floor, KNOWN_DATA_ACCESS));
+        }
+        if (ACCESS_ANONYMOUS.equals(floor)) {
+            throw new PluginValidationException(
+                    "%s may not be 'anonymous' — realtime surfaces need a signed-in caller".formatted(field));
+        }
+        return floor;
+    }
+
+    /** Null (ask for the default) or a positive number. */
+    private static void requirePositive(String field, Integer value) {
+        if (value != null && value <= 0) {
+            throw new PluginValidationException("%s must be a positive number, not %d".formatted(field, value));
+        }
     }
 
     /** The rank order of the data-access vocabulary, for comparing floors at load. */

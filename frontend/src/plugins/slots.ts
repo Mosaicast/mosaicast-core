@@ -19,6 +19,8 @@ export interface SlotMount {
   hasIdentity: boolean;
   hasNotifications: boolean;
   hasTranslation: boolean;
+  hasActions: boolean;
+  hasChannels: boolean;
 }
 
 /**
@@ -47,6 +49,8 @@ export function selectMounts(
           hasIdentity: plugin.hasIdentity ?? false,
           hasNotifications: plugin.hasNotifications ?? false,
           hasTranslation: plugin.hasTranslation ?? false,
+          hasActions: plugin.hasActions ?? false,
+          hasChannels: plugin.hasChannels ?? false,
         });
       }
     }

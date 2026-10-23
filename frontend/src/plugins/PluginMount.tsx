@@ -56,6 +56,10 @@ interface PluginMountProps {
    * a provider is configured (§16). The shell never reconstructs those two halves; it is told the answer.
    */
   hasTranslation?: boolean;
+  /** Whether the plugin declares `actions` (§7.9). */
+  hasActions?: boolean;
+  /** Whether the plugin declares `channels` (§7.9). */
+  hasChannels?: boolean;
 }
 
 /** How long a plugin's bundle has to define its element before the tile is given up on. */
@@ -90,6 +94,8 @@ export function PluginMount({
   hasIdentity,
   hasNotifications,
   hasTranslation,
+  hasActions,
+  hasChannels,
 }: PluginMountProps) {
   // Only a page mount is addressed by the URL, so only a page mount reads the query and hash off it. On a
   // card in a slot region that query belongs to the shell's own filters (`ctx.filter`), and subscribing to
@@ -195,6 +201,8 @@ export function PluginMount({
         hasIdentity,
         hasNotifications,
         hasTranslation,
+        hasActions,
+        hasChannels,
         navigateTo,
         consentHas: consent.has,
         consentGranted: consent.granted,
@@ -224,6 +232,8 @@ export function PluginMount({
       hasIdentity,
       hasNotifications,
       hasTranslation,
+      hasActions,
+      hasChannels,
       navigateTo,
       consent.has,
       consent.granted,

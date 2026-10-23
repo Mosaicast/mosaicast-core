@@ -242,6 +242,52 @@ export function AdminPlugins() {
                       : {accessParts(t, floor.readableBy, floor.writableBy)}
                     </p>
                   ))}
+                  {(plugin.access.backendPrivate ?? []).length > 0 && (
+                    <p className="mc-muted">
+                      {(plugin.access.backendPrivate ?? []).map((key, index) => (
+                        <span key={key}>
+                          {index > 0 && ', '}
+                          <code>{key}</code>
+                        </span>
+                      ))}
+                      : {t('admin.plugins.access.private')}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Plugin code a visitor's click runs, and live updates it pushes (§7.9): which names exist,
+                  who may call them, and the budgets the host holds it to. */}
+              {plugin.realtime && (
+                <div className="mc-pluginrow__external">
+                  <p className="mc-pluginrow__storageTitle">{t('admin.plugins.realtime.title')}</p>
+                  {Object.keys(plugin.realtime.actions).length > 0 && (
+                    <p className="mc-muted">
+                      {t('admin.plugins.realtime.actions')}:{' '}
+                      {Object.entries(plugin.realtime.actions).map(([name, role], index) => (
+                        <span key={name}>
+                          {index > 0 && ', '}
+                          <code>{name}</code> ({t(`role.${role}`, role)})
+                        </span>
+                      ))}
+                    </p>
+                  )}
+                  {plugin.realtime.actionsPerUserPerMinute != null && (
+                    <p className="mc-muted">
+                      {t('admin.plugins.realtime.actionLimit', {
+                        perUser: plugin.realtime.actionsPerUserPerMinute,
+                        perPlugin: plugin.realtime.actionsPerPluginPerMinute,
+                      })}
+                    </p>
+                  )}
+                  {plugin.realtime.subscribableBy && (
+                    <p className="mc-muted">
+                      {t('admin.plugins.realtime.channels', {
+                        role: t(`role.${plugin.realtime.subscribableBy}`, plugin.realtime.subscribableBy),
+                        limit: plugin.realtime.subscriptionsPerUser,
+                      })}
+                    </p>
+                  )}
                 </div>
               )}
 

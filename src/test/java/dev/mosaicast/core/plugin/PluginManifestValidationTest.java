@@ -717,6 +717,41 @@ class PluginManifestValidationTest {
      * about slots, storage and config; only {@link #incompatiblePlatformApiIsRejected()} is about the
      * version, and it states its own.
      */
+    @Test
+    void realtimeBlocksThatSayWhatTheyMeanLoad() throws Exception {
+        PluginManifest manifest = parse(withBlocks("""
+                "actions":{"names":{"join":{},"start":{"callableBy":"Podcaster"}},"perUserPerMinute":30},
+                "channels":{"perUserSubscriptions":4},
+                "data":{"writableBy":"podcaster","backendPrivate":["game:*","invites"]}"""));
+        assertThatCode(manifest::validate).doesNotThrowAnyException();
+        assertThat(manifest.declaresActions()).isTrue();
+        assertThat(manifest.actions().floorOf("join")).isEqualTo("fan");
+        assertThat(manifest.actions().floorOf("start")).isEqualTo("podcaster");
+        assertThat(manifest.channels().subscribableByOrDefault()).isEqualTo("fan");
+        assertThat(manifest.data().backendPrivateOrEmpty()).containsExactly("game:*", "invites");
+    }
+
+    @Test
+    void aRealtimeBlockThatCannotMeanWhatItSaysRejectsThePlugin() throws Exception {
+        // §7.9: each would load a plugin whose UI calls something the host then refuses, or that runs plugin
+        // code for somebody the manifest never meant to reach.
+        for (String bad : new String[] {
+                "\"actions\":{\"callableBy\":\"anonymous\",\"names\":{\"a\":{}}}",
+                "\"actions\":{\"names\":{}}",
+                "\"actions\":{}",
+                "\"actions\":{\"names\":{\"Bad_Name\":{}}}",
+                "\"actions\":{\"callableBy\":\"podcaster\",\"names\":{\"a\":{\"callableBy\":\"fan\"}}}",
+                "\"actions\":{\"names\":{\"a\":{\"callableBy\":\"anonymous\"}}}",
+                "\"actions\":{\"names\":{\"a\":{}},\"perUserPerMinute\":0}",
+                "\"channels\":{\"subscribableBy\":\"anonymous\"}",
+                "\"channels\":{\"subscribableBy\":\"admins\"}",
+                "\"channels\":{\"perUserSubscriptions\":-1}",
+                "\"data\":{\"backendPrivate\":[\"a*b\"]}"}) {
+            assertThatThrownBy(parse(withBlocks(bad))::validate).as(bad)
+                    .isInstanceOf(PluginValidationException.class);
+        }
+    }
+
     private PluginManifest parse(String json) throws Exception {
         return mapper.readValue(json.replace("HOST_API", PlatformApi.VERSION), PluginManifest.class);
     }
@@ -779,5 +814,12 @@ class PluginManifestValidationTest {
                 {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
                  "slots":[],"storage":"doc","config":{},"data":%s}
                 """.formatted(data);
+    }
+
+    private static String withBlocks(String blocks) {
+        return """
+                {"id":"p","version":"1.0.0","platformApi":"HOST_API","name":"P",
+                 "slots":[],"storage":"doc","config":{},%s}
+                """.formatted(blocks);
     }
 }

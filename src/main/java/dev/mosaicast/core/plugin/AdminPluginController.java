@@ -43,9 +43,12 @@ public class AdminPluginController {
     private final PluginSettingsService settings;
     private final PluginBlobService blobs;
     private final PluginBlobProperties blobProperties;
+    private final PluginRealtimeProperties realtimeProperties;
 
     public AdminPluginController(PluginLoaderService plugins, PluginSettingsService settings,
-                                 PluginBlobService blobs, PluginBlobProperties blobProperties) {
+                                 PluginBlobService blobs, PluginBlobProperties blobProperties,
+                                 PluginRealtimeProperties realtimeProperties) {
+        this.realtimeProperties = realtimeProperties;
         this.plugins = plugins;
         this.settings = settings;
         this.blobs = blobs;
@@ -213,7 +216,30 @@ public class AdminPluginController {
                 manifest == null ? null : manifest.consent(),
                 blobsOf(manifest, role),
                 externalOf(manifest),
-                accessOf(manifest));
+                accessOf(manifest),
+                realtimeOf(manifest));
+    }
+
+    /**
+     * What the plugin may do at request time and live (§7.9) — every callable action with its effective floor,
+     * whether it pushes events, and the budgets it actually gets — or {@code null} when it declares neither.
+     * Shown because an action is plugin code a visitor's click runs, and an operator should read off this page
+     * which ones exist and who may call them.
+     */
+    private AdminRealtime realtimeOf(PluginManifest manifest) {
+        if (manifest == null || (!manifest.declaresActions() && !manifest.declaresChannels())) {
+            return null;
+        }
+        Map<String, String> actions = new java.util.LinkedHashMap<>();
+        if (manifest.declaresActions()) {
+            manifest.actions().namesOrEmpty().keySet().forEach(name -> actions.put(name, manifest.actions().floorOf(name)));
+        }
+        return new AdminRealtime(
+                actions,
+                manifest.declaresActions() ? realtimeProperties.actionsPerUserPerMinute(manifest) : null,
+                manifest.declaresActions() ? realtimeProperties.actionsPerPluginPerMinute(manifest) : null,
+                manifest.declaresChannels() ? manifest.channels().subscribableByOrDefault() : null,
+                manifest.declaresChannels() ? realtimeProperties.subscriptionsPerUser(manifest) : null);
     }
 
     /**
@@ -237,7 +263,8 @@ public class AdminPluginController {
                 manifest.declaresBlobs() ? manifest.blobWriteFloor() : null,
                 data.keyFloorsOrEmpty().stream()
                         .map(floor -> new AdminKeyFloor(floor.keysOrEmpty(), floor.readFloor(), floor.writeFloor()))
-                        .toList());
+                        .toList(),
+                data.backendPrivateOrEmpty());
     }
 
     /**
@@ -310,10 +337,27 @@ public class AdminPluginController {
      * @param readsAllUsers whether the manifest declares {@code data.readsAllUsers}: the backend may read
      *                every user's per-user data at once (SDK 0.16.0), which an operator should see
      * @param access  who may reach its data, as the host enforces it; null when it failed to load
+     * @param realtime its actions and channels (§7.9); null when it declares neither
      */
     public record AdminPlugin(String id, String status, String reason, String name, String version,
                               boolean enabled, boolean readsAllUsers, Map<String, AdminConfigField> config,
-                              Consent consent, AdminBlobs blobs, AdminExternal external, AdminAccess access) {
+                              Consent consent, AdminBlobs blobs, AdminExternal external, AdminAccess access,
+                              AdminRealtime realtime) {
+    }
+
+    /**
+     * A plugin's realtime surfaces (§7.9), as the host enforces them.
+     *
+     * @param actions              every callable action, in manifest order, with its effective floor; empty
+     *                             when the plugin declares no {@code actions}
+     * @param actionsPerUserPerMinute   the per-caller budget it actually gets, or null without actions
+     * @param actionsPerPluginPerMinute the budget across all callers, or null without actions
+     * @param subscribableBy       who may subscribe to its channels, or null without channels
+     * @param subscriptionsPerUser concurrent subscriptions one user may hold, or null without channels
+     */
+    public record AdminRealtime(Map<String, String> actions, Integer actionsPerUserPerMinute,
+                                Integer actionsPerPluginPerMinute, String subscribableBy,
+                                Integer subscriptionsPerUser) {
     }
 
     /**
@@ -325,9 +369,10 @@ public class AdminPluginController {
      * @param blobRead   who may list and download its files, or null when it stores none
      * @param blobWrite  who may upload and delete them, or null when it stores none
      * @param keyFloors  its {@code data.keyFloors} entries, in manifest order
+     * @param backendPrivate selectors of the keys no client reaches at all (platformApi 0.20.0)
      */
     public record AdminAccess(String dataRead, String dataWrite, String schemaRead, String blobRead,
-                              String blobWrite, List<AdminKeyFloor> keyFloors) {
+                              String blobWrite, List<AdminKeyFloor> keyFloors, List<String> backendPrivate) {
     }
 
     /** One {@code data.keyFloors} entry: its selectors and the floors it raises (null where it raises none). */
