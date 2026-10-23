@@ -39,8 +39,11 @@ public class SiteAccessService implements SignupGate {
     private final SiteAccessRepository repository;
     private final Clock clock;
     private final EdgeHeartbeat heartbeat;
+    private final org.springframework.context.ApplicationEventPublisher events;
 
-    public SiteAccessService(SiteAccessRepository repository, Clock clock, EdgeHeartbeat heartbeat) {
+    public SiteAccessService(SiteAccessRepository repository, Clock clock, EdgeHeartbeat heartbeat,
+                             org.springframework.context.ApplicationEventPublisher events) {
+        this.events = events;
         this.repository = repository;
         this.clock = clock;
         this.heartbeat = heartbeat;
@@ -124,6 +127,8 @@ public class SiteAccessService implements SignupGate {
         access.apply(change.state(), change.opensAt(), change.endsAt(), change.passFloor(),
                 change.staffLoginVisible(), change.signupsWhileClosed(), change.edgeCounting(), now);
         SiteAccess saved = repository.save(access);
+        // The edge checks a request when it starts; an open plugin stream started long ago (§7.9).
+        events.publishEvent(new SiteAccessChangedEvent());
         // Who and what, old → new: closing a site is the kind of change someone asks about a week later.
         log.info("Site access changed by {}: {}", actor, changes.isEmpty() ? "saved unchanged" : String.join(", ", changes));
         return saved;

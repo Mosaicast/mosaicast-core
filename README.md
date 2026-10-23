@@ -306,8 +306,9 @@ their bounds usable), loads the JAR, and calls `register(ctx)`. A bad manifest, 
 **disables only that plugin** — it is recorded as rejected while the host keeps booting (ARCHITECTURE §7.8).
 A plugin an admin switched off is skipped here entirely.
 
-The frontend never calls plugin-authored routes; there are none. Instead the host exposes fixed, generic,
-per-plugin surfaces the plugin's Web Component reaches via `ctx.api` (the doc store) and `ctx.schema` (its
+The frontend never calls plugin-authored routes; there are none. The closest thing is an **action**
+(§7.9): a function the plugin's backend registers, which the host calls on its own fixed endpoint after its
+own checks. Otherwise the host exposes fixed, generic, per-plugin surfaces the plugin's Web Component reaches via `ctx.api` (the doc store) and `ctx.schema` (its
 declared tables, read-only):
 
 ```
@@ -328,6 +329,10 @@ PUT    /api/plugins/{id}/tags/{tag}/subjects/{subjectKey}      # tag your own su
 DELETE /api/plugins/{id}/tags/{tag}/subjects/{subjectKey}      # idempotent; the vocabulary entry stays
 PUT    /api/plugins/{id}/tags/{tag}/episodes/{slug}            # needs `tags.writesEpisodes`; else 403
 DELETE /api/plugins/{id}/tags/{tag}/episodes/{slug}            # removes only this plugin's own row
+POST   /api/plugins/{id}/actions/{name}                        # run a declared action (ctx.actions), signed in
+GET    /api/realtime/stream                                    # the tab's SSE stream for ctx.channels (session only)
+POST   /api/realtime/subscriptions                             # join a plugin channel; the plugin's authorizer decides
+DELETE /api/realtime/subscriptions/{sub}                       # leave it; idempotent
 GET    /api/plugins/manifest                                   # public: active plugins' frontend + slots
 GET    /plugins/{id}/assets/**                                 # the plugin's frontend bundle (ETagged)
 GET    /p/{id}/**                                              # public: the plugin's deep-link page (+ OG tags);
@@ -346,7 +351,9 @@ imply; `visibleTo` governs rendering only. Saying nothing gets the closed answer
 floor, writes to `podcaster`). Two things narrow the floors further: the `user/me` scope is resolved
 server-side, so another person's partition is unnameable rather than merely forbidden; and
 `"data": { "backendOwned": ["stats", "agg:*"] }` reserves the keys a plugin's backend authors — clients read
-them, a client `PUT`/`DELETE` is a 403 with its own problem type. Data is hard-scoped by plugin id — a plugin
+them, a client `PUT`/`DELETE` is a 403 with its own problem type. `"backendPrivate": ["game:*"]` goes
+further: no client reads or writes those keys at all, admins included, which is where a plugin keeps state
+it serves only through its actions. Data is hard-scoped by plugin id — a plugin
 can never see another's.
 
 The tag surface adds one declaration on top of those floors: `"tags": { "readsVocabulary", "writesEpisodes" }`.
@@ -559,6 +566,15 @@ controller) are covered and a flood is refused before it costs a session lookup.
 deployment resolves them to, which on a directly exposed port is caller-supplied — see *Known residuals* in
 [`SECURITY.md`](SECURITY.md) for why that trade beats the alternative, and run behind a proxy that overwrites
 `X-Forwarded-For` if you need a real bound. Counters are per instance until Redis lands in v3.
+
+**Plugin actions and channels (§7.9)** have budgets of their own, because they run plugin code and hold
+connections. Per minute, each person gets 120 action calls per plugin and each plugin 3000 in total; a
+manifest may ask for less, or more up to 600 and 20000. A plugin runs at most 8 calls at once, waits 1 s for
+a free slot (then `503 action-busy`) and has 5 s to answer (then `504 action-timeout`). Each person may hold
+8 open streams (roughly, tabs) and 16 subscriptions per plugin; the instance holds 2000 streams. All of it is
+`mosaicast.plugin-realtime.*` in `application.yml`, each with a `MOSAICAST_…` variable. Streams send a
+heartbeat every 20 s, so a proxy in front needs a read timeout above that and must not buffer
+`text/event-stream` (the edge and its documented nginx config already do both).
 
 ### Related episodes
 

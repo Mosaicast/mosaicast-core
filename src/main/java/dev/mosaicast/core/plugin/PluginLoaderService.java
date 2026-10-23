@@ -61,6 +61,8 @@ public class PluginLoaderService {
     private final PluginDataRepository pluginDataRepository;
     private final dev.mosaicast.core.notification.NotificationService notifications;
     private final PluginNotifyRateLimiter notifyLimiter;
+    private final RealtimeHub realtime;
+    private final PluginTimers timers;
 
     /** Registrations in discovery order, keyed by id; populated once at startup. */
     private final Map<String, PluginRegistration> registrations = new LinkedHashMap<>();
@@ -97,7 +99,7 @@ public class PluginLoaderService {
                                dev.mosaicast.core.auth.UserRepository userRepository,
                                PluginDataRepository pluginDataRepository,
                                dev.mosaicast.core.notification.NotificationService notifications,
-                               PluginNotifyRateLimiter notifyLimiter) {
+                               PluginNotifyRateLimiter notifyLimiter, RealtimeHub realtime, PluginTimers timers) {
         this.properties = properties;
         this.dataService = dataService;
         this.feedAccess = feedAccess;
@@ -114,6 +116,8 @@ public class PluginLoaderService {
         this.pluginDataRepository = pluginDataRepository;
         this.notifications = notifications;
         this.notifyLimiter = notifyLimiter;
+        this.realtime = realtime;
+        this.timers = timers;
     }
 
     /**
@@ -239,6 +243,18 @@ public class PluginLoaderService {
             log.info("Loaded plugin '{}' ({} backend(s))", pluginId, backends.size());
         } catch (Exception e) {
             String id = manifest != null && manifest.id() != null ? manifest.id() : fallbackId;
+            // A register() that threw may already have wired handlers or armed timers; a rejected plugin keeps
+            // none of it running.
+            PluginContextImpl half = contexts.remove(id);
+            if (half != null) {
+                if (half.actions() != null) {
+                    half.actions().clear();
+                }
+                if (half.channels() != null) {
+                    half.channels().clear();
+                }
+                timers.cancelAll(id);
+            }
             register(PluginRegistration.rejected(id, e.getMessage(), manifest, folder));
             log.warn("Rejected plugin '{}': {}", id, e.getMessage());
         }
@@ -286,8 +302,11 @@ public class PluginLoaderService {
         dev.mosaicast.plugin.api.CrossUserStore allUsers = manifest.declaresReadsAllUsers()
                 ? new CrossUserStoreImpl(manifest.id(), dataService)
                 : null;
+        // Realtime (§7.9): declared or absent, like everything above. Timers are ungated.
+        ActionsImpl actions = manifest.declaresActions() ? new ActionsImpl(manifest) : null;
+        ChannelsImpl channels = manifest.declaresChannels() ? realtime.channelsFor(manifest.id()) : null;
         return new PluginContextImpl(manifest.id(), store, schema, blobs, tags, users, notifier, allUsers, config,
-                feedAccess, locales, translation, scheduler);
+                feedAccess, locales, translation, scheduler, actions, channels, timers);
     }
 
     /**
@@ -406,6 +425,11 @@ public class PluginLoaderService {
     /** The contexts of every loaded, switched-on plugin — a switched-off one hears no releases. */
     List<PluginContextImpl> activeContexts() {
         return allActive().stream().map(r -> contexts.get(r.id())).filter(java.util.Objects::nonNull).toList();
+    }
+
+    /** The action handlers a plugin's backend registered — the same reasoning as {@link #usersOf}. */
+    Optional<ActionsImpl> actionsOf(String id) {
+        return active(id).map(r -> contexts.get(r.id())).map(PluginContextImpl::actions);
     }
 
     /** The notifier a plugin's backend was given — the same reasoning as {@link #usersOf}. */

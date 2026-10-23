@@ -67,6 +67,18 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     /**
+     * A doc-store key the plugin keeps from every client ({@code data.backendPrivate}, platformApi 0.20.0). Its
+     * own {@code type}, like the two key-level refusals around it; see {@link BackendPrivateKeyException}.
+     */
+    @ExceptionHandler(BackendPrivateKeyException.class)
+    public ProblemDetail handleBackendPrivateKey(BackendPrivateKeyException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        problem.setTitle("Forbidden");
+        problem.setType(URI.create("https://mosaicast.dev/problems/backend-private-key"));
+        return problem;
+    }
+
+    /**
      * The third doc-store 403: a key whose {@code data.keyFloors} entry is above the caller (core#259). Its own
      * {@code type}, like the backend-owned one, so a plugin tells "your role is too low for this plugin" from
      * "too low for this key" without matching English.
@@ -169,11 +181,40 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     }
 
     @ExceptionHandler(TooManyRequestsException.class)
-    public ProblemDetail handleTooManyRequests(TooManyRequestsException ex, WebRequest request) {
+    public ResponseEntity<ProblemDetail> handleTooManyRequests(TooManyRequestsException ex, WebRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
         problem.setTitle("Too Many Requests");
         problem.setType(URI.create("https://mosaicast.dev/problems/too-many-requests"));
-        return problem;
+        return withRetryAfter(ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS), problem, ex.retryAfter());
+    }
+
+    /**
+     * A plugin action the host answered itself (§7.9) — each case with its own status and slug, the plugin's
+     * rejection {@code code} and a retry hint as top-level members where they apply, so a plugin UI can word
+     * the first and back off on the second without parsing English.
+     */
+    @ExceptionHandler(PluginCallRefusedException.class)
+    public ResponseEntity<ProblemDetail> handlePluginCallRefused(PluginCallRefusedException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+        problem.setTitle(ex.status().getReasonPhrase());
+        if (ex.slug() != null) {
+            problem.setType(URI.create("https://mosaicast.dev/problems/" + ex.slug()));
+        }
+        if (ex.code() != null) {
+            problem.setProperty("code", ex.code());
+        }
+        return withRetryAfter(ResponseEntity.status(ex.status()), problem, ex.retryAfter());
+    }
+
+    /** Adds {@code Retry-After} (whole seconds, at least one) and {@code retryAfterMs} when there is an answer. */
+    private static ResponseEntity<ProblemDetail> withRetryAfter(ResponseEntity.BodyBuilder response,
+                                                                ProblemDetail problem, java.time.Duration retryAfter) {
+        if (retryAfter != null) {
+            long millis = Math.max(1, retryAfter.toMillis());
+            problem.setProperty("retryAfterMs", millis);
+            response.header("Retry-After", String.valueOf(Math.max(1, (millis + 999) / 1000)));
+        }
+        return response.body(problem);
     }
 
     /**

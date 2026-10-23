@@ -21,6 +21,12 @@ export interface ProblemBody {
    * `detail` stays the English fallback (core#192).
    */
   code?: string;
+  /**
+   * How long to wait before trying again, in milliseconds — on a 429 `too-many-requests` or a busy plugin's
+   * 503 `action-busy` (§7.9). Filled from the `Retry-After` header when the body has none, so one field is
+   * what every caller backs off on.
+   */
+  retryAfterMs?: number;
 }
 
 /**
@@ -146,6 +152,10 @@ async function failure(response: Response): Promise<ApiError> {
     problem = (await response.json()) as ProblemBody;
   } catch {
     /* no/!json body */
+  }
+  const retryAfter = Number(response.headers?.get?.('Retry-After'));
+  if (problem && problem.retryAfterMs === undefined && Number.isFinite(retryAfter) && retryAfter > 0) {
+    problem = { ...problem, retryAfterMs: retryAfter * 1000 };
   }
   const detail = problem?.detail ?? problem?.title;
   const message = detail || response.statusText || `HTTP ${response.status}`;

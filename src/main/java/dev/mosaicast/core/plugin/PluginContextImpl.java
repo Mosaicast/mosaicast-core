@@ -37,6 +37,9 @@ public class PluginContextImpl implements PluginContext {
     private final dev.mosaicast.plugin.api.Locales locales;
     private final dev.mosaicast.plugin.api.Translation translation;
     private final PluginScheduler scheduler;
+    private final ActionsImpl actions;
+    private final ChannelsImpl channels;
+    private final PluginTimers timers;
     private int scheduleCount;
 
     public PluginContextImpl(String pluginId, DocStore store, SchemaStore schema,
@@ -46,7 +49,8 @@ public class PluginContextImpl implements PluginContext {
                              PluginConfig config,
                              FeedAccess feeds, dev.mosaicast.plugin.api.Locales locales,
                              dev.mosaicast.plugin.api.Translation translation,
-                             PluginScheduler scheduler) {
+                             PluginScheduler scheduler, ActionsImpl actions, ChannelsImpl channels,
+                             PluginTimers timers) {
         this.pluginId = pluginId;
         this.store = store;
         this.schema = schema;
@@ -60,6 +64,37 @@ public class PluginContextImpl implements PluginContext {
         this.locales = locales;
         this.translation = translation;
         this.scheduler = scheduler;
+        this.actions = actions;
+        this.channels = channels;
+        this.timers = timers;
+    }
+
+    /**
+     * Request-time calls into this backend, or {@code null} for a plugin whose manifest declares no
+     * {@code actions} block (§7.9) — the same null-means-not-declared shape as {@link #notifier()}.
+     */
+    @Override
+    public ActionsImpl actions() {
+        return actions;
+    }
+
+    /**
+     * Live events to subscribed browsers, or {@code null} for a plugin whose manifest declares no
+     * {@code channels} block (§7.9).
+     */
+    @Override
+    public ChannelsImpl channels() {
+        return channels;
+    }
+
+    /**
+     * One run of {@code task} after {@code delay}, in memory, below the {@code onSchedule} floor (§7.9).
+     * Ungated: it grants nothing a plugin's own thread could not, and the host would rather the turn clock ran
+     * on a budget it can see and cancel.
+     */
+    @Override
+    public dev.mosaicast.plugin.api.Scheduled runAfter(Duration delay, Runnable task) {
+        return timers.schedule(pluginId, delay, task);
     }
 
     @Override

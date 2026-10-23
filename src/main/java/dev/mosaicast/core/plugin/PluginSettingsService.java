@@ -92,6 +92,10 @@ public class PluginSettingsService {
             // it can be settled. Published rather than called: the erasure service reaches the plugin
             // loader, which reaches this class, and a direct call would close that circle.
             events.publishEvent(new PluginEnabledEvent(pluginId));
+        } else {
+            // What is already running for it — channel subscriptions, pending timers (§7.9) — does not ask
+            // `active(id)` the way a request does, so it has to be told.
+            events.publishEvent(new PluginDisabledEvent(pluginId));
         }
     }
 

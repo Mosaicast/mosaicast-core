@@ -1,0 +1,58 @@
+{
+  "id": "realtime",
+  "version": "1.0.0",
+  "platformApi": "0.20.0",
+  "name": "Realtime Fixture",
+  "backend": {
+    "basePath": "/api/plugins/realtime",
+    "extensions": [
+      "dev.mosaicast.plugin.fixture.FixturePlugin"
+    ]
+  },
+  "frontend": {
+    "entry": "fixture.js",
+    "elements": [
+      "fixture-card"
+    ]
+  },
+  "slots": [
+    {
+      "scope": "site",
+      "element": "fixture-card",
+      "placement": "main",
+      "visibleTo": "anonymous"
+    }
+  ],
+  "storage": "doc",
+  "data": {
+    "readableBy": "anonymous",
+    "writableBy": "fan",
+    "backendPrivate": [
+      "rt:*"
+    ]
+  },
+  "config": {},
+  "actions": {
+    "callableBy": "fan",
+    "names": {
+      "echo": {},
+      "nothing": {},
+      "number": {},
+      "whoami": {},
+      "reject": {},
+      "boom": {},
+      "slow": {},
+      "publish": {},
+      "kick": {},
+      "timer": {},
+      "unwired": {},
+      "boss": {
+        "callableBy": "podcaster"
+      }
+    }
+  },
+  "channels": {
+    "subscribableBy": "fan",
+    "perUserSubscriptions": 3
+  }
+}

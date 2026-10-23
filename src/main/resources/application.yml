@@ -164,6 +164,30 @@ mosaicast:
     hard-per-user-per-day: ${MOSAICAST_PLUGIN_NOTIFY_HARD:20}
     # The most recipients one call may reach — a page of a leaderboard, not a mailing list.
     max-batch: ${MOSAICAST_PLUGIN_NOTIFY_MAX_BATCH:200}
+  # Plugin actions and channels (ARCHITECTURE §7.9). `default-`/`hard-` pairs work as above: what a plugin gets
+  # when its manifest names no number, and the ceiling none can reach past. The rest is the host's alone.
+  plugin-realtime:
+    default-actions-per-user-per-minute: ${MOSAICAST_PLUGIN_ACTIONS_PER_USER:120}
+    hard-actions-per-user-per-minute: ${MOSAICAST_PLUGIN_ACTIONS_PER_USER_HARD:600}
+    default-actions-per-plugin-per-minute: ${MOSAICAST_PLUGIN_ACTIONS_PER_PLUGIN:3000}
+    hard-actions-per-plugin-per-minute: ${MOSAICAST_PLUGIN_ACTIONS_PER_PLUGIN_HARD:20000}
+    # Plugin code one plugin may run at once — and so the request threads one plugin can ever hold.
+    action-concurrency: ${MOSAICAST_PLUGIN_ACTION_CONCURRENCY:8}
+    action-queue-wait: ${MOSAICAST_PLUGIN_ACTION_QUEUE_WAIT:1s}
+    action-deadline: ${MOSAICAST_PLUGIN_ACTION_DEADLINE:5s}
+    default-subscriptions-per-user: ${MOSAICAST_PLUGIN_SUBSCRIPTIONS_PER_USER:16}
+    hard-subscriptions-per-user: ${MOSAICAST_PLUGIN_SUBSCRIPTIONS_PER_USER_HARD:64}
+    subscribes-per-user-per-minute: ${MOSAICAST_REALTIME_SUBSCRIBES_PER_USER:120}
+    streams-per-user: ${MOSAICAST_REALTIME_STREAMS_PER_USER:8}
+    streams-per-instance: ${MOSAICAST_REALTIME_STREAMS:2000}
+    # Under the read timeout of anything in front: the documented nginx config gives a stream 60 s.
+    heartbeat: ${MOSAICAST_REALTIME_HEARTBEAT:20s}
+    stream-timeout: ${MOSAICAST_REALTIME_STREAM_TIMEOUT:1h}
+    resume-grace: ${MOSAICAST_REALTIME_RESUME_GRACE:30s}
+    replay-events: ${MOSAICAST_REALTIME_REPLAY_EVENTS:256}
+    replay-age: ${MOSAICAST_REALTIME_REPLAY_AGE:30s}
+    send-queue: ${MOSAICAST_REALTIME_SEND_QUEUE:512}
+    max-pending-timers: ${MOSAICAST_PLUGIN_MAX_TIMERS:1000}
   # The notification inbox (ARCHITECTURE §17.2). An inbox nobody empties is not a feature, and an
   # unbounded one is a table that only grows — so read notifications expire and unread ones are capped.
   notifications:

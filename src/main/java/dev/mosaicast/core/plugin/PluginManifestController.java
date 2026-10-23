@@ -38,7 +38,8 @@ public class PluginManifestController {
                         !m.schemaEntities().isEmpty(), m.declaresBlobs(), m.declaresTags(),
                         m.writesEpisodeTags(), m.declaresIdentity(), m.declaresNotifications(),
                         hasTranslation(m),
-                        m.license(), m.author(), m.homepage(), m.attribution()))
+                        m.license(), m.author(), m.homepage(), m.attribution(),
+                        m.declaresActions(), m.declaresChannels()))
                 .toList();
     }
 
@@ -122,11 +123,15 @@ public class PluginManifestController {
      * @param author    who the plugin credits as its author, or {@code null}
      * @param homepage  the plugin's own page, or {@code null}
      * @param attribution whoever else the plugin wants to credit, or {@code null}
+     * @param hasActions  whether the shell hands this plugin a {@code ctx.actions} client (§7.9) — declaration
+     *                  alone; who may call which name is the action endpoint's to decide
+     * @param hasChannels whether the shell hands this plugin a {@code ctx.channels} client (§7.9)
      */
     public record PublicPlugin(String id, String name, String version, Frontend frontend, List<Slot> slots,
                                boolean hasSchema, boolean hasBlobs, boolean hasTags,
                                boolean tagsWriteEpisodes, boolean hasIdentity, boolean hasNotifications,
                                boolean hasTranslation,
-                               String license, String author, String homepage, String attribution) {
+                               String license, String author, String homepage, String attribution,
+                               boolean hasActions, boolean hasChannels) {
     }
 }

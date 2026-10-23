@@ -4,6 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { api, onUnauthorized } from '../api/client';
+import { onAccessChanged } from '../realtime/stream';
 import type { MeView } from '../api/types';
 
 /**
@@ -76,6 +77,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }),
     [refresh],
   );
+
+  // The host ended plugin live updates because access changed — signed out elsewhere, a new role, the site
+  // closing (§7.9). Re-reading who is signed in hands every plugin a fresh `ctx` with the right role.
+  useEffect(() => onAccessChanged(() => void refresh()), [refresh]);
 
   return (
     <UserContext.Provider value={{ user, loading, refresh, logout }}>{children}</UserContext.Provider>
