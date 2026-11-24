@@ -45,6 +45,9 @@ REPO_SPEC='^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+(@.+)?$'
 
 PLUGINS_DIR="${MOSAICAST_PLUGINS_DIR:-./plugins}"
 FORCE=0
+# `--skip-existing` is the container's restart mode: a spec already installed is left alone, and a folder the
+# installer put there for a different spec is replaced, so upgrading is bumping the tag and restarting. A
+# folder without the marker below was placed by hand and is still refused; only `--force` replaces that.
 SKIP_EXISTING=0
 # Installing a plugin is installing in-process, unsandboxed code (ARCHITECTURE §7.1), so the default is
 # "verified or not at all": a spec without `#sha256:` is refused unless the operator says `--unverified`
@@ -58,9 +61,28 @@ ALLOW_UNVERIFIED=0
 # tarball just to discover it already had them.
 MARKER=".mosaicast-install"
 
-die() { printf '✗ %s\n' "$*" >&2; exit 1; }
+# Plugin ids this run has installed or found installed, space-delimited. With replacement allowed, two specs
+# naming the same plugin would otherwise take turns overwriting each other on every start.
+CLAIMED=" "
+
+# The spec being installed, named in every failure: one run takes several specs, and most messages
+# (a checksum mismatch, a missing plugin.json) would not say which one they are about.
+CURRENT_SPEC=""
+
+die() {
+    printf '✗ %s\n' "$*" >&2
+    [ -z "$CURRENT_SPEC" ] || printf '  while installing %s\n' "$CURRENT_SPEC" >&2
+    exit 1
+}
 info() { printf '▶ %s\n' "$*"; }
 ok() { printf '✅ %s\n' "$*"; }
+
+claim() {
+    case "$CLAIMED" in
+        *" $1 "*) die "two specs install the same plugin '$1'. Keep one of them." ;;
+    esac
+    CLAIMED="$CLAIMED$1 "
+}
 
 usage() {
     sed -n '5,30p' "$0" | sed 's/^# \{0,1\}//'
@@ -188,7 +210,10 @@ already_installed() {
     local spec="$1" marker
     for marker in "$PLUGINS_DIR"/*/"$MARKER"; do
         [ -f "$marker" ] || continue
-        [ "$(cat "$marker")" = "$spec" ] && return 0
+        if [ "$(cat "$marker")" = "$spec" ]; then
+            claim "$(basename "$(dirname "$marker")")"
+            return 0
+        fi
     done
     return 1
 }
@@ -258,9 +283,15 @@ place() {
         */*|.*|*..*) die "refusing an id that is not a plain folder name: '$id'" ;;
     esac
 
+    claim "$id"
+
     local target="$PLUGINS_DIR/$id"
     if [ -e "$target" ] && [ "$FORCE" -ne 1 ]; then
-        die "$target already exists. Re-run with --force to replace it."
+        if [ "$SKIP_EXISTING" -eq 1 ] && [ -f "$target/$MARKER" ]; then
+            info "replacing $(cat "$target/$MARKER") with $spec"
+        else
+            die "$target already exists. Re-run with --force to replace it."
+        fi
     fi
 
     mkdir -p "$PLUGINS_DIR"
@@ -274,8 +305,10 @@ place() {
 }
 
 for spec in "${SPECS[@]}"; do
+    CURRENT_SPEC="$spec"
     install_one "$spec"
 done
+CURRENT_SPEC=
 
 # Printed by the container's entrypoint too, where Mosaicast has not started yet, so it must not read as an
 # instruction to restart: it is one only for an instance that is already running.

@@ -18,8 +18,10 @@
 # later as a broken page rather than as the deploy error it actually is.
 #
 # Already-installed plugins are left alone: the plugins directory is a mounted volume, so a restart must not
-# re-download what is already there, and must never overwrite something an operator placed by hand. Pass
-# `MOSAICAST_PLUGINS_REPLACE=true` to reinstall on every start (useful when a tag moves; wasteful otherwise).
+# re-download what is already there, and must never overwrite something an operator placed by hand. A spec
+# that changed (a new tag and digest) replaces the folder the installer made for the old one, so upgrading a
+# plugin is editing MOSAICAST_PLUGINS and restarting. Pass `MOSAICAST_PLUGINS_REPLACE=true` to reinstall on
+# every start (useful when a tag moves; wasteful otherwise).
 
 set -euo pipefail
 
@@ -53,16 +55,16 @@ if [ -n "${SPECS//[[:space:],]/}" ]; then
     # shellcheck disable=SC2206
     SPEC_LIST=(${SPECS//,/ })
     echo "▶ MOSAICAST_PLUGINS: ${#SPEC_LIST[@]} plugin spec(s) to resolve"
-    for spec in "${SPEC_LIST[@]}"; do
-        /app/bin/install-plugin.sh --dir "$PLUGINS_DIR" ${FORCE[@]+"${FORCE[@]}"} \
-            ${UNVERIFIED[@]+"${UNVERIFIED[@]}"} "$spec" || {
-            echo "✗ could not install '$spec' — refusing to start without a plugin that was asked for." >&2
-            echo "  Fix the spec, or remove it from MOSAICAST_PLUGINS to start without it." >&2
-            echo "  An unpinned spec is now refused: add '#sha256:<digest>', or set" >&2
-            echo "  MOSAICAST_PLUGINS_ALLOW_UNVERIFIED=true to keep the previous behaviour." >&2
-            exit 1
-        }
-    done
+    # One run for all specs, so the installer sees every spec at once and can refuse two that install the
+    # same plugin, which would otherwise replace each other on every start.
+    /app/bin/install-plugin.sh --dir "$PLUGINS_DIR" ${FORCE[@]+"${FORCE[@]}"} \
+        ${UNVERIFIED[@]+"${UNVERIFIED[@]}"} "${SPEC_LIST[@]}" || {
+        echo "✗ could not install the plugin named above — refusing to start without a plugin that was asked for." >&2
+        echo "  Fix the spec, or remove it from MOSAICAST_PLUGINS to start without it." >&2
+        echo "  An unpinned spec is now refused: add '#sha256:<digest>', or set" >&2
+        echo "  MOSAICAST_PLUGINS_ALLOW_UNVERIFIED=true to keep the previous behaviour." >&2
+        exit 1
+    }
 fi
 
 exec java -jar /app/app.jar "$@"
