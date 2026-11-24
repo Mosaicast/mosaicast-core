@@ -14,6 +14,16 @@ All notable changes to **mosaicast-core** are documented here. The format follow
 
 ### Fixed
 
+- **Live plugin updates arrive behind a default nginx (`0.11.2`).** nginx buffers proxied responses unless
+  told otherwise, so behind a hosting panel's nginx (Plesk, for one) a plugin's live events only showed after
+  a reload. The realtime stream now sends `X-Accel-Buffering: no` and `Cache-Control: …, no-transform`.
+- **Upgrading a pinned plugin no longer stops the container (`0.11.2`).** Changing a spec in
+  `MOSAICAST_PLUGINS` to a new tag and digest made the installer refuse the existing folder, and the
+  container exited. A folder the installer made for an older spec is now replaced, with a log line naming
+  both; a folder placed by hand is still refused. Two specs that install the same plugin are refused
+  outright, since they would otherwise replace each other on every start. The installer has tests now, run
+  in CI.
+
 - **A plugin's first channel events reach the subscriber that caused them (`0.11.1`, §7.9).** An event published
   as a subscription was admitted (from the plugin's `onJoin`, typically a presence list) could reach the tab
   before the subscribe request returned its id, and the shell dropped it. The shell now holds such events

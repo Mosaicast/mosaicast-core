@@ -52,6 +52,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew --no-daemon build
 
+      # The container's entrypoint runs this installer before the JVM starts, so a regression in it is a
+      # container that won't start. Offline: the tests install local tarballs.
+      - name: Plugin installer tests
+        run: scripts/install-plugin.test.sh
+
       # A number, printed where anyone reading the run can see it. Not a gate: a threshold picked today
       # would either sit below where the suite already is, and measure nothing, or fail builds for work
       # unrelated to it (core#190).

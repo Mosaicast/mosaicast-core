@@ -10,6 +10,7 @@ import dev.mosaicast.plugin.api.ChannelRef;
 import dev.mosaicast.plugin.api.Role;
 import dev.mosaicast.plugin.api.Scope;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import java.time.Instant;
 import java.util.Map;
@@ -62,11 +63,21 @@ public class RealtimeController {
         this.properties = properties;
     }
 
+    /**
+     * Opens or resumes the tab's stream. The response asks any proxy in front not to hold it back: nginx
+     * buffers proxied responses by default and honours {@code X-Accel-Buffering} per response, so a stock
+     * nginx (a hosting panel's, a distro's) streams without extra config; {@code no-transform} keeps a
+     * compressing proxy from waiting for a body that never ends.
+     */
     @GetMapping(value = "/api/realtime/stream", produces = "text/event-stream")
     public SseEmitter stream(@RequestHeader(value = "Last-Event-ID", required = false) String lastEventId,
-                             HttpServletRequest request, Authentication authentication) {
+                             HttpServletRequest request, HttpServletResponse response,
+                             Authentication authentication) {
         Signed signed = signed(request, authentication);
-        return hub.open(signed.userId(), signed.role(), signed.sessionId(), lastEventId);
+        SseEmitter emitter = hub.open(signed.userId(), signed.role(), signed.sessionId(), lastEventId);
+        response.setHeader("X-Accel-Buffering", "no");
+        response.setHeader("Cache-Control", "no-cache, no-store, no-transform");
+        return emitter;
     }
 
     /** The subscribe request; {@code scope} as in an action call. */

@@ -422,6 +422,9 @@ MOSAICAST_PLUGINS: "Mosaicast/mosaicast-plugin-wiki@v1.0.0#sha256:abc123…"
 Restarts are idempotent — an already-installed spec is skipped without re-downloading — and an
 **unresolvable spec fails the container** rather than booting without a plugin you asked for. The runtime
 image resolves prebuilt tarballs only; it has no git or JDK, and says so rather than failing obscurely.
+To upgrade a plugin, change its tag and digest and restart: the folder installed for the old spec is
+replaced. A folder you placed by hand is never replaced, and two specs installing the same plugin id fail
+the container.
 
 > **Pin a tag *and* a checksum.** A plugin is trusted, in-process, unsandboxed code (ARCHITECTURE §7.1) —
 > the installer does not change that trust model, it just makes acting on it one env var away. An unpinned
@@ -605,7 +608,9 @@ a free slot (then `503 action-busy`) and has 5 s to answer (then `504 action-tim
 8 open streams (roughly, tabs) and 16 subscriptions per plugin; the instance holds 2000 streams. All of it is
 `mosaicast.plugin-realtime.*` in `application.yml`, each with a `MOSAICAST_…` variable. Streams send a
 heartbeat every 20 s, so a proxy in front needs a read timeout above that and must not buffer
-`text/event-stream` (the edge and its documented nginx config already do both).
+`text/event-stream`. The stream sends `X-Accel-Buffering: no`, so a default nginx (a hosting panel's
+included) streams it as is; another buffering proxy needs buffering turned off for it. The edge already
+does both.
 
 ### Related episodes
 

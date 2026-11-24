@@ -231,6 +231,20 @@ class RealtimeStreamIntegrationTest {
     }
 
     @Test
+    void theStreamAsksProxiesNotToBufferIt() throws Exception {
+        HttpResponse<Stream<String>> response = http.send(HttpRequest.newBuilder(uri("/api/realtime/stream"))
+                .header("Cookie", fan.session() + "; " + fan.xsrf())
+                .header("Accept", "text/event-stream")
+                .GET().build(), HttpResponse.BodyHandlers.ofLines());
+        try (Stream<String> body = response.body()) {
+            assertThat(response.statusCode()).isEqualTo(200);
+            assertThat(response.headers().firstValue("X-Accel-Buffering")).hasValue("no");
+            assertThat(response.headers().allValues("Cache-Control")).singleElement().asString()
+                    .contains("no-cache").contains("no-transform");
+        }
+    }
+
+    @Test
     void aTokenCannotOpenAStream() throws Exception {
         ResponseEntity<String> created = rest.exchange("/api/me/tokens", HttpMethod.POST,
                 new HttpEntity<>("{\"name\":\"stream test\"}", writeHeaders(podcaster)), String.class);
